@@ -52,7 +52,7 @@ body{font-family:var(--fb);background:var(--bg);color:var(--t1);line-height:1.7;
 .nav-links a{text-decoration:none;color:var(--t2);font-size:.9rem;font-weight:500;transition:color .3s}
 .nav-links a:hover{color:var(--t1)}
 .nav-cta{display:flex;align-items:center;gap:16px}
-.nav-tog{display:none;background:none;border:none;cursor:pointer;padding:8px}
+.nav-tog{display:none;background:none;border:none;cursor:pointer;padding:12px;min-width:44px;min-height:44px;position:relative;z-index:1001}
 .nav-tog span{display:block;width:24px;height:2px;background:var(--t1);margin:6px 0;border-radius:2px}
 
 /* HERO */
@@ -351,12 +351,12 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 <a href="https://ro.am/J0B-D0X/" class="btn btn-s btn-sm desktop-contact">Contact Us</a>
 <a href="https://trial.job-dox.com/" class="btn btn-p btn-sm">Start Free Trial</a>
 </div>
-<button class="nav-tog" id="navToggle" aria-label="Menu"><span></span><span></span><span></span></button>
+<button class="nav-tog" id="navToggle" aria-label="Menu" onclick="document.getElementById('mobileMenu').classList.add('active')"><span></span><span></span><span></span></button>
 </div></nav>
 
 <!-- Mobile -->
 <div class="mob-m" id="mobileMenu">
-<button class="mob-x" id="mobileClose">&times;</button>
+<button class="mob-x" id="mobileClose" onclick="document.getElementById('mobileMenu').classList.remove('active')">&times;</button>
 <a href="#roi" onclick="closeMobile()">ROI</a><a href="#features" onclick="closeMobile()">Features</a><a href="#ai" onclick="closeMobile()">Operations AI</a><a href="#industries" onclick="closeMobile()">Industries</a><a href="#pricing" onclick="closeMobile()">Pricing</a><a href="#team" onclick="closeMobile()">Team</a><a href="blog.html" onclick="closeMobile()">Blog</a>
 <a href="https://ro.am/J0B-D0X/" onclick="closeMobile()">Contact Us</a>
 <a href="tel:+18889839834" onclick="closeMobile()" style="color:var(--rb)">📞 888-983-9834</a>
@@ -703,7 +703,7 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 <div class="ft-so"><a href="https://www.youtube.com/@Job-Dox" class="ft-s" aria-label="YouTube">▶</a><a href="https://www.instagram.com/job_dox/" class="ft-s" aria-label="Instagram">📷</a><a href="https://www.youtube.com/channel/UCgIgnfkhqY7Td5cPECo5IAQ" class="ft-s" aria-label="Podcast" title="AI on the Job Podcast">🎙</a></div>
 </div>
 <div class="ft-c"><h4>Product</h4><ul><li><a href="#features">Features</a></li><li><a href="#ai">AI & Intelligence</a></li><li><a href="#pricing">Pricing</a></li><li><a href="#industries">Industry Solutions</a></li><li><a href="integrations.html">Integrations</a></li></ul></div>
-<div class="ft-c"><h4>Company</h4><ul><li><a href="#team">About Us</a></li><li><a href="https://ro.am/J0B-D0X/">Contact</a></li><li><a href="https://www.youtube.com/channel/UCgIgnfkhqY7Td5cPECo5IAQ" style="color:var(--rb)">🎙 AI on the Job Podcast</a></li><li><a href="partners.html">Partners</a></li><li><a href="support.html">Support</a></li><li><a href="faqs.html">FAQs</a></li></ul></div>
+<div class="ft-c"><h4>Company</h4><ul><li><a href="#team">About Us</a></li><li><a href="https://ro.am/J0B-D0X/">Contact</a></li><li><a href="https://www.youtube.com/channel/UCgIgnfkhqY7Td5cPECo5IAQ" style="color:var(--rb)">🎙 AI on the Job Podcast</a></li><li><a href="partners.html">Partners</a></li><li><a href="support.html">Support</a></li><li><a href="faq.html">FAQs</a></li></ul></div>
 <div class="ft-c"><h4>Get in Touch</h4><ul><li><a href="tel:+18889839834">1.888.983.9834</a></li><li><a href="mailto:info@job-dox.com">info@job-dox.com</a></li><li><a href="https://goo.gl/maps/2rhBhPP46XRPknvz9">Lewisville, TX</a></li></ul><div style="margin-top:24px"><a href="https://trial.job-dox.com/" class="btn btn-p btn-sm" style="width:100%;justify-content:center">Free Trial</a></div></div>
 </div>
 <div class="ft-b"><p>&copy; 2026 Job-Dox. All rights reserved.</p><div class="ft-bl"><a href="privacy-policy.html">Privacy Policy</a><a href="terms-conditions.html">Terms & Conditions</a></div></div>
