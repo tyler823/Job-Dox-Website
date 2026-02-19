@@ -774,4 +774,8 @@ revInput.addEventListener('blur',function(){
 });
 
 // Animate charts on scroll
-const co=new IntersectionO
+const co=new IntersectionObserver(e=>{e.forEach(en=>{if(en.isIntersecting){en.target.querySelectorAll('.ann-b,.stacked-bar').forEach(b=>b.classList.remove('anim'));en.target.querySelectorAll('.roi-bar').forEach(b=>b.classList.remove('anim'))}})},{threshold:.2});
+document.querySelectorAll('.roi-charts').forEach(el=>{el.querySelectorAll('.ann-b,.stacked-bar,.roi-bar').forEach(b=>b.classList.add('anim'));co.observe(el)});
+</script>
+</body>
+</html>
