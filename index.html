@@ -306,6 +306,14 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;bac
 .ft-bl a{font-size:.82rem;color:var(--t3);text-decoration:none;transition:color .3s}
 .ft-bl a:hover{color:var(--t2)}
 
+/* BULLET LISTS IN CARDS */
+.ai-f ul,.fc ul{list-style:none;padding:0;margin:0}
+.ai-f li,.fc li{position:relative;padding-left:18px;font-size:.9rem;color:var(--t2);line-height:1.6;margin-bottom:4px}
+.ai-f li::before,.fc li::before{content:'→';position:absolute;left:0;color:var(--rb);font-size:.8rem}
+.ssub ul{list-style:none;padding:0;margin:12px 0 0}
+.ssub li{position:relative;padding-left:20px;margin-bottom:6px}
+.ssub li::before{content:'✓';position:absolute;left:0;color:var(--gr);font-weight:700}
+
 /* PHILOSOPHICAL PROBLEM */
 .phil-s{padding:80px 0;background:linear-gradient(180deg,var(--bg),var(--bg2));text-align:center;position:relative;overflow:hidden}
 .phil-s::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(220,38,38,.04),transparent 70%)}
@@ -489,7 +497,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <span class="slabel">The Operations Intelligence Edge</span>
 <div class="roi-big">$52,750</div>
 <div class="roi-sub">Total annual impact for a 10-person team earning $1M — savings and new profit combined.</div>
-<p class="ssub">The average contractor loses $127K/year on jobs they can't see. Job-Dox attacks your bottom line from two sides: it saves every employee 15 minutes per day on wasted admin time, and its AI-powered billing tools recover an average of 21% more profit through better invoicing, fewer missed charges, and smarter job costing.</p>
+<p class="ssub">The average contractor loses $127K/year on jobs they can't see. Job-Dox attacks your bottom line from two sides:
+<ul>
+<li>Saves every employee <strong>15 min/day</strong> on wasted admin time</li>
+<li>Recovers <strong>21% more profit</strong> through smarter invoicing</li>
+<li>Catches missed charges and budget overruns <strong>before</strong> they cost you</li>
+</ul>
+</p>
 
 <div class="roi-math-grid">
 <div class="roi-math save-math">
@@ -617,12 +631,19 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <div class="reveal">
 <span class="slabel">Operations Intelligence</span>
 <h2 class="stitle">AI That Speaks Contractor,<br>Not Consultant.</h2>
-<p class="ssub">Your data already knows what's wrong — Job-Dox helps you see it. Our AI doesn't require an IT department or a PhD. It does practical things: auto-generates tasks, flags overdue milestones, predicts job completion dates, and catches budget overruns before they cost you money.</p>
+<p class="ssub">Your data already knows what's wrong — Job-Dox helps you see it. No IT department. No PhD. Just practical AI that:
+<ul>
+<li>Auto-generates tasks from project activity</li>
+<li>Flags overdue milestones in real time</li>
+<li>Predicts job completion dates</li>
+<li>Catches budget overruns before they cost you</li>
+</ul>
+</p>
 <div class="ai-fs" style="margin-top:40px">
-<div class="ai-f"><div class="ai-fi red">🧠</div><div><h4>Predictive Project Health Scoring</h4><p>AI analyzes your project history to surface budget overruns, delayed timelines, and resource bottlenecks — before they cost you money. See which jobs are healthy and which need attention at a glance.</p></div></div>
-<div class="ai-f"><div class="ai-fi dk">📊</div><div><h4>CRM Pattern Recognition</h4><p>Stop guessing which clients, job types, and crews are most profitable. AI-powered analytics cut through the noise and show you where the real money is — and where it's leaking.</p></div></div>
-<div class="ai-f"><div class="ai-fi grn">⚡</div><div><h4>Automated Back-Office Intelligence</h4><p>Your $50K office manager for $50/month. Job-Dox automatically creates tasks, sends alerts, schedules follow-ups, and handles the admin work you can't afford to hire for.</p></div></div>
-<div class="ai-f"><div class="ai-fi org">🔍</div><div><h4>Crew Utilization Analytics</h4><p>Know exactly where every crew is, how they're performing, and where you're leaving money on the table. AI-powered reporting gives a 15-person crew the visibility of a 50-person company.</p></div></div>
+<div class="ai-f"><div class="ai-fi red">🧠</div><div><h4>Predictive Project Health Scoring</h4><ul><li>Surfaces budget overruns and delayed timelines</li><li>Spots resource bottlenecks before they hit</li><li>Healthy vs. at-risk jobs visible at a glance</li></ul></div></div>
+<div class="ai-f"><div class="ai-fi dk">📊</div><div><h4>CRM Pattern Recognition</h4><ul><li>Identifies your most profitable clients and job types</li><li>Shows which crews drive the best margins</li><li>Reveals where revenue is leaking</li></ul></div></div>
+<div class="ai-f"><div class="ai-fi grn">⚡</div><div><h4>Automated Back-Office Intelligence</h4><ul><li>Your $50K office manager for $50/month</li><li>Auto-creates tasks, sends alerts, schedules follow-ups</li><li>Handles the admin you can't afford to hire for</li></ul></div></div>
+<div class="ai-f"><div class="ai-fi org">🔍</div><div><h4>Crew Utilization Analytics</h4><ul><li>Real-time location and performance per crew</li><li>Spots underutilized capacity instantly</li><li>Gives a 15-person crew the visibility of a 50-person company</li></ul></div></div>
 </div>
 <div style="margin-top:40px"><a href="https://trial.job-dox.com/" class="btn btn-p btn-a">Get Your AI Back-Office Manager</a></div>
 </div>
