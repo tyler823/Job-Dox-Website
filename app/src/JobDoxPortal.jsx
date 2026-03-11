@@ -8,6 +8,22 @@ const MS_PLAN_ID  = "pln_cortex-by-job-dox-w6l0yeo";
 const MS_PRICE_ID = "prc_cortex-by-job-dox-41m0yuk";
 const MS_TRIAL_DAYS = 7;
 
+const LS_COMPANY_KEY = "jd_company_profile";
+const BLANK_COMPANY = {
+  name:    "",
+  address: "",
+  phone:   "",
+  email:   "",
+  logoUrl: "",
+};
+function loadCompanyProfile() {
+  try { const s = localStorage.getItem(LS_COMPANY_KEY); return s ? JSON.parse(s) : { ...BLANK_COMPANY }; }
+  catch(_) { return { ...BLANK_COMPANY }; }
+}
+function saveCompanyProfile(profile) {
+  try { localStorage.setItem(LS_COMPANY_KEY, JSON.stringify(profile)); } catch(_) {}
+}
+
 
 /* ══════════════════════════════════════════════════════════════════
    CSS
@@ -140,7 +156,7 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
 .proj-card:hover{border-color:var(--br-hi);box-shadow:0 6px 24px rgba(0,0,0,.14);}
 .proj-accent{height:4px;}
 .proj-body{padding:12px 14px;flex:1;cursor:pointer;}
-.proj-actions{padding:7px 9px;border-top:1px solid var(--br);display:flex;gap:4px;background:var(--s3);}
+.proj-actions{padding:7px 9px;border-top:1px solid var(--br);display:flex;gap:4px;background:var(--s3);overflow:hidden;}
 
 .bar-track{height:5px;background:var(--s4);border-radius:3px;overflow:hidden;margin-top:3px;}
 .bar-fill{height:100%;border-radius:3px;transition:width .4s;}
@@ -239,7 +255,7 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
   .port-sidebar{width:100%;border-left:none;border-top:1px solid var(--br);max-height:220px;}
   .port-projects{padding:10px;}
   .proj-grid{grid-template-columns:1fr;}
-  .proj-actions{flex-wrap:wrap;gap:4px;}
+  .proj-actions{flex-wrap:nowrap;gap:3px;}
   
   /* Tabs */
   .tabs{padding:0 8px;}
@@ -286,7 +302,7 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
   .kpi-bar{display:grid;grid-template-columns:1fr 1fr;overflow-x:unset;}
   .kpi{border-right:1px solid var(--br);border-bottom:1px solid var(--br);}
   .kpi:nth-child(even){border-right:none;}
-  .proj-actions .btn-xs{font-size:9px;padding:3px 6px;}
+  .proj-actions .btn-xs{font-size:9px;padding:3px 3px;min-width:0;}
   .tabs .tab span:not(.mono):not(.badge-count){display:none;}
   .tab{padding:11px 10px;gap:0;}
   .g2,.g3,.g4{grid-template-columns:1fr;}
@@ -403,7 +419,6 @@ function WorkTypePills({ worktypes }) {
   );
 }
 
-const PROJECTS = [
 const PROJECTS = [];
 const ACTIVITY = [];
 const TODAY_ISO = new Date().toISOString().slice(0,10);
@@ -417,26 +432,9 @@ const CONTACTS_SEED = [];
 const DOCS_SEED = [];
 const TASKS_SEED = [];
 
-const SCOPE_SEED = [
-  {id:1,desc:"Water Extraction — Per sq ft",unit:"SF",qty:480,price:0.85},
-  {id:2,desc:"LGR Dehumidifier — Per Day",unit:"EA",qty:3,price:85},
-  {id:3,desc:"Air Mover — Per Day",unit:"EA",qty:8,price:28},
-  {id:4,desc:"Antimicrobial Treatment",unit:"SF",qty:480,price:0.55},
-  {id:5,desc:"Demo — Drywall",unit:"SF",qty:120,price:1.65},
-];
+const SCOPE_SEED = [];
 
-const PRICE_LIST = [
-  {code:"WTR-EXT",desc:"Water Extraction",unit:"SF",price:0.85},
-  {code:"EQP-DHU",desc:"LGR Dehumidifier (per day)",unit:"EA",price:85},
-  {code:"EQP-AMS",desc:"Air Mover (per day)",unit:"EA",price:28},
-  {code:"EQP-ARS",desc:"Air Scrubber HEPA (per day)",unit:"EA",price:65},
-  {code:"TRT-ANT",desc:"Antimicrobial Treatment",unit:"SF",price:0.55},
-  {code:"DMO-DRY",desc:"Demo — Drywall",unit:"SF",price:1.65},
-  {code:"DMO-FLR",desc:"Demo — Flooring (LVP)",unit:"SF",price:2.10},
-  {code:"RST-DRY",desc:"Drywall Install & Finish",unit:"SF",price:3.80},
-  {code:"RST-FLR",desc:"LVP Flooring Install",unit:"SF",price:4.25},
-  {code:"RST-PNT",desc:"Painting (2 coats)",unit:"SF",price:1.20},
-];
+const PRICE_LIST = [];
 
 const MSGS_SEED = [];
 
@@ -1196,13 +1194,12 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                       </div>
                     )}
                     <div className="proj-actions" onClick={e=>e.stopPropagation()}>
-                      <button className={`btn btn-xs ${isClocked?"btn-danger":"btn-green"}`} style={isClocked?{background:"var(--acc)",color:"#fff",border:"none"}:{}} onClick={()=>setClock(proj)}>
+                      <button className={`btn btn-xs ${isClocked?"btn-danger":"btn-green"}`} style={{flex:1,justifyContent:"center",...(isClocked?{background:"var(--acc)",color:"#fff",border:"none"}:{})}} onClick={()=>setClock(proj)}>
                         {isClocked ? <>{Ic.stopwatch} Clock Out</> : <>{Ic.clock} Clock In</>}
                       </button>
-                      <button className="btn btn-blue btn-xs" onClick={()=>setNotify(proj)}>{Ic.notify} Notify</button>
-                      <button className="btn btn-ghost btn-xs" onClick={()=>openMaps(proj)}>{Ic.map} Navigate</button>
-                      <div style={{flex:1}}/>
-                      <button className="btn btn-amber btn-xs" onClick={()=>setComm(proj)} style={{background:"rgba(232,156,24,.1)",border:"1px solid rgba(232,156,24,.25)",color:"var(--amber)"}}>{Ic.phone} Contact</button>
+                      <button className="btn btn-blue btn-xs" style={{flex:1,justifyContent:"center"}} onClick={()=>setNotify(proj)}>{Ic.notify} Notify</button>
+                      <button className="btn btn-ghost btn-xs" style={{flex:1,justifyContent:"center"}} onClick={()=>openMaps(proj)}>{Ic.map} Navigate</button>
+                      <button className="btn btn-amber btn-xs" style={{flex:1,justifyContent:"center",background:"rgba(232,156,24,.1)",border:"1px solid rgba(232,156,24,.25)",color:"var(--amber)"}} onClick={()=>setComm(proj)}>{Ic.phone} Contact</button>
                     </div>
                   </div>
                 );
@@ -1287,7 +1284,7 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
 
   const addNote = () => {
     if(!noteText.trim()) return;
-    const n = {id:uid(), date:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}), author:"Tyler Mitchell", content:noteText.trim(), visibleToClient:true};
+    const n = {id:uid(), date:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}), author:"You", content:noteText.trim(), visibleToClient:true};
     setDailyNotes(p=>[n,...p]);
     setNoteText(""); setAddingNote(false);
   };
@@ -1667,8 +1664,7 @@ function BudgetTab({ proj, laborCost=0 }) {
 }
 
 function ShiftsTab({ projId, externalShifts=[], canViewRates }) {
-  const SEED=[{id:1,tech:"Jake Reynolds",task:"Initial extraction & setup",mode:"trade",position:"Lead Technician",rate:85,payRate:28,clockIn:"Dec 12 07:45 AM",clockOut:"Dec 12 04:30 PM",hours:8.75,notes:"Extracted ~480 SF, placed 8 air movers",laborCost:743.75},{id:2,tech:"Maria Santos",task:"Equipment monitoring",mode:"trade",position:"Field Technician",rate:65,payRate:22,clockIn:"Dec 13 08:00 AM",clockOut:"Dec 13 01:00 PM",hours:5.0,notes:"Day 2 readings logged in DryDox",laborCost:325}];
-  const [manual, setManual] = useState(SEED);
+  const [manual, setManual] = useState([]);
   const [adding, setAdding] = useState(false);
   const [f, setF] = useState({tech:"",task:"",position:"Lead Technician",rate:"85",clockIn:"",clockOut:"",notes:""});
   const allShifts = [...manual, ...externalShifts].sort((a,b)=>b.id-a.id);
@@ -1754,11 +1750,94 @@ function ShiftsTab({ projId, externalShifts=[], canViewRates }) {
   );
 }
 
-function ScopeTab() {
+function ScopeTab({ proj={}, companyProfile={} }) {
   const [items,setItems]=useState(SCOPE_SEED);
   const [showPL,setShowPL]=useState(false);
   const upd=(id,k,v)=>setItems(p=>p.map(i=>i.id===id?{...i,[k]:v}:i));
   const sub=items.reduce((s,i)=>s+i.qty*i.price,0);
+
+  const generateInvoice = () => {
+    const co = companyProfile;
+    const invNum = `INV-${new Date().getFullYear()}-${String(Math.floor(Math.random()*9000)+1000)}`;
+    const dateStr = new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
+    const rows = items.map(it=>`
+      <tr>
+        <td>${it.desc||"—"}</td>
+        <td style="text-align:center">${it.unit}</td>
+        <td style="text-align:center">${it.qty}</td>
+        <td style="text-align:right">$${Number(it.price).toFixed(2)}</td>
+        <td style="text-align:right"><strong>$${(it.qty*it.price).toFixed(2)}</strong></td>
+      </tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>
+<title>${invNum} — ${proj.name||"Invoice"}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Helvetica Neue',Arial,sans-serif;color:#111;font-size:13px;padding:0;}
+  .page{max-width:760px;margin:0 auto;padding:48px 40px;}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px;padding-bottom:24px;border-bottom:2px solid #e5e7eb;}
+  .co-logo{max-height:52px;max-width:160px;object-fit:contain;}
+  .co-name{font-size:20px;font-weight:800;color:#111;}
+  .co-meta{font-size:11px;color:#6b7280;margin-top:4px;line-height:1.7;}
+  .inv-meta{text-align:right;}
+  .inv-num{font-size:22px;font-weight:800;color:#e43531;}
+  .inv-date{font-size:11px;color:#6b7280;margin-top:4px;}
+  .bill-row{display:flex;gap:40px;margin-bottom:32px;}
+  .bill-block{flex:1;}
+  .bill-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;margin-bottom:6px;}
+  .bill-name{font-size:14px;font-weight:700;}
+  .bill-detail{font-size:11px;color:#6b7280;line-height:1.7;margin-top:2px;}
+  table{width:100%;border-collapse:collapse;margin-bottom:24px;}
+  th{background:#f9fafb;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6b7280;padding:9px 12px;border-bottom:1px solid #e5e7eb;text-align:left;}
+  td{padding:10px 12px;border-bottom:1px solid #f3f4f6;font-size:12px;vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  .totals{display:flex;justify-content:flex-end;}
+  .totals-inner{width:260px;}
+  .total-row{display:flex;justify-content:space-between;padding:5px 0;font-size:12px;color:#6b7280;}
+  .total-row.grand{border-top:2px solid #111;margin-top:6px;padding-top:10px;font-size:16px;font-weight:800;color:#111;}
+  .footer{margin-top:48px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;text-align:center;}
+</style></head><body><div class="page">
+  <div class="header">
+    <div>
+      ${co.logoUrl ? `<img src="${co.logoUrl}" class="co-logo" alt="logo"/>` : ""}
+      <div class="co-name" style="margin-top:${co.logoUrl?8:0}px">${co.name||"Your Company"}</div>
+      <div class="co-meta">
+        ${co.address||""}${co.address&&co.phone?"<br/>":""}${co.phone||""}${(co.address||co.phone)&&co.email?"<br/>":""}${co.email||""}
+      </div>
+    </div>
+    <div class="inv-meta">
+      <div class="inv-num">${invNum}</div>
+      <div class="inv-date">Date: ${dateStr}</div>
+      ${proj.claim?`<div class="inv-date">Claim #: ${proj.claim}</div>`:""}
+      ${proj.carrier?`<div class="inv-date">Carrier: ${proj.carrier}</div>`:""}
+    </div>
+  </div>
+  <div class="bill-row">
+    <div class="bill-block">
+      <div class="bill-label">Bill To</div>
+      <div class="bill-name">${proj.client||"—"}</div>
+      <div class="bill-detail">${proj.address||""}</div>
+    </div>
+    <div class="bill-block">
+      <div class="bill-label">Project</div>
+      <div class="bill-name">${proj.name||"—"}</div>
+      <div class="bill-detail">${proj.id||""}</div>
+    </div>
+    ${proj.adjuster?`<div class="bill-block"><div class="bill-label">Adjuster</div><div class="bill-name">${proj.adjuster}</div><div class="bill-detail">${proj.carrier||""}</div></div>`:""}
+  </div>
+  <table>
+    <thead><tr><th>Description</th><th style="text-align:center">Unit</th><th style="text-align:center">Qty</th><th style="text-align:right">Unit Price</th><th style="text-align:right">Total</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="totals"><div class="totals-inner">
+    <div class="total-row"><span>Subtotal</span><span>$${sub.toFixed(2)}</span></div>
+    <div class="total-row"><span>Tax (0%)</span><span>$0.00</span></div>
+    <div class="total-row grand"><span>TOTAL DUE</span><span>$${sub.toFixed(2)}</span></div>
+  </div></div>
+  <div class="footer">${co.name||""} · ${co.phone||""} · ${co.email||""}</div>
+</div></body></html>`;
+    const win = window.open("","_blank");
+    if (win) { win.document.write(html); win.document.close(); win.focus(); setTimeout(()=>win.print(),400); }
+  };
   return (
     <div className="scroll">
       {showPL && <div className="overlay" onClick={e=>e.target===e.currentTarget&&setShowPL(false)}>
@@ -1779,7 +1858,7 @@ function ScopeTab() {
         </div>
         <div style={{display:"flex",justifyContent:"flex-end",marginTop:9,gap:7}}>
           <button className="btn btn-ghost">Preview PDF</button>
-          <button className="btn btn-primary btn-lg" onClick={()=>alert("Invoice generated and saved to Documents.")}>{Ic.invoice} Generate Invoice</button>
+          <button className="btn btn-primary btn-lg" onClick={generateInvoice}>{Ic.invoice} Generate Invoice</button>
         </div>
       </div>
     </div>
@@ -3338,7 +3417,7 @@ const PROJ_TABS = [
   {key:"project-report", label:"Project Report", icon:Ic.proj_report },
 ];
 
-function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, globalStaff=[] }) {
+function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, globalStaff=[], companyProfile={} }) {
   const [tab,setTab]           = useState(initialTab||"overview");
   const [notifyModal,setNotify]= useState(false);
   const [commModal,setComm]    = useState(false);
@@ -3405,7 +3484,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       {tab==="tasks"          && <TasksTab/>}
       {tab==="budget"         && <BudgetTab proj={proj} laborCost={laborCost}/>}
       {tab==="shifts"         && <ShiftsTab projId={proj.id} externalShifts={myShifts} canViewRates={canViewRates}/>}
-      {tab==="scope"          && <ScopeTab/>}
+      {tab==="scope"          && <ScopeTab proj={proj} companyProfile={companyProfile}/>}
       {tab==="messages"       && <MessagesTab/>}
       {tab==="project-report" && <ProjectReportTab proj={proj} dailyNotes={dailyNotes} mediaFolders={mediaFolders} mediaUploads={mediaUploads} docs={projDocs}/>}
     </>
@@ -3450,6 +3529,150 @@ function syncStaffToLS(staff) {
       }))
     ));
   } catch(_) {}
+}
+
+function GeneralSettingsTab() {
+  const logoRef = useRef();
+  const [profile,  setProfile]  = useState(() => loadCompanyProfile());
+  const [saved,    setSaved]    = useState(false);
+
+  const update = (key, val) => setProfile(p => ({ ...p, [key]: val }));
+
+  const handleLogo = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => update("logoUrl", ev.target.result);
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const handleSave = () => {
+    saveCompanyProfile(profile);
+    // Also push into localStorage so CortexAI and document generators can read it
+    try {
+      const existing = JSON.parse(localStorage.getItem("jd_cortex_staff") || "[]");
+      // Just re-save company profile — document templates will read LS_COMPANY_KEY directly
+    } catch(_) {}
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  };
+
+  const field = (label, key, opts={}) => (
+    <div>
+      <label className="lbl">{label}</label>
+      <input
+        type={opts.type || "text"}
+        className="inp"
+        value={profile[key] || ""}
+        onChange={e => update(key, e.target.value)}
+        placeholder={opts.placeholder || ""}
+      />
+    </div>
+  );
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+
+      {/* Company Identity */}
+      <div className="card">
+        <div style={{fontSize:13,fontWeight:700,marginBottom:4,color:"var(--t1)"}}>Company Identity</div>
+        <div style={{fontSize:11,color:"var(--t3)",marginBottom:18}}>
+          This information appears on invoices, contracts, and any documents generated by the system.
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+          {field("Company Name", "name", {placeholder:"e.g. Apex Restoration LLC"})}
+          {field("General Email", "email", {type:"email", placeholder:"office@yourcompany.com"})}
+          {field("Phone Number", "phone", {placeholder:"(405) 555-0000"})}
+          <div style={{gridColumn:"1/-1"}}>
+            {field("Street Address", "address", {placeholder:"123 Main St, Oklahoma City, OK 73101"})}
+          </div>
+        </div>
+
+        {/* Logo upload */}
+        <div>
+          <label className="lbl">Company Logo</label>
+          <div style={{display:"flex",alignItems:"center",gap:16,marginTop:4}}>
+            <div style={{
+              width:110,height:56,borderRadius:8,border:"1.5px dashed var(--br)",
+              background:"var(--s3)",display:"flex",alignItems:"center",justifyContent:"center",
+              overflow:"hidden",flexShrink:0,
+            }}>
+              {profile.logoUrl
+                ? <img src={profile.logoUrl} alt="logo" style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",padding:4}}/>
+                : <span style={{fontSize:10,color:"var(--t3)"}}>No logo</span>
+              }
+            </div>
+            <div>
+              <button className="btn btn-ghost btn-xs" onClick={()=>logoRef.current?.click()}>
+                {Ic.upload} Upload Logo
+              </button>
+              {profile.logoUrl && (
+                <button className="btn btn-danger btn-xs" style={{marginLeft:7}}
+                  onClick={()=>update("logoUrl","")}>
+                  Remove
+                </button>
+              )}
+              <input ref={logoRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleLogo}/>
+              <div style={{fontSize:10,color:"var(--t3)",marginTop:6,lineHeight:1.6}}>
+                PNG or SVG recommended · Transparent background · Max 1 MB<br/>
+                Appears at the top of invoices, contracts, and generated documents.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Document header preview */}
+      <div className="card" style={{border:"1px solid rgba(91,163,245,0.2)",background:"rgba(91,163,245,0.03)"}}>
+        <div style={{fontSize:12,fontWeight:700,color:"var(--blue)",marginBottom:12}}>Document Header Preview</div>
+        <div style={{
+          background:"var(--s1)",borderRadius:8,border:"1px solid var(--br)",
+          padding:"18px 22px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:20,
+        }}>
+          <div style={{display:"flex",alignItems:"center",gap:16}}>
+            {profile.logoUrl ? (
+              <img src={profile.logoUrl} alt="logo" style={{height:40,maxWidth:100,objectFit:"contain"}}/>
+            ) : (
+              <div style={{height:40,width:80,borderRadius:6,background:"var(--s3)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <span style={{fontSize:9,color:"var(--t3)"}}>LOGO</span>
+              </div>
+            )}
+            <div>
+              <div style={{fontSize:14,fontWeight:800,color:"var(--t1)"}}>
+                {profile.name || <span style={{color:"var(--t3)"}}>Company Name</span>}
+              </div>
+              <div style={{fontSize:10,color:"var(--t2)",marginTop:2}}>
+                {profile.address || <span style={{color:"var(--t3)"}}>Street Address</span>}
+              </div>
+            </div>
+          </div>
+          <div style={{textAlign:"right",fontSize:10,color:"var(--t2)",lineHeight:1.8}}>
+            <div>{profile.phone || <span style={{color:"var(--t3)"}}>Phone Number</span>}</div>
+            <div style={{color:"var(--blue)"}}>{profile.email || <span style={{color:"var(--t3)"}}>Email Address</span>}</div>
+          </div>
+        </div>
+        <div style={{fontSize:10,color:"var(--t3)",marginTop:10}}>
+          This header will appear on invoices, contracts, and scope-of-work documents generated in Job-Dox.
+          Fields shown in grey are not yet filled in.
+        </div>
+      </div>
+
+      {/* Save button */}
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <button className="btn btn-primary btn-lg" onClick={handleSave}>
+          {saved ? "Saved" : "Save Company Profile"}
+        </button>
+        {saved && (
+          <span style={{fontSize:11,color:"var(--green)",fontWeight:600}}>
+            Profile saved — all new documents will use this information.
+          </span>
+        )}
+      </div>
+
+    </div>
+  );
 }
 
 function SettingsPage({ globalStaff, setGlobalStaff }) {
@@ -3714,10 +3937,7 @@ function SettingsPage({ globalStaff, setGlobalStaff }) {
         )}
 
         {tab==="general" && (
-          <div className="card" style={{padding:28,textAlign:"center",color:"var(--t3)"}}>
-            <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>General Settings</div>
-            <div style={{fontSize:11}}>Company name, timezone, branding, and notification preferences — coming soon.</div>
-          </div>
+          <GeneralSettingsTab/>
         )}
         {tab==="roadmap" && (
           <div className="card" style={{padding:28,textAlign:"center",color:"var(--t3)"}}>
@@ -3783,6 +4003,7 @@ export default function JobDoxPortal() {
   const [projectShifts, setProjectShifts]= useState({});
   const [permission,    setPermission]   = useState("admin");
   const [globalStaff,   setGlobalStaff]  = useState([]);
+  const [companyProfile, setCompanyProfile] = useState(() => loadCompanyProfile());
   const attrDefs = DEFAULT_ATTR_DEFS;
 
   const permCycle  = ["admin","manager","staff"];
@@ -3952,6 +4173,7 @@ export default function JobDoxPortal() {
             currentUser={currentUser}
             canViewRates={canViewRates}
             globalStaff={globalStaff}
+            companyProfile={companyProfile}
           />
         ) : (
           <PortfolioPage
