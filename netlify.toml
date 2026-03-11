@@ -1,9 +1,35 @@
+# ══════════════════════════════════════════════════
+#  Job-Dox · netlify.toml
+#  One repo, multiple tools, one deploy pipeline
+# ══════════════════════════════════════════════════
+
 [build]
   base    = "app"
   command = "npm run build"
   publish = "app/dist"
 
+# ── SPA routing ───────────────────────────────────
+
 [[redirects]]
   from   = "/app/*"
   to     = "/app/index.html"
   status = 200
+
+[[redirects]]
+  from   = "/automations/*"
+  to     = "/automations/index.html"
+  status = 200
+
+[[redirects]]
+  from   = "/portal/*"
+  to     = "/app/index.html"
+  status = 200
+
+# ── Security headers ──────────────────────────────
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options        = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy        = "strict-origin-when-cross-origin"
