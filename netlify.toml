@@ -1,32 +1,24 @@
 # ══════════════════════════════════════════════════
 #  Job-Dox · netlify.toml
-#  One repo, multiple tools, one deploy pipeline
+#  Marketing site at root + Vite app in /app
 # ══════════════════════════════════════════════════
 
 [build]
-  base    = "app"
-  command = "npm run build"
-  publish = "app/dist"
+  command = "cd app && npm install && npm run build"
+  publish = "."
 
-# ── SPA routing ───────────────────────────────────
-
+# ── SPA routing for the portal app ────────────────
 [[redirects]]
   from   = "/app/*"
-  to     = "/app/index.html"
-  status = 200
-
-[[redirects]]
-  from   = "/automations/*"
-  to     = "/automations/index.html"
+  to     = "/app/dist/index.html"
   status = 200
 
 [[redirects]]
   from   = "/portal/*"
-  to     = "/app/index.html"
+  to     = "/app/dist/index.html"
   status = 200
 
 # ── Security headers ──────────────────────────────
-
 [[headers]]
   for = "/*"
   [headers.values]
