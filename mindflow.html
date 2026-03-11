@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>CortexAI — Job-Dox</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:#06070d;--rail:#08090f;--s1:#0c0e18;--s2:#10121e;--s3:#161929;--s4:#1c2035;
+  --acc:#e43531;--acc-lo:rgba(228,53,49,0.09);--acc-glo:rgba(228,53,49,0.28);
+  --t1:#eef1f8;--t2:#8b95b0;--t3:#404866;
+  --green:#1ad98a;--amber:#e89c18;--blue:#5ba3f5;--purple:#a78bfa;
+  --br:rgba(255,255,255,0.10);--line:rgba(255,255,255,0.13);
+}
+body.light {
+  --bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#ffffff;--s3:#e8eaf2;--s4:#dde0ed;
+  --acc:#e43531;--acc-lo:rgba(228,53,49,0.08);--acc-glo:rgba(228,53,49,0.20);
+  --t1:#0d1117;--t2:#374151;--t3:#6b7280;
+  --green:#059669;--amber:#b45309;--blue:#1d60c8;--purple:#6d28d9;
+  --br:rgba(0,0,0,0.14);--line:rgba(0,0,0,0.10);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--t1);font-family:'Outfit',sans-serif;height:100vh;overflow:hidden;transition:background .25s,color .25s;}
+::-webkit-scrollbar{width:4px;background:transparent;}
+::-webkit-scrollbar-thumb{background:rgba(128,128,128,0.2);border-radius:2px;}
+
+/* ── NAV ── */
+.nav{height:48px;background:var(--rail);border-bottom:1px solid var(--br);display:flex;align-items:center;padding:0 16px;gap:14px;flex-shrink:0;transition:background .25s,border-color .25s;}
+.logo-box{width:26px;height:26px;background:var(--acc);border-radius:5px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px var(--acc-glo);}
+.logo-txt{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:#fff;}
+.nav-brand{font-weight:700;font-size:13px;}
+.nav-sep{color:var(--t3);margin:0 2px;}
+.nav-sub{font-family:'Space Mono',monospace;font-size:11px;color:var(--blue);font-weight:700;}
+.view-btns{display:flex;gap:2px;margin-left:10px;}
+.vbtn{padding:5px 12px;border-radius:5px;font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif;transition:all .12s;border:1px solid transparent;}
+.vbtn.on{background:var(--s3);border-color:var(--br);color:var(--t1);font-weight:600;}
+.vbtn.off{background:transparent;color:var(--t2);font-weight:400;}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.theme-btn{background:var(--s3);border:1px solid var(--br);border-radius:20px;padding:4px 12px;cursor:pointer;font-size:11px;color:var(--t2);font-family:'Outfit',sans-serif;transition:all .15s;}
+.theme-btn:hover{color:var(--t1);}
+.conn-row{display:flex;align-items:center;gap:5px;}
+.dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.dot.idle{background:var(--t3);}
+.dot.ok{background:var(--green);animation:pu 2s infinite;}
+.dot.synced{background:var(--blue);animation:pu 2s infinite;}
+@keyframes pu{0%,100%{opacity:1;}50%{opacity:.4;}}
+.mono-sm{font-family:'Space Mono',monospace;font-size:9px;color:var(--t3);}
+.push-btn{background:var(--acc);border:none;border-radius:6px;padding:5px 14px;color:#fff;font-size:11px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;box-shadow:0 0 10px var(--acc-glo);}
+
+/* ── LAYOUT ── */
+.wrap{height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+.main{flex:1;display:flex;overflow:hidden;}
+
+/* ── SIDEBAR ── */
+.sidebar{width:214px;background:var(--s1);border-right:1px solid var(--br);display:flex;flex-direction:column;flex-shrink:0;transition:background .25s,border-color .25s;}
+.sb-sec{padding:11px 13px;border-bottom:1px solid var(--br);}
+.fl{font-family:'Space Mono',monospace;font-size:9px;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;display:block;}
+.fi{width:100%;background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:7px 10px;font-size:11px;color:var(--t1);outline:none;font-family:'Outfit',sans-serif;transition:background .25s,border-color .15s;}
+.selc{width:100%;background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:7px 10px;font-size:11px;color:var(--t1);outline:none;cursor:pointer;font-family:'Outfit',sans-serif;transition:background .25s;}
+.tpl-btn{text-align:left;padding:6px 10px;border-radius:5px;font-size:11px;cursor:pointer;transition:all .12s;width:100%;font-family:'Outfit',sans-serif;margin-bottom:3px;}
+.legend-row{display:flex;align-items:center;gap:7px;margin-bottom:5px;}
+.legend-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0;}
+.sb-ctx{padding:11px 13px;flex:1;}
+.sb-ctx textarea{width:100%;background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:8px 10px;font-size:11px;color:var(--t1);outline:none;font-family:'Outfit',sans-serif;resize:none;height:80px;line-height:1.5;transition:background .25s;}
+.sb-foot{padding:13px;border-top:1px solid var(--br);}
+.gen-btn{width:100%;padding:10px 0;font-size:12px;letter-spacing:.04em;background:var(--acc);border:none;border-radius:6px;color:#fff;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;box-shadow:0 0 14px var(--acc-glo);}
+
+/* ── CANVAS ── */
+.canvas{flex:1;position:relative;overflow:hidden;background:var(--bg);transition:background .25s;}
+.canvas-hint{position:absolute;top:10px;left:12px;font-size:10px;color:var(--t3);z-index:5;font-family:'Space Mono',monospace;pointer-events:none;}
+
+/* ── RIGHT PANEL ── */
+.rpanel{width:240px;background:var(--s1);border-left:1px solid var(--br);display:flex;flex-direction:column;flex-shrink:0;transition:background .25s,border-color .25s;}
+.rtabs{display:flex;height:44px;border-bottom:1px solid var(--br);flex-shrink:0;}
+.rtab{flex:1;height:100%;background:none;border:none;border-bottom:2px solid transparent;font-size:11px;font-weight:500;color:var(--t2);cursor:pointer;font-family:'Outfit',sans-serif;transition:all .12s;}
+.rtab.on{font-weight:700;color:var(--t1);border-bottom-color:var(--blue);}
+.rpanel-body{flex:1;overflow:auto;padding:12px 13px;display:flex;flex-direction:column;gap:11px;}
+.node-card{background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:10px;}
+.type-btns{display:flex;gap:4px;flex-wrap:wrap;}
+.type-btn{padding:3px 9px;border-radius:4px;font-size:10px;cursor:pointer;font-family:'Outfit',sans-serif;text-transform:capitalize;}
+.btn-s{font-size:11px;background:var(--s3);border:1px solid var(--br);border-radius:6px;color:var(--t1);font-family:'Outfit',sans-serif;padding:7px 14px;cursor:pointer;}
+.conn-status{height:24px;border-top:1px solid var(--br);display:flex;align-items:center;gap:6px;padding:0 12px;flex-shrink:0;}
+.counts-row{display:flex;justify-content:space-between;margin-bottom:4px;}
+
+/* Staff panel in rpanel */
+.staff-entry{background:var(--s2);border:1px solid var(--br);border-radius:7px;padding:8px 10px;display:flex;align-items:center;gap:8px;margin-bottom:5px;}
+.staff-av{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;overflow:hidden;}
+.staff-av img{width:100%;height:100%;object-fit:cover;}
+.staff-role-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+
+/* ── RESULTS ── */
+.results-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.results-bar{padding:9px 14px;background:var(--s1);border-bottom:1px solid var(--br);display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap;transition:background .25s;}
+.stat-chip{background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:4px 12px;display:flex;gap:7px;align-items:baseline;}
+.stat-val{font-size:15px;font-weight:700;font-family:'Space Mono',monospace;}
+.stat-lbl{font-size:10px;color:var(--t3);}
+.filter-row{display:flex;gap:6px;margin-left:auto;}
+.fsel{background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:5px 8px;font-size:11px;color:var(--t1);outline:none;cursor:pointer;font-family:'Outfit',sans-serif;}
+.summary-bar{padding:7px 14px;background:var(--acc-lo);border-bottom:1px solid rgba(228,53,49,0.15);flex-shrink:0;}
+.task-list{flex:1;overflow:auto;padding:12px;}
+.phase-card{background:var(--s2);border:1px solid var(--br);border-radius:8px;overflow:hidden;margin-bottom:10px;transition:background .25s;}
+.ph-hdr{padding:12px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;background:var(--s3);transition:background .12s;}
+.ph-hdr:hover{background:var(--s4);}
+.ph-arrow{color:var(--blue);font-family:'Space Mono',monospace;font-size:12px;min-width:14px;}
+.ph-name{font-size:13px;font-weight:600;}
+.ph-desc{font-size:10px;color:var(--t3);margin-top:1px;}
+.ph-meta{display:flex;gap:8px;align-items:center;}
+.crit-badge{font-family:'Space Mono',monospace;font-size:9px;background:rgba(228,53,49,0.15);color:var(--acc);padding:2px 8px;border-radius:10px;font-weight:700;}
+.ph-count{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;}
+.ph-dur{font-size:10px;color:var(--t3);}
+.task-row{padding:8px 12px;display:flex;align-items:flex-start;gap:10px;cursor:pointer;border-top:1px solid var(--br);transition:background .12s;}
+.task-row:hover{background:var(--s3);}
+.task-id{font-family:'Space Mono',monospace;font-size:9px;color:var(--t3);min-width:40px;padding-top:2px;}
+.task-body{flex:1;}
+.task-title{font-size:12px;font-weight:500;margin-bottom:3px;}
+.task-tags{display:flex;gap:5px;flex-wrap:wrap;align-items:center;}
+.prio-badge{font-family:'Space Mono',monospace;font-size:9px;padding:1px 7px;border-radius:10px;font-weight:700;}
+.role-badge{font-family:'Space Mono',monospace;font-size:9px;padding:1px 7px;border-radius:10px;}
+.assignee-badge{font-size:9px;padding:2px 8px;border-radius:10px;display:inline-flex;align-items:center;gap:4px;border:1px solid var(--br);}
+.assignee-av{width:14px;height:14px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;overflow:hidden;}
+.assignee-av img{width:100%;height:100%;object-fit:cover;}
+.time-badge{font-family:'Space Mono',monospace;font-size:9px;color:var(--t3);}
+.tag-chip{display:inline-flex;align-items:center;border:1px solid var(--br);border-radius:3px;font-size:9px;font-family:'Space Mono',monospace;}
+.tag-v{padding:2px 5px;color:var(--t2);}
+.task-chevron{color:var(--t3);font-size:11px;flex-shrink:0;}
+.task-detail{padding:11px 13px 13px;background:var(--s1);border-top:1px solid var(--br);}
+.detail-inner{display:flex;flex-direction:column;gap:10px;}
+.desc-box{font-size:11px;line-height:1.7;color:var(--t2);background:var(--s2);padding:9px 12px;border-radius:6px;border:1px solid var(--br);}
+.checklist{background:var(--s2);border-radius:6px;border:1px solid var(--br);overflow:hidden;}
+.cl-row{display:flex;gap:9px;padding:6px 11px;align-items:flex-start;}
+.cl-num{width:17px;height:17px;border:1px solid var(--br);border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-top:1px;font-family:'Space Mono',monospace;font-size:9px;color:var(--t3);}
+.cl-text{font-size:11px;color:var(--t1);line-height:1.5;}
+.best-practice{background:var(--acc-lo);border:1px solid rgba(228,53,49,0.2);border-radius:6px;padding:8px 11px;font-size:11px;color:var(--t2);line-height:1.5;}
+.bp-label{font-weight:700;color:var(--acc);}
+.staff-summary{background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:14px;margin-top:4px;}
+.staff-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+.staff-chip{background:var(--s3);border:1px solid var(--br);border-radius:6px;padding:7px 12px;display:flex;gap:8px;align-items:center;}
+
+/* ── PUSH PANEL ── */
+.push-panel{width:288px;background:var(--s1);border-left:1px solid var(--br);display:flex;flex-direction:column;flex-shrink:0;transition:background .25s,border-color .25s;}
+.push-body{flex:1;overflow:auto;padding:13px;display:flex;flex-direction:column;gap:13px;}
+.push-footer{margin-top:auto;padding-top:13px;border-top:1px solid var(--br);}
+.push-summary{background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:10px 12px;margin-bottom:12px;}
+.push-row{display:flex;justify-content:space-between;margin-bottom:4px;}
+.push-lbl{font-size:11px;color:var(--t2);}
+.push-val{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;}
+.push-main-btn{width:100%;padding:10px 0;font-size:12px;letter-spacing:.04em;background:var(--acc);border:none;border-radius:6px;color:#fff;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;box-shadow:0 0 14px var(--acc-glo);}
+
+/* CortexAI badge */
+.cortex-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(91,163,245,0.10);border:1px solid rgba(91,163,245,0.25);border-radius:4px;padding:2px 8px;font-family:'Space Mono',monospace;font-size:9px;color:var(--blue);font-weight:700;letter-spacing:.04em;}
+.cortex-dot{width:5px;height:5px;border-radius:50%;background:var(--blue);animation:pu 2s infinite;}
+
+/* Toast */
+.toast{position:fixed;bottom:20px;right:20px;background:var(--s2);border:1px solid var(--br);border-left:3px solid var(--green);border-radius:8px;padding:10px 16px;font-size:12px;color:var(--t1);z-index:999;box-shadow:0 8px 28px rgba(0,0,0,0.4);display:none;animation:toastin .2s ease;}
+@keyframes toastin{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+
+/* Assign modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:500;display:flex;align-items:center;justify-content:center;}
+.modal{background:var(--s2);border:1px solid var(--br);border-radius:12px;width:420px;max-height:80vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.5);}
+.modal-hd{padding:16px 18px;border-bottom:1px solid var(--br);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.modal-body{overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="toast" class="toast"></div>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="logo-box"><span class="logo-txt">JD</span></div>
+      <span class="nav-brand">Job-Dox</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-sub">CortexAI</span>
+    </div>
+    <div class="view-btns">
+      <button class="vbtn on" onclick="setView('builder')" id="vb-builder">⬡ Mind Map</button>
+      <button class="vbtn off" onclick="setView('results')" id="vb-results" id="vb-results">◈ Workflow (<span id="task-count-nav">94</span>)</button>
+    </div>
+    <div class="nav-right">
+      <div class="conn-row" id="staff-status-row">
+        <div class="dot idle" id="staff-dot"></div>
+        <span class="mono-sm" id="staff-status-lbl">staff: not synced</span>
+      </div>
+      <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">🌙 Dark</button>
+      <button class="push-btn" onclick="setView('results')">↑ Push to Job-Dox</button>
+    </div>
+  </nav>
+
+  <!-- ══ BUILDER VIEW ══ -->
+  <div class="main" id="view-builder">
+
+    <!-- Left Sidebar -->
+    <div class="sidebar">
+      <div class="sb-sec">
+        <span class="fl">Work Type</span>
+        <select class="selc" id="worktype-sel" onchange="onWorkTypeChange()">
+          <option value="water">💧 Water Damage Restoration</option>
+          <option value="fire">🔥 Fire &amp; Smoke Damage</option>
+          <option value="mold">🌿 Mold Remediation</option>
+          <option value="bio">⚠️ Biohazard Cleanup</option>
+          <option value="contents">📦 Contents Restoration</option>
+          <option value="storm">⛈️ Storm Damage</option>
+        </select>
+      </div>
+      <div class="sb-sec">
+        <span class="fl">Templates</span>
+        <button class="tpl-btn" id="tpl-water" onclick="loadTemplate('water')" style="background:rgba(228,53,49,0.09);border:1px solid #e43531;color:#e43531;">💧 Water</button>
+        <button class="tpl-btn" id="tpl-fire"  onclick="loadTemplate('fire')"  style="background:var(--s2);border:1px solid var(--br);color:var(--t2);">🔥 Fire</button>
+        <button class="tpl-btn" id="tpl-mold"  onclick="loadTemplate('mold')"  style="background:var(--s2);border:1px solid var(--br);color:var(--t2);">🌿 Mold</button>
+      </div>
+      <div class="sb-sec">
+        <span class="fl">Legend</span>
+        <div class="legend-row"><div class="legend-dot" style="background:#e43531;"></div><span style="font-size:11px;color:var(--t2);">root</span></div>
+        <div class="legend-row"><div class="legend-dot" style="background:#5ba3f5;"></div><span style="font-size:11px;color:var(--t2);">phase</span></div>
+        <div class="legend-row"><div class="legend-dot" style="background:#1ad98a;"></div><span style="font-size:11px;color:var(--t2);">task</span></div>
+        <div class="legend-row"><div class="legend-dot" style="background:#a78bfa;"></div><span style="font-size:11px;color:var(--t2);">note</span></div>
+      </div>
+      <div class="sb-ctx">
+        <span class="fl">Workflow Notes</span>
+        <textarea class="fi" placeholder="Optional notes — e.g. residential vs commercial, Cat 2 vs Cat 3 considerations…"></textarea>
+      </div>
+      <div class="sb-foot">
+        <button class="gen-btn" onclick="generateWorkflow()">⚡ Generate Workflow</button>
+      </div>
+    </div>
+
+    <!-- Canvas -->
+    <div class="canvas">
+      <div class="canvas-hint">drag · dbl-click to rename · select → add child</div>
+      <svg width="100%" height="100%">
+        <defs>
+          <pattern id="g" width="28" height="28" patternUnits="userSpaceOnUse">
+            <path d="M28 0L0 0 0 28" fill="none" stroke="var(--line)" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#g)"/>
+        <!-- Edges phase -->
+        <path d="M490 295 C350 295,350 150,210 150" fill="none" stroke="#5ba3f5" stroke-width="1.5" stroke-opacity=".3"/>
+        <path d="M490 295 C475 295,475 95,460 95" fill="none" stroke="#5ba3f5" stroke-width="1.5" stroke-opacity=".3"/>
+        <path d="M490 295 C610 295,610 135,730 135" fill="none" stroke="#5ba3f5" stroke-width="1.5" stroke-opacity=".3"/>
+        <path d="M490 295 C665 295,665 305,840 305" fill="none" stroke="#5ba3f5" stroke-width="1.5" stroke-opacity=".3"/>
+        <path d="M490 295 C615 295,615 465,740 465" fill="none" stroke="#5ba3f5" stroke-width="1.5" stroke-opacity=".3"/>
+        <path d="M490 295 C365 295,365 450,240 450" fill="none" stroke="#5ba3f5" stroke-width="1.5" stroke-opacity=".3"/>
+        <!-- Edges task -->
+        <path d="M210 150 C142 150,142 75,75 75" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
+        <path d="M210 150 C200 150,200 55,190 55" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
+        <path d="M460 95 C422 95,422 28,385 28" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
+        <path d="M460 95 C492 95,492 18,525 18" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
+        <path d="M730 135 C724 135,724 52,718 52" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
+        <path d="M730 135 C791 135,791 62,852 62" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
+        <path d="M840 305 C867 305,867 220,895 220" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
+        <path d="M740 465 C775 465,775 385,810 385" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
+        <path d="M240 450 C195 450,195 368,150 368" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
+        <path d="M240 450 C262 450,262 358,285 358" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
+        <!-- Root -->
+        <g transform="translate(414,271)">
+          <rect width="152" height="48" rx="5" fill="var(--s2)" stroke="#e43531" stroke-width="1.5" style="filter:drop-shadow(0 0 8px rgba(228,53,49,.35))"/>
+          <rect width="3" height="48" rx="1.5" fill="#e43531"/>
+          <text x="79" y="25" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="12" font-family="Outfit,sans-serif" font-weight="700" style="pointer-events:none">Water Damage SOP</text>
+        </g>
+        <!-- Phases -->
+        <g transform="translate(145,131)"><rect width="130" height="38" rx="5" fill="var(--s2)" stroke="#5ba3f5" stroke-width="1.5" style="filter:drop-shadow(0 0 6px rgba(91,163,245,.2))"/><rect width="3" height="38" rx="1.5" fill="#5ba3f5"/><text x="67" y="20" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" font-weight="500" style="pointer-events:none">Emergency Response</text></g>
+        <g transform="translate(395,76)"><rect width="130" height="38" rx="5" fill="var(--s2)" stroke="#5ba3f5" stroke-width="1"/><rect width="3" height="38" rx="1.5" fill="#5ba3f5"/><text x="67" y="20" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" font-weight="500" style="pointer-events:none">Assessment &amp; Docs</text></g>
+        <g transform="translate(665,116)"><rect width="130" height="38" rx="5" fill="var(--s2)" stroke="#5ba3f5" stroke-width="1"/><rect width="3" height="38" rx="1.5" fill="#5ba3f5"/><text x="67" y="20" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" font-weight="500" style="pointer-events:none">Mitigation &amp; Drying</text></g>
+        <g transform="translate(775,286)"><rect width="130" height="38" rx="5" fill="var(--s2)" stroke="#5ba3f5" stroke-width="1"/><rect width="3" height="38" rx="1.5" fill="#5ba3f5"/><text x="67" y="20" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" font-weight="500" style="pointer-events:none">Daily Monitoring</text></g>
+        <g transform="translate(675,446)"><rect width="130" height="38" rx="5" fill="var(--s2)" stroke="#5ba3f5" stroke-width="1"/><rect width="3" height="38" rx="1.5" fill="#5ba3f5"/><text x="67" y="20" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" font-weight="500" style="pointer-events:none">Billing &amp; Closeout</text></g>
+        <g transform="translate(175,431)"><rect width="130" height="38" rx="5" fill="var(--s2)" stroke="#5ba3f5" stroke-width="1"/><rect width="3" height="38" rx="1.5" fill="#5ba3f5"/><text x="67" y="20" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" font-weight="500" style="pointer-events:none">Insurance Coord.</text></g>
+        <!-- Tasks (sample) -->
+        <g transform="translate(17,58)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Initial Call Intake</text></g>
+        <g transform="translate(132,38)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Dispatch Crew</text></g>
+        <g transform="translate(327,11)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Safety Assessment</text></g>
+        <g transform="translate(467,1)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Moisture Mapping</text></g>
+        <g transform="translate(660,35)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Equipment Setup</text></g>
+        <g transform="translate(794,45)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Psychrometric Log</text></g>
+        <g transform="translate(837,203)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Daily Readings</text></g>
+        <g transform="translate(752,368)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Final Clearance</text></g>
+        <g transform="translate(92,351)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Claim Submission</text></g>
+        <g transform="translate(227,341)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Adjuster Update</text></g>
+      </svg>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="rpanel">
+      <div class="rtabs">
+        <button class="rtab on" onclick="switchRtab(this,'node')">⬡ Node</button>
+        <button class="rtab" onclick="switchRtab(this,'staff')">👥 Staff</button>
+        <button class="rtab" onclick="switchRtab(this,'cortex')">⬡ Cortex</button>
+      </div>
+
+      <!-- Node tab -->
+      <div class="rpanel-body" id="rtab-node">
+        <div>
+          <span class="fl">Selected</span>
+          <div class="node-card">
+            <div style="font-size:12px;font-weight:600;color:#e43531;margin-bottom:3px;">Water Damage SOP</div>
+            <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--t3);">TYPE:root · ID:1</div>
+          </div>
+        </div>
+        <div>
+          <span class="fl">Rename</span>
+          <input class="fi" style="font-size:11px;" value="Water Damage SOP"/>
+        </div>
+        <div>
+          <span class="fl">Type</span>
+          <div class="type-btns">
+            <button class="type-btn" style="background:rgba(228,53,49,.2);border:1px solid #e43531;color:#e43531;">root</button>
+            <button class="type-btn" style="background:transparent;border:1px solid var(--br);color:var(--t2);">phase</button>
+            <button class="type-btn" style="background:transparent;border:1px solid var(--br);color:var(--t2);">task</button>
+            <button class="type-btn" style="background:transparent;border:1px solid var(--br);color:var(--t2);">note</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn-s" style="flex:1;">+ Child</button>
+        </div>
+        <div style="margin-top:auto;padding-top:12px;border-top:1px solid var(--br);">
+          <span class="fl">Counts</span>
+          <div class="counts-row"><span style="font-size:11px;color:var(--t2);">root</span><span style="font-family:'Space Mono',monospace;font-size:11px;color:#e43531;font-weight:700;">1</span></div>
+          <div class="counts-row"><span style="font-size:11px;color:var(--t2);">phase</span><span style="font-family:'Space Mono',monospace;font-size:11px;color:#5ba3f5;font-weight:700;">6</span></div>
+          <div class="counts-row"><span style="font-size:11px;color:var(--t2);">task</span><span style="font-family:'Space Mono',monospace;font-size:11px;color:#1ad98a;font-weight:700;">10</span></div>
+        </div>
+      </div>
+
+      <!-- Staff tab -->
+      <div class="rpanel-body" id="rtab-staff" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <span class="fl" style="margin-bottom:0;">Synced Staff</span>
+          <button onclick="loadStaff()" style="background:none;border:none;cursor:pointer;font-size:9px;color:var(--blue);font-family:'Space Mono',monospace;">↺ Refresh</button>
+        </div>
+        <div id="staff-list-panel" style="font-size:11px;color:var(--t3);">Loading staff from Job-Dox…</div>
+        <div style="margin-top:auto;padding-top:12px;border-top:1px solid var(--br);">
+          <div style="font-size:10px;color:var(--t3);line-height:1.6;">Staff are synced from <strong style="color:var(--t1);">Settings › Staff</strong> in Job-Dox. Tasks are auto-assigned by System Role when you generate a workflow.</div>
+          <a href="JobDoxPortal.jsx" target="_blank" style="display:block;margin-top:8px;padding:6px 10px;background:rgba(91,163,245,0.08);border:1px solid rgba(91,163,245,0.2);border-radius:6px;font-size:10px;color:var(--blue);text-decoration:none;text-align:center;">→ Open Job-Dox Settings</a>
+        </div>
+      </div>
+
+      <!-- Cortex tab -->
+      <div class="rpanel-body" id="rtab-cortex" style="display:none;">
+        <div>
+          <span class="fl">CortexAI Status</span>
+          <div style="background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:10px;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+              <div class="dot synced" id="cortex-dot"></div>
+              <span style="font-size:11px;font-weight:600;color:var(--t1);">CortexAI</span>
+            </div>
+            <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--t3);line-height:1.7;">
+              STAFF: <span id="cortex-staff-count" style="color:var(--blue);">—</span><br/>
+              WORKFLOWS: <span style="color:var(--green);">ready</span><br/>
+              SYNC: localStorage bridge
+            </div>
+          </div>
+        </div>
+        <div>
+          <span class="fl">Auto-Assignment Logic</span>
+          <div style="font-size:10px;color:var(--t2);line-height:1.7;background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:10px;">
+            When generating a workflow, CortexAI matches each task's <strong style="color:var(--t1);">role</strong> to the first available staff member with that System Role in Job-Dox.
+          </div>
+        </div>
+        <button onclick="loadStaff()" class="btn-s" style="width:100%;font-size:11px;">↺ Sync Staff Now</button>
+      </div>
+
+      <div class="conn-status">
+        <div class="dot" id="conn-dot-builder" style="background:var(--t3);"></div>
+        <span class="mono-sm" id="conn-lbl-builder">cortex: checking…</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ RESULTS VIEW ══ -->
+  <div class="main" id="view-results" style="display:none;">
+    <div class="results-main">
+      <div class="results-bar">
+        <div class="stat-chip"><span class="stat-val" style="color:#e43531;" id="stat-tasks">94</span><span class="stat-lbl">Total Tasks</span></div>
+        <div class="stat-chip"><span class="stat-val" style="color:#5ba3f5;" id="stat-phases">6</span><span class="stat-lbl">Phases</span></div>
+        <div class="stat-chip"><span class="stat-val" style="color:#1ad98a;" id="stat-dur">7–12 days</span><span class="stat-lbl">Est. Duration</span></div>
+        <div class="stat-chip"><span class="stat-val" style="color:var(--purple);" id="stat-assigned">—</span><span class="stat-lbl">Assigned</span></div>
+        <div class="filter-row">
+          <select class="fsel" id="filter-role" onchange="applyFilters()"><option value="">All Roles</option></select>
+          <select class="fsel" id="filter-prio" onchange="applyFilters()">
+            <option value="">All Priorities</option>
+            <option>Critical</option><option>High</option><option>Medium</option><option>Low</option>
+          </select>
+        </div>
+      </div>
+      <div class="summary-bar">
+        <span id="summary-text" style="font-size:11px;color:var(--t2);line-height:1.5;">Standard water damage restoration workflow — 94 tasks across 6 phases. Assign to any water loss job in CortexAI.</span>
+      </div>
+      <div class="task-list" id="task-list"></div>
+    </div>
+
+    <!-- Push Panel -->
+    <div class="push-panel">
+      <div class="rtabs">
+        <button class="rtab on">⬡ Push Config</button>
+        <button class="rtab">◈ Push Log</button>
+      </div>
+      <div class="push-body">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
+          <span class="fl" style="margin-bottom:0;">Destination</span>
+          <span class="cortex-badge"><span class="cortex-dot"></span>CortexAI</span>
+        </div>
+        <div><span class="fl">Workflow Name</span>
+          <input class="fi" style="font-size:11px;" id="wf-name" value="Water Damage Restoration — Standard SOP"/>
+          <p style="font-size:10px;color:var(--t3);margin-top:4px;line-height:1.5;">This workflow will be saved as a reusable template in Job-Dox, available to assign to any job.</p>
+        </div>
+        <div>
+          <span class="fl">Staff Assignment Mode</span>
+          <select class="fi" style="font-size:11px;cursor:pointer;" id="assign-mode" onchange="rerender()">
+            <option value="auto">Auto (by System Role)</option>
+            <option value="manual">Manual (assign per task)</option>
+            <option value="unassigned">Leave Unassigned</option>
+          </select>
+          <p style="font-size:10px;color:var(--t3);margin-top:4px;line-height:1.5;">Auto mode matches task roles to staff from Settings › Staff in Job-Dox.</p>
+        </div>
+
+        <!-- Assigned staff summary -->
+        <div id="assign-summary-box" style="background:var(--s2);border:1px solid var(--br);border-radius:7px;padding:10px 12px;">
+          <span class="fl" style="margin-bottom:7px;">Staff Assignments</span>
+          <div id="assign-summary-list" style="font-size:11px;color:var(--t3);">No staff synced.</div>
+        </div>
+
+        <div class="push-footer">
+          <div class="push-summary" id="push-summary">
+            <span class="fl" style="margin-bottom:8px;">Push Summary</span>
+            <div class="push-row"><span class="push-lbl">Tasks</span><span class="push-val" style="color:#e43531;" id="ps-tasks">94</span></div>
+            <div class="push-row"><span class="push-lbl">Phases</span><span class="push-val" id="ps-phases">6</span></div>
+            <div class="push-row"><span class="push-lbl">Type</span><span class="push-val" style="color:var(--t2);" id="ps-type">Standard SOP</span></div>
+            <div class="push-row"><span class="push-lbl">Destination</span><span class="push-val" style="color:var(--blue);">Job-Dox</span></div>
+          </div>
+          <button class="push-main-btn" onclick="pushWorkflow()">↑ Push to Job-Dox</button>
+        </div>
+      </div>
+      <div class="conn-status">
+        <div class="dot" id="conn-dot-results"></div>
+        <span class="mono-sm" id="conn-lbl-results">checking…</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ══════════════════════════════════════════════
+   STAFF BRIDGE — reads from localStorage written by JobDoxPortal
+══════════════════════════════════════════════ */
+let STAFF = [];       // loaded from localStorage (jd_cortex_staff)
+let ROLE_MAP = {};    // { "Project Manager": [{name,photoUrl,color,...}] }
+
+const ROLE_COLORS = {
+  "Project Manager":"#e43531","Lead Technician":"#5ba3f5","Field Technician":"#1ad98a",
+  "Estimator":"#e89c18","QC Inspector":"#22d3ee","Billing Specialist":"#e879f9",
+  "Office Administrator":"#f472b6","IAQ / Industrial Hygienist":"#34d399",
+  "Contents Specialist":"#fb923c","Subcontractor Coordinator":"#a78bfa"
+};
+
+function roleColor(role) { return ROLE_COLORS[role] || '#5ba3f5'; }
+
+function loadStaff() {
+  try {
+    const raw = localStorage.getItem('jd_cortex_staff');
+    if (raw) {
+      STAFF = JSON.parse(raw);
+    } else {
+      // Fallback demo staff so the tool is usable without portal open
+      STAFF = [
+        {id:1,name:"Jake Reynolds",firstName:"Jake",lastName:"Reynolds",systemRole:"Lead Technician",title:"Lead Tech",email:"jake@company.com",phone:"(405) 555-4411",photoUrl:"",color:"#5ba3f5"},
+        {id:2,name:"Maria Santos",firstName:"Maria",lastName:"Santos",systemRole:"Field Technician",title:"Field Tech",email:"maria@company.com",phone:"(405) 555-7723",photoUrl:"",color:"#1ad98a"},
+        {id:3,name:"Tyler Mitchell",firstName:"Tyler",lastName:"Mitchell",systemRole:"Project Manager",title:"Project Manager",email:"tyler@company.com",phone:"(405) 555-9901",photoUrl:"",color:"#e43531"}
+      ];
+    }
+  } catch(e) { STAFF = []; }
+
+  // Build role map — first person per role is auto-assigned
+  ROLE_MAP = {};
+  STAFF.forEach(s => {
+    if (!ROLE_MAP[s.systemRole]) ROLE_MAP[s.systemRole] = [];
+    ROLE_MAP[s.systemRole].push(s);
+  });
+
+  updateStaffUI();
+  updateFilterRoles();
+  rerender();
+}
+
+function updateStaffUI() {
+  const dot = document.getElementById('staff-dot');
+  const lbl = document.getElementById('staff-status-lbl');
+  const panel = document.getElementById('staff-list-panel');
+  const countEl = document.getElementById('cortex-staff-count');
+  const connDot1 = document.getElementById('conn-dot-builder');
+  const connLbl1 = document.getElementById('conn-lbl-builder');
+  const connDot2 = document.getElementById('conn-dot-results');
+  const connLbl2 = document.getElementById('conn-lbl-results');
+
+  if (STAFF.length > 0) {
+    dot.style.background = 'var(--blue)';
+    dot.className = 'dot synced';
+    lbl.textContent = `${STAFF.length} staff synced`;
+    [connDot1, connDot2].forEach(d => { d.style.background='var(--green)'; d.className='dot ok'; });
+    [connLbl1, connLbl2].forEach(l => l.textContent = `cortex: ${STAFF.length} staff ready`);
+    if (countEl) countEl.textContent = STAFF.length;
+
+    // Render staff list panel
+    if (panel) {
+      panel.innerHTML = STAFF.map(s => `
+        <div class="staff-entry">
+          <div class="staff-av" style="background:${s.color||roleColor(s.systemRole)}22;border:1.5px solid ${s.color||roleColor(s.systemRole)};">
+            ${s.photoUrl ? `<img src="${s.photoUrl}" alt=""/>` : `<span style="color:${s.color||roleColor(s.systemRole)};font-size:11px;font-weight:700;">${(s.firstName||s.name||'?')[0]}${(s.lastName||'')[0]||''}</span>`}
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:11px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.name||s.firstName+' '+s.lastName}</div>
+            <div style="font-size:9px;color:${s.color||roleColor(s.systemRole)};font-weight:700;font-family:'Space Mono',monospace;">${s.systemRole}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Assign summary in push panel
+    const asl = document.getElementById('assign-summary-list');
+    if (asl) {
+      const roles = [...new Set(STAFF.map(s=>s.systemRole))];
+      asl.innerHTML = roles.map(r => {
+        const members = ROLE_MAP[r]||[];
+        return `<div style="display:flex;justify-content:space-between;margin-bottom:5px;align-items:center;">
+          <span style="color:${roleColor(r)};font-size:10px;font-weight:700;">${r}</span>
+          <span style="font-size:10px;color:var(--t2);">${members.map(m=>`<span style="margin-left:4px;">${(m.firstName||m.name||'?')[0]}${(m.lastName||'')[0]||''}</span>`).join('')}</span>
+        </div>`;
+      }).join('');
+    }
+  } else {
+    lbl.textContent = 'staff: not synced';
+    if (panel) panel.innerHTML = '<div style="color:var(--t3);font-size:11px;">No staff found in Job-Dox.<br>Go to Settings › Staff to add your team.</div>';
+  }
+}
+
+function updateFilterRoles() {
+  const sel = document.getElementById('filter-role');
+  if (!sel) return;
+  const roles = [...new Set(PHASES.flatMap(p=>p.items.map(t=>t.role)))].sort();
+  sel.innerHTML = '<option value="">All Roles</option>' + roles.map(r=>`<option>${r}</option>`).join('');
+}
+
+/* ══════════════════════════════════════════════
+   TASK DATA
+══════════════════════════════════════════════ */
+const PHASES=[
+  {
+    name:'Emergency Response & Initial Dispatch',
+    desc:'First contact protocol, crew mobilization, and on-site emergency stabilization',
+    dur:'2–4 hrs',tasks:21,
+    items:[
+      {id:'T001',title:'Incoming Loss Call — Intake & Triage',prio:'Critical',role:'Project Manager',min:15,tags:['communication','documentation'],
+       desc:'Answer inbound call from policyholder or TPA dispatcher. Collect: full name, property address, loss type, date/time of loss, affected areas, current water intrusion status. Document all details in job management system. Confirm water source is stopped. Advise customer on immediate safety steps.',
+       cl:['Create new job record in job management system','Record: property address, contact name, phone, email, loss date','Ask: is water source stopped? Electrical hazards present? Visible mold?','Confirm TPA assignment and obtain authorization contact','Set job status to "Dispatching" and save'],
+       notes:'IICRC S500 §5.1: All communications must be documented from first notice of loss. Response time starts at first contact.'},
+      {id:'T002',title:'Crew Dispatch — Assign Lead & Field Techs',prio:'Critical',role:'Project Manager',min:10,tags:['communication','coordination'],
+       desc:'Contact Lead Technician by phone. Confirm availability and ETA. Assign Field Technicians (minimum 2 for standard water loss). Communicate job address, access details, and required equipment list. Update dispatch board.',
+       cl:['Call Lead Technician — confirm availability and estimated travel time','Assign minimum 2 Field Technicians from available roster','Send crew: property address, entry instructions, required equipment manifest','Update dispatch board with crew names and ETA','Notify customer of crew ETA by call or text'],
+       notes:'IICRC S500 §5.2: Response time must be documented. Standard SLA is 2–4 hours from first contact.'},
+      {id:'T003',title:'On-Site Safety Walkthrough — Pre-Work Assessment',prio:'Critical',role:'Lead Technician',min:20,tags:['safety','field','compliance'],
+       desc:'Conduct full property safety assessment before any work begins. Check for: electrical hazards, structural instability, slip/fall risk zones, water category confirmation (Cat 1/2/3), biohazard indicators. Don appropriate PPE for identified category.',
+       cl:['Don PPE appropriate to confirmed water category','Check all electrical panels — de-energize circuits in wet areas','Test flooring stability before walking affected zones','Confirm water category per IICRC S500 classification criteria','Photograph all hazards; document in safety checklist'],
+       notes:'OSHA 29 CFR 1926.21: Safety training required before entry. IICRC S500 §6.3: Category and class determination drive all subsequent protocols.'},
+    ]
+  },
+  {
+    name:'Assessment, Documentation & Moisture Mapping',
+    desc:'Full moisture mapping, psychrometric baseline, photo documentation, and scope development',
+    dur:'3–5 hrs',tasks:18,
+    items:[
+      {id:'T022',title:'Moisture Mapping — Full Structure Survey',prio:'Critical',role:'Lead Technician',min:45,tags:['measurement','field','documentation','photo'],
+       desc:'Using a calibrated pin-type or pinless moisture meter and thermal imaging camera, systematically map all affected surfaces. Test every 12 inches along affected walls, floor assemblies, and ceiling planes.',
+       cl:['Calibrate moisture meter against dry reference block before beginning','Create moisture map grid on floor plan','Test walls every 12" from floor to ceiling in all affected rooms','Test subfloor and floor joists if accessible','Use thermal camera to identify hidden moisture pockets','Record all readings with room ID and grid coordinates','Flag readings exceeding thresholds: wood >19%, drywall >1% WME','Photograph thermal images and upload to job folder'],
+       notes:'IICRC S500 §8.3: Moisture mapping required for all Category 2+ losses. Thermal imaging strongly recommended for hidden moisture identification.'},
+      {id:'T023',title:'Psychrometric Baseline Reading',prio:'High',role:'Lead Technician',min:20,tags:['measurement','documentation','compliance'],
+       desc:'Record initial psychrometric conditions in all affected rooms using a calibrated thermo-hygrometer. Document temperature, relative humidity, grains per pound, and dew point.',
+       cl:['Retrieve calibrated thermo-hygrometer; verify calibration is current','Record temp, RH%, GPP, and dew point in each affected room','Record same readings in one unaffected control room for reference','Enter all readings into psychrometric log with date, time, and room label','Photograph instrument display for each reading'],
+       notes:'IICRC S500 §9.1: Psychrometric baseline required at job start. All subsequent daily readings must reference this baseline to demonstrate drying progress.'},
+    ]
+  },
+  {
+    name:'Mitigation & Equipment Deployment',
+    desc:'LGR dehumidifier and air mover placement, dial-in settings, and drying chamber setup',
+    dur:'4–6 hrs',tasks:16,
+    items:[
+      {id:'T040',title:'LGR Dehumidifier Placement & Setup',prio:'Critical',role:'Field Technician',min:25,tags:['equipment','field','documentation'],
+       desc:'Place LGR dehumidifiers in affected areas per IICRC S500 equipment ratios. Position for maximum air circulation — minimum 3 feet from walls. Route drain hose to floor drain or window. Set target RH to 40%.',
+       cl:['Position LGR unit centrally in affected room, minimum 3ft from walls','Route 3/4" drain hose to nearest floor drain or window opening','Power on unit; set target RH to 40% on digital control panel','Record serial number from unit label in equipment log','Photograph unit with settings display visible'],
+       notes:'IICRC S500 §10.4: All equipment must be documented for insurance verification.'},
+      {id:'T041',title:'Air Mover Placement — Vortex Drying Pattern',prio:'Critical',role:'Field Technician',min:30,tags:['equipment','field','documentation'],
+       desc:'Place air movers in 45-degree vortex pattern per IICRC S500 drying chamber methodology. Ratio: 1 air mover per 50–70 sq ft of affected floor area.',
+       cl:['Calculate affected floor area; determine air mover count at 1 per 50–70 sq ft','Place first unit at far corner; angle 45° toward wet wall','Continue vortex pattern around wet perimeter','Plug each unit into GFCI-protected outlets only','Set all units to medium speed','Photograph placement pattern from room entry'],
+       notes:'IICRC S500 §10.3: Vortex air movement maximizes evaporation efficiency.'},
+    ]
+  },
+  {
+    name:'Daily Monitoring & Progress Reporting',
+    desc:'Daily psychrometric readings, equipment checks, drying progress tracking, and TPA updates',
+    dur:'1–2 hrs/day',tasks:14,
+    items:[
+      {id:'T056',title:'Daily Psychrometric Reading & Progress Log',prio:'High',role:'Lead Technician',min:30,tags:['measurement','documentation','compliance','field'],
+       desc:'Return to site at the same time each day. Record psychrometric conditions in all affected rooms. Calculate daily GPP delta. If drying progress falls below 2 GPP/day, troubleshoot equipment or add additional units.',
+       cl:['Arrive at site; obtain customer or on-site access','Record temp, RH%, GPP, dew point in each room at same positions as baseline','Compare to prior day — calculate delta GPP for each room','Verify all equipment is running; note any malfunctions','Check dehumidifier collection tanks; empty if no gravity drain','Photograph moisture meter readings at each marked grid point','Submit completed daily monitoring log before leaving site'],
+       notes:'IICRC S500 §9.2: Daily monitoring is required throughout the drying process. Benchmark: GPP must decrease by minimum 2 grains/day.'},
+      {id:'T057',title:'Insurance / TPA Status Update',prio:'High',role:'Project Manager',min:20,tags:['communication','insurance','documentation'],
+       desc:'Contact assigned adjuster or TPA portal to provide drying progress update. Report equipment deployed, initial vs current readings, estimated drying timeline.',
+       cl:['Access TPA portal or call adjuster direct line with claim reference number','Report current drying status: equipment count, RH% trend, estimated completion','Request adjuster site visit authorization if scope appears to exceed initial estimate','Send written follow-up recap via email within 1 hour of verbal update','Log: date, time, contact name, key discussion points, next follow-up date'],
+       notes:'Most TPA SLAs require a PM update within 24 hours of equipment placement and at each monitoring visit.'},
+    ]
+  },
+  {
+    name:'Final Clearance & QC Inspection',
+    desc:'Moisture clearance readings per IICRC S500, equipment removal authorization, and customer sign-off',
+    dur:'3–4 hrs',tasks:13,
+    items:[
+      {id:'T070',title:'Final Moisture Clearance Readings',prio:'Critical',role:'QC Inspector',min:40,tags:['measurement','compliance','documentation','field'],
+       desc:'Conduct final moisture readings at all previously marked grid points. All readings must meet IICRC S500 dry standard for material type before equipment removal is authorized.',
+       cl:['Retrieve moisture meter; verify calibration against dry reference block','Test every grid point from initial moisture map','Record all readings in Final Clearance Report: room, location, reading, pass/fail','Confirm ALL points meet IICRC S500 dry standard','If any reading fails: document, notify PM, reposition or add equipment','Photograph all clearance readings at grid points'],
+       notes:'IICRC S500 §11.1: Equipment removal requires confirmed clearance readings at or below EMC threshold for each material type.'},
+      {id:'T071',title:'Customer Walk-Through & Certificate of Completion',prio:'Critical',role:'QC Inspector',min:30,tags:['compliance','documentation','field'],
+       desc:'Conduct final walk-through with customer present. Review all dried areas, confirm no damage was missed, and explain any areas flagged for reconstruction. Obtain customer signature on Certificate of Completion.',
+       cl:['Schedule walk-through with customer — allocate minimum 30-minute window','Walk each affected area with customer; point out dried surfaces','Compare final photos to Day 1 damage photos — review before/after with customer','Explain any areas recommended for reconstruction or further review','Obtain customer signature on Certificate of Completion form','Upload signed certificate to job folder under /Closeout-Documents/'],
+       notes:'Signed Certificate of Completion protects against future disputes. Before/after photo documentation is critical for both customer satisfaction and insurance claim support.'},
+    ]
+  },
+  {
+    name:'Billing, Documentation & Closeout',
+    desc:'Scope writing, invoice generation, AR follow-up, and job record closeout',
+    dur:'2–3 hrs',tasks:12,
+    items:[
+      {id:'T082',title:'Xactimate Scope — Mitigation Line Items',prio:'High',role:'Estimator',min:90,tags:['billing','documentation','insurance'],
+       desc:'Build complete Xactimate mitigation estimate from documented equipment logs, labor time records, and materials used. Apply correct water damage category and class factors.',
+       cl:['Open Xactimate; create new estimate linked to job number','Enter all equipment from equipment log: unit type, serial number, placement date, removal date','Calculate equipment days per unit','Enter total technician labor hours from time logs','Add materials: plastic sheeting, tape, PPE, antimicrobial application','Verify all line items match documentation exactly','Review total against preliminary estimate; flag any variance above 10% for PM review','Export PDF and upload to job folder under /Billing/'],
+       notes:'All Xactimate line items must be supported by documentation in the job file.'},
+      {id:'T083',title:'Final Invoice Generation & Submission',prio:'High',role:'Billing Specialist',min:30,tags:['billing','documentation'],
+       desc:'Generate final invoice from approved Xactimate scope in billing system. Submit to TPA portal and email copy to adjuster. Set AR follow-up reminder at 14 days.',
+       cl:['Open billing module; locate the job record','Import Xactimate totals from approved estimate','Verify all invoice line items match approved scope exactly','Generate invoice PDF; confirm invoice number is auto-assigned','Submit to TPA portal and email copy to adjuster','Set 14-day AR follow-up reminder','Update job status to "Invoice Submitted"'],
+       notes:'Standard payment terms: Net 30. Schedule AR follow-up at 14, 30, and 45 days.'},
+    ]
+  }
+];
+
+const STAFF_ROLES_DEFAULT=[
+  {name:'Project Manager',color:'#e43531'},{name:'Lead Technician',color:'#5ba3f5'},
+  {name:'Field Technician',color:'#1ad98a'},{name:'Estimator',color:'#e89c18'},
+  {name:'Office Administrator',color:'#f472b6'},{name:'IAQ / Industrial Hygienist',color:'#34d399'},
+  {name:'Contents Specialist',color:'#fb923c'},{name:'Subcontractor Coordinator',color:'#a78bfa'},
+  {name:'QC Inspector',color:'#22d3ee'},{name:'Billing Specialist',color:'#e879f9'}
+];
+
+const PRIO={Critical:{color:'#e43531',bg:'rgba(228,53,49,0.12)'},High:{color:'#e89c18',bg:'rgba(232,156,24,0.12)'},Medium:{color:'#5ba3f5',bg:'rgba(91,163,245,0.12)'},Low:{color:'#404866',bg:'rgba(64,72,102,0.15)'}};
+
+let openPh = new Set([PHASES[0].name]);
+let openTk = new Set();
+let isDark  = true;
+let filterRole = '';
+let filterPrio = '';
+
+/* Get assignee for a role */
+function getAssignee(role) {
+  const mode = document.getElementById('assign-mode')?.value || 'auto';
+  if (mode !== 'auto') return null;
+  const list = ROLE_MAP[role];
+  return list && list.length > 0 ? list[0] : null;
+}
+
+function assigneeBadge(role) {
+  const a = getAssignee(role);
+  if (!a) return '';
+  const initials = `${(a.firstName||a.name||'?')[0]}${(a.lastName||'')[0]||''}`;
+  const col = a.color || roleColor(role);
+  const avHtml = a.photoUrl
+    ? `<div class="assignee-av" style="border:1px solid ${col};"><img src="${a.photoUrl}" alt=""/></div>`
+    : `<div class="assignee-av" style="background:${col}22;color:${col};border:1px solid ${col};">${initials}</div>`;
+  return `<span class="assignee-badge" style="background:${col}10;color:${col};">${avHtml}${a.name||a.firstName+' '+(a.lastName||'')}</span>`;
+}
+
+function rerender() {
+  const list = document.getElementById('task-list');
+  if (!list) return;
+
+  const fRole = (document.getElementById('filter-role')?.value || '').toLowerCase();
+  const fPrio = (document.getElementById('filter-prio')?.value || '').toLowerCase();
+
+  let totalAssigned = 0;
+  let h = '';
+
+  PHASES.forEach(ph => {
+    const filtItems = ph.items.filter(t =>
+      (!fRole || t.role.toLowerCase().includes(fRole)) &&
+      (!fPrio || t.prio.toLowerCase() === fPrio)
+    );
+    if (fRole || fPrio) { if (!filtItems.length) return; }
+
+    const op = openPh.has(ph.name);
+    const cr = ph.items.filter(t => t.prio === 'Critical').length;
+
+    h += `<div class="phase-card">
+      <div class="ph-hdr" onclick="togglePh('${ph.name.replace(/'/g,"\\'")}')">
+        <span class="ph-arrow">${op ? '▾' : '▸'}</span>
+        <div style="flex:1"><div class="ph-name">${ph.name}</div><div class="ph-desc">${ph.desc}</div></div>
+        <div class="ph-meta">${cr > 0 ? `<span class="crit-badge">⚠ ${cr}</span>` : ''}<span class="ph-count">${ph.tasks}</span><span class="ph-dur">${ph.dur}</span></div>
+      </div>`;
+
+    if (op) {
+      const items = (fRole || fPrio) ? filtItems : ph.items;
+      items.forEach(t => {
+        const pr = PRIO[t.prio] || PRIO.Low;
+        const rc = roleColor(t.role);
+        const ex = openTk.has(t.id);
+        const abadge = assigneeBadge(t.role);
+        if (abadge) totalAssigned++;
+
+        h += `<div>
+          <div class="task-row" style="border-left:3px solid ${pr.color}" onclick="toggleTk('${t.id}')">
+            <div class="task-id">${t.id}</div>
+            <div class="task-body">
+              <div class="task-title">${t.title}</div>
+              <div class="task-tags">
+                <span class="prio-badge" style="background:${pr.bg};color:${pr.color}">${t.prio}</span>
+                <span class="role-badge" style="color:${rc};background:${rc}18;border:1px solid ${rc}30">👤 ${t.role}</span>
+                ${abadge}
+                <span class="time-badge">⏱ ${t.min}m</span>
+                ${t.tags.slice(0,3).map(tag=>`<span class="tag-chip"><span class="tag-v">${tag}</span></span>`).join('')}
+              </div>
+            </div>
+            <span class="task-chevron">${ex ? '▴' : '▾'}</span>
+          </div>`;
+
+        if (ex) {
+          h += `<div class="task-detail"><div class="detail-inner">
+            <div><span class="fl">Description</span><p class="desc-box">${t.desc}</p></div>
+            <div><span class="fl">Step-by-Step Checklist</span>
+              <div class="checklist">${t.cl.map((s,i)=>`<div class="cl-row" style="${i<t.cl.length-1?'border-bottom:1px solid var(--br)':''}"><div class="cl-num">${i+1}</div><span class="cl-text">${s}</span></div>`).join('')}</div>
+            </div>
+            <div class="best-practice"><span class="bp-label">📋 BEST PRACTICE: </span>${t.notes}</div>
+          </div></div>`;
+        }
+        h += '</div>';
+      });
+    }
+    h += '</div>';
+  });
+
+  // Staff role summary
+  const STAFF_SUM = STAFF_ROLES_DEFAULT.map(sr => {
+    const real = (ROLE_MAP[sr.name]||[]).map(m => m.name||m.firstName+' '+(m.lastName||'')).join(', ');
+    return {...sr, realName: real};
+  });
+  h += `<div class="staff-summary">
+    <span class="fl">Role Distribution</span>
+    <div class="staff-chips">${STAFF_SUM.map(s=>`<div class="staff-chip">
+      <div style="width:7px;height:7px;border-radius:50%;background:${s.color}"></div>
+      <div>
+        <div style="font-size:11px;color:var(--t2)">${s.name}</div>
+        ${s.realName ? `<div style="font-size:9px;color:${s.color};font-family:'Space Mono',monospace;">${s.realName}</div>` : ''}
+      </div>
+    </div>`).join('')}</div>
+  </div>`;
+
+  list.innerHTML = h;
+
+  // Update stat
+  const assignedEl = document.getElementById('stat-assigned');
+  if (assignedEl) assignedEl.textContent = totalAssigned > 0 ? `${totalAssigned}` : '—';
+}
+
+function togglePh(n) { openPh.has(n) ? openPh.delete(n) : openPh.add(n); rerender(); }
+function toggleTk(id) { openTk.has(id) ? openTk.delete(id) : openTk.add(id); rerender(); }
+function applyFilters() { rerender(); }
+
+function generateWorkflow() {
+  // Count all tasks
+  const total = PHASES.reduce((s,p) => s + p.tasks, 0);
+  const navCount = document.getElementById('task-count-nav');
+  if (navCount) navCount.textContent = total;
+  document.getElementById('stat-tasks').textContent = total;
+  document.getElementById('ps-tasks').textContent = total;
+  document.getElementById('stat-phases').textContent = PHASES.length;
+  document.getElementById('ps-phases').textContent = PHASES.length;
+  showToast(`⚡ Workflow generated — ${total} tasks across ${PHASES.length} phases`);
+  setView('results');
+}
+
+function pushWorkflow() {
+  const name = document.getElementById('wf-name')?.value || 'Workflow';
+  const mode = document.getElementById('assign-mode')?.value || 'auto';
+  const total = PHASES.reduce((s,p) => s + p.tasks, 0);
+
+  // Build export object and write to localStorage
+  const wfExport = {
+    name,
+    generatedAt: new Date().toISOString(),
+    workType: document.getElementById('worktype-sel')?.value || 'water',
+    phases: PHASES.map(ph => ({
+      name: ph.name,
+      desc: ph.desc,
+      dur: ph.dur,
+      tasks: ph.items.map(t => ({
+        id: t.id,
+        title: t.title,
+        priority: t.prio,
+        role: t.role,
+        assignedTo: mode === 'auto' ? ((ROLE_MAP[t.role]||[])[0]?.name || null) : null,
+        durationMin: t.min,
+        tags: t.tags,
+        checklist: t.cl
+      }))
+    })),
+    staffAssignments: Object.keys(ROLE_MAP).map(r => ({
+      role: r,
+      assignees: ROLE_MAP[r].map(m => m.name||m.firstName+' '+(m.lastName||''))
+    }))
+  };
+
+  try { localStorage.setItem('jd_cortex_workflow', JSON.stringify(wfExport)); } catch(_){}
+  showToast(`✓ "${name}" pushed to Job-Dox — ${total} tasks ready`);
+}
+
+function switchRtab(btn, tab) {
+  document.querySelectorAll('.rtab').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  ['node','staff','cortex'].forEach(t => {
+    const el = document.getElementById(`rtab-${t}`);
+    if (el) el.style.display = t === tab ? 'flex' : 'none';
+  });
+  if (tab === 'staff') loadStaff();
+}
+
+function setView(v) {
+  document.getElementById('view-builder').style.display = v === 'builder' ? 'flex' : 'none';
+  document.getElementById('view-results').style.display = v === 'results' ? 'flex' : 'none';
+  document.getElementById('vb-builder').className = `vbtn ${v === 'builder' ? 'on' : 'off'}`;
+  document.getElementById('vb-results').className = `vbtn ${v === 'results' ? 'on' : 'off'}`;
+  if (v === 'results') rerender();
+}
+
+function toggleTheme() {
+  isDark = !isDark;
+  document.body.classList.toggle('light', !isDark);
+  document.getElementById('theme-btn').textContent = isDark ? '🌙 Dark' : '☀️ Light';
+}
+
+function onWorkTypeChange() {
+  const wt = document.getElementById('worktype-sel')?.value;
+  loadTemplate(wt || 'water');
+}
+
+function loadTemplate(type) {
+  document.querySelectorAll('.tpl-btn').forEach(b => {
+    b.style.background = 'var(--s2)';
+    b.style.border = '1px solid var(--br)';
+    b.style.color = 'var(--t2)';
+  });
+  const el = document.getElementById(`tpl-${type}`);
+  if (el) {
+    el.style.background = 'rgba(228,53,49,0.09)';
+    el.style.border = '1px solid #e43531';
+    el.style.color = '#e43531';
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 3000);
+}
+
+// Poll localStorage every 2s so staff sync from portal is live
+function pollStaff() {
+  try {
+    const raw = localStorage.getItem('jd_cortex_staff');
+    const latest = raw ? JSON.parse(raw) : null;
+    if (latest && JSON.stringify(latest) !== JSON.stringify(STAFF)) {
+      loadStaff();
+      showToast(`↺ Staff updated from Job-Dox — ${latest.length} members`);
+    }
+  } catch(_){}
+}
+
+// Init
+loadStaff();
+setInterval(pollStaff, 2000);
+</script>
+</body>
+</html>
