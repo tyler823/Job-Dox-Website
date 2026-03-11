@@ -866,6 +866,22 @@ const obs=new IntersectionObserver(e=>{e.forEach(en=>{if(en.isIntersecting){en.t
 reveals.forEach(el=>obs.observe(el));
 document.querySelectorAll('a[href^="#"]').forEach(a=>{a.addEventListener('click',e=>{const href=a.getAttribute('href');if(!href||href==='#')return;try{const t=document.querySelector(href);if(t){e.preventDefault();document.getElementById('mobileMenu').classList.remove('active');setTimeout(()=>{t.scrollIntoView({behavior:'smooth',block:'start'})},100)}}catch(err){}})});
 
+// Memberstack button handlers
+function bindMemberstackButtons(){
+  if(!window.$memberstackDom){setTimeout(bindMemberstackButtons,200);return;}
+  document.querySelectorAll('[data-ms-action]').forEach(function(btn){
+    btn.addEventListener('click',function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      var action=this.getAttribute('data-ms-action');
+      var plan=this.getAttribute('data-ms-plan');
+      if(action==='login') window.$memberstackDom.openModal('LOGIN').catch(function(){});
+      if(action==='signup') window.$memberstackDom.openModal('SIGNUP',plan?{planId:plan}:{}).catch(function(){});
+    });
+  });
+}
+bindMemberstackButtons();
+
 // ROI Calculators
 const slider=document.getElementById('roiSlider'),sv=document.getElementById('sliderVal');
 const cd=document.getElementById('calcDaily'),cm=document.getElementById('calcMonthly'),ca=document.getElementById('calcAnnual');
