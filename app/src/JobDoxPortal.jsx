@@ -404,122 +404,18 @@ function WorkTypePills({ worktypes }) {
 }
 
 const PROJECTS = [
-  {id:"JD-2025-001",name:"Henderson Residence",address:"4821 Maple Drive, Bethany, OK 73008",
-   type:"Water Damage",status:"In Progress",adjuster:"Mike Torres",carrier:"State Farm",claim:"CLM-25-88441",
-   client:"Brian Henderson",clientPhone:"(405) 555-0192",clientEmail:"bhenderson@email.com",
-   created:"Nov 2",budget:42000,spent:18400,tasks:12,tasksOpen:7,
-   worktypes:[
-     {type:"Water Mitigation", phase:"Active – Day 3",   status:"active"},
-     {type:"Demo",             phase:"Scheduled Dec 18", status:"scheduled"},
-     {type:"Reconstruction",   phase:"Pending Scope",    status:"pending"},
-   ]},
-  {id:"JD-2025-002",name:"Westfield Office Complex",address:"1200 N May Ave, Oklahoma City, OK",
-   type:"Fire & Smoke",status:"Scoping",adjuster:"Dana Reeves",carrier:"Nationwide",claim:"CLM-25-77203",
-   client:"Westfield Mgmt LLC",clientPhone:"(405) 555-0341",clientEmail:"admin@westfield.com",
-   created:"Nov 18",budget:280000,spent:0,tasks:5,tasksOpen:5,
-   worktypes:[
-     {type:"Fire & Smoke",   phase:"Scoping",           status:"scoping"},
-     {type:"Contents",       phase:"Inventory Pending", status:"pending"},
-   ]},
-  {id:"JD-2025-003",name:"Park Creek Apts — Unit 14",address:"3300 NW 10th St, OKC, OK 73107",
-   type:"Mold Remediation",status:"Pending Approval",adjuster:"Liz Okafor",carrier:"Allstate",claim:"CLM-25-90012",
-   client:"Park Creek HOA",clientPhone:"(405) 555-0887",clientEmail:"mgr@parkcreek.com",
-   created:"Nov 25",budget:18500,spent:12200,tasks:8,tasksOpen:2,
-   worktypes:[
-     {type:"Mold Remediation", phase:"Clearance Testing", status:"testing"},
-     {type:"Reconstruction",   phase:"Awaiting Approval", status:"pending"},
-   ]},
-  {id:"JD-2025-004",name:"Nguyen Family Home",address:"7742 S Western Ave, OKC, OK",
-   type:"Storm Damage",status:"In Progress",adjuster:"Jeff Paulson",carrier:"Farmers",claim:"CLM-25-66109",
-   client:"Kim Nguyen",clientPhone:"(405) 555-0443",clientEmail:"knguyen@email.com",
-   created:"Dec 3",budget:95000,spent:34000,tasks:18,tasksOpen:11,
-   worktypes:[
-     {type:"Water Mitigation", phase:"Complete",        status:"complete"},
-     {type:"Demo",             phase:"Active – Day 2",  status:"active"},
-     {type:"Reconstruction",   phase:"Scheduled Jan 6", status:"scheduled"},
-   ]},
-  {id:"JD-2025-005",name:"Ridgeline Commercial — Bay 4",address:"9900 Broadway Ext, Edmond, OK",
-   type:"Water Damage",status:"Completed",adjuster:"Sarah Ellis",carrier:"Liberty Mutual",claim:"CLM-25-55880",
-   client:"Ridgeline Properties",clientPhone:"(405) 555-0512",clientEmail:"info@ridgeline.com",
-   created:"Oct 14",budget:67000,spent:66200,tasks:22,tasksOpen:0,
-   worktypes:[
-     {type:"Water Mitigation", phase:"Complete", status:"complete"},
-     {type:"Demo",             phase:"Complete", status:"complete"},
-     {type:"Reconstruction",   phase:"Complete", status:"complete"},
-   ]},
-  {id:"JD-2025-006",name:"Thornbury Residence",address:"2215 NW 59th Terrace, OKC, OK",
-   type:"Reconstruction",status:"New Lead",adjuster:"",carrier:"",claim:"",
-   client:"Lisa Thornbury",clientPhone:"(405) 555-0776",clientEmail:"lthornbury@email.com",
-   created:"Dec 10",budget:0,spent:0,tasks:2,tasksOpen:2,
-   worktypes:[
-     {type:"Reconstruction", phase:"Estimate Needed", status:"pending"},
-   ]},
-];
+const PROJECTS = [];
+const ACTIVITY = [];
+const TODAY_ISO = new Date().toISOString().slice(0,10);
+const MY_TASKS = [];
+const DAILY_NOTES_SEED = [];
 
-const ACTIVITY = [
-  {id:1, proj:"Henderson Residence",     projId:"JD-2025-001", action:"DryDox Day 3 report submitted",              user:"Jake R.",  time:"12m ago",    color:"var(--blue)",   live:true,  actionType:"document", tab:"documents", docName:"DryDox Report — Day 3.pdf"},
-  {id:2, proj:"Westfield Office Complex",projId:"JD-2025-002", action:"Scope of work — $148,000 estimate created",  user:"Tyler M.", time:"1h ago",     color:"var(--amber)",  live:false, actionType:"scope",    tab:"scope"},
-  {id:3, proj:"Henderson Residence",     projId:"JD-2025-001", action:"Task completed: Set dehumidifiers",           user:"Maria S.", time:"2h ago",     color:"var(--green)",  live:false, actionType:"task",     tab:"tasks",     taskTitle:"Set dehumidifiers (3x) in basement"},
-  {id:4, proj:"Park Creek Apts",         projId:"JD-2025-003", action:"Supplement approved by adjuster",            user:"System",   time:"3h ago",     color:"var(--purple)", live:false, actionType:"message",  tab:"messages"},
-  {id:5, proj:"Nguyen Family Home",      projId:"JD-2025-004", action:"New SMS from Kim Nguyen",                    user:"Client",   time:"4h ago",     color:"var(--acc)",    live:false, actionType:"message",  tab:"messages"},
-  {id:6, proj:"Henderson Residence",     projId:"JD-2025-001", action:"Invoice INV-2025-0042 generated",            user:"Tyler M.", time:"Yesterday",  color:"var(--teal)",   live:false, actionType:"document", tab:"documents", docName:"Invoice INV-2025-0042.pdf"},
-  {id:7, proj:"Ridgeline Commercial",    projId:"JD-2025-005", action:"Project marked Completed",                   user:"Tyler M.", time:"Yesterday",  color:"var(--green)",  live:false, actionType:"overview", tab:"overview"},
-  {id:8, proj:"Westfield Office Complex",projId:"JD-2025-002", action:"Contact added: Dana Reeves (Adjuster)",      user:"Tyler M.", time:"Dec 12",     color:"var(--t3)",     live:false, actionType:"contact",  tab:"contacts"},
-  {id:9, proj:"Nguyen Family Home",      projId:"JD-2025-004", action:"Task created: Schedule crew for demo phase", user:"Tyler M.", time:"Dec 12",     color:"var(--amber)",  live:false, actionType:"task",     tab:"tasks",     taskTitle:"Schedule crew for demo phase"},
-  {id:10,proj:"Park Creek Apts",         projId:"JD-2025-003", action:"Mold clearance report uploaded",             user:"Jake R.",  time:"Dec 11",     color:"var(--blue)",   live:false, actionType:"document", tab:"documents", docName:"Clearance Report.pdf"},
-  {id:11,proj:"Henderson Residence",     projId:"JD-2025-001", action:"Photos added to Day 2 album (14 photos)",   user:"Maria S.", time:"Dec 13",     color:"var(--purple)", live:false, actionType:"media",    tab:"media"},
-  {id:12,proj:"Westfield Office Complex",projId:"JD-2025-002", action:"Budget category Mitigation updated",         user:"Tyler M.", time:"Dec 11",     color:"var(--amber)",  live:false, actionType:"budget",   tab:"budget"},
-];
 
-const TODAY_ISO = "2025-12-15";
-const MY_TASKS = [
-  {id:1, proj:"Henderson Residence",       title:"Drying log Day 3 — on-site readings",    date:"2025-12-15", time:"07:30", duration:60,  priority:"high", done:false, type:"appointment", projId:"JD-2025-001"},
-  {id:2, proj:"Nguyen Family Home",         title:"Adjuster call — Jeff Paulson (Farmers)", date:"2025-12-15", time:"09:00", duration:30,  priority:"high", done:false, type:"appointment", projId:"JD-2025-004"},
-  {id:3, proj:"Westfield Office Complex",   title:"Scope review with Dana Reeves",          date:"2025-12-15", time:"11:00", duration:90,  priority:"high", done:false, type:"appointment", projId:"JD-2025-002"},
-  {id:4, proj:"Thornbury Residence",        title:"Initial site inspection",                date:"2025-12-15", time:"14:00", duration:120, priority:"med",  done:false, type:"appointment", projId:"JD-2025-006"},
-  {id:5, proj:"Henderson Residence",        title:"State Farm adjuster walkthrough",        date:"2025-12-16", time:"10:00", duration:60,  priority:"high", done:false, type:"appointment", projId:"JD-2025-001"},
-  {id:6, proj:"Park Creek Apts",            title:"Mold clearance inspection",              date:"2025-12-17", time:"09:30", duration:45,  priority:"med",  done:false, type:"appointment", projId:"JD-2025-003"},
-  {id:7, proj:"Henderson Residence",       title:"Order replacement LVP flooring",          date:"2025-12-15", priority:"med",  done:false, type:"task", projId:"JD-2025-001"},
-  {id:8, proj:"Park Creek Apts",           title:"Follow up on pending approval email",      date:"2025-12-15", priority:"low",  done:false, type:"task", projId:"JD-2025-003"},
-  {id:9, proj:"Nguyen Family Home",        title:"Schedule crew for demo phase",             date:"2025-12-15", priority:"med",  done:true,  type:"task", projId:"JD-2025-004"},
-  {id:10,proj:"Westfield Office Complex",  title:"Upload signed authorization form",         date:"2025-12-15", priority:"low",  done:false, type:"task", projId:"JD-2025-002"},
-  {id:11,proj:"Henderson Residence",       title:"Update project notes from adjuster call",  date:"2025-12-16", priority:"med",  done:false, type:"task", projId:"JD-2025-001"},
-  {id:12,proj:"Thornbury Residence",       title:"Send initial estimate after inspection",   date:"2025-12-16", priority:"high", done:false, type:"task", projId:"JD-2025-006"},
-];
 
-const DAILY_NOTES_SEED = [
-  {id:1, date:"Dec 15, 2025", author:"Jake Reynolds", content:"Day 3 moisture readings taken throughout all affected areas. Basement RH down to 48% (was 72% on Day 1). Living room subfloor still elevated — extended drying protocol initiated. All 8 air movers and 3 dehumidifiers running normally.", visibleToClient:true},
-  {id:2, date:"Dec 14, 2025", author:"Maria Santos",  content:"Day 2 equipment check complete. No issues with equipment. Took 42 photos of affected areas and uploaded to Moisture Mapping album. Client called at 2pm with questions about timeline — advised 5-7 day drying cycle, pending final readings.", visibleToClient:true},
-  {id:3, date:"Dec 12, 2025", author:"Tyler Mitchell", content:"Initial assessment complete. Water intrusion from burst supply line behind kitchen wall. Affected areas: kitchen, dining room, and partial basement (approx 480 SF). Emergency extraction performed. Equipment placed per IICRC S500 guidelines.", visibleToClient:false},
-];
-
-const STAFF_POOL = [
-  {id:1,name:"Jake Reynolds",role:"Lead Technician",phone:"(405) 555-4411",cert:"IICRC WRT",color:"#e89c18"},
-  {id:2,name:"Maria Santos",role:"Field Technician",phone:"(405) 555-7723",cert:"IICRC ASD",color:"#a78bfa"},
-  {id:3,name:"Tyler Mitchell",role:"Project Manager",phone:"(405) 555-9901",cert:"IICRC FSRT",color:"#e43531"},
-];
-
-const CONTACTS_SEED = [
-  {id:1,name:"Brian Henderson",role:"Insured / Property Owner",phone:"(405) 555-0192",email:"bhenderson@email.com",color:"#5ba3f5"},
-  {id:2,name:"Mike Torres",role:"Adjuster — State Farm",phone:"(405) 555-9910",email:"m.torres@statefarm.com",color:"#1ad98a"},
-];
-
-const DOCS_SEED = [
-  {id:1,name:"DryDox Report — Day 1.pdf",type:"DryDox",size:"284 KB",date:"Dec 12",gen:true},
-  {id:2,name:"DryDox Report — Day 2.pdf",type:"DryDox",size:"291 KB",date:"Dec 13",gen:true},
-  {id:3,name:"ContentsDox Schedule of Loss.pdf",type:"ContentsDox",size:"1.2 MB",date:"Dec 14",gen:true},
-  {id:4,name:"Invoice INV-2025-0042.pdf",type:"Invoice",size:"188 KB",date:"Dec 15",gen:true},
-  {id:5,name:"Insurance Authorization.pdf",type:"Contract",size:"420 KB",date:"Dec 10",gen:false},
-];
-
-const TASKS_SEED = [
-  {id:1,title:"Initial moisture mapping — Living Room",assigned:"Jake R.",due:"Dec 15",status:"open",priority:"high",created:"Dec 12",comments:2},
-  {id:2,title:"Set dehumidifiers (3x) in basement",assigned:"Maria S.",due:"Dec 13",status:"done",priority:"high",created:"Dec 12",comments:1},
-  {id:3,title:"Document affected areas with photos",assigned:"Jake R.",due:"Dec 14",status:"done",priority:"med",created:"Dec 12",comments:0},
-  {id:4,title:"Contact adjuster — supplement approval",assigned:"Office",due:"Dec 16",status:"open",priority:"high",created:"Dec 13",comments:3},
-  {id:5,title:"Order replacement flooring materials",assigned:"Tyler M.",due:"Dec 20",status:"open",priority:"med",created:"Dec 14",comments:0},
-  {id:6,title:"Drying log Day 3 reading",assigned:"Jake R.",due:"Dec 15",status:"open",priority:"low",created:"Dec 14",comments:0},
-];
+const STAFF_POOL = [];
+const CONTACTS_SEED = [];
+const DOCS_SEED = [];
+const TASKS_SEED = [];
 
 const SCOPE_SEED = [
   {id:1,desc:"Water Extraction — Per sq ft",unit:"SF",qty:480,price:0.85},
@@ -542,12 +438,7 @@ const PRICE_LIST = [
   {code:"RST-PNT",desc:"Painting (2 coats)",unit:"SF",price:1.20},
 ];
 
-const MSGS_SEED = [
-  {id:1,type:"email",from:"Mike Torres",preview:"Re: Henderson — supplement approved for $4,200…",time:"2h ago",read:false},
-  {id:2,type:"sms",from:"Brian Henderson",preview:"When will the crew be back tomorrow?",time:"4h ago",read:false},
-  {id:3,type:"call",from:"State Farm Claims",preview:"Inbound call — 8 min 42 sec. Discussed supplement timeline.",time:"Yesterday",read:true},
-  {id:4,type:"email",from:"Brian Henderson",preview:"Following up on the contents list from last week…",time:"Dec 12",read:true},
-];
+const MSGS_SEED = [];
 
 const DEFAULT_ATTR_DEFS = [
   {id:1,key:"yearBuilt",   label:"Year Built",         type:"text", placeholder:"e.g. 1998"},
@@ -826,8 +717,9 @@ function ClockInModal({ proj, clockInState, onClockIn, onClockOut, onClose, curr
   );
 }
 
-function NotifyModal({ proj, onClose }) {
-  const [tech, setTech] = useState("Jake Reynolds");
+function NotifyModal({ proj, onClose, globalStaff=[] }) {
+  const staffNames = globalStaff.map(s=>`${s.firstName} ${s.lastName}`.trim()).filter(Boolean);
+  const [tech, setTech] = useState(staffNames[0]||"Crew");
   const [eta, setEta]   = useState("30");
   const [sent, setSent] = useState(false);
   const firstName = (proj.client||"there").split(" ")[0];
@@ -852,9 +744,11 @@ function NotifyModal({ proj, onClose }) {
               <div>
                 <label className="lbl">Crew Member</label>
                 <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                  <Av name={tech} color={STAFF_POOL.find(s=>s.name===tech)?.color||"var(--acc)"} size={40}/>
+                  <Av name={tech} color="var(--acc)" size={40}/>
                   <select className="sel" style={{flex:1}} value={tech} onChange={e=>setTech(e.target.value)}>
-                    {STAFF_POOL.map(s=><option key={s.name}>{s.name}</option>)}
+                    {staffNames.length > 0
+                      ? staffNames.map(n=><option key={n}>{n}</option>)
+                      : <option>Crew</option>}
                   </select>
                 </div>
               </div>
@@ -1209,7 +1103,7 @@ function MyDayPage({ onNavigate }) {
   );
 }
 
-function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates }) {
+function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, globalStaff=[] }) {
   const [search, setSearch]   = useState("");
   const [fType, setFType]     = useState("All");
   const [fStatus, setFStatus] = useState("All");
@@ -1231,7 +1125,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
     <>
       {showAdd    && <AddProjModal onClose={()=>setShowAdd(false)} onAdd={p=>{onAdd(p);setShowAdd(false);}}/>}
       {clockProj  && <ClockInModal proj={clockProj} clockInState={clockInState} onClockIn={onClockIn} onClockOut={onClockOut} onClose={()=>setClock(null)} currentUser={currentUser} canViewRates={canViewRates}/>}
-      {notifyProj && <NotifyModal  proj={notifyProj} onClose={()=>setNotify(null)}/>}
+      {notifyProj && <NotifyModal proj={notifyProj} onClose={()=>setNotify(null)} globalStaff={globalStaff}/>}
       {commProj   && <CommModal    proj={commProj}   onClose={()=>setComm(null)}/>}
 
       <div className="topbar">
@@ -1382,18 +1276,15 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
   );
 }
 
-function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emailSchedule="weekly", setEmailSchedule=()=>{}, clientPortal=false, setClientPortal=()=>{} }) {
-  const [attrs, setAttrs]         = useState({});
-  const [staff, setStaff]         = useState(STAFF_POOL);
-  const [addingStaff, setAddingS] = useState(false);
-  const [ns, setNs]               = useState({name:"",role:"",phone:"",cert:""});
+function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emailSchedule="weekly", setEmailSchedule=()=>{}, clientPortal=false, setClientPortal=()=>{}, globalStaff=[] }) {
+  const [attrs, setAttrs]           = useState({});
+  const [assigned, setAssigned]     = useState([]);   // project-level assignments from globalStaff
   const [addingNote, setAddingNote] = useState(false);
-  const [noteText, setNoteText]   = useState("");
-  const addStaff = () => {
-    if (!ns.name) return;
-    setStaff(s=>[...s,{id:uid(),...ns,color:AVCOLORS[staff.length%AVCOLORS.length]}]);
-    setNs({name:"",role:"",phone:"",cert:""}); setAddingS(false);
-  };
+  const [noteText, setNoteText]     = useState("");
+  const [assignPick, setAssignPick] = useState(false);
+
+  const unassigned = globalStaff.filter(s => !assigned.find(a => a.id === s.id));
+
   const addNote = () => {
     if(!noteText.trim()) return;
     const n = {id:uid(), date:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}), author:"Tyler Mitchell", content:noteText.trim(), visibleToClient:true};
@@ -1440,36 +1331,62 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
         <div className="card" style={{gridColumn:"1/-1"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:11}}>
             <div style={{fontSize:13,fontWeight:700}}>Assigned Staff</div>
-            <button className="btn btn-ghost btn-xs" onClick={()=>setAddingS(v=>!v)}>{Ic.plus} Add Staff</button>
+            <div style={{display:"flex",gap:7,alignItems:"center"}}>
+              {globalStaff.length === 0 && (
+                <span style={{fontSize:10,color:"var(--t3)"}}>Add staff in Settings first</span>
+              )}
+              {globalStaff.length > 0 && unassigned.length > 0 && (
+                <div style={{position:"relative"}}>
+                  <button className="btn btn-ghost btn-xs" onClick={()=>setAssignPick(v=>!v)}>{Ic.plus} Assign Staff</button>
+                  {assignPick && (
+                    <div style={{position:"absolute",right:0,top:"100%",marginTop:4,background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,minWidth:220,zIndex:50,boxShadow:"0 8px 24px rgba(0,0,0,.35)",overflow:"hidden"}}>
+                      {unassigned.map(s=>{
+                        const rc = ROLE_COLORS[s.systemRole]||"#5ba3f5";
+                        return (
+                          <button key={s.id} style={{width:"100%",background:"transparent",border:"none",borderBottom:"1px solid var(--br)",padding:"9px 13px",display:"flex",alignItems:"center",gap:9,cursor:"pointer",fontFamily:"var(--ui)"}}
+                            onClick={()=>{setAssigned(a=>[...a,s]);setAssignPick(false);}}
+                            onMouseEnter={e=>e.currentTarget.style.background="var(--s3)"}
+                            onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                            <div style={{width:28,height:28,borderRadius:"50%",background:`${rc}18`,border:`1.5px solid ${rc}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:rc,flexShrink:0}}>
+                              {s.photoUrl?<img src={s.photoUrl} style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/>:`${(s.firstName||"")[0]}${(s.lastName||"")[0]}`}
+                            </div>
+                            <div style={{textAlign:"left"}}>
+                              <div style={{fontSize:11,fontWeight:700,color:"var(--t1)"}}>{s.firstName} {s.lastName}</div>
+                              <div style={{fontSize:9,color:rc,fontWeight:600}}>{s.systemRole}</div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-          {addingStaff && (
-            <div style={{background:"var(--s3)",borderRadius:8,padding:11,marginBottom:11}}>
-              <div className="g4" style={{gap:9,marginBottom:9}}>
-                <F label="Name" value={ns.name} onChange={v=>setNs(s=>({...s,name:v}))} placeholder="Full name"/>
-                <F label="Role" value={ns.role} onChange={v=>setNs(s=>({...s,role:v}))} options={["Lead Technician","Field Technician","Project Manager","Estimator","Subcontractor"]}/>
-                <F label="Phone" value={ns.phone} onChange={v=>setNs(s=>({...s,phone:v}))} placeholder="(405) 555-0000"/>
-                <F label="Certification" value={ns.cert} onChange={v=>setNs(s=>({...s,cert:v}))} placeholder="e.g. IICRC WRT"/>
-              </div>
-              <div style={{display:"flex",justifyContent:"flex-end",gap:7}}>
-                <button className="btn btn-ghost btn-xs" onClick={()=>setAddingS(false)}>Cancel</button>
-                <button className="btn btn-primary btn-xs" onClick={addStaff}>Add</button>
-              </div>
+          {assigned.length === 0 ? (
+            <div style={{padding:"16px 0",color:"var(--t3)",fontSize:11,textAlign:"center"}}>
+              {globalStaff.length === 0 ? "No company staff configured. Go to Settings › Staff to add team members." : "No staff assigned to this project yet."}
             </div>
-          )}
-          {staff.map(s=>(
-            <div key={s.id} className="staff-row">
-              <Av name={s.name} color={s.color} size={30}/>
-              <div style={{flex:1,minWidth:0,fontSize:12,fontWeight:600,color:"var(--t1)"}}>{s.name}</div>
-              <div style={{fontSize:11,color:"var(--t2)",width:140}}>{s.role}</div>
-              <div style={{fontSize:11,color:"var(--blue)",width:140}}>{s.phone}</div>
-              <div style={{width:120}}><span style={{borderRadius:20,padding:"2px 7px",fontSize:9,background:"var(--s3)",color:"var(--t3)"}}>{s.cert||"—"}</span></div>
-              <div style={{display:"flex",gap:4}}>
-                <button className="btn btn-ghost btn-xs">{Ic.phone}</button>
-                <button className="btn btn-ghost btn-xs">{Ic.sms}</button>
-                <button className="btn btn-danger btn-xs" onClick={()=>setStaff(p=>p.filter(x=>x.id!==s.id))}>{Ic.trash}</button>
+          ) : assigned.map(s=>{
+            const rc = ROLE_COLORS[s.systemRole]||"#5ba3f5";
+            return (
+              <div key={s.id} className="staff-row">
+                <div style={{width:32,height:32,borderRadius:"50%",overflow:"hidden",background:`${rc}18`,border:`1.5px solid ${rc}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:rc,flexShrink:0}}>
+                  {s.photoUrl?<img src={s.photoUrl} style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/>:`${(s.firstName||"")[0]}${(s.lastName||"")[0]}`}
+                </div>
+                <div style={{flex:1,minWidth:0,fontSize:12,fontWeight:600,color:"var(--t1)"}}>{s.firstName} {s.lastName}</div>
+                <div style={{fontSize:11,width:170}}>
+                  <span style={{borderRadius:20,padding:"2px 8px",fontSize:9,fontWeight:700,background:`${rc}18`,color:rc}}>{s.systemRole}</span>
+                </div>
+                <div style={{fontSize:11,color:"var(--blue)",width:140}}>{s.phone||"—"}</div>
+                <div style={{display:"flex",gap:4}}>
+                  <button className="btn btn-ghost btn-xs">{Ic.phone}</button>
+                  <button className="btn btn-ghost btn-xs">{Ic.sms}</button>
+                  <button className="btn btn-danger btn-xs" onClick={()=>setAssigned(a=>a.filter(x=>x.id!==s.id))}>{Ic.trash}</button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <div className="card" style={{gridColumn:"1/-1"}}>
           <div style={{marginBottom:13}}>
@@ -1557,7 +1474,7 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
                 <div style={{flex:1}}/>
                 <button onClick={()=>setDailyNotes(p=>p.map(n=>n.id===note.id?{...n,visibleToClient:!n.visibleToClient}:n))}
                   style={{display:"flex",alignItems:"center",gap:4,background:note.visibleToClient?"rgba(26,217,138,.1)":"var(--s3)",border:`1px solid ${note.visibleToClient?"rgba(26,217,138,.3)":"var(--br)"}`,borderRadius:20,padding:"2px 8px",cursor:"pointer",fontSize:10,color:note.visibleToClient?"var(--green)":"var(--t3)",fontWeight:600}}>
-                  {note.visibleToClient ? "👁 Visible to Client" : "Hidden"}
+                  {note.visibleToClient ? "Visible to Client" : "Hidden"}
                 </button>
                 <button className="btn btn-danger btn-xs" onClick={()=>setDailyNotes(p=>p.filter(n=>n.id!==note.id))}>{Ic.trash}</button>
               </div>
@@ -3085,7 +3002,7 @@ function ProjectReportTab({ proj, dailyNotes=[], mediaFolders=[], mediaUploads=[
         ${selectedFolders.length>0?`
         <div class="section">
           <div class="section-hdr">Photo Albums Included (${selectedFolders.length})</div>
-          <div style="margin-top:6px;">${selectedFolders.map(f=>`<span class="album-chip">📁 ${f}</span>`).join("")}</div>
+          <div style="margin-top:6px;">${selectedFolders.map(f=>`<span class="album-chip">${f}</span>`).join("")}</div>
           <div style="font-size:11px;color:#6b7280;margin-top:10px;">Full-resolution photos available in the Job-Dox client portal.</div>
         </div>`:""}
         ${selectedDocs.length>0?`
@@ -3389,7 +3306,7 @@ function ProjectReportTab({ proj, dailyNotes=[], mediaFolders=[], mediaUploads=[
 
           {/* Client portal note card */}
           <div className="card" style={{border:"1px solid rgba(232,156,24,.25)",background:"rgba(232,156,24,.04)"}}>
-            <div style={{fontSize:12,fontWeight:700,marginBottom:8,color:"var(--amber)"}}>💡 Client Portal</div>
+            <div style={{fontSize:12,fontWeight:700,marginBottom:8,color:"var(--amber)"}}>Client Portal</div>
             <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.65,marginBottom:10}}>
               Your client can access a <strong style={{color:"var(--t1)"}}>lite view</strong> of this project — photos from selected albums and notes marked "Visible to Client" — without seeing financials, internal notes, or private documents.
             </div>
@@ -3421,7 +3338,7 @@ const PROJ_TABS = [
   {key:"project-report", label:"Project Report", icon:Ic.proj_report },
 ];
 
-function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates }) {
+function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, globalStaff=[] }) {
   const [tab,setTab]           = useState(initialTab||"overview");
   const [notifyModal,setNotify]= useState(false);
   const [commModal,setComm]    = useState(false);
@@ -3440,7 +3357,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
   return (
     <>
       {clockModal  && <ClockInModal proj={proj} clockInState={clockInState} onClockIn={onClockIn} onClockOut={onClockOut} onClose={()=>setClock(false)} currentUser={currentUser} canViewRates={canViewRates}/>}
-      {notifyModal && <NotifyModal  proj={proj} onClose={()=>setNotify(false)}/>}
+      {notifyModal && <NotifyModal proj={proj} onClose={()=>setNotify(false)} globalStaff={globalStaff}/>}
       {commModal   && <CommModal    proj={proj} onClose={()=>setComm(false)}/>}
       <div className="topbar">
         <div style={{display:"flex",alignItems:"center",gap:11}}>
@@ -3478,7 +3395,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
           </button>
         ))}
       </div>
-      {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal}/>}
+      {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff}/>}
       {tab==="drydox"         && <DryDoxTab      proj={proj}/>}
       {tab==="contentsdox"    && <ContentsDoxTab proj={proj}/>}
       {tab==="estimatedox"    && <EstimateDoxTab proj={proj}/>}
@@ -3495,11 +3412,332 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
   );
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   CORTEXAI — SYSTEM ROLES & STAFF SETTINGS
+══════════════════════════════════════════════════════════════════ */
+const SYSTEM_ROLES = [
+  "Project Manager","Lead Technician","Field Technician","Estimator",
+  "QC Inspector","Billing Specialist","Office Administrator",
+  "IAQ / Industrial Hygienist","Contents Specialist","Subcontractor Coordinator",
+];
+const ROLE_COLORS = {
+  "Project Manager":           "#e43531",
+  "Lead Technician":           "#5ba3f5",
+  "Field Technician":          "#1ad98a",
+  "Estimator":                 "#e89c18",
+  "QC Inspector":              "#22d3ee",
+  "Billing Specialist":        "#e879f9",
+  "Office Administrator":      "#f472b6",
+  "IAQ / Industrial Hygienist":"#34d399",
+  "Contents Specialist":       "#fb923c",
+  "Subcontractor Coordinator": "#a78bfa",
+};
+
+function syncStaffToLS(staff) {
+  try {
+    localStorage.setItem("jd_cortex_staff", JSON.stringify(
+      staff.map(s => ({
+        id: s.id,
+        name: `${s.firstName} ${s.lastName}`.trim(),
+        firstName: s.firstName,
+        lastName:  s.lastName,
+        email:     s.email,
+        phone:     s.phone,
+        systemRole:s.systemRole,
+        title:     s.title,
+        photoUrl:  s.photoUrl || "",
+        color:     ROLE_COLORS[s.systemRole] || "#5ba3f5",
+      }))
+    ));
+  } catch(_) {}
+}
+
+function SettingsPage({ globalStaff, setGlobalStaff }) {
+  const [tab,    setTab]    = useState("staff");
+  const [editId, setEditId] = useState(null);   // null = adding new
+  const [showForm, setShowForm] = useState(false);
+  const blank = { firstName:"", lastName:"", email:"", phone:"", systemRole:"Project Manager", title:"", photoUrl:"" };
+  const [form,   setForm]   = useState(blank);
+  const fileRef = useRef();
+
+  const handlePhoto = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => setForm(f => ({ ...f, photoUrl: ev.target.result }));
+    reader.readAsDataURL(file);
+  };
+
+  const openAdd = () => { setForm(blank); setEditId(null); setShowForm(true); };
+  const openEdit = s => {
+    setForm({ firstName:s.firstName, lastName:s.lastName, email:s.email,
+              phone:s.phone, systemRole:s.systemRole, title:s.title, photoUrl:s.photoUrl||"" });
+    setEditId(s.id);
+    setShowForm(true);
+  };
+  const cancelForm = () => { setShowForm(false); setEditId(null); };
+
+  const saveStaff = () => {
+    if (!form.firstName.trim() || !form.email.trim()) return;
+    let next;
+    if (editId) {
+      next = globalStaff.map(s => s.id === editId ? { ...s, ...form } : s);
+    } else {
+      next = [...globalStaff, { ...form, id: uid(), color: ROLE_COLORS[form.systemRole] || "#5ba3f5" }];
+    }
+    setGlobalStaff(next);
+    syncStaffToLS(next);
+    setShowForm(false);
+    setEditId(null);
+  };
+
+  const removeStaff = id => {
+    const next = globalStaff.filter(s => s.id !== id);
+    setGlobalStaff(next);
+    syncStaffToLS(next);
+  };
+
+  const fld = (label, key, opts={}) => (
+    <div>
+      <label className="lbl">{label}{opts.required && <span style={{color:"var(--acc)",marginLeft:2}}>*</span>}</label>
+      {opts.options
+        ? <select className="sel" value={form[key]} onChange={e=>setForm(f=>({...f,[key]:e.target.value}))}>
+            {opts.options.map(o=><option key={o}>{o}</option>)}
+          </select>
+        : <input type={opts.type||"text"} className="inp" value={form[key]}
+            onChange={e=>setForm(f=>({...f,[key]:e.target.value}))}
+            placeholder={opts.placeholder||""}/>
+      }
+    </div>
+  );
+
+  const TABS = [["staff","Staff"],["cortex","CortexAI"],["general","General"],["roadmap","Roadmap"]];
+
+  return (
+    <div className="scroll" style={{flex:1,overflow:"auto"}}>
+      <div style={{padding:"20px 24px",maxWidth:1060,margin:"0 auto"}}>
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:18,fontWeight:800,color:"var(--t1)"}}>Settings</div>
+          <div className="mono" style={{fontSize:10,color:"var(--t3)",marginTop:3}}>WORKSPACE CONFIGURATION</div>
+        </div>
+
+        {/* Tab nav */}
+        <div style={{display:"flex",gap:2,borderBottom:"1px solid var(--br)",marginBottom:22}}>
+          {TABS.map(([k,l]) => (
+            <button key={k} onClick={()=>setTab(k)} style={{
+              padding:"8px 16px",background:"transparent",border:"none",
+              borderBottom:tab===k?"2px solid var(--acc)":"2px solid transparent",
+              color:tab===k?"var(--t1)":"var(--t2)",fontWeight:tab===k?700:400,
+              fontSize:12,cursor:"pointer",fontFamily:"var(--ui)",marginBottom:-1,
+            }}>{l}</button>
+          ))}
+        </div>
+
+        {/* ── STAFF TAB ── */}
+        {tab==="staff" && (
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+              <div>
+                <div style={{fontSize:14,fontWeight:700,color:"var(--t1)"}}>Company Staff</div>
+                <div style={{fontSize:11,color:"var(--t3)",marginTop:3,maxWidth:520}}>
+                  Staff added here sync automatically to CortexAI for workflow task assignment by System Role.
+                </div>
+              </div>
+              {!showForm && (
+                <button className="btn btn-primary" onClick={openAdd}>{Ic.plus} Add Staff Member</button>
+              )}
+            </div>
+
+            {/* Add / Edit form */}
+            {showForm && (
+              <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:10,padding:20,marginBottom:20}}>
+                <div style={{fontSize:13,fontWeight:700,marginBottom:16,color:"var(--t1)"}}>
+                  {editId ? "Edit Staff Member" : "Add Staff Member"}
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+                  {fld("First Name","firstName",{required:true,placeholder:"First name"})}
+                  {fld("Last Name","lastName",{placeholder:"Last name"})}
+                  {fld("Email Address","email",{required:true,type:"email",placeholder:"name@company.com"})}
+                  {fld("Phone Number","phone",{placeholder:"(405) 555-0000"})}
+                  {fld("System Role","systemRole",{options:SYSTEM_ROLES})}
+                  {fld("Public Title","title",{placeholder:"e.g. Senior Technician, Field Lead"})}
+                </div>
+
+                {/* Role assignment note */}
+                <div style={{background:"var(--s3)",borderRadius:7,padding:"8px 13px",marginBottom:14,
+                  display:"flex",alignItems:"center",gap:8,fontSize:11,color:"var(--t2)"}}>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:ROLE_COLORS[form.systemRole]||"#5ba3f5",flexShrink:0}}/>
+                  <span>System Role: <strong style={{color:ROLE_COLORS[form.systemRole]||"#5ba3f5"}}>{form.systemRole}</strong>
+                  <span style={{color:"var(--t3)",marginLeft:6}}>— CortexAI will auto-assign tasks with this role to this person.</span></span>
+                </div>
+
+                {/* Photo */}
+                <div style={{marginBottom:16}}>
+                  <label className="lbl">Profile Photo</label>
+                  <div style={{display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{width:52,height:52,borderRadius:"50%",overflow:"hidden",
+                      background:"var(--s3)",border:`2px solid ${ROLE_COLORS[form.systemRole]||"#5ba3f5"}`,
+                      flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                      {form.photoUrl
+                        ? <img src={form.photoUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                        : <span style={{fontWeight:700,fontSize:16,color:ROLE_COLORS[form.systemRole]||"#5ba3f5"}}>
+                            {(form.firstName||"?")[0]}{(form.lastName||"")[0]||""}
+                          </span>}
+                    </div>
+                    <div>
+                      <button className="btn btn-ghost btn-xs" onClick={()=>fileRef.current?.click()}>
+                        {Ic.upload} Upload Photo
+                      </button>
+                      <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handlePhoto}/>
+                      <div style={{fontSize:10,color:"var(--t3)",marginTop:5}}>JPG or PNG · Recommended 200×200px</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+                  <button className="btn btn-ghost" onClick={cancelForm}>Cancel</button>
+                  <button className="btn btn-primary" onClick={saveStaff}>
+                    {editId ? "Save Changes" : "Add Member"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Staff roster */}
+            {globalStaff.length === 0 ? (
+              <div style={{textAlign:"center",padding:"52px 0",color:"var(--t3)",background:"var(--s1)",borderRadius:10,border:"1px solid var(--br)"}}>
+                <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>No staff members yet</div>
+                <div style={{fontSize:11}}>Add your first team member to get started.</div>
+              </div>
+            ) : (
+              <div>
+                {/* Column headers */}
+                <div style={{display:"grid",gridTemplateColumns:"48px 1fr 190px 200px 160px 140px 72px",
+                  gap:10,padding:"3px 14px",marginBottom:6}}>
+                  {["","Name","System Role","Email","Phone","Title",""].map((h,i) => (
+                    <div key={i} className="mono" style={{fontSize:9,color:"var(--t3)"}}>{h}</div>
+                  ))}
+                </div>
+                {globalStaff.map(s => {
+                  const rc = ROLE_COLORS[s.systemRole] || "#5ba3f5";
+                  return (
+                    <div key={s.id} style={{display:"grid",
+                      gridTemplateColumns:"48px 1fr 190px 200px 160px 140px 72px",
+                      gap:10,alignItems:"center",padding:"10px 14px",
+                      background:"var(--s2)",border:"1px solid var(--br)",
+                      borderRadius:9,marginBottom:6}}>
+                      {/* Avatar */}
+                      <div style={{width:40,height:40,borderRadius:"50%",overflow:"hidden",
+                        background:`${rc}18`,border:`2px solid ${rc}`,flexShrink:0,
+                        display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        {s.photoUrl
+                          ? <img src={s.photoUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                          : <span style={{fontWeight:700,fontSize:14,color:rc}}>
+                              {(s.firstName||"?")[0]}{(s.lastName||"")[0]||""}
+                            </span>}
+                      </div>
+                      {/* Name */}
+                      <div>
+                        <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>{s.firstName} {s.lastName}</div>
+                        {s.title && <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{s.title}</div>}
+                      </div>
+                      {/* System role */}
+                      <div>
+                        <span style={{display:"inline-flex",alignItems:"center",gap:5,
+                          borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,
+                          background:`${rc}18`,color:rc,border:`1px solid ${rc}35`}}>
+                          <span style={{width:5,height:5,borderRadius:"50%",background:rc,flexShrink:0}}/>
+                          {s.systemRole}
+                        </span>
+                      </div>
+                      {/* Email */}
+                      <div style={{fontSize:11,color:"var(--blue)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.email}</div>
+                      {/* Phone */}
+                      <div style={{fontSize:11,color:"var(--t2)"}}>{s.phone||"—"}</div>
+                      {/* Title */}
+                      <div style={{fontSize:11,color:"var(--t3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.title||"—"}</div>
+                      {/* Actions */}
+                      <div style={{display:"flex",gap:4}}>
+                        <button className="btn btn-ghost btn-xs" title="Edit" onClick={()=>openEdit(s)}>{Ic.doc}</button>
+                        <button className="btn btn-danger btn-xs" title="Remove" onClick={()=>removeStaff(s.id)}>{Ic.trash}</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* CortexAI sync notice */}
+            <div style={{marginTop:20,background:"rgba(91,163,245,0.07)",border:"1px solid rgba(91,163,245,0.18)",
+              borderRadius:9,padding:"12px 16px",display:"flex",gap:12,alignItems:"flex-start"}}>
+              <div style={{color:"var(--blue)",flexShrink:0,marginTop:1}}>{Ic.mindflow}</div>
+              <div>
+                <div style={{fontSize:12,fontWeight:700,color:"var(--blue)",marginBottom:4}}>CortexAI Staff Sync</div>
+                <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.7}}>
+                  Staff saved here are written to <code style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--t1)"}}>localStorage</code> and
+                  picked up automatically by CortexAI (mindflow.html) within 2 seconds.
+                  Open both files in the same browser — no manual sync required.
+                  Tasks are matched to staff by <strong style={{color:"var(--t1)"}}>System Role</strong>.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── CORTEXAI TAB ── */}
+        {tab==="cortex" && (
+          <div style={{display:"flex",flexDirection:"column",gap:14}}>
+            <div className="card">
+              <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>CortexAI Integration</div>
+              <div style={{fontSize:11,color:"var(--t3)",marginBottom:14}}>
+                Connect this workspace to CortexAI (mindflow.html) for AI-powered workflow generation and auto task assignment.
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                <div><label className="lbl">API Base URL</label><input className="inp" defaultValue="https://app.job-dox.ai/api/v1"/></div>
+                <div><label className="lbl">CortexAI File Path</label><input className="inp" defaultValue="mindflow.html"/></div>
+              </div>
+              <div style={{marginTop:14,display:"flex",gap:8}}>
+                <button className="btn btn-primary" onClick={()=>window.open("mindflow.html","_blank")}>Open CortexAI</button>
+                <button className="btn btn-ghost">Test Connection</button>
+              </div>
+            </div>
+            <div className="card" style={{background:"rgba(91,163,245,0.05)",border:"1px solid rgba(91,163,245,0.18)"}}>
+              <div style={{fontSize:12,fontWeight:700,color:"var(--blue)",marginBottom:8}}>How Integration Works</div>
+              <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.9}}>
+                1. Add staff in <strong style={{color:"var(--t1)"}}>Settings › Staff</strong> — they sync to CortexAI via localStorage automatically.<br/>
+                2. Open <strong style={{color:"var(--t1)"}}>mindflow.html</strong> in the same browser tab — it reads staff in real time.<br/>
+                3. Build a mind map in CortexAI, generate a workflow — tasks are auto-assigned by System Role.<br/>
+                4. Push the generated workflow to Job-Dox to pre-populate task lists on new projects.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab==="general" && (
+          <div className="card" style={{padding:28,textAlign:"center",color:"var(--t3)"}}>
+            <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>General Settings</div>
+            <div style={{fontSize:11}}>Company name, timezone, branding, and notification preferences — coming soon.</div>
+          </div>
+        )}
+        {tab==="roadmap" && (
+          <div className="card" style={{padding:28,textAlign:"center",color:"var(--t3)"}}>
+            <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>Feature Roadmap</div>
+            <div style={{fontSize:11}}>Vote for upcoming features — coming soon.</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   ADVANCED TOOLS FLYOUT
+══════════════════════════════════════════════════════════════════ */
 const TOOLS = [
-  {icon:Ic.mindflow, label:"MindFlow AI",         desc:"AI-powered workflow generation"},
-  {icon:Ic.pricetag, label:"Price Lists",         desc:"Company-wide pricing management"},
-  {icon:Ic.attr,     label:"Attribute Templates", desc:"Configure custom project fields"},
-  {icon:Ic.report,   label:"Reporting",           desc:"Advanced analytics & exports"},
+  {icon:Ic.mindflow, label:"CortexAI",              desc:"AI-powered workflow generation",    link:"mindflow.html"},
+  {icon:Ic.pricetag, label:"Price Lists",            desc:"Company-wide pricing management"},
+  {icon:Ic.attr,     label:"Attribute Templates",    desc:"Configure custom project fields"},
+  {icon:Ic.report,   label:"Reporting",              desc:"Advanced analytics & exports"},
 ];
 
 function AdvToolsPanel({ onClose }) {
@@ -3515,17 +3753,19 @@ function AdvToolsPanel({ onClose }) {
         </div>
         <div style={{flex:1,overflowY:"auto",padding:"10px 10px"}}>
           {TOOLS.map(tool=>(
-            <button key={tool.label} className="tool-item" onClick={onClose}>
+            <button key={tool.label} className="tool-item"
+              onClick={()=>{ if(tool.link) window.open(tool.link,"_blank"); else onClose(); }}>
               <div style={{width:32,height:32,borderRadius:8,background:"var(--acc-lo)",color:"var(--acc)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{tool.icon}</div>
-              <div style={{minWidth:0}}>
+              <div style={{minWidth:0,flex:1}}>
                 <div style={{fontSize:12,fontWeight:700,color:"var(--t1)"}}>{tool.label}</div>
                 <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{tool.desc}</div>
               </div>
+              {tool.link && <div style={{fontSize:10,color:"var(--blue)",flexShrink:0}}>Open</div>}
             </button>
           ))}
         </div>
         <div style={{padding:"11px 14px",borderTop:"1px solid var(--br)",flexShrink:0,fontSize:10,color:"var(--t3)"}}>
-          More tools coming soon. Vote for features in Settings › Roadmap.
+          More tools coming soon. Configure in Settings › Roadmap.
         </div>
       </div>
     </div>
@@ -3542,6 +3782,7 @@ export default function JobDoxPortal() {
   const [clockInState,  setClockInState] = useState(null);
   const [projectShifts, setProjectShifts]= useState({});
   const [permission,    setPermission]   = useState("admin");
+  const [globalStaff,   setGlobalStaff]  = useState([]);
   const attrDefs = DEFAULT_ATTR_DEFS;
 
   const permCycle  = ["admin","manager","staff"];
@@ -3592,16 +3833,12 @@ export default function JobDoxPortal() {
       };
       document.head.appendChild(msScript);
     }
-
-    // ── Viewport meta (mobile scaling) ──
     if (!document.querySelector('meta[name="viewport"]')) {
       const vp = document.createElement("meta");
       vp.name = "viewport";
       vp.content = "width=device-width, initial-scale=1, viewport-fit=cover";
       document.head.appendChild(vp);
     }
-
-    // ── Portal CSS ──
     const el = document.createElement("style"); el.id="jdp2css";
     const existing = document.getElementById("jdp2css");
     if (existing) { existing.textContent=CSS; }
@@ -3617,23 +3854,28 @@ export default function JobDoxPortal() {
     else document.body.classList.toggle("jd-light-mode");
   };
 
+  const navTo = (pg) => { setPage(pg); setSelected(null); setShowTools(false); };
+
   return (
     <div className={`jdp${isLight?" lt":""}`}>
       {showTools && <AdvToolsPanel onClose={()=>setShowTools(false)}/>}
       <nav className="rail">
         <div className="rail-logo">JD</div>
         <button className={`rail-btn${page==="portfolio"&&!selected?" active":""}`} data-tip="Projects"
-          onClick={()=>{setPage("portfolio");setSelected(null);setShowTools(false);}}>
+          onClick={()=>navTo("portfolio")}>
           {Ic.folder}
         </button>
         <button className={`rail-btn${page==="myday"?" active":""}`} data-tip="My Day"
-          onClick={()=>{setPage("myday");setSelected(null);setShowTools(false);}}>
+          onClick={()=>navTo("myday")}>
           {Ic.calendar}
         </button>
         <button className="rail-btn" data-tip="All Tasks">{Ic.tasks}</button>
         <button className="rail-btn" data-tip="Messages">{Ic.msg}</button>
         <button className="rail-btn" data-tip="Reports">{Ic.chart}</button>
-        <button className="rail-btn" data-tip="Settings">{Ic.settings}</button>
+        <button className={`rail-btn${page==="settings"?" active":""}`} data-tip="Settings"
+          onClick={()=>navTo("settings")}>
+          {Ic.settings}
+        </button>
         <div className="rail-div"/>
         <div className="rail-lbl">TOOLS</div>
         <button className={`rail-btn${showTools?" active":""}`} data-tip="Advanced Tools" onClick={()=>setShowTools(v=>!v)}>
@@ -3661,12 +3903,12 @@ export default function JobDoxPortal() {
       {/* ── Mobile Bottom Nav ── */}
       <nav className="mobile-bottom-nav">
         <button className={`mob-tab${page==="portfolio"&&!selected?"active":""}`}
-          onClick={()=>{setPage("portfolio");setSelected(null);setShowTools(false);}}>
+          onClick={()=>navTo("portfolio")}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/></svg>
           Projects
         </button>
         <button className={`mob-tab${page==="myday"?"active":""}`}
-          onClick={()=>{setPage("myday");setSelected(null);setShowTools(false);}}>
+          onClick={()=>navTo("myday")}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"/></svg>
           My Day
         </button>
@@ -3678,14 +3920,24 @@ export default function JobDoxPortal() {
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5z"/></svg>
           {clockInState ? "Clocked In" : "Clock"}
         </button>
-        <button className="mob-tab" onClick={cyclePerms} style={{color:permission==="admin"?"var(--acc)":permission==="manager"?"var(--blue)":"var(--t3)"}}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-          {permission==="admin"?"Admin":permission==="manager"?"Mgr":"Staff"}
+        <button className={`mob-tab${page==="settings"?"active":""}`} onClick={()=>navTo("settings")}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+          Settings
         </button>
       </nav>
 
       <div className="jdp-main">
-        {page==="myday" ? (
+        {page==="settings" ? (
+          <>
+            <div className="topbar">
+              <div>
+                <div className="topbar-ttl">Settings</div>
+                <div className="topbar-sub">WORKSPACE CONFIGURATION</div>
+              </div>
+            </div>
+            <SettingsPage globalStaff={globalStaff} setGlobalStaff={setGlobalStaff}/>
+          </>
+        ) : page==="myday" ? (
           <MyDayPage onNavigate={handleNavigate}/>
         ) : selected ? (
           <ProjectDetail
@@ -3699,6 +3951,7 @@ export default function JobDoxPortal() {
             projectShifts={projectShifts}
             currentUser={currentUser}
             canViewRates={canViewRates}
+            globalStaff={globalStaff}
           />
         ) : (
           <PortfolioPage
@@ -3711,6 +3964,7 @@ export default function JobDoxPortal() {
             onClockOut={handleClockOut}
             currentUser={currentUser}
             canViewRates={canViewRates}
+            globalStaff={globalStaff}
           />
         )}
       </div>
