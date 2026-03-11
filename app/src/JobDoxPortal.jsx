@@ -820,11 +820,36 @@ function CommModal({ proj, onClose }) {
 function AddProjModal({ onClose, onAdd }) {
   const [f, setF] = useState({name:"",type:"",address:"",city:"",state:"OK",zip:"",clientName:"",clientPhone:"",clientEmail:"",carrier:"",claim:"",adjuster:"",dateOfLoss:"",notes:""});
   const s = (k,v) => setF(p=>({...p,[k]:v}));
+
+  // Work type toggles — each can be independently enabled with a phase/status
+  const WT_OPTIONS = Object.keys(WT_META);
+  const [selectedWTs, setSelectedWTs] = useState([]);
+  const toggleWT = (type) => {
+    setSelectedWTs(prev => {
+      const exists = prev.find(w => w.type === type);
+      if (exists) return prev.filter(w => w.type !== type);
+      return [...prev, { type, status:"active", phase:"Initial Response" }];
+    });
+  };
+  const isWTOn = (type) => !!selectedWTs.find(w => w.type === type);
+
   const submit = () => {
     if (!f.name||!f.type) return;
-    onAdd({...f, id:`JD-2025-${String(uid()).padStart(3,"0")}`, status:"New Lead", client:f.clientName, clientPhone:f.clientPhone, clientEmail:f.clientEmail, address:`${f.address}, ${f.city}, ${f.state} ${f.zip}`.trim(), created:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}), budget:0, spent:0, tasks:0, tasksOpen:0});
+    onAdd({
+      ...f,
+      id:`JD-2025-${String(uid()).padStart(3,"0")}`,
+      status:"New Lead",
+      client:f.clientName,
+      clientPhone:f.clientPhone,
+      clientEmail:f.clientEmail,
+      address:`${f.address}, ${f.city}, ${f.state} ${f.zip}`.trim(),
+      created:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),
+      budget:0, spent:0, tasks:0, tasksOpen:0,
+      worktypes: selectedWTs,
+    });
     onClose();
   };
+
   return (
     <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div className="modal modal-lg anim">
@@ -838,6 +863,37 @@ function AddProjModal({ onClose, onAdd }) {
               <F label="Initial Status" value={f.status||"New Lead"} onChange={v=>s("status",v)} options={["New Lead","Scoping","In Progress"]}/>
             </div>
           </div>
+
+          {/* ── Work Types ── */}
+          <div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+              <div className="sec">Work Types</div>
+              <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>Toggle to enable — drives CortexAI automations</div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:7}}>
+              {WT_OPTIONS.map(type => {
+                const meta = WT_META[type];
+                const on   = isWTOn(type);
+                return (
+                  <button key={type} onClick={()=>toggleWT(type)}
+                    style={{display:"flex",alignItems:"center",gap:7,padding:"8px 11px",borderRadius:9,
+                      border:`1.5px solid ${on ? meta.color : "var(--br)"}`,
+                      background: on ? `${meta.color}14` : "var(--s2)",
+                      cursor:"pointer",transition:"all .15s",textAlign:"left"}}>
+                    <span style={{color: on ? meta.color : "var(--t3)", display:"flex",alignItems:"center",flexShrink:0,fontSize:14}}>{meta.icon}</span>
+                    <span style={{fontSize:11,fontWeight: on ? 700 : 400, color: on ? meta.color : "var(--t2)", flex:1, lineHeight:1.3}}>{type}</span>
+                    {on && <span style={{width:6,height:6,borderRadius:"50%",background:meta.color,flexShrink:0}}/>}
+                  </button>
+                );
+              })}
+            </div>
+            {selectedWTs.length > 0 && (
+              <div style={{marginTop:8,fontSize:11,color:"var(--t3)"}}>
+                <span style={{color:"var(--green)",fontWeight:700}}>{selectedWTs.length}</span> work type{selectedWTs.length!==1?"s":""} enabled — phases can be set in Overview after creation.
+              </div>
+            )}
+          </div>
+
           <div><div className="sec" style={{marginBottom:7}}>Loss Address</div>
             <F label="Street Address" value={f.address} onChange={v=>s("address",v)} placeholder="123 Main Street" span={2}/>
             <div className="g3" style={{marginTop:10}}>
@@ -1288,7 +1344,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
   );
 }
 
-function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emailSchedule="weekly", setEmailSchedule=()=>{}, clientPortal=false, setClientPortal=()=>{}, globalStaff=[] }) {
+function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emailSchedule="weekly", setEmailSchedule=()=>{}, clientPortal=false, setClientPortal=()=>{}, globalStaff=[], worktypes=[], setWorktypes=()=>{} }) {
   const [attrs, setAttrs]           = useState({});
   const [assigned, setAssigned]     = useState([]);   // project-level assignments from globalStaff
   const [addingNote, setAddingNote] = useState(false);
@@ -1305,6 +1361,30 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
   };
   const schedLabels = {daily:"End of Day",weekly:"End of Week",none:"Never (Manual Only)"};
   const portalLink = `https://portal.job-dox.com/client/${proj.id.toLowerCase()}`;
+
+  // ── WorkType helpers ──
+  const WT_OPTIONS = Object.keys(WT_META);
+  const WT_PHASES  = ["Initial Response","Active","Monitoring","Testing","Complete","On Hold"];
+  const isWTOn = (type) => !!worktypes.find(w => w.type === type && w.status !== "off");
+  const toggleWT = (type) => {
+    let next;
+    const existing = worktypes.find(w => w.type === type);
+    if (existing) {
+      // Toggle between active and off
+      next = worktypes.map(w => w.type === type ? {...w, status: w.status === "off" ? "active" : "off"} : w);
+    } else {
+      // Add new worktype
+      next = [...worktypes, { type, status:"active", phase:"Initial Response" }];
+    }
+    setWorktypes(next);
+    syncWorktypesToLS(proj.id, next);
+  };
+  const setWTPhase = (type, phase) => {
+    const next = worktypes.map(w => w.type === type ? {...w, phase} : w);
+    setWorktypes(next);
+    syncWorktypesToLS(proj.id, next);
+  };
+
   return (
     <div className="scroll">
       <div style={{maxWidth:980,margin:"0 auto",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,420px),1fr))",gap:13}}>
@@ -1314,6 +1394,54 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
               <div key={l}><div className="lbl">{l}</div><div style={{fontSize:12,color:"var(--t1)",fontWeight:500}}>{v}</div></div>
             ))}
           </div>
+        </div>
+
+        {/* ── Work Types Management Card ── */}
+        <div className="card" style={{gridColumn:"1/-1"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:13,flexWrap:"wrap",gap:8}}>
+            <div>
+              <div style={{fontSize:13,fontWeight:700}}>Work Types</div>
+              <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>Toggle on/off to activate automations — CortexAI reads these to trigger workflows</div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:6,background:"var(--s3)",border:"1px solid var(--br)",borderRadius:7,padding:"4px 10px"}}>
+              <span style={{width:6,height:6,borderRadius:"50%",background:worktypes.filter(w=>w.status!=="off").length>0?"var(--green)":"var(--t3)"}}/>
+              <span className="mono" style={{fontSize:9,color:worktypes.filter(w=>w.status!=="off").length>0?"var(--green)":"var(--t3)"}}>
+                {worktypes.filter(w=>w.status!=="off").length} ACTIVE
+              </span>
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8}}>
+            {WT_OPTIONS.map(type => {
+              const meta    = WT_META[type];
+              const wtEntry = worktypes.find(w => w.type === type);
+              const on      = wtEntry && wtEntry.status !== "off";
+              const phase   = wtEntry?.phase || "Initial Response";
+              const phaseC  = WT_PHASE_C[wtEntry?.status] || WT_PHASE_C.pending;
+              return (
+                <div key={type} style={{border:`1.5px solid ${on ? meta.color : "var(--br)"}`,borderRadius:10,padding:"10px 12px",background: on ? `${meta.color}0d` : "var(--s2)",transition:"all .15s"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom: on ? 8 : 0}}>
+                    <span style={{color: on ? meta.color : "var(--t3)",display:"flex",alignItems:"center",flexShrink:0}}>{meta.icon}</span>
+                    <span style={{fontSize:12,fontWeight: on ? 700 : 500,color: on ? meta.color : "var(--t2)",flex:1}}>{type}</span>
+                    {/* Toggle */}
+                    <button onClick={()=>toggleWT(type)} style={{width:34,height:18,borderRadius:9,border:"none",cursor:"pointer",background: on ? meta.color : "var(--s4)",transition:"background .2s",position:"relative",padding:0,flexShrink:0}}>
+                      <span style={{position:"absolute",top:2,left: on ? 16 : 2,width:14,height:14,borderRadius:"50%",background:"#fff",transition:"left .2s",boxShadow:"0 1px 3px rgba(0,0,0,.3)"}}/>
+                    </button>
+                  </div>
+                  {on && (
+                    <select value={phase} onChange={e=>setWTPhase(type, e.target.value)}
+                      style={{width:"100%",background:"transparent",border:`1px solid ${meta.color}40`,borderRadius:6,padding:"3px 7px",fontSize:10,color: meta.color,fontFamily:"var(--mono)",fontWeight:700,cursor:"pointer",outline:"none"}}>
+                      {WT_PHASES.map(p=><option key={p} style={{background:"var(--s2)",color:"var(--t1)"}}>{p}</option>)}
+                    </select>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {worktypes.filter(w=>w.status!=="off").length > 0 && (
+            <div style={{marginTop:10,padding:"7px 11px",background:"rgba(26,217,138,.07)",border:"1px solid rgba(26,217,138,.2)",borderRadius:7,fontSize:10,color:"var(--green)"}}>
+              <span style={{fontFamily:"var(--mono)",fontWeight:700}}>CORTEXAI SYNC ACTIVE</span> — Active work types written to localStorage. Open CortexAI (mindflow.html) to trigger workflow automations.
+            </div>
+          )}
         </div>
         <div className="card">
           <div style={{fontSize:13,fontWeight:700,marginBottom:11}}>Budget</div>
@@ -1766,29 +1894,132 @@ function ShiftsTab({ projId, externalShifts=[], canViewRates }) {
   );
 }
 
-function ScopeTab() {
-  const [items,setItems]=useState(SCOPE_SEED);
-  const [showPL,setShowPL]=useState(false);
-  const upd=(id,k,v)=>setItems(p=>p.map(i=>i.id===id?{...i,[k]:v}:i));
-  const sub=items.reduce((s,i)=>s+i.qty*i.price,0);
+
+
+function ScopeTab({ scopeItems: externalItems, setScopeItems: setExternal }) {
+  const [internalItems, setInternal] = useState(SCOPE_SEED);
+  const items    = externalItems !== undefined ? externalItems : internalItems;
+  const setItems = externalItems !== undefined ? setExternal   : setInternal;
+
+  const [showPL, setShowPL]     = useState(false);
+  const [filterSrc, setFilter]  = useState("all");
+  const upd = (id,k,v) => setItems(p=>p.map(i=>i.id===id?{...i,[k]:v}:i));
+  const sub = items.reduce((s,i)=>s+i.qty*i.price, 0);
+  const sources = [...new Set(items.map(i=>i.source||"manual").filter(Boolean))];
+
+  const vis = filterSrc==="all" ? items : items.filter(i=>(i.source||"manual")===filterSrc);
+
+  const SOURCE_BADGE = {
+    drydox:     { label:"DryDox",     color:"var(--blue)"   },
+    contentsdox:{ label:"ContentsDox",color:"var(--purple)" },
+    manual:     { label:"Manual",     color:"var(--t3)"     },
+  };
+
   return (
     <div className="scroll">
-      {showPL && <div className="overlay" onClick={e=>e.target===e.currentTarget&&setShowPL(false)}>
-        <div className="modal anim"><div className="modal-hd"><div className="modal-ttl">Company Price List</div><button className="btn btn-ghost btn-xs" onClick={()=>setShowPL(false)}>{Ic.close}</button></div>
-        <div className="modal-body">{PRICE_LIST.map(pl=><div key={pl.code} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 0",borderBottom:"1px solid var(--br)"}}><div style={{flex:1}}><div style={{fontSize:12,fontWeight:600,color:"var(--t1)"}}>{pl.desc}</div><div className="mono" style={{fontSize:10,color:"var(--t3)"}}>{pl.code}</div></div><div className="mono" style={{fontWeight:700,color:"var(--green)"}}>{fmt$c(pl.price)}</div><button className="btn btn-primary btn-xs" onClick={()=>{setItems(p=>[...p,{id:uid(),desc:pl.desc,unit:pl.unit,qty:1,price:pl.price}]);setShowPL(false);}}>{Ic.plus}</button></div>)}</div>
-        </div></div>}
+      {showPL && (
+        <div className="overlay" onClick={e=>e.target===e.currentTarget&&setShowPL(false)}>
+          <div className="modal anim">
+            <div className="modal-hd"><div className="modal-ttl">Company Price List</div><button className="btn btn-ghost btn-xs" onClick={()=>setShowPL(false)}>{Ic.close}</button></div>
+            <div className="modal-body">
+              {PRICE_LIST.map(pl=>(
+                <div key={pl.code} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 0",borderBottom:"1px solid var(--br)"}}>
+                  <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600,color:"var(--t1)"}}>{pl.desc}</div><div className="mono" style={{fontSize:10,color:"var(--t3)"}}>{pl.code}</div></div>
+                  <div className="mono" style={{fontWeight:700,color:"var(--green)"}}>{fmt$c(pl.price)}</div>
+                  <button className="btn btn-primary btn-xs" onClick={()=>{setItems(p=>[...p,{id:uid(),desc:pl.desc,unit:pl.unit,qty:1,price:pl.price}]);setShowPL(false);}}>{Ic.plus}</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{maxWidth:900,margin:"0 auto"}}>
+        {/* Source filter + header */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:11}}>
-          <div className="sec">Scope of Work</div>
-          <div style={{display:"flex",gap:7}}><button className="btn btn-secondary btn-xs" onClick={()=>setShowPL(true)}>{Ic.pricetag} Price List</button><button className="btn btn-secondary btn-xs" onClick={()=>setItems(p=>[...p,{id:uid(),desc:"",unit:"SF",qty:1,price:0}])}>{Ic.plus} Add Line</button></div>
+          <div style={{display:"flex",alignItems:"center",gap:7}}>
+            <div className="sec" style={{marginBottom:0}}>Scope of Work</div>
+            {sources.length > 1 && (
+              <div style={{display:"flex",gap:4,marginLeft:8}}>
+                <button className={`chip btn-xs${filterSrc==="all"?" on":""}`} onClick={()=>setFilter("all")} style={{fontSize:9}}>All ({items.length})</button>
+                {["drydox","contentsdox","manual"].filter(s=>sources.includes(s)).map(s=>(
+                  <button key={s} className={`chip btn-xs${filterSrc===s?" on":""}`} onClick={()=>setFilter(s)}
+                    style={{fontSize:9,borderColor:filterSrc===s?SOURCE_BADGE[s]?.color:"",color:filterSrc===s?SOURCE_BADGE[s]?.color:""}}>
+                    {SOURCE_BADGE[s]?.label||s} ({items.filter(i=>(i.source||"manual")===s).length})
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div style={{display:"flex",gap:7}}>
+            <button className="btn btn-secondary btn-xs" onClick={()=>setShowPL(true)}>{Ic.pricetag} Price List</button>
+            <button className="btn btn-secondary btn-xs" onClick={()=>setItems(p=>[...p,{id:uid(),desc:"",unit:"SF",qty:1,price:0,source:"manual"}])}>{Ic.plus} Add Line</button>
+          </div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 62px 70px 80px 26px",gap:6,padding:"3px 9px",marginBottom:3}}>{["Description","Unit","Qty","Unit Price",""].map((h,i)=><div key={i} className="mono" style={{fontSize:9,color:"var(--t3)"}}>{h}</div>)}</div>
-        {items.map(it=><div key={it.id} className="scope-row"><input value={it.desc} onChange={e=>upd(it.id,"desc",e.target.value)} className="inp" style={{height:28,fontSize:11}}/><select value={it.unit} onChange={e=>upd(it.id,"unit",e.target.value)} className="sel" style={{height:28,fontSize:11}}>{["SF","LF","EA","HR","MO","LS"].map(u=><option key={u}>{u}</option>)}</select><input type="number" value={it.qty} onChange={e=>upd(it.id,"qty",+e.target.value)} className="inp" style={{height:28,fontSize:11}}/><div style={{position:"relative"}}><span style={{position:"absolute",left:7,top:"50%",transform:"translateY(-50%)",color:"var(--t3)",fontSize:11}}>$</span><input type="number" value={it.price} onChange={e=>upd(it.id,"price",+e.target.value)} className="inp" style={{height:28,fontSize:11,paddingLeft:16}}/></div><button className="btn btn-danger btn-xs" onClick={()=>setItems(p=>p.filter(i=>i.id!==it.id))}>{Ic.trash}</button></div>)}
+
+        {/* Column headers */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 62px 70px 80px 80px 26px",gap:6,padding:"3px 9px",marginBottom:3}}>
+          {["Description","Unit","Qty","Unit Price","Total",""].map((h,i)=><div key={i} className="mono" style={{fontSize:9,color:"var(--t3)"}}>{h}</div>)}
+        </div>
+
+        {vis.map(it=>{
+          const src = SOURCE_BADGE[it.source||"manual"];
+          return (
+            <div key={it.id} style={{display:"grid",gridTemplateColumns:"1fr 62px 70px 80px 80px 26px",gap:6,alignItems:"center",
+              padding:"5px 9px",background:"var(--s2)",border:"1px solid var(--br)",borderRadius:7,marginBottom:3,
+              borderLeft:`3px solid ${src?.color||"var(--br)"}`}}>
+              <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}>
+                <input value={it.desc} onChange={e=>upd(it.id,"desc",e.target.value)} className="inp" style={{height:28,fontSize:11,flex:1}}/>
+                {it.source && it.source!=="manual" && (
+                  <span style={{fontSize:8,fontWeight:700,color:src?.color,borderRadius:3,padding:"1px 5px",
+                    background:src?.color+"18",border:`1px solid ${src?.color}35`,flexShrink:0,whiteSpace:"nowrap"}}>
+                    {src?.label}
+                  </span>
+                )}
+              </div>
+              <select value={it.unit} onChange={e=>upd(it.id,"unit",e.target.value)} className="sel" style={{height:28,fontSize:11}}>
+                {["SF","LF","EA","HR","MO","LS","day"].map(u=><option key={u}>{u}</option>)}
+              </select>
+              <input type="number" value={it.qty} onChange={e=>upd(it.id,"qty",+e.target.value)} className="inp" style={{height:28,fontSize:11}}/>
+              <div style={{position:"relative"}}>
+                <span style={{position:"absolute",left:7,top:"50%",transform:"translateY(-50%)",color:"var(--t3)",fontSize:11}}>$</span>
+                <input type="number" value={it.price} onChange={e=>upd(it.id,"price",+e.target.value)} className="inp" style={{height:28,fontSize:11,paddingLeft:16}}/>
+              </div>
+              <div className="mono" style={{fontSize:11,fontWeight:700,color:"var(--green)",textAlign:"right"}}>{fmt$c(it.qty*it.price)}</div>
+              <button className="btn btn-danger btn-xs" onClick={()=>setItems(p=>p.filter(i=>i.id!==it.id))}>{Ic.trash}</button>
+            </div>
+          );
+        })}
+
+        {/* Totals */}
         <div className="card" style={{marginTop:11,display:"flex",justifyContent:"flex-end"}}>
-          <div style={{minWidth:250}}>{[["Subtotal",fmt$c(sub),"var(--t2)"],["Tax (0%)","$0.00","var(--t3)"],["TOTAL DUE",fmt$c(sub),"var(--green)"]].map(([l,v,c])=>(
-            <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:l==="TOTAL DUE"?"none":"1px solid var(--br)"}}><span className="mono" style={{fontSize:9,color:c,fontWeight:l==="TOTAL DUE"?700:400}}>{l}</span><span className="mono" style={{fontSize:l==="TOTAL DUE"?16:12,color:c,fontWeight:700}}>{v}</span></div>
-          ))}</div>
+          <div style={{minWidth:260}}>
+            {[["Subtotal",fmt$c(sub),"var(--t2)"],["Tax (0%)","$0.00","var(--t3)"],["TOTAL DUE",fmt$c(sub),"var(--green)"]].map(([l,v,c])=>(
+              <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:l==="TOTAL DUE"?"none":"1px solid var(--br)"}}>
+                <span className="mono" style={{fontSize:9,color:c,fontWeight:l==="TOTAL DUE"?700:400}}>{l}</span>
+                <span className="mono" style={{fontSize:l==="TOTAL DUE"?16:12,color:c,fontWeight:700}}>{v}</span>
+              </div>
+            ))}
+          </div>
         </div>
+
+        {/* Source summary */}
+        {sources.filter(s=>s!=="manual").length > 0 && (
+          <div style={{marginTop:8,padding:"9px 12px",background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,display:"flex",gap:14,flexWrap:"wrap"}}>
+            {["drydox","contentsdox"].filter(s=>sources.includes(s)).map(s=>{
+              const sc = items.filter(i=>(i.source||"manual")===s);
+              const total = sc.reduce((sum,i)=>sum+i.qty*i.price,0);
+              const badge = SOURCE_BADGE[s];
+              return total>0?(
+                <div key={s} style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{fontSize:10,fontWeight:700,color:badge.color,background:badge.color+"18",borderRadius:4,padding:"1px 7px",border:`1px solid ${badge.color}35`}}>{badge.label}</span>
+                  <span className="mono" style={{fontSize:11,fontWeight:700,color:"var(--t1)"}}>{fmt$c(total)}</span>
+                </div>
+              ):null;
+            })}
+          </div>
+        )}
+
         <div style={{display:"flex",justifyContent:"flex-end",marginTop:9,gap:7}}>
           <button className="btn btn-ghost">Preview PDF</button>
           <button className="btn btn-primary btn-lg" onClick={()=>alert("Invoice generated and saved to Documents.")}>{Ic.invoice} Generate Invoice</button>
@@ -1797,6 +2028,11 @@ function ScopeTab() {
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 6 · ENHANCED ADVANCED TOOLS PANEL (with Price Lists)
+// ─────────────────────────────────────────────────────────────────────────────
+
 
 function MessagesTab() {
   const [filter,setFilter]=useState("all");
@@ -1826,139 +2062,756 @@ function MessagesTab() {
   );
 }
 
-const DRYDOX_SEED = [
-  {id:1, day:"Day 1", date:"Dec 12", tech:"Jake R.", temp:72, rh:78, gpp:112, readings:[{loc:"Living Room",mat:"Drywall",wet:28,dry:12},{loc:"Kitchen Floor",mat:"Subfloor",wet:22,dry:12},{loc:"Hallway",mat:"Drywall",wet:19,dry:12}], equip:"3× DHU, 8× Air Mover, 1× Air Scrubber", notes:"Initial extraction complete. RH elevated throughout."},
-  {id:2, day:"Day 2", date:"Dec 13", tech:"Maria S.", temp:74, rh:62, gpp:88, readings:[{loc:"Living Room",mat:"Drywall",wet:21,dry:12},{loc:"Kitchen Floor",mat:"Subfloor",wet:18,dry:12},{loc:"Hallway",mat:"Drywall",wet:15,dry:12}], equip:"3× DHU, 8× Air Mover, 1× Air Scrubber", notes:"Trending toward dry standard."},
-  {id:3, day:"Day 3", date:"Dec 14", tech:"Jake R.", temp:75, rh:52, gpp:71, readings:[{loc:"Living Room",mat:"Drywall",wet:15,dry:12},{loc:"Kitchen Floor",mat:"Subfloor",wet:14,dry:12},{loc:"Hallway",mat:"Drywall",wet:13,dry:12}], equip:"2× DHU, 6× Air Mover, 1× Air Scrubber", notes:"Removed 2 air movers. Kitchen subfloor nearing standard."},
+
+
+const EQUIP_TYPES = [
+  { value:"fan",        label:"Air Mover",           icon:"🌀", code:"AM" },
+  { value:"dehu",       label:"Dehumidifier (LGR)",  icon:"💧", code:"DH" },
+  { value:"dehu-des",   label:"Desiccant Dehu",      icon:"🔵", code:"DD" },
+  { value:"scrubber",   label:"HEPA Air Scrubber",   icon:"🌬️", code:"AS" },
+  { value:"negair",     label:"Negative Air Machine",icon:"⬇️", code:"NA" },
+  { value:"ozone",      label:"Ozone Generator",     icon:"🟡", code:"OZ" },
+  { value:"fogger",     label:"Thermal Fogger",      icon:"🌫️", code:"FG" },
+  { value:"mat",        label:"Drying Mat",          icon:"🟫", code:"DM" },
+  { value:"injectidry", label:"InjectiDry System",   icon:"💉", code:"ID" },
+  { value:"thermal",    label:"Thermal Camera",      icon:"📷", code:"TC" },
+  { value:"other",      label:"Other Equipment",     icon:"🔧", code:"OT" },
+];
+const getET = v => EQUIP_TYPES.find(t=>t.value===v) || EQUIP_TYPES[EQUIP_TYPES.length-1];
+
+const INITIAL_PRICE_LISTS = [
+  { id:"pl-wm", name:"Water Mitigation — Standard", workType:"Water Mitigation",
+    description:"Standard equipment & material pricing for water damage projects", createdAt:"Jan 1, 2025",
+    items:[
+      { id:"wm-1",  code:"AM-001", desc:"Air Mover (LGR/Axial)",              unit:"day", price:28   },
+      { id:"wm-2",  code:"DH-001", desc:"LGR Dehumidifier (Standard ~100pt)", unit:"day", price:85   },
+      { id:"wm-3",  code:"DH-002", desc:"LGR Dehumidifier XL (175pt+)",       unit:"day", price:115  },
+      { id:"wm-4",  code:"DD-001", desc:"Desiccant Dehumidifier",             unit:"day", price:145  },
+      { id:"wm-5",  code:"AS-001", desc:"HEPA Air Scrubber (500–600 CFM)",    unit:"day", price:65   },
+      { id:"wm-6",  code:"ID-001", desc:"InjectiDry Wall Drying System",      unit:"day", price:95   },
+      { id:"wm-7",  code:"DM-001", desc:"Drying Mat (hardwood/tile)",         unit:"day", price:18   },
+      { id:"wm-8",  code:"TC-001", desc:"Thermal Imaging Service",            unit:"day", price:45   },
+      { id:"wm-9",  code:"AT-001", desc:"Antimicrobial Treatment",            unit:"SF",  price:0.55 },
+      { id:"wm-10", code:"DE-001", desc:"Demo — Drywall Removal",             unit:"SF",  price:3.25 },
+    ] },
+  { id:"pl-fire", name:"Fire & Smoke — Standard", workType:"Fire/Smoke",
+    description:"Equipment pricing for fire and smoke restoration projects", createdAt:"Jan 1, 2025",
+    items:[
+      { id:"fs-1", code:"AS-002", desc:"HEPA Air Scrubber (1200 CFM)",    unit:"day", price:110 },
+      { id:"fs-2", code:"OZ-001", desc:"Ozone Generator",                 unit:"day", price:125 },
+      { id:"fs-3", code:"FG-001", desc:"Thermal Fogger",                  unit:"day", price:85  },
+      { id:"fs-4", code:"NA-001", desc:"Negative Air Machine",            unit:"day", price:65  },
+      { id:"fs-5", code:"DP-001", desc:"Duct Pack / Air Duct Cleaning",   unit:"LS",  price:450 },
+    ] },
+  { id:"pl-mold", name:"Mold Remediation — Standard", workType:"Mold Remediation",
+    description:"Equipment pricing for mold remediation projects", createdAt:"Jan 1, 2025",
+    items:[
+      { id:"mr-1", code:"NA-002", desc:"Negative Air Machine (600 CFM)",  unit:"day", price:65   },
+      { id:"mr-2", code:"AS-003", desc:"HEPA Air Scrubber (600 CFM)",     unit:"day", price:85   },
+      { id:"mr-3", code:"DH-003", desc:"LGR Dehumidifier",               unit:"day", price:85   },
+      { id:"mr-4", code:"AM-002", desc:"Air Mover",                       unit:"day", price:28   },
+      { id:"mr-5", code:"AM-003", desc:"Antimicrobial Treatment",         unit:"SF",  price:0.85 },
+    ] },
 ];
 
-function DryDoxTab({ proj }) {
-  const [logs, setLogs]     = useState(DRYDOX_SEED);
-  const [expand, setExpand] = useState(null);
-  const [adding, setAdding] = useState(false);
-  const [f, setF] = useState({tech:"",temp:"",rh:"",gpp:"",equip:"",notes:""});
-  const addLog = () => {
-    if (!f.tech) return;
-    const next = logs.length + 1;
-    setLogs(l=>[...l,{id:uid(),day:`Day ${next}`,date:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),tech:f.tech,temp:parseFloat(f.temp)||72,rh:parseFloat(f.rh)||0,gpp:parseFloat(f.gpp)||0,readings:[],equip:f.equip,notes:f.notes}]);
-    setF({tech:"",temp:"",rh:"",gpp:"",equip:"",notes:""}); setAdding(false);
+function parseCSVToPriceItems(text) {
+  const lines = text.trim().split("\n").filter(Boolean);
+  if (lines.length < 2) return [];
+  const raw = lines[0].split(",").map(h=>h.trim().replace(/^"|"$/g,"").toLowerCase().replace(/\s+/g,""));
+  const colOf = (...names) => { for(const n of names){ const i=raw.indexOf(n); if(i>-1) return i; } return -1; };
+  const cCode=colOf("code","itemcode","sku","#"); const cDesc=colOf("desc","description","name","item","service");
+  const cUnit=colOf("unit","uom"); const cPrice=colOf("price","unitprice","rate","cost","amount");
+  return lines.slice(1).map(line=>{
+    const cols = line.split(",").map(v=>v.trim().replace(/^"|"$/g,""));
+    const desc = cDesc>-1 ? cols[cDesc] : "";
+    if (!desc) return null;
+    return { id:uid(), code:cCode>-1?cols[cCode]:"", desc, unit:cUnit>-1?(cols[cUnit]||"EA"):"EA",
+             price:cPrice>-1?(parseFloat(cols[cPrice])||0):0 };
+  }).filter(Boolean);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 2 · PRICE LIST MANAGER MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+
+function PriceListManagerModal({ priceLists, setPriceLists, onClose }) {
+  const [activeId, setActiveId] = useState(priceLists[0]?.id||null);
+  const [addingList, setAddingList] = useState(false);
+  const [newListForm, setNewListForm] = useState({ name:"", workType:"Water Mitigation", description:"" });
+  const [editItemId, setEditItemId] = useState(null);
+  const [csvText, setCsvText] = useState("");
+  const [showCSVFor, setShowCSVFor] = useState(null);
+  const [importStatus, setImportStatus] = useState(null);
+  const csvFileRef = useRef();
+  const currentList = priceLists.find(pl=>pl.id===activeId);
+
+  const createList = () => {
+    if (!newListForm.name.trim()) return;
+    const nl = { id:uid(), ...newListForm, items:[], createdAt:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) };
+    setPriceLists(pl=>[...pl,nl]); setActiveId(nl.id); setAddingList(false);
+    setNewListForm({ name:"", workType:"Water Mitigation", description:"" });
   };
-  const rhColor = rh => rh <= 55 ? "var(--green)" : rh <= 65 ? "var(--amber)" : "var(--acc)";
-  const wetColor = (w,d) => w <= d+2 ? "var(--green)" : w <= d+8 ? "var(--amber)" : "var(--acc)";
+  const removeList = id => {
+    const next = priceLists.filter(p=>p.id!==id);
+    setPriceLists(next); if(activeId===id) setActiveId(next[0]?.id||null);
+  };
+  const addItem = () => {
+    const ni = { id:uid(), code:"", desc:"New Item", unit:"day", price:0 };
+    setPriceLists(pl=>pl.map(p=>p.id===activeId?{...p,items:[...p.items,ni]}:p));
+    setEditItemId(ni.id);
+  };
+  const updItem = (itemId,field,val) => setPriceLists(pl=>pl.map(p=>p.id===activeId
+    ?{...p,items:p.items.map(i=>i.id===itemId?{...i,[field]:field==="price"?parseFloat(val)||0:val}:i)}:p));
+  const removeItem = itemId => setPriceLists(pl=>pl.map(p=>p.id===activeId?{...p,items:p.items.filter(i=>i.id!==itemId)}:p));
+
+  const importCSV = () => {
+    const items = parseCSVToPriceItems(csvText);
+    if (!items.length) { setImportStatus("No valid items found. Check CSV format."); return; }
+    setPriceLists(pl=>pl.map(p=>p.id===showCSVFor?{...p,items:[...p.items,...items]}:p));
+    setImportStatus(`✓ Imported ${items.length} items`); setCsvText(""); setShowCSVFor(null);
+  };
+  const handleCSVFile = e => { const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>setCsvText(ev.target.result); r.readAsText(f); e.target.value=""; };
+
+  const WORK_TYPES = ["Water Mitigation","Fire/Smoke","Mold Remediation","Demo","Reconstruction","Pack-out","Contents","General"];
+
   return (
-    <div className="scroll"><div style={{maxWidth:860,margin:"0 auto"}}>
-      <div className="g4" style={{gap:9,marginBottom:16}}>
-        {[["Days Active",logs.length,"var(--blue)"],["Latest RH",`${logs[logs.length-1]?.rh}%`,rhColor(logs[logs.length-1]?.rh||0)],["Latest GPP",logs[logs.length-1]?.gpp,"var(--teal)"],["Status",logs[logs.length-1]?.rh<=55?"Dry Standard":"Drying","var(--green)"]].map(([l,v,c])=>(
-          <div key={l} className="kpi" style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9}}><div className="kpi-val" style={{color:c}}>{v}</div><div className="kpi-lbl">{l}</div></div>
-        ))}
-      </div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-        <div className="sec">Drying Log</div>
-        <button className="btn btn-primary btn-xs" onClick={()=>setAdding(v=>!v)}>{Ic.plus} New Reading Day</button>
-      </div>
-      {adding && (
-        <div className="card" style={{marginBottom:12}}>
-          <div className="g4" style={{gap:9,marginBottom:9}}>
-            <F label="Technician" value={f.tech} onChange={v=>setF(p=>({...p,tech:v}))} placeholder="Name"/>
-            <F label="Temp (°F)" value={f.temp} onChange={v=>setF(p=>({...p,temp:v}))} placeholder="72"/>
-            <F label="RH %" value={f.rh} onChange={v=>setF(p=>({...p,rh:v}))} placeholder="55"/>
-            <F label="GPP" value={f.gpp} onChange={v=>setF(p=>({...p,gpp:v}))} placeholder="72"/>
-          </div>
-          <F label="Equipment in Place" value={f.equip} onChange={v=>setF(p=>({...p,equip:v}))} placeholder="3× DHU, 8× Air Mover…"/>
-          <div style={{marginTop:9}}><F label="Notes" value={f.notes} onChange={v=>setF(p=>({...p,notes:v}))} rows={2} placeholder="Observations…"/></div>
-          <div style={{display:"flex",justifyContent:"flex-end",gap:7,marginTop:9}}>
-            <button className="btn btn-ghost btn-xs" onClick={()=>setAdding(false)}>Cancel</button>
-            <button className="btn btn-primary btn-xs" onClick={addLog}>Save Log</button>
-          </div>
+    <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="modal modal-lg anim" style={{maxHeight:"88vh",height:"88vh",display:"flex",flexDirection:"column"}}>
+        <div className="modal-hd" style={{flexShrink:0}}>
+          <div><div className="modal-ttl">Price Lists</div><div className="mono" style={{fontSize:9,color:"var(--t3)",marginTop:1}}>COMPANY-WIDE EQUIPMENT & MATERIAL PRICING</div></div>
+          <button className="btn btn-ghost btn-xs" onClick={onClose}>{Ic.close}</button>
         </div>
-      )}
-      {[...logs].reverse().map(log=>(
-        <div key={log.id} className="card" style={{marginBottom:9,cursor:"pointer"}} onClick={()=>setExpand(expand===log.id?null:log.id)}>
-          <div style={{display:"flex",alignItems:"center",gap:10,justifyContent:"space-between"}}>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <div style={{width:38,height:38,borderRadius:9,background:"var(--acc-lo)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--acc)",flexShrink:0,fontFamily:"var(--mono)",fontSize:10,fontWeight:700}}>{log.day.replace("Day ","D")}</div>
-              <div>
-                <div style={{fontWeight:700,fontSize:13,color:"var(--t1)"}}>{log.day} — {log.date}</div>
-                <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>Tech: {log.tech} · {log.equip}</div>
+
+        {/* CSV import sub-modal */}
+        {showCSVFor && (
+          <div className="overlay" style={{zIndex:601}} onClick={e=>e.target===e.currentTarget&&setShowCSVFor(null)}>
+            <div className="modal modal-sm anim">
+              <div className="modal-hd"><div className="modal-ttl">Import CSV</div><button className="btn btn-ghost btn-xs" onClick={()=>setShowCSVFor(null)}>{Ic.close}</button></div>
+              <div className="modal-body">
+                <div style={{background:"var(--s3)",borderRadius:8,padding:"10px 12px",fontSize:11,color:"var(--t2)",marginBottom:10,lineHeight:1.7}}>
+                  <strong style={{color:"var(--t1)"}}>Required columns:</strong> code, desc (or description/name), unit, price<br/>
+                  First row must be column headers. Comma-separated.
+                </div>
+                <div style={{display:"flex",gap:8,marginBottom:8}}>
+                  <button className="btn btn-secondary btn-xs" onClick={()=>csvFileRef.current?.click()}>{Ic.upload} Browse File…</button>
+                  <input ref={csvFileRef} type="file" accept=".csv,.txt" style={{display:"none"}} onChange={handleCSVFile}/>
+                </div>
+                <label className="lbl">Or paste CSV text</label>
+                <textarea className="txa" rows={7} value={csvText} onChange={e=>setCsvText(e.target.value)} placeholder={"code,desc,unit,price\nAM-001,Air Mover,day,28\nDH-001,LGR Dehumidifier,day,85"}/>
+                {importStatus && <div style={{fontSize:11,color:importStatus.startsWith("✓")?"var(--green)":"var(--acc)",marginTop:4}}>{importStatus}</div>}
+              </div>
+              <div className="modal-ft">
+                <button className="btn btn-ghost" onClick={()=>setShowCSVFor(null)}>Cancel</button>
+                <button className="btn btn-primary" onClick={importCSV} disabled={!csvText.trim()}>{Ic.plus} Import Items</button>
               </div>
             </div>
-            <div style={{display:"flex",gap:14,alignItems:"center",flexShrink:0}}>
-              {[["RH",`${log.rh}%`,rhColor(log.rh)],["GPP",log.gpp,"var(--teal)"],["Temp",`${log.temp}°`,"var(--t2)"]].map(([l,v,c])=>(
-                <div key={l} style={{textAlign:"center"}}>
-                  <div className="mono" style={{fontSize:14,fontWeight:700,color:c}}>{v}</div>
-                  <div style={{fontSize:9,color:"var(--t3)"}}>{l}</div>
+          </div>
+        )}
+
+        <div style={{flex:1,display:"flex",overflow:"hidden"}}>
+          {/* Sidebar — list of price lists */}
+          <div style={{width:220,flexShrink:0,borderRight:"1px solid var(--br)",display:"flex",flexDirection:"column",background:"var(--s1)"}}>
+            <div style={{padding:"10px 12px",borderBottom:"1px solid var(--br)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div className="mono" style={{fontSize:9,color:"var(--t3)"}}>PRICE LISTS</div>
+              <button className="btn btn-primary btn-xs" onClick={()=>setAddingList(v=>!v)}>{Ic.plus}</button>
+            </div>
+            {addingList && (
+              <div style={{padding:"10px 12px",borderBottom:"1px solid var(--br)",background:"var(--s2)"}}>
+                <label className="lbl">List Name</label>
+                <input className="inp" value={newListForm.name} onChange={e=>setNewListForm(p=>({...p,name:e.target.value}))} placeholder="e.g. Water Mitigation 2025" style={{marginBottom:7}}/>
+                <label className="lbl">Work Type</label>
+                <select className="sel" value={newListForm.workType} onChange={e=>setNewListForm(p=>({...p,workType:e.target.value}))} style={{marginBottom:7}}>
+                  {WORK_TYPES.map(t=><option key={t}>{t}</option>)}
+                </select>
+                <div style={{display:"flex",gap:5}}>
+                  <button className="btn btn-ghost btn-xs" style={{flex:1}} onClick={()=>setAddingList(false)}>Cancel</button>
+                  <button className="btn btn-primary btn-xs" style={{flex:1}} onClick={createList}>Create</button>
+                </div>
+              </div>
+            )}
+            <div style={{flex:1,overflowY:"auto"}}>
+              {priceLists.map(pl=>(
+                <div key={pl.id} onClick={()=>setActiveId(pl.id)} style={{padding:"9px 12px",cursor:"pointer",borderBottom:"1px solid var(--br)",
+                  background:activeId===pl.id?"var(--acc-lo)":"transparent",borderLeft:`3px solid ${activeId===pl.id?"var(--acc)":"transparent"}`}}>
+                  <div style={{fontSize:12,fontWeight:600,color:activeId===pl.id?"var(--t1)":"var(--t2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pl.name}</div>
+                  <div style={{fontSize:10,color:"var(--t3)",marginTop:2,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <span className="mono">{pl.items.length} items</span>
+                    <button className="btn btn-danger btn-xs" style={{padding:"1px 5px",fontSize:9}} onClick={e=>{e.stopPropagation();if(window.confirm(`Delete "${pl.name}"?`))removeList(pl.id);}}>{Ic.trash}</button>
+                  </div>
                 </div>
               ))}
-              <span style={{color:"var(--t3)",marginLeft:4}}>{expand===log.id?Ic.chevron:<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>}</span>
             </div>
           </div>
-          {expand===log.id && log.readings.length>0 && (
-            <div style={{marginTop:12,borderTop:"1px solid var(--br)",paddingTop:11}}>
-              <div className="mono" style={{fontSize:9,color:"var(--t3)",marginBottom:7}}>MOISTURE READINGS</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 90px 60px 60px 60px",gap:4}}>
-                {["Location","Material","Reading","Dry Std","Status"].map(h=><div key={h} className="mono" style={{fontSize:8,color:"var(--t3)",padding:"0 4px"}}>{h}</div>)}
-                {log.readings.map((r,i)=>{const c=wetColor(r.wet,r.dry);return([
-                  <div key={`l${i}`} style={{fontSize:11,color:"var(--t1)",padding:"4px 4px"}}>{r.loc}</div>,
-                  <div key={`m${i}`} style={{fontSize:11,color:"var(--t3)",padding:"4px 4px"}}>{r.mat}</div>,
-                  <div key={`w${i}`} className="mono" style={{fontSize:12,fontWeight:700,color:c,padding:"4px 4px"}}>{r.wet}%</div>,
-                  <div key={`d${i}`} className="mono" style={{fontSize:11,color:"var(--t3)",padding:"4px 4px"}}>{r.dry}%</div>,
-                  <div key={`s${i}`} style={{padding:"4px 4px"}}><span style={{fontSize:9,borderRadius:4,padding:"2px 6px",background:c+"18",color:c,fontWeight:700}}>{r.wet<=r.dry+2?"DRY":r.wet<=r.dry+8?"DRYING":"WET"}</span></div>
-                ]);})}
-              </div>
-            </div>
-          )}
-          {expand===log.id && log.notes && (
-            <div style={{marginTop:9,fontSize:11,color:"var(--t2)",fontStyle:"italic",borderTop:"1px solid var(--br)",paddingTop:9}}>{log.notes}</div>
-          )}
+
+          {/* Right panel — items */}
+          <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            {!currentList ? (
+              <div className="empty"><div style={{opacity:.15,fontSize:28}}>{Ic.pricetag}</div><div className="mono" style={{fontSize:11}}>NO LIST SELECTED</div><div style={{fontSize:11}}>Create or select a price list to get started.</div></div>
+            ) : (
+              <>
+                <div style={{padding:"10px 16px",borderBottom:"1px solid var(--br)",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:700,fontSize:13,color:"var(--t1)"}}>{currentList.name}</div>
+                    <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>
+                      <span style={{background:"var(--acc-lo)",color:"var(--acc)",borderRadius:4,padding:"1px 6px",fontSize:9,fontWeight:700,marginRight:6}}>{currentList.workType}</span>
+                      {currentList.items.length} items · Created {currentList.createdAt}
+                    </div>
+                  </div>
+                  <button className="btn btn-secondary btn-xs" onClick={()=>{setShowCSVFor(currentList.id);setImportStatus(null);}}>{Ic.upload} Import CSV</button>
+                  <button className="btn btn-primary btn-xs" onClick={addItem}>{Ic.plus} Add Item</button>
+                </div>
+
+                {/* Column headers */}
+                <div style={{display:"grid",gridTemplateColumns:"100px 1fr 60px 90px 26px",gap:6,padding:"6px 14px",background:"var(--s1)",borderBottom:"1px solid var(--br)",flexShrink:0}}>
+                  {["Code","Description","Unit","Unit Price",""].map((h,i)=><div key={i} className="mono" style={{fontSize:9,color:"var(--t3)"}}>{h}</div>)}
+                </div>
+
+                <div style={{flex:1,overflowY:"auto",padding:"6px 10px"}}>
+                  {currentList.items.length===0 && (
+                    <div className="empty"><div style={{opacity:.12,fontSize:24}}>{Ic.pricetag}</div>
+                    <div style={{fontSize:11,color:"var(--t3)"}}>No items yet — add manually or import CSV</div></div>
+                  )}
+                  {currentList.items.map(item=>(
+                    <div key={item.id} style={{display:"grid",gridTemplateColumns:"100px 1fr 60px 90px 26px",gap:6,alignItems:"center",padding:"4px 4px",marginBottom:2}}>
+                      {editItemId===item.id ? (
+                        <>
+                          <input className="inp" value={item.code} onChange={e=>updItem(item.id,"code",e.target.value)} style={{height:28,fontSize:11}} placeholder="Code"/>
+                          <input className="inp" value={item.desc} onChange={e=>updItem(item.id,"desc",e.target.value)} style={{height:28,fontSize:11}} placeholder="Description"/>
+                          <select className="sel" value={item.unit} onChange={e=>updItem(item.id,"unit",e.target.value)} style={{height:28,fontSize:11}}>
+                            {["day","SF","LF","EA","HR","MO","LS","SQ"].map(u=><option key={u}>{u}</option>)}
+                          </select>
+                          <div style={{position:"relative"}}>
+                            <span style={{position:"absolute",left:8,top:"50%",transform:"translateY(-50%)",fontSize:11,color:"var(--t3)"}}>$</span>
+                            <input type="number" className="inp" value={item.price} onChange={e=>updItem(item.id,"price",e.target.value)} style={{height:28,fontSize:11,paddingLeft:16}}/>
+                          </div>
+                          <button className="btn btn-green btn-xs" style={{padding:"2px 5px"}} onClick={()=>setEditItemId(null)}>{Ic.check}</button>
+                        </>
+                      ) : (
+                        <>
+                          <div className="mono" style={{fontSize:10,color:"var(--t3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.code||"—"}</div>
+                          <div style={{fontSize:12,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer"}} onClick={()=>setEditItemId(item.id)}>{item.desc}</div>
+                          <div className="mono" style={{fontSize:10,color:"var(--t2)"}}>{item.unit}</div>
+                          <div className="mono" style={{fontSize:12,fontWeight:700,color:"var(--green)"}}>${item.price.toFixed(2)}</div>
+                          <button className="btn btn-danger btn-xs" style={{padding:"2px 5px"}} onClick={()=>removeItem(item.id)}>{Ic.trash}</button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
-      ))}
-    </div></div>
+      </div>
+    </div>
   );
 }
 
-const CONTENTS_SEED = [
-  {id:1,room:"Living Room",item:"65\" Samsung QLED TV",qty:1,condition:"Damaged",repVal:1299,acvVal:780,status:"claim"},
-  {id:2,room:"Living Room",item:"Sectional Sofa — Gray",qty:1,condition:"Total Loss",repVal:2200,acvVal:880,status:"claim"},
-  {id:3,room:"Kitchen",item:"KitchenAid Stand Mixer",qty:1,condition:"Restorable",repVal:449,acvVal:320,status:"restore"},
-  {id:4,room:"Kitchen",item:"Microwave — GE Profile",qty:1,condition:"Damaged",repVal:399,acvVal:199,status:"claim"},
-  {id:5,room:"Master Bedroom",item:"Queen Mattress Set",qty:1,condition:"Total Loss",repVal:1800,acvVal:720,status:"claim"},
-];
-const ITEM_STATUS = {claim:{label:"Claim",color:"var(--acc)"},restore:{label:"Restore",color:"var(--amber)"},cleared:{label:"Cleared",color:"var(--green)"},pending:{label:"Pending",color:"var(--t3)"}};
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 3 · ENHANCED DRYDOX TAB
+// ─────────────────────────────────────────────────────────────────────────────
 
-function ContentsDoxTab({ proj }) {
-  const [items, setItems]   = useState(CONTENTS_SEED);
-  const [adding, setAdding] = useState(false);
-  const [roomF, setRoomF]   = useState("All");
-  const [f, setF] = useState({room:"",item:"",qty:"1",condition:"",repVal:"",acvVal:"",status:"pending"});
-  const rooms = ["All",...new Set(items.map(i=>i.room))];
-  const vis = roomF==="All" ? items : items.filter(i=>i.room===roomF);
-  const totRep = items.reduce((s,i)=>s+i.repVal*i.qty,0);
-  const totAcv = items.reduce((s,i)=>s+i.acvVal*i.qty,0);
-  const addItem = () => {
-    if (!f.item||!f.room) return;
-    setItems(it=>[...it,{id:uid(),room:f.room,item:f.item,qty:parseInt(f.qty)||1,condition:f.condition,repVal:parseFloat(f.repVal)||0,acvVal:parseFloat(f.acvVal)||0,status:f.status||"pending"}]);
-    setF({room:"",item:"",qty:"1",condition:"",repVal:"",acvVal:"",status:"pending"}); setAdding(false);
+const DRYDOX_SEED_ROOMS = [
+  { id:"dr1", label:"Living Room",  widthFt:18, depthFt:14 },
+  { id:"dr2", label:"Kitchen",      widthFt:12, depthFt:10 },
+  { id:"dr3", label:"Hallway",      widthFt:6,  depthFt:14 },
+];
+
+const DRYDOX_EQUIP_SEED = [
+  { id:"deq1", type:"fan",    brand:"Dri-Eaz F203",   serial:"A1234", roomId:"dr1", dayIn:1, dayOut:0, plItemId:"wm-1", notes:"NE corner" },
+  { id:"deq2", type:"dehu",   brand:"LGR 7000 XLi",   serial:"D5678", roomId:"dr1", dayIn:1, dayOut:0, plItemId:"wm-2", notes:"Center" },
+  { id:"deq3", type:"fan",    brand:"Dri-Eaz F203",   serial:"A1235", roomId:"dr2", dayIn:1, dayOut:3, plItemId:"wm-1", notes:"SW corner" },
+  { id:"deq4", type:"scrubber",brand:"AirRestore 500",serial:"S2222", roomId:"dr2", dayIn:1, dayOut:0, plItemId:"wm-5", notes:"By window" },
+];
+
+const DRYDOX_SEED = [
+  { id:1, day:"Day 1", date:"Dec 12", tech:"Jake R.", temp:72, rh:78, gpp:112, equip:"3× DHU, 8× Air Mover, 1× Air Scrubber", notes:"Initial extraction complete. RH elevated." },
+  { id:2, day:"Day 2", date:"Dec 13", tech:"Maria S.", temp:74, rh:62, gpp:88,  equip:"3× DHU, 8× Air Mover, 1× Air Scrubber", notes:"Trending toward dry standard." },
+  { id:3, day:"Day 3", date:"Dec 14", tech:"Jake R.", temp:75, rh:52, gpp:71,  equip:"2× DHU, 6× Air Mover, 1× Air Scrubber", notes:"Removed 2 air movers. Kitchen nearing standard." },
+];
+
+
+function DryDoxTab({ proj, priceLists=[], onPushToScope }) {
+  const [subtab, setSubtab]   = useState("log");
+  const [logs, setLogs]       = useState(DRYDOX_SEED);
+  const [expand, setExpand]   = useState(null);
+  const [addingLog, setAddLog]= useState(false);
+  const [logF, setLogF]       = useState({tech:"",temp:"",rh:"",gpp:"",equip:"",notes:""});
+  const [rooms, setRooms]     = useState(DRYDOX_SEED_ROOMS);
+  const [equipment, setEquip] = useState(DRYDOX_EQUIP_SEED);
+  const [addingEq, setAddEq]  = useState(false);
+  const [eqForm, setEqF]      = useState({type:"fan",brand:"",serial:"",roomId:"",dayIn:"1",dayOut:"0",plItemId:"",notes:""});
+  const [activePLId, setActivePL] = useState(priceLists[0]?.id || null);
+  const [pushStatus, setPushStatus] = useState(null);
+  const [billingDays, setBillDays] = useState(3); // override total project days
+
+  const currentPL = priceLists.find(pl=>pl.id===activePLId);
+
+  const rhColor = rh => rh<=55?"var(--green)":rh<=65?"var(--amber)":"var(--acc)";
+
+  // ── equipment billing logic ──
+  const calcEquipCost = eq => {
+    const dOut = parseInt(eq.dayOut)||0;
+    const dIn  = parseInt(eq.dayIn)||1;
+    const days = dOut>0 ? Math.max(1, dOut-dIn+1) : Math.max(1, billingDays-dIn+1);
+    const plItem = currentPL?.items.find(i=>i.id===eq.plItemId);
+    const rate = plItem?.price || 0;
+    return { days, rate, total: days*rate, plItem };
   };
+
+  const totalEquipCost = equipment.reduce((sum,eq)=>{ const c=calcEquipCost(eq); return sum+c.total; },0);
+  const activeCount    = equipment.filter(eq=>!parseInt(eq.dayOut)).length;
+
+  const saveLog = () => {
+    if (!logF.tech) return;
+    const n = logs.length+1;
+    setLogs(l=>[...l,{id:uid(),day:`Day ${n}`,date:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),
+      tech:logF.tech,temp:parseFloat(logF.temp)||72,rh:parseFloat(logF.rh)||0,gpp:parseFloat(logF.gpp)||0,equip:logF.equip,notes:logF.notes}]);
+    setLogF({tech:"",temp:"",rh:"",gpp:"",equip:"",notes:""}); setAddLog(false);
+  };
+
+  const saveEquip = () => {
+    if (!eqForm.brand&&!eqForm.type) return;
+    setEquip(e=>[...e,{id:uid(),...eqForm,dayIn:parseInt(eqForm.dayIn)||1,dayOut:parseInt(eqForm.dayOut)||0}]);
+    setEqF({type:"fan",brand:"",serial:"",roomId:"",dayIn:"1",dayOut:"0",plItemId:"",notes:""});
+    setAddEq(false);
+  };
+
+  const pushToScope = () => {
+    if (!onPushToScope || !currentPL) return;
+    const lineItems = equipment
+      .filter(eq=>eq.plItemId)
+      .map(eq=>{
+        const { days, rate, plItem } = calcEquipCost(eq);
+        const et = getET(eq.type);
+        const room = rooms.find(r=>r.id===eq.roomId);
+        return {
+          id: uid(),
+          desc:`${eq.brand||et.label} — ${et.label}${room?" ("+room.label+")":""}`,
+          unit:"day", qty:days, price:rate,
+          source:"drydox",
+        };
+      }).filter(i=>i.price>0);
+    if (!lineItems.length) { setPushStatus("No equipment with pricing found. Assign items to a price list first."); return; }
+    onPushToScope(lineItems);
+    setPushStatus(`✓ Pushed ${lineItems.length} line items to Scope/Invoice`);
+    setTimeout(()=>setPushStatus(null), 4000);
+  };
+
+  const SUBTABS = [["log","Drying Log"],["equipment","Equipment"],["billing","Billing & Scope"],["rooms","Rooms"]];
+
   return (
-    <div className="scroll"><div style={{maxWidth:900,margin:"0 auto"}}>
+    <div style={{display:"flex",flexDirection:"column",flex:1,overflow:"hidden"}}>
+      {/* Sub-tab bar */}
+      <div style={{display:"flex",background:"var(--s2)",borderBottom:"1px solid var(--br)",padding:"0 18px",flexShrink:0}}>
+        {SUBTABS.map(([k,l])=>(
+          <button key={k} onClick={()=>setSubtab(k)} style={{
+            background:"none",border:"none",fontFamily:"var(--ui)",fontSize:11,padding:"10px 12px",cursor:"pointer",
+            borderBottom:`2px solid ${subtab===k?"var(--acc)":"transparent"}`,
+            color:subtab===k?"var(--t1)":"var(--t2)",fontWeight:subtab===k?700:400,transition:"all .12s"}}>
+            {l}
+          </button>
+        ))}
+        <div style={{flex:1}}/>
+        {priceLists.length>0 && (
+          <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0"}}>
+            <div className="mono" style={{fontSize:9,color:"var(--t3)"}}>PRICE LIST</div>
+            <select className="sel" value={activePLId||""} onChange={e=>setActivePL(e.target.value)}
+              style={{height:26,fontSize:10,padding:"3px 8px",width:180}}>
+              <option value="">— None Selected —</option>
+              {priceLists.map(pl=><option key={pl.id} value={pl.id}>{pl.name}</option>)}
+            </select>
+          </div>
+        )}
+      </div>
+
+      <div className="scroll">
+        <div style={{maxWidth:900,margin:"0 auto"}}>
+
+          {/* ── DRYING LOG TAB ── */}
+          {subtab==="log" && (
+            <>
+              <div className="g4" style={{gap:9,marginBottom:16}}>
+                {[["Days Active",logs.length,"var(--blue)"],
+                  ["Latest RH",`${logs[logs.length-1]?.rh||0}%`,rhColor(logs[logs.length-1]?.rh||0)],
+                  ["Latest GPP",logs[logs.length-1]?.gpp||0,"var(--teal)"],
+                  ["Status",(logs[logs.length-1]?.rh||0)<=55?"Dry Standard":"Drying","var(--green)"]
+                ].map(([l,v,c])=>(
+                  <div key={l} className="kpi" style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9}}>
+                    <div className="kpi-val" style={{color:c}}>{v}</div><div className="kpi-lbl">{l}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <div className="sec">Drying Log</div>
+                <button className="btn btn-primary btn-xs" onClick={()=>setAddLog(v=>!v)}>{Ic.plus} New Reading Day</button>
+              </div>
+              {addingLog && (
+                <div className="card" style={{marginBottom:12}}>
+                  <div className="g4" style={{gap:9,marginBottom:9}}>
+                    <F label="Technician" value={logF.tech} onChange={v=>setLogF(p=>({...p,tech:v}))} placeholder="Name"/>
+                    <F label="Temp (°F)"  value={logF.temp} onChange={v=>setLogF(p=>({...p,temp:v}))} placeholder="72"/>
+                    <F label="RH %"       value={logF.rh}   onChange={v=>setLogF(p=>({...p,rh:v}))}   placeholder="55"/>
+                    <F label="GPP"        value={logF.gpp}  onChange={v=>setLogF(p=>({...p,gpp:v}))}  placeholder="72"/>
+                  </div>
+                  <F label="Equipment in Place" value={logF.equip} onChange={v=>setLogF(p=>({...p,equip:v}))} placeholder="3× DHU, 8× Air Mover…"/>
+                  <div style={{marginTop:9}}><F label="Notes" value={logF.notes} onChange={v=>setLogF(p=>({...p,notes:v}))} rows={2} placeholder="Observations…"/></div>
+                  <div style={{display:"flex",justifyContent:"flex-end",gap:7,marginTop:9}}>
+                    <button className="btn btn-ghost btn-xs" onClick={()=>setAddLog(false)}>Cancel</button>
+                    <button className="btn btn-primary btn-xs" onClick={saveLog}>Save Log</button>
+                  </div>
+                </div>
+              )}
+              {[...logs].reverse().map(log=>(
+                <div key={log.id} className="card" style={{marginBottom:9,cursor:"pointer"}} onClick={()=>setExpand(expand===log.id?null:log.id)}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,justifyContent:"space-between"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <div style={{width:38,height:38,borderRadius:9,background:"var(--acc-lo)",display:"flex",alignItems:"center",justifyContent:"center",
+                        color:"var(--acc)",flexShrink:0,fontFamily:"var(--mono)",fontSize:10,fontWeight:700}}>{log.day.replace("Day ","D")}</div>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:13,color:"var(--t1)"}}>{log.day} — {log.date}</div>
+                        <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>Tech: {log.tech} · {log.equip}</div>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:16,alignItems:"center",flexShrink:0}}>
+                      {[["RH",`${log.rh}%`,rhColor(log.rh)],["Temp",`${log.temp}°F`,"var(--t1)"],["GPP",log.gpp,"var(--teal)"]].map(([l,v,c])=>(
+                        <div key={l} style={{textAlign:"right"}}><div className="mono" style={{fontSize:13,fontWeight:700,color:c}}>{v}</div><div className="lbl" style={{margin:0}}>{l}</div></div>
+                      ))}
+                    </div>
+                  </div>
+                  {expand===log.id && log.notes && (
+                    <div style={{marginTop:10,padding:"9px 12px",background:"var(--s3)",borderRadius:7,fontSize:12,color:"var(--t2)",borderTop:"1px solid var(--br)"}}>
+                      {log.notes}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* ── EQUIPMENT TAB ── */}
+          {subtab==="equipment" && (
+            <>
+              <div className="g4" style={{gap:9,marginBottom:16}}>
+                {[["Total Units",equipment.length,"var(--t1)"],["Active",activeCount,"var(--green)"],
+                  ["Removed",equipment.length-activeCount,"var(--t3)"],
+                  ["Types",[...new Set(equipment.map(e=>e.type))].length,"var(--blue)"]
+                ].map(([l,v,c])=>(
+                  <div key={l} className="kpi" style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9}}>
+                    <div className="kpi-val" style={{color:c}}>{v}</div><div className="kpi-lbl">{l}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <div className="sec">Equipment Deployment</div>
+                <button className="btn btn-primary btn-xs" onClick={()=>setAddEq(v=>!v)}>{Ic.plus} Add Equipment</button>
+              </div>
+
+              {addingEq && (
+                <div className="card" style={{marginBottom:12}}>
+                  <div className="g4" style={{gap:9,marginBottom:9}}>
+                    <F label="Type" value={eqForm.type} onChange={v=>setEqF(p=>({...p,type:v}))} options={EQUIP_TYPES.map(e=>e.value)}/>
+                    <F label="Brand / Model" value={eqForm.brand} onChange={v=>setEqF(p=>({...p,brand:v}))} placeholder="e.g. LGR 7000 XLi"/>
+                    <F label="Serial #" value={eqForm.serial} onChange={v=>setEqF(p=>({...p,serial:v}))} placeholder="SN-0000"/>
+                    <div>
+                      <label className="lbl">Room / Location</label>
+                      <select className="sel" value={eqForm.roomId} onChange={e=>setEqF(p=>({...p,roomId:e.target.value}))}>
+                        <option value="">— Select Room —</option>
+                        {rooms.map(r=><option key={r.id} value={r.id}>{r.label}</option>)}
+                        <option value="__other">Other / Multiple</option>
+                      </select>
+                    </div>
+                    <F label="Day In" value={eqForm.dayIn} onChange={v=>setEqF(p=>({...p,dayIn:v}))} placeholder="1"/>
+                    <F label="Day Out (0=active)" value={eqForm.dayOut} onChange={v=>setEqF(p=>({...p,dayOut:v}))} placeholder="0"/>
+                    <div>
+                      <label className="lbl">Price List Item</label>
+                      <select className="sel" value={eqForm.plItemId} onChange={e=>setEqF(p=>({...p,plItemId:e.target.value}))}>
+                        <option value="">— None —</option>
+                        {(currentPL?.items||[]).map(i=><option key={i.id} value={i.id}>{i.desc} (${i.price}/{i.unit})</option>)}
+                      </select>
+                    </div>
+                    <F label="Notes / Placement" value={eqForm.notes} onChange={v=>setEqF(p=>({...p,notes:v}))} placeholder="Corner, facing wall…"/>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"flex-end",gap:7}}>
+                    <button className="btn btn-ghost btn-xs" onClick={()=>setAddEq(false)}>Cancel</button>
+                    <button className="btn btn-primary btn-xs" onClick={saveEquip}>Add Equipment</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Column headers */}
+              <div style={{display:"grid",gridTemplateColumns:"32px 1fr 120px 80px 90px 100px 26px",gap:8,padding:"4px 12px",marginBottom:3}}>
+                {["","Equipment","Room","Days","Status","Price",""].map((h,i)=><div key={i} className="mono" style={{fontSize:9,color:"var(--t3)"}}>{h}</div>)}
+              </div>
+
+              {equipment.map(eq=>{
+                const et = getET(eq.type);
+                const room = rooms.find(r=>r.id===eq.roomId);
+                const dOut = parseInt(eq.dayOut)||0;
+                const days = dOut>0 ? dOut-parseInt(eq.dayIn)+1 : billingDays-parseInt(eq.dayIn)+1;
+                const active = !dOut;
+                const plItem = currentPL?.items.find(i=>i.id===eq.plItemId);
+                const cost = plItem ? days*plItem.price : null;
+                return (
+                  <div key={eq.id} className="row" style={{display:"grid",gridTemplateColumns:"32px 1fr 120px 80px 90px 100px 26px",gap:8,alignItems:"center",marginBottom:4}}>
+                    <div style={{fontSize:18,textAlign:"center"}}>{et.icon}</div>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontSize:12,fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{eq.brand||et.label}</div>
+                      {eq.serial && <div className="mono" style={{fontSize:10,color:"var(--t3)"}}>{eq.serial}</div>}
+                      {eq.notes  && <div style={{fontSize:10,color:"var(--t3)",fontStyle:"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{eq.notes}</div>}
+                    </div>
+                    <div style={{fontSize:11,color:"var(--t2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{room?.label||"—"}</div>
+                    <div className="mono" style={{fontSize:11,fontWeight:700,color:"var(--blue)"}}>
+                      D{eq.dayIn}→{dOut>0?"D"+dOut:"Active"}
+                    </div>
+                    <div>
+                      {active
+                        ? <span style={{fontSize:9,background:"rgba(26,217,138,.12)",color:"var(--green)",borderRadius:4,padding:"2px 6px",fontWeight:700}}>ACTIVE</span>
+                        : <span style={{fontSize:9,background:"var(--s3)",color:"var(--t3)",borderRadius:4,padding:"2px 6px",fontWeight:700}}>REMOVED D{dOut}</span>}
+                    </div>
+                    <div className="mono" style={{fontSize:11,fontWeight:700,color:cost?"var(--amber)":"var(--t3)"}}>
+                      {cost!=null ? fmt$c(cost) : "—"}
+                    </div>
+                    <button className="btn btn-danger btn-xs" style={{padding:"2px 5px"}} onClick={()=>setEquip(e=>e.filter(x=>x.id!==eq.id))}>{Ic.trash}</button>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* ── BILLING & SCOPE TAB ── */}
+          {subtab==="billing" && (
+            <>
+              {!currentPL ? (
+                <div style={{background:"rgba(232,156,24,.08)",border:"1px solid rgba(232,156,24,.25)",borderRadius:10,padding:"14px 16px",marginBottom:14,display:"flex",gap:10,alignItems:"center"}}>
+                  <span style={{color:"var(--amber)",fontSize:16}}>{Ic.pricetag}</span>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:700,color:"var(--amber)"}}>No Price List Selected</div>
+                    <div style={{fontSize:11,color:"var(--t2)",marginTop:2}}>Select a price list above to calculate equipment billing. Manage price lists in Advanced Tools → Price Lists.</div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                    <div>
+                      <div className="sec" style={{marginBottom:2}}>Equipment Billing Summary</div>
+                      <div style={{fontSize:11,color:"var(--t3)"}}>Using: <strong style={{color:"var(--t1)"}}>{currentPL.name}</strong></div>
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <div style={{display:"flex",alignItems:"center",gap:7}}>
+                        <div className="mono" style={{fontSize:9,color:"var(--t3)"}}>PROJECT DAYS</div>
+                        <input type="number" className="inp" value={billingDays} onChange={e=>setBillDays(Math.max(1,parseInt(e.target.value)||1))}
+                          style={{width:60,height:28,fontSize:12,textAlign:"center"}}/>
+                      </div>
+                      <button className="btn btn-primary" onClick={pushToScope} disabled={!onPushToScope}>
+                        {Ic.invoice} Push to Scope
+                      </button>
+                    </div>
+                  </div>
+
+                  {pushStatus && (
+                    <div style={{background:pushStatus.startsWith("✓")?"rgba(26,217,138,.1)":"rgba(232,156,24,.1)",
+                      border:`1px solid ${pushStatus.startsWith("✓")?"rgba(26,217,138,.25)":"rgba(232,156,24,.25)"}`,
+                      borderRadius:8,padding:"9px 12px",fontSize:11,fontWeight:700,
+                      color:pushStatus.startsWith("✓")?"var(--green)":"var(--amber)",marginBottom:12}}>
+                      {pushStatus}
+                    </div>
+                  )}
+
+                  {/* Billing table */}
+                  <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:10,overflow:"hidden",marginBottom:12}}>
+                    <div style={{display:"grid",gridTemplateColumns:"28px 1fr 110px 60px 80px 90px 100px",gap:8,padding:"8px 14px",background:"var(--s1)",borderBottom:"1px solid var(--br)"}}>
+                      {["","Equipment","Room","Day In","Day Out","Days","Total"].map((h,i)=><div key={i} className="mono" style={{fontSize:9,color:"var(--t3)"}}>{h}</div>)}
+                    </div>
+                    {equipment.length===0 && (
+                      <div style={{padding:"24px",textAlign:"center",color:"var(--t3)",fontSize:12}}>No equipment logged yet — add equipment in the Equipment tab.</div>
+                    )}
+                    {equipment.map(eq=>{
+                      const et = getET(eq.type);
+                      const room = rooms.find(r=>r.id===eq.roomId);
+                      const { days, rate, total, plItem } = calcEquipCost(eq);
+                      return (
+                        <div key={eq.id} style={{display:"grid",gridTemplateColumns:"28px 1fr 110px 60px 80px 90px 100px",gap:8,alignItems:"center",padding:"9px 14px",borderBottom:"1px solid var(--br)"}}>
+                          <div style={{fontSize:15}}>{et.icon}</div>
+                          <div style={{minWidth:0}}>
+                            <div style={{fontSize:12,fontWeight:600,color:"var(--t1)"}}>{eq.brand||et.label}</div>
+                            {plItem
+                              ? <div style={{fontSize:10,color:"var(--blue)"}}>{plItem.desc} · ${rate}/{plItem.unit}</div>
+                              : <div style={{fontSize:10,color:"var(--acc)"}}>⚠ No price list item assigned</div>}
+                          </div>
+                          <div style={{fontSize:11,color:"var(--t2)"}}>{room?.label||"—"}</div>
+                          <div className="mono" style={{fontSize:11,color:"var(--t2)"}}>D{eq.dayIn}</div>
+                          <div className="mono" style={{fontSize:11,color:(parseInt(eq.dayOut)||0)>0?"var(--t2)":"var(--green)"}}>
+                            {(parseInt(eq.dayOut)||0)>0?"D"+eq.dayOut:"Active"}
+                          </div>
+                          <div className="mono" style={{fontSize:12,fontWeight:700,color:"var(--blue)"}}>{days}d</div>
+                          <div className="mono" style={{fontSize:12,fontWeight:700,color:total>0?"var(--amber)":"var(--t3)"}}>{total>0?fmt$c(total):"—"}</div>
+                        </div>
+                      );
+                    })}
+                    <div style={{display:"grid",gridTemplateColumns:"28px 1fr 110px 60px 80px 90px 100px",gap:8,padding:"10px 14px",background:"var(--s1)",borderTop:"2px solid var(--br)"}}>
+                      <div/><div style={{fontSize:12,fontWeight:700,color:"var(--t1)"}}>Equipment Total</div>
+                      <div/><div/><div/><div/>
+                      <div className="mono" style={{fontSize:14,fontWeight:700,color:"var(--green)"}}>{fmt$c(totalEquipCost)}</div>
+                    </div>
+                  </div>
+
+                  {!onPushToScope && (
+                    <div style={{fontSize:11,color:"var(--t3)",textAlign:"center",padding:"8px"}}>
+                      Push to Scope is available when DryDox is opened within a project.
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+
+          {/* ── ROOMS TAB ── */}
+          {subtab==="rooms" && (
+            <>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <div className="sec">Drying Zones / Rooms</div>
+                <button className="btn btn-primary btn-xs" onClick={()=>{
+                  const name=window.prompt("Room / zone name:");
+                  if(name) setRooms(r=>[...r,{id:uid(),label:name,widthFt:12,depthFt:10}]);
+                }}>{Ic.plus} Add Room</button>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
+                {rooms.map(room=>{
+                  const roomEquip = equipment.filter(eq=>eq.roomId===room.id);
+                  const activeEq  = roomEquip.filter(eq=>!(parseInt(eq.dayOut)||0));
+                  return (
+                    <div key={room.id} className="card" style={{position:"relative"}}>
+                      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:8}}>
+                        <div>
+                          <div style={{fontWeight:700,fontSize:13,color:"var(--t1)"}}>{room.label}</div>
+                          <div className="mono" style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{room.widthFt}ft × {room.depthFt}ft · {Math.round(room.widthFt*room.depthFt)} SF</div>
+                        </div>
+                        <button className="btn btn-danger btn-xs" style={{padding:"2px 5px"}} onClick={()=>setRooms(r=>r.filter(x=>x.id!==room.id))}>{Ic.trash}</button>
+                      </div>
+                      <div style={{display:"flex",gap:10,marginBottom:8}}>
+                        {[["Equipment",roomEquip.length,"var(--blue)"],["Active",activeEq.length,"var(--green)"]].map(([l,v,c])=>(
+                          <div key={l} style={{flex:1,background:"var(--s3)",borderRadius:7,padding:"7px 10px",textAlign:"center"}}>
+                            <div className="mono" style={{fontSize:16,fontWeight:700,color:c}}>{v}</div>
+                            <div style={{fontSize:9,color:"var(--t3)",marginTop:1}}>{l}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {activeEq.map(eq=>(
+                        <div key={eq.id} style={{display:"flex",alignItems:"center",gap:7,padding:"5px 0",borderTop:"1px solid var(--br)"}}>
+                          <span style={{fontSize:14}}>{getET(eq.type).icon}</span>
+                          <div style={{flex:1,fontSize:11,color:"var(--t2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{eq.brand||getET(eq.type).label}</div>
+                          <span style={{fontSize:9,color:"var(--green)",fontFamily:"var(--mono)"}}>D{eq.dayIn}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 4 · ENHANCED CONTENTSDOX TAB
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CONTENTS_SEED = [
+  { id:1, room:"Living Room",   item:"Samsung 65\" QLED TV",           qty:1, condition:"Total Loss", repVal:1299, acvVal:780,  status:"claim"   },
+  { id:2, room:"Living Room",   item:"Ashley Sectional Sofa (Gray)",    qty:1, condition:"Total Loss", repVal:1899, acvVal:1140, status:"claim"   },
+  { id:3, room:"Living Room",   item:"Coffee Table — Wood",             qty:1, condition:"Damaged",    repVal:349,  acvVal:175,  status:"restore" },
+  { id:4, room:"Kitchen",       item:"KitchenAid Stand Mixer (Red)",    qty:1, condition:"Restorable", repVal:479,  acvVal:320,  status:"restore" },
+  { id:5, room:"Master Bedroom",item:"Casper King Mattress",            qty:1, condition:"Total Loss", repVal:1695, acvVal:1017, status:"claim"   },
+  { id:6, room:"Master Bedroom",item:"IKEA Malm Dresser (6-drawer)",    qty:1, condition:"Damaged",    repVal:299,  acvVal:120,  status:"pending" },
+];
+
+const ITEM_STATUS = {
+  pending:  { label:"Pending",  color:"var(--t3)" },
+  claim:    { label:"To Claim", color:"var(--acc)" },
+  restore:  { label:"Restore",  color:"var(--amber)" },
+  cleared:  { label:"Cleared",  color:"var(--green)" },
+};
+
+
+function ContentsDoxTab({ proj, onPushToScope }) {
+  const [items, setItems]   = useState(CONTENTS_SEED);
+  const [roomF, setRoomF]   = useState("All");
+  const [adding, setAdding] = useState(false);
+  const [pushStatus, setPushStatus] = useState(null);
+  const [f, setF] = useState({room:"",item:"",qty:"1",condition:"Damaged",repVal:"",acvVal:"",status:"pending"});
+  const rooms  = ["All",...new Set(items.map(i=>i.room))];
+  const vis    = roomF==="All" ? items : items.filter(i=>i.room===roomF);
+  const totRep = vis.reduce((s,i)=>s+i.repVal*(i.qty||1),0);
+  const totAcv = vis.reduce((s,i)=>s+i.acvVal*(i.qty||1),0);
+
+  const addItem = () => {
+    if (!f.item) return;
+    setItems(p=>[...p,{id:uid(),...f,qty:parseInt(f.qty)||1,repVal:parseFloat(f.repVal)||0,acvVal:parseFloat(f.acvVal)||0}]);
+    setF({room:"",item:"",qty:"1",condition:"Damaged",repVal:"",acvVal:"",status:"pending"}); setAdding(false);
+  };
+
+  const pushClaimsToScope = () => {
+    if (!onPushToScope) return;
+    const claimItems = items.filter(i=>i.status==="claim");
+    if (!claimItems.length) { setPushStatus("No items marked 'To Claim'. Set item status to 'claim' first."); return; }
+    const lineItems = claimItems.map(i=>({
+      id: uid(),
+      desc: `Contents — ${i.item} (${i.room})`,
+      unit: "EA", qty: i.qty||1, price: i.repVal,
+      source: "contentsdox",
+    }));
+    onPushToScope(lineItems);
+    setPushStatus(`✓ Pushed ${lineItems.length} contents claims to Scope/Invoice`);
+    setTimeout(()=>setPushStatus(null), 4000);
+  };
+
+  return (
+    <div className="scroll"><div style={{maxWidth:960,margin:"0 auto"}}>
       <div className="g4" style={{gap:9,marginBottom:16}}>
-        {[["Total Items",items.length,"var(--t1)"],["Replacement Value",fmt$(totRep),"var(--amber)"],["ACV",fmt$(totAcv),"var(--green)"],["To Claim",items.filter(i=>i.status==="claim").length,"var(--acc)"]].map(([l,v,c])=>(
-          <div key={l} className="kpi" style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9}}><div className="kpi-val" style={{color:c}}>{v}</div><div className="kpi-lbl">{l}</div></div>
+        {[["Total Items",items.length,"var(--t1)"],["Replacement Value",fmt$(totRep),"var(--amber)"],
+          ["ACV",fmt$(totAcv),"var(--green)"],["To Claim",items.filter(i=>i.status==="claim").length,"var(--acc)"]
+        ].map(([l,v,c])=>(
+          <div key={l} className="kpi" style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9}}>
+            <div className="kpi-val" style={{color:c}}>{v}</div><div className="kpi-lbl">{l}</div>
+          </div>
         ))}
       </div>
+
+      {/* Push to scope banner */}
+      {onPushToScope && (
+        <div style={{background:"rgba(91,163,245,.07)",border:"1px solid rgba(91,163,245,.2)",borderRadius:9,
+          padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:12,fontWeight:700,color:"var(--blue)"}}>Push Contents Claims to Invoice</div>
+            <div style={{fontSize:11,color:"var(--t2)",marginTop:1}}>{items.filter(i=>i.status==="claim").length} items marked "To Claim" · Replacement value {fmt$(items.filter(i=>i.status==="claim").reduce((s,i)=>s+i.repVal*(i.qty||1),0))}</div>
+          </div>
+          {pushStatus && <div style={{fontSize:11,fontWeight:700,color:pushStatus.startsWith("✓")?"var(--green)":"var(--amber)"}}>{pushStatus}</div>}
+          <button className="btn btn-blue" onClick={pushClaimsToScope}>{Ic.invoice} Push Claims to Scope</button>
+        </div>
+      )}
+
       <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:11,flexWrap:"wrap"}}>
         <span className="mono" style={{fontSize:9,color:"var(--t3)"}}>ROOM</span>
         {rooms.map(r=><button key={r} className={`chip${roomF===r?" on":""}`} onClick={()=>setRoomF(r)}>{r}</button>)}
         <div style={{flex:1}}/>
         <button className="btn btn-primary btn-xs" onClick={()=>setAdding(v=>!v)}>{Ic.plus} Add Item</button>
       </div>
+
       {adding && (
         <div className="card" style={{marginBottom:12}}>
-          <div className="g4" style={{gap:9,marginBottom:9}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 80px 120px",gap:9,marginBottom:9}}>
             <F label="Room" value={f.room} onChange={v=>setF(p=>({...p,room:v}))} placeholder="e.g. Living Room"/>
             <F label="Item Description" value={f.item} onChange={v=>setF(p=>({...p,item:v}))} placeholder="Brand + item name"/>
             <F label="Qty" value={f.qty} onChange={v=>setF(p=>({...p,qty:v}))} placeholder="1"/>
             <F label="Condition" value={f.condition} onChange={v=>setF(p=>({...p,condition:v}))} options={["Damaged","Total Loss","Restorable","Undamaged"]}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginBottom:9}}>
             <F label="Replacement Value ($)" value={f.repVal} onChange={v=>setF(p=>({...p,repVal:v}))} placeholder="0.00"/>
             <F label="ACV ($)" value={f.acvVal} onChange={v=>setF(p=>({...p,acvVal:v}))} placeholder="0.00"/>
             <F label="Status" value={f.status} onChange={v=>setF(p=>({...p,status:v}))} options={["pending","claim","restore","cleared"]}/>
@@ -1969,38 +2822,43 @@ function ContentsDoxTab({ proj }) {
           </div>
         </div>
       )}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 120px 80px 100px 100px 80px 24px",gap:4,padding:"3px 11px",marginBottom:4}}>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 130px 90px 100px 100px 84px 24px",gap:4,padding:"3px 11px",marginBottom:4}}>
         {["Item","Room","Condition","Rep. Value","ACV","Status",""].map((h,i)=><div key={i} className="mono" style={{fontSize:8,color:"var(--t3)"}}>{h}</div>)}
       </div>
       {vis.map(it=>{
         const st = ITEM_STATUS[it.status]||ITEM_STATUS.pending;
         return (
-          <div key={it.id} className="row" style={{display:"grid",gridTemplateColumns:"1fr 120px 80px 100px 100px 80px 24px",gap:4,alignItems:"center",marginBottom:4}}>
+          <div key={it.id} className="row" style={{display:"grid",gridTemplateColumns:"1fr 130px 90px 100px 100px 84px 24px",gap:4,alignItems:"center",marginBottom:4}}>
             <div style={{minWidth:0}}>
               <div style={{fontSize:12,fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.item}</div>
-              {it.qty>1&&<div style={{fontSize:10,color:"var(--t3)"}}>Qty: {it.qty}</div>}
+              {(it.qty||1)>1&&<div style={{fontSize:10,color:"var(--t3)"}}>Qty: {it.qty}</div>}
             </div>
-            <div style={{fontSize:11,color:"var(--t2)"}}>{it.room}</div>
+            <div style={{fontSize:11,color:"var(--t2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.room}</div>
             <div style={{fontSize:11,color:it.condition==="Total Loss"?"var(--acc)":it.condition==="Restorable"?"var(--amber)":"var(--t2)"}}>{it.condition}</div>
-            <div className="mono" style={{fontSize:11,fontWeight:700,color:"var(--amber)"}}>{fmt$(it.repVal*it.qty)}</div>
-            <div className="mono" style={{fontSize:11,fontWeight:700,color:"var(--green)"}}>{fmt$(it.acvVal*it.qty)}</div>
-            <span style={{fontSize:9,borderRadius:4,padding:"2px 7px",background:st.color+"18",color:st.color,fontWeight:700}}>{st.label}</span>
+            <div className="mono" style={{fontSize:11,fontWeight:700,color:"var(--amber)"}}>{fmt$(it.repVal*(it.qty||1))}</div>
+            <div className="mono" style={{fontSize:11,fontWeight:700,color:"var(--green)"}}>{fmt$(it.acvVal*(it.qty||1))}</div>
+            <select className="sel" value={it.status} onChange={e=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:e.target.value}:x))}
+              style={{height:26,fontSize:10,padding:"2px 6px",color:st.color,fontWeight:700}}>
+              {Object.keys(ITEM_STATUS).map(k=><option key={k} value={k}>{ITEM_STATUS[k].label}</option>)}
+            </select>
             <button className="btn btn-danger btn-xs" style={{padding:"2px 5px"}} onClick={()=>setItems(p=>p.filter(x=>x.id!==it.id))}>{Ic.trash}</button>
           </div>
         );
       })}
       <div style={{marginTop:12,padding:"10px 13px",background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,display:"flex",gap:24,justifyContent:"flex-end",alignItems:"center"}}>
         <div style={{fontSize:11,color:"var(--t3)"}}>{vis.length} items shown</div>
-        <div><div className="lbl">Rep. Value</div><div className="mono" style={{fontSize:13,fontWeight:700,color:"var(--amber)"}}>{fmt$(vis.reduce((s,i)=>s+i.repVal*i.qty,0))}</div></div>
-        <div><div className="lbl">ACV Total</div><div className="mono" style={{fontSize:13,fontWeight:700,color:"var(--green)"}}>{fmt$(vis.reduce((s,i)=>s+i.acvVal*i.qty,0))}</div></div>
+        <div><div className="lbl">Rep. Value</div><div className="mono" style={{fontSize:13,fontWeight:700,color:"var(--amber)"}}>{fmt$(vis.reduce((s,i)=>s+i.repVal*(i.qty||1),0))}</div></div>
+        <div><div className="lbl">ACV Total</div><div className="mono" style={{fontSize:13,fontWeight:700,color:"var(--green)"}}>{fmt$(vis.reduce((s,i)=>s+i.acvVal*(i.qty||1),0))}</div></div>
       </div>
     </div></div>
   );
 }
 
-/* ══════════════════════════════════════════════════════════════════
-   ESTIMATEDOX TAB  (Good / Better / Best embedded in project)
-══════════════════════════════════════════════════════════════════ */
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 5 · ENHANCED SCOPE TAB
+// ─────────────────────────────────────────────────────────────────────────────
+
 
 const GBB_CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap');
@@ -3350,22 +4208,41 @@ const PROJ_TABS = [
   {key:"project-report", label:"Project Report", icon:Ic.proj_report },
 ];
 
-function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, globalStaff=[] }) {
+
+
+function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, globalStaff=[], priceLists=[], setPriceLists }) {
   const [tab,setTab]           = useState(initialTab||"overview");
   const [notifyModal,setNotify]= useState(false);
   const [commModal,setComm]    = useState(false);
   const [clockModal,setClock]  = useState(false);
-  // Shared state lifted so Overview, Media, Docs, and Report all stay in sync
+  // Shared state lifted so all tabs stay in sync
   const [dailyNotes, setDailyNotes]     = useState(DAILY_NOTES_SEED);
   const [emailSchedule, setEmailSched]  = useState("weekly");
   const [clientPortal, setClientPortal] = useState(true);
   const [mediaFolders, setMediaFolders] = useState(["Day 1 — Initial Documentation","Moisture Mapping","Equipment Setup"]);
   const [mediaUploads, setMediaUploads] = useState([]);
   const [projDocs, setProjDocs]         = useState(DOCS_SEED);
+  // ── Scope items lifted here so DryDox + ContentsDox can push to it ──
+  const [scopeItems, setScopeItems]     = useState(SCOPE_SEED);
+  // ── Work types: seeded from project data, managed locally + synced to localStorage ──
+  const [worktypes, setWorktypes]       = useState(proj.worktypes || []);
+
   const openMaps = () => window.open(`https://maps.google.com/?q=${encodeURIComponent(proj.address)}`,"_blank");
   const isClocked = clockInState?.projId === proj.id;
   const myShifts  = projectShifts[proj.id] || [];
   const laborCost = myShifts.reduce((s,sh)=>s+(sh.laborCost||0),0);
+
+  // Callback for DryDox/ContentsDox to push items to Scope
+  const handlePushToScope = (newItems) => {
+    setScopeItems(prev => {
+      // Remove any existing items from same source to avoid duplication
+      const source = newItems[0]?.source;
+      const filtered = source ? prev.filter(i=>(i.source||"manual")!==source) : prev;
+      return [...filtered, ...newItems];
+    });
+    setTab("scope"); // auto-navigate to scope
+  };
+
   return (
     <>
       {clockModal  && <ClockInModal proj={proj} clockInState={clockInState} onClockIn={onClockIn} onClockOut={onClockOut} onClose={()=>setClock(false)} currentUser={currentUser} canViewRates={canViewRates}/>}
@@ -3382,8 +4259,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
           <TypeTag type={proj.type}/>
           {isClocked && (
             <span style={{display:"flex",alignItems:"center",gap:4,background:"rgba(26,217,138,.12)",border:"1px solid rgba(26,217,138,.25)",borderRadius:20,padding:"2px 9px",fontSize:10,color:"var(--green)",fontWeight:700}}>
-              <span style={{width:6,height:6,borderRadius:"50%",background:"var(--green)",display:"block",animation:"jd-ping 1.5s ease infinite"}}/>
-              CLOCKED IN
+              <span style={{width:6,height:6,borderRadius:"50%",background:"var(--green)",display:"block",animation:"jd-ping 1.5s ease infinite"}}/>CLOCKED IN
             </span>
           )}
           <div style={{width:1,height:18,background:"var(--br)",margin:"0 4px"}}/>
@@ -3404,12 +4280,17 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
             {t.key==="tasks"    && proj.tasksOpen>0 && <span className="mono" style={{fontSize:8,background:"var(--acc)",color:"#fff",borderRadius:9,padding:"1px 5px",marginLeft:2}}>{proj.tasksOpen}</span>}
             {t.key==="messages" && <span className="mono" style={{fontSize:8,background:"var(--acc)",color:"#fff",borderRadius:9,padding:"1px 5px",marginLeft:2}}>2</span>}
             {t.key==="shifts"   && myShifts.length>0 && <span className="mono" style={{fontSize:8,background:"var(--green)",color:"#fff",borderRadius:9,padding:"1px 5px",marginLeft:2}}>{myShifts.length} new</span>}
+            {t.key==="scope"    && scopeItems.filter(i=>i.source).length>0 && (
+              <span className="mono" style={{fontSize:8,background:"var(--blue)",color:"#fff",borderRadius:9,padding:"1px 5px",marginLeft:2}}>
+                {scopeItems.filter(i=>i.source).length}
+              </span>
+            )}
           </button>
         ))}
       </div>
-      {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff}/>}
-      {tab==="drydox"         && <DryDoxTab      proj={proj}/>}
-      {tab==="contentsdox"    && <ContentsDoxTab proj={proj}/>}
+      {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff} worktypes={worktypes} setWorktypes={setWorktypes}/>}
+      {tab==="drydox"         && <DryDoxTab      proj={proj} priceLists={priceLists} onPushToScope={handlePushToScope}/>}
+      {tab==="contentsdox"    && <ContentsDoxTab proj={proj} onPushToScope={handlePushToScope}/>}
       {tab==="estimatedox"    && <EstimateDoxTab proj={proj}/>}
       {tab==="contacts"       && <ContactsTab/>}
       {tab==="media"          && <MediaTab       folders={mediaFolders} setFolders={setMediaFolders} uploads={mediaUploads} setUploads={setMediaUploads}/>}
@@ -3417,50 +4298,75 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       {tab==="tasks"          && <TasksTab/>}
       {tab==="budget"         && <BudgetTab proj={proj} laborCost={laborCost}/>}
       {tab==="shifts"         && <ShiftsTab projId={proj.id} externalShifts={myShifts} canViewRates={canViewRates}/>}
-      {tab==="scope"          && <ScopeTab/>}
+      {tab==="scope"          && <ScopeTab scopeItems={scopeItems} setScopeItems={setScopeItems}/>}
       {tab==="messages"       && <MessagesTab/>}
       {tab==="project-report" && <ProjectReportTab proj={proj} dailyNotes={dailyNotes} mediaFolders={mediaFolders} mediaUploads={mediaUploads} docs={projDocs}/>}
     </>
   );
 }
 
-/* ══════════════════════════════════════════════════════════════════
-   CORTEXAI — SYSTEM ROLES & STAFF SETTINGS
-══════════════════════════════════════════════════════════════════ */
-const SYSTEM_ROLES = [
-  "Project Manager","Lead Technician","Field Technician","Estimator",
-  "QC Inspector","Billing Specialist","Office Administrator",
-  "IAQ / Industrial Hygienist","Contents Specialist","Subcontractor Coordinator",
-];
-const ROLE_COLORS = {
-  "Project Manager":           "#e43531",
-  "Lead Technician":           "#5ba3f5",
-  "Field Technician":          "#1ad98a",
-  "Estimator":                 "#e89c18",
-  "QC Inspector":              "#22d3ee",
-  "Billing Specialist":        "#e879f9",
-  "Office Administrator":      "#f472b6",
-  "IAQ / Industrial Hygienist":"#34d399",
-  "Contents Specialist":       "#fb923c",
-  "Subcontractor Coordinator": "#a78bfa",
-};
 
-function syncStaffToLS(staff) {
+
+
+
+
+function AdvToolsPanel({ onClose, priceLists, setPriceLists }) {
+  const [showPLManager, setShowPLManager] = useState(false);
+  const TOOLS = [
+    { icon:Ic.mindflow, label:"CortexAI",           desc:"AI-powered workflow generation", link:"mindflow.html" },
+    { icon:Ic.pricetag, label:"Price Lists",         desc:`${priceLists.length} lists · Manage equipment & material pricing`, action:()=>setShowPLManager(true) },
+    { icon:Ic.attr,     label:"Attribute Templates", desc:"Configure custom project fields" },
+    { icon:Ic.report,   label:"Reporting",           desc:"Advanced analytics & exports" },
+  ];
+  return (
+    <>
+      {showPLManager && (
+        <PriceListManagerModal
+          priceLists={priceLists}
+          setPriceLists={setPriceLists}
+          onClose={()=>setShowPLManager(false)}
+        />
+      )}
+      <div style={{position:"fixed",inset:0,zIndex:300}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+        <div className="tools-panel">
+          <div style={{padding:"15px 16px 10px",borderBottom:"1px solid var(--br)",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+            <div>
+              <div style={{fontWeight:700,fontSize:14,color:"var(--t1)"}}>Advanced Tools</div>
+              <div className="mono" style={{fontSize:9,color:"var(--t3)",marginTop:1}}>JOB-DOX PLATFORM</div>
+            </div>
+            <button className="btn btn-ghost btn-xs" onClick={onClose}>{Ic.close}</button>
+          </div>
+          <div style={{flex:1,overflowY:"auto",padding:"10px 10px"}}>
+            {TOOLS.map(tool=>(
+              <button key={tool.label} className="tool-item"
+                onClick={()=>{ if(tool.action){tool.action();}else if(tool.link){window.open(tool.link,"_blank");}else onClose(); }}>
+                <div style={{width:32,height:32,borderRadius:8,background:"var(--acc-lo)",color:"var(--acc)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{tool.icon}</div>
+                <div style={{minWidth:0,flex:1}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"var(--t1)"}}>{tool.label}</div>
+                  <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{tool.desc}</div>
+                </div>
+                {tool.link && <div style={{fontSize:10,color:"var(--blue)",flexShrink:0}}>Open</div>}
+                {tool.action && <div style={{fontSize:10,color:"var(--acc)",flexShrink:0}}>{Ic.chev_r}</div>}
+              </button>
+            ))}
+          </div>
+          <div style={{padding:"11px 14px",borderTop:"1px solid var(--br)",flexShrink:0,fontSize:10,color:"var(--t3)"}}>
+            More tools coming soon. Configure in Settings › Roadmap.
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+
+
+
+function syncWorktypesToLS(projId, worktypes) {
   try {
-    localStorage.setItem("jd_cortex_staff", JSON.stringify(
-      staff.map(s => ({
-        id: s.id,
-        name: `${s.firstName} ${s.lastName}`.trim(),
-        firstName: s.firstName,
-        lastName:  s.lastName,
-        email:     s.email,
-        phone:     s.phone,
-        systemRole:s.systemRole,
-        title:     s.title,
-        photoUrl:  s.photoUrl || "",
-        color:     ROLE_COLORS[s.systemRole] || "#5ba3f5",
-      }))
-    ));
+    const existing = JSON.parse(localStorage.getItem("jd_cortex_worktypes") || "{}");
+    existing[projId] = worktypes;
+    localStorage.setItem("jd_cortex_worktypes", JSON.stringify(existing));
   } catch(_) {}
 }
 
@@ -3742,47 +4648,6 @@ function SettingsPage({ globalStaff, setGlobalStaff }) {
   );
 }
 
-/* ══════════════════════════════════════════════════════════════════
-   ADVANCED TOOLS FLYOUT
-══════════════════════════════════════════════════════════════════ */
-const TOOLS = [
-  {icon:Ic.mindflow, label:"CortexAI",              desc:"AI-powered workflow generation",    link:"mindflow.html"},
-  {icon:Ic.pricetag, label:"Price Lists",            desc:"Company-wide pricing management"},
-  {icon:Ic.attr,     label:"Attribute Templates",    desc:"Configure custom project fields"},
-  {icon:Ic.report,   label:"Reporting",              desc:"Advanced analytics & exports"},
-];
-
-function AdvToolsPanel({ onClose }) {
-  return (
-    <div style={{position:"fixed",inset:0,zIndex:300}} onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div className="tools-panel">
-        <div style={{padding:"15px 16px 10px",borderBottom:"1px solid var(--br)",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
-          <div>
-            <div style={{fontWeight:700,fontSize:14,color:"var(--t1)"}}>Advanced Tools</div>
-            <div className="mono" style={{fontSize:9,color:"var(--t3)",marginTop:1}}>JOB-DOX PLATFORM</div>
-          </div>
-          <button className="btn btn-ghost btn-xs" onClick={onClose}>{Ic.close}</button>
-        </div>
-        <div style={{flex:1,overflowY:"auto",padding:"10px 10px"}}>
-          {TOOLS.map(tool=>(
-            <button key={tool.label} className="tool-item"
-              onClick={()=>{ if(tool.link) window.open(tool.link,"_blank"); else onClose(); }}>
-              <div style={{width:32,height:32,borderRadius:8,background:"var(--acc-lo)",color:"var(--acc)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{tool.icon}</div>
-              <div style={{minWidth:0,flex:1}}>
-                <div style={{fontSize:12,fontWeight:700,color:"var(--t1)"}}>{tool.label}</div>
-                <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{tool.desc}</div>
-              </div>
-              {tool.link && <div style={{fontSize:10,color:"var(--blue)",flexShrink:0}}>Open</div>}
-            </button>
-          ))}
-        </div>
-        <div style={{padding:"11px 14px",borderTop:"1px solid var(--br)",flexShrink:0,fontSize:10,color:"var(--t3)"}}>
-          More tools coming soon. Configure in Settings › Roadmap.
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function JobDoxPortal() {
   const [projects,      setProjects]     = useState([]);
@@ -3796,6 +4661,7 @@ export default function JobDoxPortal() {
   const [permission,    setPermission]   = useState("admin");
   const [globalStaff,   setGlobalStaff]  = useState([]);
   const [companyId,     setCompanyId]    = useState(null);
+  const [priceLists,    setPriceLists]   = useState(INITIAL_PRICE_LISTS);
   const attrDefs = DEFAULT_ATTR_DEFS;
 
   const permCycle  = ["admin","manager","staff"];
@@ -3903,7 +4769,7 @@ export default function JobDoxPortal() {
 
   return (
     <div className={`jdp${isLight?" lt":""}`}>
-      {showTools && <AdvToolsPanel onClose={()=>setShowTools(false)}/>}
+      {showTools && <AdvToolsPanel onClose={()=>setShowTools(false)} priceLists={priceLists} setPriceLists={setPriceLists}/>}
       <nav className="rail">
         <div className="rail-logo">JD</div>
         <button className={`rail-btn${page==="portfolio"&&!selected?" active":""}`} data-tip="Projects"
@@ -3997,6 +4863,8 @@ export default function JobDoxPortal() {
             currentUser={currentUser}
             canViewRates={canViewRates}
             globalStaff={globalStaff}
+            priceLists={priceLists}
+            setPriceLists={setPriceLists}
           />
         ) : (
           <PortfolioPage
