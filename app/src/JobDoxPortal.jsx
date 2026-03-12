@@ -6073,8 +6073,11 @@ export default function JobDoxPortal() {
             saveCoInfo({ ...existingCo, name: member.customFields["company-name"] });
           }
           setPermission(10);
+          try { localStorage.setItem("jd_current_user", JSON.stringify({ permissionLevel: 10, memberId: member.id })); } catch {}
         } else if (staffRecord) {
-          setPermission(normPerm(staffRecord.permission ?? 3));
+          const lv = normPerm(staffRecord.permission ?? 3);
+          setPermission(lv);
+          try { localStorage.setItem("jd_current_user", JSON.stringify({ permissionLevel: lv, memberId: member.id })); } catch {}
         }
       } catch(e) { console.warn("Staff record load failed:", e); }
 
@@ -6320,7 +6323,10 @@ export default function JobDoxPortal() {
               currentMemberName={currentUser?.name}
               offices={offices}
               onPermissionChange={(memberId, newPerm) => {
-                if (memberId === currentMember?.id) setPermission(normPerm(newPerm));
+                if (memberId === currentMember?.id) {
+                  setPermission(normPerm(newPerm));
+                  try { localStorage.setItem("jd_current_user", JSON.stringify({ permissionLevel: normPerm(newPerm), memberId: currentMember.id })); } catch {}
+                }
               }}
             />
           </>
