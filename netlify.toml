@@ -29,5 +29,11 @@
     Access-Control-Allow-Origin = "https://job-dox.ai"
     Cache-Control               = "no-store"
 
+[[headers]]
+  for = "/.netlify/functions/finance-analyze"
+  [headers.values]
+    Access-Control-Allow-Origin = "https://job-dox.ai"
+    Cache-Control               = "no-store"
+
 [[plugins]]
   package = "@netlify/plugin-functions-install-core"
