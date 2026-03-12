@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { DocumentsTab, LogoUploadSection, DocumentTemplateCenter } from "./JobDoxDocuments.jsx";
+import { FinancialTab, FinancialHealthBadge, FinancialDashboard } from "./JobDoxFinance.jsx";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
          doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where } from "firebase/firestore";
@@ -2249,6 +2250,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                           <div style={{display:"flex",alignItems:"center",gap:6}}>
                             <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",lineHeight:1.3}}>{proj.name}</div>
                             {isClocked && <span style={{fontSize:8,background:"rgba(26,217,138,.15)",color:"var(--green)",borderRadius:4,padding:"1px 5px",fontFamily:"var(--mono)",flexShrink:0}}>ACTIVE</span>}
+                            <FinancialHealthBadge projId={proj.id} companyId={companyId}/>
                           </div>
                           <div className="mono" style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{proj.id}</div>
                         </div>
@@ -2304,6 +2306,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                         <div style={{display:"flex",alignItems:"center",gap:6}}>
                           <span style={{fontSize:12,fontWeight:700,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.name}</span>
                           {isClocked && <span style={{fontSize:8,background:"rgba(26,217,138,.15)",color:"var(--green)",borderRadius:4,padding:"1px 5px",fontFamily:"var(--mono)",flexShrink:0}}>ACTIVE</span>}
+                          <FinancialHealthBadge projId={proj.id} companyId={companyId}/>
                         </div>
                         <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{proj.id} · {proj.client}</div>
                       </div>
@@ -5883,6 +5886,7 @@ const PROJ_TABS = [
   {key:"documents",   label:"Documents",      icon:Ic.doc     },
   {key:"tasks",       label:"Tasks",          icon:Ic.tasks   },
   {key:"budget",      label:"Budget",         icon:Ic.dollar  },
+  {key:"finance",     label:"Finance",        icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg> },
   {key:"shifts",      label:"Shift Reports",  icon:Ic.clock   },
   {key:"scope",       label:"Scope/Invoice",  icon:Ic.scope   },
   {key:"messages",       label:"Messages",       icon:Ic.msg         },
@@ -5958,6 +5962,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       <div className="tabs">
         {PROJ_TABS.filter(t=>{
           if (t.key==="budget" && !canViewBudget) return false;
+          if (t.key==="finance" && !canViewBudget) return false;
           if (t.key==="scope"  && !canViewBillingScope) return false;
           if (t.key==="shifts" && !canViewBudget) return false;
           if ((t.key==="drydox"||t.key==="contentsdox"||t.key==="estimatedox") && !canViewBudget) return false;
@@ -5985,6 +5990,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       {tab==="documents"      && <DocumentsTab   proj={proj} docs={projDocs} setDocs={setProjDocs}/>}
       {tab==="tasks"          && <TasksTab initialTasks={proj.templateTasks||[]} globalStaff={globalStaff} companyId={companyId} phoneSettings={phoneSettings}/>}
       {tab==="budget"         && <BudgetTab proj={proj} laborCost={laborCost}/>}
+      {tab==="finance"        && <FinancialTab proj={proj} companyId={companyId} laborCost={laborCost}/>}
       {tab==="shifts"         && <ShiftsTab projId={proj.id} externalShifts={myShifts} canViewRates={canViewRates}/>}
       {tab==="scope"          && <ScopeTab scopeItems={scopeItems} setScopeItems={setScopeItems}/>}
       {tab==="messages"       && <MessagesTab/>}
@@ -7911,6 +7917,10 @@ export default function JobDoxPortal() {
         <button className="rail-btn" data-tip="All Tasks">{Ic.tasks}</button>
         <button className="rail-btn" data-tip="Messages">{Ic.msg}</button>
         <button className="rail-btn" data-tip="Reports">{Ic.chart}</button>
+        <button className={`rail-btn${page==="finance"?" active":""}`} data-tip="Financial Dashboard"
+          onClick={()=>navTo("finance")}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>
+        </button>
         <button className={`rail-btn${page==="settings"?" active":""}`} data-tip="Settings"
           onClick={()=>navTo("settings")}>
           {Ic.settings}
@@ -8011,6 +8021,12 @@ export default function JobDoxPortal() {
             globalStaff={globalStaff}
             currentMemberId={currentMember?.id||""}
             companyId={companyId}
+          />
+        ) : page==="finance" ? (
+          <FinancialDashboard
+            projects={projects}
+            companyId={companyId}
+            onNavigate={handleNavigate}
           />
         ) : selected ? (
           <ProjectDetail
