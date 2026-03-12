@@ -935,10 +935,25 @@ document.querySelectorAll('.roi-charts').forEach(el=>{el.querySelectorAll('.ann-
   }
 })();
 
-// Memberstack: redirect to portal after login or signup
 (function waitForMemberstack() {
   if (window.$memberstackDom && window.$memberstackDom.onReady) {
     window.$memberstackDom.onReady.then(function(ms) {
+
+      // Manually bind all signup/login buttons
+      document.querySelectorAll('[data-ms-action="signup"]').forEach(function(el) {
+        el.addEventListener('click', function(e) {
+          e.preventDefault();
+          window.$memberstackDom.openModal('signup');
+        });
+      });
+      document.querySelectorAll('[data-ms-action="login"]').forEach(function(el) {
+        el.addEventListener('click', function(e) {
+          e.preventDefault();
+          window.$memberstackDom.openModal('login');
+        });
+      });
+
+      // Redirect to portal after login or signup
       ms.onAuthChange(function(payload) {
         if (payload && payload.member) {
           var invite = sessionStorage.getItem('jd_invite');
@@ -947,6 +962,7 @@ document.querySelectorAll('.roi-charts').forEach(el=>{el.querySelectorAll('.ann-
           window.location.href = dest;
         }
       });
+
     });
   } else {
     setTimeout(waitForMemberstack, 50);
