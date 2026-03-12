@@ -944,9 +944,10 @@ document.querySelectorAll('.roi-charts').forEach(el=>{el.querySelectorAll('.ann-
         e.preventDefault();
         var plan  = el.getAttribute('data-ms-plan');
         var price = el.getAttribute('data-ms-price');
-        var opts = { signup: {} };
-        if (plan || price) {
-          opts.signup.plans = [{ planId: plan, priceId: price }];
+        var opts = {};
+        if (plan) {
+          opts.signup = { plans: [{ planId: plan }] };
+          if (price) opts.signup.priceId = price;
         }
         window.$memberstackDom.openModal('SIGNUP', opts);
       });
