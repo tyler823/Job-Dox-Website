@@ -418,34 +418,9 @@ function saveCoInfo(info) {
   localStorage.setItem(LS_CO_KEY, JSON.stringify(info));
 }
 
-const DEFAULT_WORK_TYPES = [
-  { id:"wt-1", name:"Water Mitigation", color:"#3b82f6", hasWorkflow:true  },
-  { id:"wt-2", name:"Fire & Smoke",     color:"#f97316", hasWorkflow:false },
-  { id:"wt-3", name:"Mold Remediation", color:"#10b981", hasWorkflow:false },
-  { id:"wt-4", name:"Storm Damage",     color:"#8b5cf6", hasWorkflow:false },
-  { id:"wt-5", name:"Reconstruction",   color:"#6b7280", hasWorkflow:false },
-  { id:"wt-6", name:"Demo",             color:"#f43f5e", hasWorkflow:false },
-  { id:"wt-7", name:"Contents",         color:"#ec4899", hasWorkflow:false },
-];
-
-const DEFAULT_STATUSES = [
-  { id:"st-1", name:"New Lead",         color:"#8b95b0", triggerTask:"" },
-  { id:"st-2", name:"Scoping",          color:"#e89c18", triggerTask:"" },
-  { id:"st-3", name:"In Progress",      color:"#5ba3f5", triggerTask:"contract signed" },
-  { id:"st-4", name:"Pending Approval", color:"#a78bfa", triggerTask:"scope approved" },
-  { id:"st-5", name:"On Hold",          color:"#e43531", triggerTask:"" },
-  { id:"st-6", name:"Completed",        color:"#1ad98a", triggerTask:"certificate of completion" },
-];
-
-const DEFAULT_PROJECT_TYPES = [
-  { id:"pt-1", name:"Water Damage",    color:"#3b82f6" },
-  { id:"pt-2", name:"Fire & Smoke",    color:"#f97316" },
-  { id:"pt-3", name:"Storm Damage",    color:"#8b5cf6" },
-  { id:"pt-4", name:"Mold Remediation",color:"#10b981" },
-  { id:"pt-5", name:"Reconstruction",  color:"#6b7280" },
-  { id:"pt-6", name:"Contents",        color:"#ec4899" },
-  { id:"pt-7", name:"Demo",            color:"#f43f5e" },
-];
+const DEFAULT_WORK_TYPES    = [];
+const DEFAULT_STATUSES      = [];
+const DEFAULT_PROJECT_TYPES = [];
 
 function loadCWT()  { try { return JSON.parse(localStorage.getItem(LS_CWT_KEY)) || DEFAULT_WORK_TYPES; }  catch { return DEFAULT_WORK_TYPES; } }
 function loadCST()  { try { return JSON.parse(localStorage.getItem(LS_CST_KEY)) || DEFAULT_STATUSES; }    catch { return DEFAULT_STATUSES; } }
@@ -605,10 +580,10 @@ const PERM_COLORS = { admin:"var(--acc)", manager:"var(--blue)", staff:"var(--t3
 
 function syncStaffToLS(staffArr, officesArr=[]) {
   try {
-    // Enrich each staff member with their office name so CortexAI can use role+office for assignment
     const enriched = staffArr.map(s => ({
       ...s,
-      officeName: officesArr.find(o => o.id === s.officeId)?.name || "",
+      // officeIds is an array — join names for CortexAI so it can match role+office
+      officeNames: (s.officeIds||[]).map(id => officesArr.find(o=>o.id===id)?.name).filter(Boolean),
     }));
     localStorage.setItem("jd_staff", JSON.stringify(enriched));
   } catch {}
@@ -713,6 +688,41 @@ function F({ label, value, onChange, type="text", placeholder, options, span, ro
   );
 }
 
+/* ══════════════════════════════════════════════
+   GEO UTILITIES — Haversine distance + Nominatim geocoding
+══════════════════════════════════════════════ */
+function haversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 3958.8; // Earth radius in miles
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+async function geocodeAddress(addressStr) {
+  if (!addressStr?.trim()) return null;
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressStr)}&limit=1&countrycodes=us`;
+    const res = await fetch(url, { headers: { "Accept-Language": "en-US" } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.length) return null;
+    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), display: data[0].display_name };
+  } catch { return null; }
+}
+
+function nearestOffice(offices, lat, lng) {
+  let best = null, bestDist = Infinity;
+  for (const o of offices) {
+    if (o.lat == null || o.lng == null) continue;
+    const d = haversineDistance(lat, lng, o.lat, o.lng);
+    if (d < bestDist) { bestDist = d; best = o; }
+  }
+  return best ? { office: best, miles: Math.round(bestDist * 10) / 10 } : null;
+}
+
 const RATE_TABLE = {
   "Lead Technician":   { payRate: 28, chargeRate: 85  },
   "Field Technician":  { payRate: 22, chargeRate: 65  },
@@ -726,14 +736,66 @@ const CURRENT_USER = {
   position: "Project Manager",
 };
 
-const PERM_CONFIG = {
-  admin:   { label:"Admin",   canViewRates: true  },
-  manager: { label:"Manager", canViewRates: true  },
-  staff:   { label:"Staff",   canViewRates: false },
+/* ══════════════════════════════════════════════
+   PERMISSION LEVELS  1–10
+   ──────────────────────────────────────────────
+   Stored as integer in Firestore { permission: 7 }
+   Legacy string values ("admin","manager","staff") are
+   normalised by normPerm() on read.
+══════════════════════════════════════════════ */
+const PERM_LEVELS = {
+  1:  { label:"Level 1 · Field I",        short:"L1",  color:"#6b7280" },
+  2:  { label:"Level 2 · Field II",       short:"L2",  color:"#6b7280" },
+  3:  { label:"Level 3 · Technician",     short:"L3",  color:"#22d3ee" },
+  4:  { label:"Level 4 · Senior Tech",    short:"L4",  color:"#22d3ee" },
+  5:  { label:"Level 5 · Coordinator",    short:"L5",  color:"#5ba3f5" },
+  6:  { label:"Level 6 · Project Lead",   short:"L6",  color:"#5ba3f5" },
+  7:  { label:"Level 7 · Manager",        short:"L7",  color:"#a78bfa" },
+  8:  { label:"Level 8 · Sr. Manager",    short:"L8",  color:"#a78bfa" },
+  9:  { label:"Level 9 · Director",       short:"L9",  color:"#f97316" },
+  10: { label:"Level 10 · Admin",         short:"L10", color:"var(--acc)" },
 };
-// Permission hierarchy — used to determine what each role can do
-const CAN_MANAGE_STAFF = ["admin"];
-const CAN_VIEW_RATES   = ["admin","manager"];
+
+const PERM_DESCRIPTIONS = {
+  1:  { title:"Field I",      desc:"Sees only projects they are personally assigned to. No financial data of any kind. Can clock in/out and update task status only." },
+  2:  { title:"Field II",     desc:"Same project visibility as Level 1. Can view task checklists and add media/photos. No financial access." },
+  3:  { title:"Technician",   desc:"Sees all projects at their assigned office(s). Can manage tasks and log notes. No financial or billing data." },
+  4:  { title:"Senior Tech",  desc:"Office-level project visibility plus basic progress indicators (% complete). Still no dollar figures — can see worktype phases only." },
+  5:  { title:"Coordinator",  desc:"Cross-office project visibility. Can create new projects. Can view budget totals and spent amounts, but not individual billing line items or pay rates." },
+  6:  { title:"Project Lead",  desc:"Full cross-office project visibility and creation. Sees full budget, DryDox equipment logs, and scope line items. Cannot see client billing rates or staff pay rates." },
+  7:  { title:"Manager",      desc:"Full financial visibility including client-facing billing rates on scope/invoices. Can see Shift Reports with billing figures. Cannot view staff pay rates." },
+  8:  { title:"Sr. Manager",  desc:"All Level 7 access plus staff pay rate visibility in Shift Reports. Can access General Settings for config changes." },
+  9:  { title:"Director",     desc:"All Level 8 access plus full Settings access. Can manage staff records. Cannot change permission levels of other users." },
+  10: { title:"Admin",        desc:"Full system access across all offices. Can set permission levels for all staff, manage company configuration, and view all financial data including pay rates." },
+};
+
+// Normalise legacy string permissions to numbers
+function normPerm(raw) {
+  if (typeof raw === "number") return Math.min(10, Math.max(1, raw));
+  if (raw === "admin")   return 10;
+  if (raw === "manager") return 7;
+  return 3; // "staff" or anything else
+}
+
+// Capability gates — derive all caps from a numeric level
+function permCaps(level) {
+  const lv = normPerm(level);
+  return {
+    level:               lv,
+    canViewOwnJobsOnly:  lv <= 2,                // 1-2: see only assigned projects
+    canViewOfficeJobs:   lv >= 3 && lv <= 4,     // 3-4: same-office projects only
+    canViewAllJobs:      lv >= 5,                // 5+: all projects cross-office
+    canAddProject:       lv >= 5,                // 5+: create new projects
+    canViewBudget:       lv >= 5,                // 5+: budget totals
+    canViewBillingScope: lv >= 7,                // 7+: billing rates on scope/invoice
+    canViewPayRates:     lv >= 8,                // 8+: staff pay rates in shifts
+    canAccessSettings:   lv >= 8,                // 8+: general settings tab
+    canManageStaff:      lv >= 9,                // 9+: edit staff records
+    canManagePermissions:lv >= 10,               // 10 only: change permission levels
+    // convenience alias kept for existing canViewRates call sites
+    canViewRates:        lv >= 7,
+  };
+}
 
 function useElapsed(startTime) {
   const [elapsed, setElapsed] = useState(0);
@@ -1045,11 +1107,30 @@ function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], c
   const [saveError, setSaveError] = useState("");
   const s = (k,v) => setF(p=>({...p,[k]:v}));
 
+  // ── Geo auto-assign ──
+  const [geoStatus, setGeoStatus] = useState(null); // null | "pending" | { officeId, officeName, miles } | "fail" | "no-offices"
+  const [officeOverridden, setOfficeOverridden] = useState(false);
+
+  const autoAssignOffice = async () => {
+    const geocodable = offices.filter(o => o.lat != null && o.lng != null);
+    if (!geocodable.length) { setGeoStatus("no-offices"); return; }
+    const q = [f.address, f.city, f.state, f.zip].filter(Boolean).join(", ");
+    if (!q || q.length < 5) return;
+    setGeoStatus("pending");
+    const result = await geocodeAddress(q);
+    if (!result) { setGeoStatus("fail"); return; }
+    const found = nearestOffice(geocodable, result.lat, result.lng);
+    if (!found) { setGeoStatus("fail"); return; }
+    setF(p => ({ ...p, officeId: found.office.id }));
+    setGeoStatus({ officeId: found.office.id, officeName: found.office.name, miles: found.miles });
+    setOfficeOverridden(false);
+  };
+
   // Load saved workflow templates once
   const savedTemplates = useMemo(() => loadWorkflowTemplates(), []);
 
   // Work type toggles — pull from company config
-  const WT_OPTIONS = customWorkTypes.length ? customWorkTypes.map(w=>w.name) : Object.keys(WT_META);
+  const WT_OPTIONS = customWorkTypes.map(w=>w.name);
   const [selectedWTs, setSelectedWTs] = useState([]);
   const toggleWT = (type) => {
     setSelectedWTs(prev => {
@@ -1063,8 +1144,8 @@ function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], c
   // Count how many selected WTs have saved templates
   const templatesAvailable = selectedWTs.filter(w => savedTemplates[w.type]).length;
 
-  const projTypeNames = customProjectTypes.length ? customProjectTypes.map(t=>t.name) : ["Water Damage","Fire & Smoke","Mold Remediation","Storm Damage","Reconstruction","Other"];
-  const statusNames   = customStatuses.length     ? customStatuses.map(s=>s.name)     : ["New Lead","Scoping","In Progress"];
+  const projTypeNames = customProjectTypes.map(t=>t.name);
+  const statusNames   = customStatuses.map(s=>s.name);
 
   const submit = async () => {
     if (!f.name || !f.type) return;
@@ -1122,22 +1203,22 @@ function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], c
       <div className="modal modal-lg anim">
         <div className="modal-hd"><div className="modal-ttl">New Project</div><button className="btn btn-ghost btn-xs" onClick={onClose}>{Ic.close}</button></div>
         <div className="modal-body">
+          {(projTypeNames.length === 0 || statusNames.length === 0) && (
+            <div style={{padding:"10px 14px",background:"rgba(232,156,24,.08)",border:"1px solid rgba(232,156,24,.22)",borderRadius:8,fontSize:11,color:"var(--amber)"}}>
+              <strong>Setup required:</strong> Go to <strong>Settings › General</strong> to add{projTypeNames.length===0?" Project Types":""}{projTypeNames.length===0&&statusNames.length===0?" and":""}{statusNames.length===0?" Statuses":""} before creating projects.
+            </div>
+          )}
           <div><div className="sec" style={{marginBottom:7}}>Project</div>
             <F label="Project Name *" value={f.name} onChange={v=>s("name",v)} placeholder="e.g. Henderson Residence" span={2}/>
             <div className="g3" style={{marginTop:10}}>
-              <F label="Loss Type *" value={f.type} onChange={v=>s("type",v)} options={projTypeNames}/>
+              {projTypeNames.length > 0
+                ? <F label="Loss Type *" value={f.type} onChange={v=>s("type",v)} options={projTypeNames}/>
+                : <div><label className="lbl">Loss Type *</label><div style={{fontSize:11,color:"var(--t3)",padding:"8px 11px",background:"var(--s3)",borderRadius:7,border:"1px solid var(--br)"}}>None configured</div></div>}
               <F label="Date of Loss" value={f.dateOfLoss} onChange={v=>s("dateOfLoss",v)} type="date"/>
-              <F label="Initial Status" value={f.status||"New Lead"} onChange={v=>s("status",v)} options={statusNames}/>
+              {statusNames.length > 0
+                ? <F label="Initial Status" value={f.status||statusNames[0]} onChange={v=>s("status",v)} options={statusNames}/>
+                : <div><label className="lbl">Status</label><div style={{fontSize:11,color:"var(--t3)",padding:"8px 11px",background:"var(--s3)",borderRadius:7,border:"1px solid var(--br)"}}>None configured</div></div>}
             </div>
-            {offices.length > 0 && (
-              <div style={{marginTop:10}}>
-                <label className="lbl">Office Location</label>
-                <select className="sel" value={f.officeId} onChange={e=>s("officeId",e.target.value)}>
-                  <option value="">— No office assigned —</option>
-                  {offices.map(o=><option key={o.id} value={o.id}>{o.name}{o.city?` · ${o.city}`:""}</option>)}
-                </select>
-              </div>
-            )}
           </div>
 
           {/* ── Work Types ── */}
@@ -1146,11 +1227,15 @@ function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], c
               <div className="sec">Work Types</div>
               <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>Toggle to enable — drives CortexAI automations</div>
             </div>
+            {WT_OPTIONS.length === 0 ? (
+              <div style={{padding:"10px 14px",background:"var(--s3)",borderRadius:8,fontSize:11,color:"var(--t3)",border:"1px solid var(--br)"}}>
+                No work types configured yet. Add them in <strong style={{color:"var(--t2)"}}>Settings › General › Work Types</strong>.
+              </div>
+            ) : (
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:7}}>
               {WT_OPTIONS.map(type => {
                 const meta = getWTMeta(type, customWorkTypes);
                 const on   = isWTOn(type);
-                const cwt  = customWorkTypes.find(w=>w.name===type);
                 const hasTpl = !!savedTemplates[type];
                 return (
                   <button key={type} onClick={()=>toggleWT(type)}
@@ -1167,6 +1252,7 @@ function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], c
                 );
               })}
             </div>
+            )}
             {selectedWTs.length > 0 && (
               <div style={{marginTop:8,padding:"7px 10px",borderRadius:7,fontSize:11,
                 background: templatesAvailable > 0 ? "rgba(26,217,138,.07)" : "rgba(232,156,24,.07)",
@@ -1180,12 +1266,67 @@ function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], c
           </div>
 
           <div><div className="sec" style={{marginBottom:7}}>Loss Address</div>
-            <F label="Street Address" value={f.address} onChange={v=>s("address",v)} placeholder="123 Main Street" span={2}/>
-            <div className="g3" style={{marginTop:10}}>
-              <F label="City" value={f.city} onChange={v=>s("city",v)} placeholder="Oklahoma City"/>
-              <F label="State" value={f.state} onChange={v=>s("state",v)} placeholder="OK"/>
-              <F label="ZIP" value={f.zip} onChange={v=>s("zip",v)} placeholder="73008"/>
+            <div style={{gridColumn:"1/-1",marginBottom:8}}>
+              <label className="lbl">Street Address</label>
+              <input className="inp" value={f.address} onChange={e=>s("address",e.target.value)}
+                onBlur={autoAssignOffice}
+                placeholder="123 Main Street"/>
             </div>
+            <div className="g3">
+              <div>
+                <label className="lbl">City</label>
+                <input className="inp" value={f.city} onChange={e=>s("city",e.target.value)}
+                  onBlur={autoAssignOffice} placeholder="Oklahoma City"/>
+              </div>
+              <div>
+                <label className="lbl">State</label>
+                <input className="inp" value={f.state} onChange={e=>s("state",e.target.value)}
+                  onBlur={autoAssignOffice} placeholder="OK"/>
+              </div>
+              <div>
+                <label className="lbl">ZIP</label>
+                <input className="inp" value={f.zip} onChange={e=>s("zip",e.target.value)}
+                  onBlur={autoAssignOffice} placeholder="73008"/>
+              </div>
+            </div>
+
+            {/* ── Office assignment with geo status ── */}
+            {offices.length > 0 && (
+              <div style={{marginTop:10}}>
+                <label className="lbl">Office Assignment</label>
+                {/* Geo status pill */}
+                {geoStatus === "pending" && (
+                  <div style={{fontSize:10,color:"var(--amber)",fontFamily:"var(--mono)",marginBottom:6}}>
+                    📍 Detecting nearest office…
+                  </div>
+                )}
+                {geoStatus && typeof geoStatus === "object" && !officeOverridden && (
+                  <div style={{fontSize:10,color:"var(--green)",marginBottom:6,display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontFamily:"var(--mono)",fontWeight:700}}>📍 AUTO-ASSIGNED</span>
+                    <span style={{color:"var(--t3)"}}>· {geoStatus.officeName} · {geoStatus.miles} mi away</span>
+                  </div>
+                )}
+                {officeOverridden && (
+                  <div style={{fontSize:10,color:"var(--amber)",marginBottom:6,fontFamily:"var(--mono)"}}>
+                    ✏ MANUAL OVERRIDE
+                  </div>
+                )}
+                {geoStatus === "fail" && (
+                  <div style={{fontSize:10,color:"var(--t3)",marginBottom:6}}>
+                    Could not detect location — select office manually below.
+                  </div>
+                )}
+                <select className="sel" value={f.officeId}
+                  onChange={e=>{
+                    s("officeId",e.target.value);
+                    if (geoStatus && typeof geoStatus === "object" && e.target.value !== geoStatus.officeId) setOfficeOverridden(true);
+                    else if (geoStatus && typeof geoStatus === "object") setOfficeOverridden(false);
+                  }}>
+                  <option value="">— No office assigned —</option>
+                  {offices.map(o=><option key={o.id} value={o.id}>{o.name}{o.city?` · ${o.city}`:""}{!o.lat?" ⚠":""}</option>)}
+                </select>
+              </div>
+            )}
           </div>
           <div><div className="sec" style={{marginBottom:7}}>Client / Insured</div>
             <div className="g3">
@@ -1459,7 +1600,7 @@ function MyDayPage({ onNavigate }) {
   );
 }
 
-function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[] }) {
+function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, canViewBudget=false, canAddProject=false, currentMemberId="", globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[] }) {
   const [search, setSearch]   = useState("");
   const [fType, setFType]     = useState("All");
   const [fStatus, setFStatus] = useState("All");
@@ -1471,10 +1612,17 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
   const [viewMode, setViewMode]= useState("card");
 
   // Dynamic filter options from company config
-  const statusFilterOpts = ["All", ...(customStatuses.length ? customStatuses.map(s=>s.name) : Object.keys(STATUS_C))];
-  const typeFilterOpts   = ["All", ...(customProjectTypes.length ? customProjectTypes.map(t=>t.name) : Object.keys(TYPE_C))];
+  const statusFilterOpts = ["All", ...customStatuses.map(s=>s.name)];
+  const typeFilterOpts   = ["All", ...customProjectTypes.map(t=>t.name)];
 
   const filtered = projects.filter(p => {
+    // Restrict by permission level
+    if (!canViewBudget && !canAddProject) {
+      // levels 1-4: can only see projects at their office or assigned to them
+      const inMyOffice = !p.officeId || (globalStaff.find(s=>s.id===currentMemberId)?.officeIds||[]).some(oid=>oid===p.officeId);
+      // level 1-2: only own projects (we use assignedStaffIds if it exists, else show all)
+      if (!inMyOffice && !canAddProject) return false;
+    }
     const q = search.toLowerCase();
     return (!q || [p.name,p.address,p.client||""].join(" ").toLowerCase().includes(q))
       && (fType==="All"   || p.type===fType)
@@ -1500,11 +1648,11 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
             <button className={`view-toggle-btn${viewMode==="list"?" on":""}`} title="List view" onClick={()=>setViewMode("list")}>{Ic.ic_list}</button>
           </div>
         </div>
-        <button className="btn btn-primary btn-lg" onClick={()=>setShowAdd(true)}>{Ic.plus} New Project</button>
+        {canAddProject && <button className="btn btn-primary btn-lg" onClick={()=>setShowAdd(true)}>{Ic.plus} New Project</button>}
       </div>
 
       <div className="kpi-bar">
-        {[["Active",projects.filter(p=>p.status==="In Progress").length,"var(--blue)"],["Total Budget",fmt$(projects.reduce((s,p)=>s+p.budget,0)),"var(--green)"],["Open Tasks",projects.reduce((s,p)=>s+p.tasksOpen,0),"var(--amber)"],["Completed",projects.filter(p=>p.status==="Completed").length,"var(--t2)"]].map(([l,v,c])=>(
+        {[["Active",projects.filter(p=>p.status==="In Progress").length,"var(--blue)"],...(canViewBudget?[["Total Budget",fmt$(projects.reduce((s,p)=>s+p.budget,0)),"var(--green)"]]:[[]]),...[["Open Tasks",projects.reduce((s,p)=>s+p.tasksOpen,0),"var(--amber)"],["Completed",projects.filter(p=>p.status==="Completed").length,"var(--t2)"]]].map(([l,v,c])=>(
           <div key={l} className="kpi"><div className="kpi-val" style={{color:c}}>{v}</div><div className="kpi-lbl">{l}</div></div>
         ))}
       </div>
@@ -2117,7 +2265,7 @@ function BudgetTab({ proj, laborCost=0 }) {
   );
 }
 
-function ShiftsTab({ projId, externalShifts=[], canViewRates }) {
+function ShiftsTab({ projId, externalShifts=[], canViewRates, canViewPayRates=false }) {
   const SEED=[{id:1,tech:"Jake Reynolds",task:"Initial extraction & setup",mode:"trade",position:"Lead Technician",rate:85,payRate:28,clockIn:"Dec 12 07:45 AM",clockOut:"Dec 12 04:30 PM",hours:8.75,notes:"Extracted ~480 SF, placed 8 air movers",laborCost:743.75},{id:2,tech:"Maria Santos",task:"Equipment monitoring",mode:"trade",position:"Field Technician",rate:65,payRate:22,clockIn:"Dec 13 08:00 AM",clockOut:"Dec 13 01:00 PM",hours:5.0,notes:"Day 2 readings logged in DryDox",laborCost:325}];
   const [manual, setManual] = useState(SEED);
   const [adding, setAdding] = useState(false);
@@ -2182,7 +2330,7 @@ function ShiftsTab({ projId, externalShifts=[], canViewRates }) {
             <div style={{fontSize:11,color:"var(--t2)",marginTop:1}}>{sh.task}</div>
             <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>
               {sh.position}
-              {canViewRates && <span style={{color:"var(--amber)"}}> · ${sh.rate}/hr</span>}
+              {canViewRates && canViewPayRates && <span style={{color:"var(--amber)"}}> · ${sh.rate}/hr</span>}
               {" · "}{sh.clockIn}{sh.clockOut?" → "+sh.clockOut:""}
             </div>
             {sh.notes && <div style={{fontSize:10,color:"var(--t3)",marginTop:1,fontStyle:"italic"}}>{sh.notes}</div>}
@@ -4521,7 +4669,7 @@ const PROJ_TABS = [
 
 
 
-function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, globalStaff=[], priceLists=[], setPriceLists }) {
+function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists }) {
   const [tab,setTab]           = useState(initialTab||"overview");
   const [notifyModal,setNotify]= useState(false);
   const [commModal,setComm]    = useState(false);
@@ -4585,7 +4733,13 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
         </div>
       </div>
       <div className="tabs">
-        {PROJ_TABS.map(t=>(
+        {PROJ_TABS.filter(t=>{
+          if (t.key==="budget" && !canViewBudget) return false;
+          if (t.key==="scope"  && !canViewBillingScope) return false;
+          if (t.key==="shifts" && !canViewBudget) return false;
+          if ((t.key==="drydox"||t.key==="contentsdox"||t.key==="estimatedox") && !canViewBudget) return false;
+          return true;
+        }).map(t=>(
           <button key={t.key} className={`tab${tab===t.key?" active":""}`} onClick={()=>setTab(t.key)}>
             <span style={{opacity:.7}}>{t.icon}</span>{t.label}
             {t.key==="tasks"    && proj.tasksOpen>0 && <span className="mono" style={{fontSize:8,background:"var(--acc)",color:"#fff",borderRadius:9,padding:"1px 5px",marginLeft:2}}>{proj.tasksOpen}</span>}
@@ -4624,7 +4778,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
 function AdvToolsPanel({ onClose, priceLists, setPriceLists }) {
   const [showPLManager, setShowPLManager] = useState(false);
   const TOOLS = [
-    { icon:Ic.mindflow, label:"CortexAI",           desc:"AI-powered workflow generation", link:"/mindflow.html" },
+    { icon:Ic.mindflow, label:"CortexAI",           desc:"AI-powered workflow generation", link:"mindflow.html" },
     { icon:Ic.pricetag, label:"Price Lists",         desc:`${priceLists.length} lists · Manage equipment & material pricing`, action:()=>setShowPLManager(true) },
     { icon:Ic.attr,     label:"Attribute Templates", desc:"Configure custom project fields" },
     { icon:Ic.report,   label:"Reporting",           desc:"Advanced analytics & exports" },
@@ -4996,7 +5150,7 @@ function GeneralSettingsTab() {
   );
 }
 
-function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission, currentMemberId, currentMemberName, onPermissionChange, offices=[] }) {
+function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission=1, currentMemberId, currentMemberName, onPermissionChange, offices=[] }) {
   const [tab,      setTab]      = useState("staff");
   const [editId,   setEditId]   = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -5004,18 +5158,23 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
   const [saving,   setSaving]   = useState(false);
   const [saveError, setSaveError] = useState("");
   const [inviteSaved, setInviteSaved] = useState(false);
-  const blank = { firstName:"", lastName:"", email:"", phone:"", systemRole:"Project Manager", title:"", photoUrl:"", officeId:"" };
+  const blank = { firstName:"", lastName:"", email:"", phone:"", systemRole:"", title:"", photoUrl:"", officeIds:[], permissionLevel:3 };
   const [form, setForm] = useState(blank);
-  const [inviteForm, setInviteForm] = useState({ email:"", permission:"staff" });
+  const [inviteForm, setInviteForm] = useState({ email:"", permission:3 });
 
   // ── Offices local state (mirrors Firestore via prop) ──
-  const [officeForm, setOfficeForm] = useState({ name:"", city:"", state:"", color:"#22d3ee" });
+  const officeBlank = { name:"", street:"", city:"", state:"", zip:"", color:"#22d3ee", lat:null, lng:null };
+  const [officeForm, setOfficeForm] = useState(officeBlank);
   const [officeEditId, setOfficeEditId] = useState(null);
   const [showOfficeForm, setShowOfficeForm] = useState(false);
   const [officeSaving, setOfficeSaving] = useState(false);
   const [officeError, setOfficeError] = useState("");
+  const [officeGeoStatus, setOfficeGeoStatus] = useState(null); // null | "pending" | "ok" | "fail"
   const fileRef = useRef();
-  const isAdmin = currentPermission === "admin";
+  const permLevel = normPerm(currentPermission);
+  const isAdmin = permLevel >= 10;
+  const canManageStaffLocal = permLevel >= 9;
+  const canChangePerms = permLevel >= 10;
 
   const handlePhoto = e => {
     const file = e.target.files[0];
@@ -5028,8 +5187,8 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
   const openAdd  = () => { setForm(blank); setEditId(null); setShowForm(true); };
   const openEdit = s => {
     setForm({ firstName:s.firstName||"", lastName:s.lastName||"", email:s.email||"",
-              phone:s.phone||"", systemRole:s.systemRole||"Project Manager",
-              title:s.title||"", photoUrl:s.photoUrl||"", officeId:s.officeId||"" });
+              phone:s.phone||"", systemRole:s.systemRole||"",
+              title:s.title||"", photoUrl:s.photoUrl||"", officeIds:s.officeIds||[], permissionLevel:normPerm(s.permission??3) });
     setEditId(s.id);
     setShowForm(true);
     setSaveError("");
@@ -5045,14 +5204,14 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     setSaveError("");
     try {
       if (editId) {
-        await fsSetStaff(companyId, editId, { ...form, color: ROLE_COLORS[form.systemRole] || "#5ba3f5" });
+        await fsSetStaff(companyId, editId, { ...form, permission: form.permissionLevel, color: ROLE_COLORS[form.systemRole] || "#5ba3f5" });
       } else {
         const newId = `manual-${Date.now()}`;
         await fsSetStaff(companyId, newId, {
           ...form,
           id: newId,
           color: ROLE_COLORS[form.systemRole] || "#5ba3f5",
-          permission: "staff",
+          permission: form.permissionLevel || 3,
           status: "active",
           joinedAt: new Date().toISOString(),
         });
@@ -5073,7 +5232,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
   };
 
   const changePermission = async (memberId, newPerm) => {
-    if (!companyId || !isAdmin) return;
+    if (!companyId || permLevel < 9) return;
     try {
       await fsUpdateStaffField(companyId, memberId, { permission: newPerm });
       if (onPermissionChange) onPermissionChange(memberId, newPerm);
@@ -5087,7 +5246,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
       await fsCreateInvite(companyId, inviteForm.email, inviteForm.permission, currentMemberName || "Admin");
       setInviteSaved(true);
       setTimeout(() => setInviteSaved(false), 3000);
-      setInviteForm({ email:"", permission:"staff" });
+      setInviteForm({ email:"", permission:3 });
     } catch(e) { console.error("Invite failed:", e); }
     setSaving(false);
   };
@@ -5099,16 +5258,32 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
 
   // ── Office CRUD ──
   const openAddOffice = () => {
-    setOfficeForm({ name:"", city:"", state:"", color:"#22d3ee" });
+    setOfficeForm(officeBlank);
     setOfficeEditId(null);
     setShowOfficeForm(true);
     setOfficeError("");
+    setOfficeGeoStatus(null);
   };
   const openEditOffice = o => {
-    setOfficeForm({ name:o.name||"", city:o.city||"", state:o.state||"", color:o.color||"#22d3ee" });
+    setOfficeForm({ name:o.name||"", street:o.street||"", city:o.city||"", state:o.state||"", zip:o.zip||"", color:o.color||"#22d3ee", lat:o.lat||null, lng:o.lng||null });
     setOfficeEditId(o.id);
     setShowOfficeForm(true);
     setOfficeError("");
+    setOfficeGeoStatus(o.lat ? "ok" : null);
+  };
+  const geocodeOffice = async () => {
+    const q = [officeForm.street, officeForm.city, officeForm.state, officeForm.zip].filter(Boolean).join(", ");
+    if (!q) { setOfficeError("Enter at least a city and state to geocode."); return; }
+    setOfficeGeoStatus("pending");
+    setOfficeError("");
+    const result = await geocodeAddress(q);
+    if (result) {
+      setOfficeForm(f => ({ ...f, lat: result.lat, lng: result.lng }));
+      setOfficeGeoStatus("ok");
+    } else {
+      setOfficeGeoStatus("fail");
+      setOfficeError("Could not geocode this address — check it and try again, or coordinates can be added manually.");
+    }
   };
   const saveOffice = async () => {
     if (!officeForm.name.trim() || !companyId) { setOfficeError("Office name is required."); return; }
@@ -5116,7 +5291,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     try {
       const oid = officeEditId || `office-${Date.now()}`;
       await fsSetOffice(companyId, oid, { ...officeForm, id: oid });
-      setShowOfficeForm(false); setOfficeEditId(null);
+      setShowOfficeForm(false); setOfficeEditId(null); setOfficeGeoStatus(null);
     } catch(e) { setOfficeError(e?.message || "Save failed — check your connection."); }
     setOfficeSaving(false);
   };
@@ -5170,12 +5345,12 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
               <div>
                 <div style={{fontSize:14,fontWeight:700,color:"var(--t1)"}}>Company Staff</div>
                 <div style={{fontSize:11,color:"var(--t3)",marginTop:3,maxWidth:520}}>
-                  {isAdmin
+                  {canManageStaffLocal
                     ? "Manage your team, adjust permissions, and invite new members."
                     : "Your company's team roster."}
                 </div>
               </div>
-              {isAdmin && !showForm && !showInvite && (
+              {canManageStaffLocal && !showForm && !showInvite && (
                 <div style={{display:"flex",gap:7}}>
                   <button className="btn btn-secondary" onClick={()=>setShowInvite(true)}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
@@ -5187,7 +5362,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
             </div>
 
             {/* ── INVITE FORM ── */}
-            {showInvite && isAdmin && (
+            {showInvite && canManageStaffLocal && (
               <div style={{background:"var(--s2)",border:"1px solid var(--blue)",borderRadius:10,padding:20,marginBottom:20}}>
                 <div style={{fontSize:13,fontWeight:700,marginBottom:4,color:"var(--t1)"}}>Invite a Team Member</div>
                 <div style={{fontSize:11,color:"var(--t3)",marginBottom:16}}>
@@ -5201,10 +5376,12 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                   </div>
                   <div>
                     <label className="lbl">Permission Level</label>
-                    <select className="sel" value={inviteForm.permission}
-                      onChange={e=>setInviteForm(f=>({...f,permission:e.target.value}))}>
-                      <option value="staff">Staff</option>
-                      <option value="manager">Manager</option>
+                    <select className="sel" value={String(inviteForm.permission||3)}
+                      onChange={e=>setInviteForm(f=>({...f,permission:parseInt(e.target.value)}))}
+                      style={{fontSize:11}}>
+                      {[1,2,3,4,5,6,7,8,9].map(n=>(
+                        <option key={n} value={n}>{PERM_LEVELS[n].label}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -5236,7 +5413,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
             )}
 
             {/* ── PENDING INVITES ── */}
-            {isAdmin && pendingInvites.length > 0 && !showForm && (
+            {canManageStaffLocal && pendingInvites.length > 0 && !showForm && (
               <div style={{marginBottom:16}}>
                 <div className="mono" style={{fontSize:9,color:"var(--t3)",marginBottom:8}}>PENDING INVITES ({pendingInvites.length})</div>
                 {pendingInvites.map(inv => (
@@ -5251,7 +5428,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                     </div>
                     <span style={{fontSize:10,color:"var(--amber)",fontFamily:"var(--mono)",
                       background:"rgba(232,156,24,.12)",padding:"2px 8px",borderRadius:4,marginRight:4}}>
-                      {(inv.permission||"staff").toUpperCase()}
+                      {PERM_LEVELS[normPerm(inv.permission??3)]?.short||"L3"}
                     </span>
                     <span style={{fontSize:10,color:"var(--t3)",marginRight:8}}>Awaiting sign-in</span>
                     <button className="btn btn-ghost btn-xs" style={{color:"var(--acc)"}}
@@ -5272,40 +5449,55 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                   {fld("Last Name","lastName",{placeholder:"Last name"})}
                   {fld("Email Address","email",{required:true,type:"email",placeholder:"name@company.com"})}
                   {fld("Phone Number","phone",{placeholder:"(405) 555-0000"})}
-                  {fld("System Role","systemRole",{options:SYSTEM_ROLES})}
+                  {fld("Job Role / Title for CortexAI","systemRole",{placeholder:"e.g. Lead Technician, Estimator, PM"})}
                   {fld("Public Title","title",{placeholder:"e.g. Senior Technician, Field Lead"})}
                 </div>
 
-                {/* Office assignment */}
+                {/* Office assignment — multi-select chips */}
                 {offices.length > 0 && (
                   <div style={{marginBottom:12}}>
-                    <label className="lbl">Office Location</label>
-                    <select className="sel" value={form.officeId} onChange={e=>setForm(f=>({...f,officeId:e.target.value}))}>
-                      <option value="">— No office assigned —</option>
-                      {offices.map(o=><option key={o.id} value={o.id}>{o.name}{o.city?` · ${o.city}`:""}</option>)}
-                    </select>
-                    <div style={{fontSize:10,color:"var(--t3)",marginTop:4}}>
-                      CortexAI uses this with System Role to assign tasks from the correct office pool.
+                    <label className="lbl">Office Locations <span style={{color:"var(--t3)",fontWeight:400,textTransform:"none",letterSpacing:0}}>(select all that apply)</span></label>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:6}}>
+                      {offices.map(o => {
+                        const on = (form.officeIds||[]).includes(o.id);
+                        const oc = o.color||"var(--teal)";
+                        return (
+                          <button key={o.id} type="button"
+                            onClick={()=>setForm(f=>({...f,officeIds:on?(f.officeIds||[]).filter(id=>id!==o.id):[...(f.officeIds||[]),o.id]}))}
+                            style={{display:"flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:20,
+                              border:`1.5px solid ${on?oc:"var(--br)"}`,
+                              background:on?`${oc}18`:"transparent",
+                              color:on?oc:"var(--t2)",
+                              cursor:"pointer",fontSize:11,fontWeight:on?700:400,transition:"all .12s"}}>
+                            <span style={{width:7,height:7,borderRadius:"50%",background:on?oc:"var(--t3)",flexShrink:0}}/>
+                            {o.name}{o.city?` · ${o.city}`:""}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div style={{fontSize:10,color:"var(--t3)",marginTop:5}}>
+                      CortexAI uses office + System Role to route task assignments. Regional managers can be assigned to multiple offices.
                     </div>
                   </div>
                 )}
 
-                <div style={{background:"var(--s3)",borderRadius:7,padding:"8px 13px",marginBottom:14,
-                  display:"flex",alignItems:"center",gap:8,fontSize:11,color:"var(--t2)"}}>
-                  <div style={{width:8,height:8,borderRadius:"50%",background:ROLE_COLORS[form.systemRole]||"#5ba3f5",flexShrink:0}}/>
-                  <span>System Role: <strong style={{color:ROLE_COLORS[form.systemRole]||"#5ba3f5"}}>{form.systemRole}</strong>
-                  <span style={{color:"var(--t3)",marginLeft:6}}>— CortexAI will auto-assign tasks with this role to this person.</span></span>
-                </div>
+                {form.systemRole && (
+                  <div style={{background:"var(--s3)",borderRadius:7,padding:"8px 13px",marginBottom:14,
+                    display:"flex",alignItems:"center",gap:8,fontSize:11,color:"var(--t2)"}}>
+                    <div style={{width:8,height:8,borderRadius:"50%",background:"#5ba3f5",flexShrink:0}}/>
+                    <span>CortexAI will use <strong style={{color:"var(--t1)"}}>{form.systemRole}</strong> to auto-assign tasks to this person.</span>
+                  </div>
+                )}
 
                 <div style={{marginBottom:16}}>
                   <label className="lbl">Profile Photo</label>
                   <div style={{display:"flex",alignItems:"center",gap:12}}>
                     <div style={{width:52,height:52,borderRadius:"50%",overflow:"hidden",
-                      background:"var(--s3)",border:`2px solid ${ROLE_COLORS[form.systemRole]||"#5ba3f5"}`,
+                      background:"var(--s3)",border:`2px solid #5ba3f5`,
                       flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
                       {form.photoUrl
                         ? <img src={form.photoUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-                        : <span style={{fontWeight:700,fontSize:16,color:ROLE_COLORS[form.systemRole]||"#5ba3f5"}}>
+                        : <span style={{fontWeight:700,fontSize:16,color:"#5ba3f5"}}>
                             {(form.firstName||"?")[0]}{(form.lastName||"")[0]||""}
                           </span>}
                     </div>
@@ -5318,6 +5510,27 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                     </div>
                   </div>
                 </div>
+
+                {/* ── Permission Level selector ── */}
+                {canChangePerms && (
+                  <div style={{marginBottom:14}}>
+                    <label className="lbl">Permission Level</label>
+                    <select className="sel" value={String(form.permissionLevel||3)}
+                      onChange={e=>setForm(f=>({...f,permissionLevel:parseInt(e.target.value)}))}>
+                      {[1,2,3,4,5,6,7,8,9].map(n=>(
+                        <option key={n} value={n}>{PERM_LEVELS[n].label}</option>
+                      ))}
+                    </select>
+                    {/* Description of selected level */}
+                    {PERM_DESCRIPTIONS[form.permissionLevel||3] && (
+                      <div style={{marginTop:7,padding:"8px 12px",background:"var(--s3)",borderRadius:7,
+                        border:"1px solid var(--br)",fontSize:11,color:"var(--t2)",lineHeight:1.6}}>
+                        <span style={{fontWeight:700,color:PERM_LEVELS[form.permissionLevel||3]?.color}}>{PERM_DESCRIPTIONS[form.permissionLevel||3].title}: </span>
+                        {PERM_DESCRIPTIONS[form.permissionLevel||3].desc}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {saveError && (
                   <div style={{marginBottom:12,padding:"8px 12px",background:"rgba(228,53,49,.08)",
@@ -5339,7 +5552,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
               <div style={{textAlign:"center",padding:"52px 0",color:"var(--t3)",background:"var(--s1)",borderRadius:10,border:"1px solid var(--br)"}}>
                 <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>No staff members yet</div>
                 <div style={{fontSize:11}}>
-                  {isAdmin ? "Add your first team member or send an invite to get started." : "Your admin hasn't added any team members yet."}
+                  {canManageStaffLocal ? "Add your first team member or send an invite to get started." : "Your admin hasn't added any team members yet."}
                 </div>
               </div>
             ) : (
@@ -5352,7 +5565,8 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                 </div>
                 {globalStaff.map(s => {
                   const rc   = ROLE_COLORS[s.systemRole] || "#5ba3f5";
-                  const pc   = PERM_COLORS[s.permission] || "var(--t3)";
+                  const slv  = normPerm(s.permission ?? 3);
+                  const pc   = PERM_LEVELS[slv]?.color || "var(--t3)";
                   const isSelf = s.id === currentMemberId;
                   return (
                     <div key={s.id} style={{display:"grid",
@@ -5379,7 +5593,15 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                             background:"rgba(91,163,245,.12)",padding:"1px 6px",borderRadius:4}}>YOU</span>}
                         </div>
                         {s.title && <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{s.title}</div>}
-                        {s.officeId && (() => { const ov = offices.find(o=>o.id===s.officeId); return ov ? <div style={{fontSize:9,color:"var(--teal)",marginTop:2,fontFamily:"var(--mono)"}}>{ov.name}{ov.city?` · ${ov.city}`:""}</div> : null; })()}
+                        {(s.officeIds||[]).length > 0 && (
+                          <div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:3}}>
+                            {(s.officeIds).map(id=>{
+                              const ov = offices.find(o=>o.id===id);
+                              if (!ov) return null;
+                              return <span key={id} style={{fontSize:8,color:ov.color||"var(--teal)",background:`${ov.color||"var(--teal)"}18`,border:`1px solid ${ov.color||"var(--teal)"}35`,borderRadius:10,padding:"1px 6px",fontFamily:"var(--mono)"}}>{ov.name}</span>;
+                            })}
+                          </div>
+                        )}
                       </div>
                       {/* System role */}
                       <div>
@@ -5396,33 +5618,79 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                       <div style={{fontSize:11,color:"var(--t2)"}}>{s.phone||"—"}</div>
                       {/* Permission — dropdown for admins, badge for others */}
                       <div>
-                        {isAdmin && !isSelf ? (
-                          <select className="sel" value={s.permission||"staff"}
-                            onChange={e=>changePermission(s.id,e.target.value)}
+                        {canChangePerms && !isSelf ? (
+                          <select className="sel" value={String(slv)}
+                            onChange={e=>changePermission(s.id,parseInt(e.target.value))}
                             style={{fontSize:11,padding:"4px 8px",height:"auto",
                               color:pc,background:"var(--s3)"}}>
-                            <option value="admin">Admin</option>
-                            <option value="manager">Manager</option>
-                            <option value="staff">Staff</option>
+                            {[1,2,3,4,5,6,7,8,9,10].map(n=>(
+                              <option key={n} value={n}>{PERM_LEVELS[n].label}</option>
+                            ))}
                           </select>
                         ) : (
                           <span style={{display:"inline-flex",alignItems:"center",gap:5,
                             borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,
                             background:`${pc}18`,color:pc,border:`1px solid ${pc}35`}}>
-                            {PERM_LABELS[s.permission||"staff"]}
+                            {PERM_LEVELS[slv]?.label||"—"}
                           </span>
                         )}
                       </div>
                       {/* Actions */}
                       <div style={{display:"flex",gap:4}}>
-                        {isAdmin && <button className="btn btn-ghost btn-xs" title="Edit" onClick={()=>openEdit(s)}>{Ic.doc}</button>}
-                        {isAdmin && !isSelf && (
+                        {canManageStaffLocal && <button className="btn btn-ghost btn-xs" title="Edit" onClick={()=>openEdit(s)}>{Ic.doc}</button>}
+                        {canManageStaffLocal && !isSelf && (
                           <button className="btn btn-danger btn-xs" title="Remove from team" onClick={()=>removeStaff(s.id)}>{Ic.trash}</button>
                         )}
                       </div>
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* ── PERMISSION LEVELS REFERENCE ── */}
+            {canManageStaffLocal && (
+              <div style={{marginTop:20,background:"var(--s2)",border:"1px solid var(--br)",borderRadius:10,overflow:"hidden"}}>
+                <div style={{padding:"12px 16px",borderBottom:"1px solid var(--br)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"var(--t1)"}}>Permission Level Reference</div>
+                  <div style={{fontSize:10,color:"var(--t3)"}}>Levels 1–10 — set per staff member above</div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:0}}>
+                  {[1,2,3,4,5,6,7,8,9,10].map(n=>{
+                    const lv = PERM_LEVELS[n];
+                    const dc = PERM_DESCRIPTIONS[n];
+                    const caps = permCaps(n);
+                    return (
+                      <div key={n} style={{padding:"10px 14px",borderBottom:"1px solid var(--br)",borderRight:n%2!==0?"1px solid var(--br)":"none"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:4}}>
+                          <span style={{fontSize:10,fontWeight:800,fontFamily:"var(--mono)",color:"#fff",
+                            background:lv.color,borderRadius:5,padding:"2px 7px",flexShrink:0}}>{lv.short}</span>
+                          <span style={{fontSize:11,fontWeight:700,color:"var(--t1)"}}>{dc.title}</span>
+                        </div>
+                        <div style={{fontSize:10,color:"var(--t3)",lineHeight:1.5,marginBottom:6}}>{dc.desc}</div>
+                        <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
+                          {[
+                            [caps.canViewAllJobs,       "All Projects"],
+                            [caps.canAddProject,        "Add Projects"],
+                            [caps.canViewBudget,        "Budget"],
+                            [caps.canViewBillingScope,  "Billing/Scope"],
+                            [caps.canViewPayRates,      "Pay Rates"],
+                            [caps.canAccessSettings,    "Settings"],
+                            [caps.canManageStaff,       "Manage Staff"],
+                            [caps.canManagePermissions, "Set Permissions"],
+                          ].map(([on,label])=>(
+                            <span key={label} style={{fontSize:8,padding:"1px 6px",borderRadius:4,fontFamily:"var(--mono)",
+                              background:on?"rgba(26,217,138,.12)":"rgba(107,114,128,.1)",
+                              color:on?"var(--green)":"var(--t3)",
+                              border:`1px solid ${on?"rgba(26,217,138,.25)":"rgba(107,114,128,.2)"}`}}>
+                              {on?"✓":"✗"} {label}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
@@ -5451,34 +5719,90 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                   Define your company's office locations. Assign staff and projects to offices so CortexAI knows which pool of people to draw from when auto-assigning tasks.
                 </div>
               </div>
-              {isAdmin && !showOfficeForm && (
+              {canManageStaffLocal && !showOfficeForm && (
                 <button className="btn btn-primary" onClick={openAddOffice}>{Ic.plus} Add Office</button>
               )}
             </div>
 
             {/* ── OFFICE FORM ── */}
-            {showOfficeForm && isAdmin && (
+            {showOfficeForm && canManageStaffLocal && (
               <div style={{background:"var(--s2)",border:"1px solid var(--blue)",borderRadius:10,padding:20,marginBottom:20}}>
                 <div style={{fontSize:13,fontWeight:700,marginBottom:16,color:"var(--t1)"}}>
                   {officeEditId ? "Edit Office" : "Add Office"}
                 </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+
+                {/* Name */}
+                <div style={{marginBottom:12}}>
+                  <label className="lbl">Office Name <span style={{color:"var(--acc)"}}>*</span></label>
+                  <input className="inp" value={officeForm.name} onChange={e=>setOfficeForm(f=>({...f,name:e.target.value}))}
+                    placeholder="e.g. Oklahoma City, Dallas, Denver"/>
+                </div>
+
+                {/* Address fields */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
                   <div style={{gridColumn:"1/-1"}}>
-                    <label className="lbl">Office Name <span style={{color:"var(--acc)"}}>*</span></label>
-                    <input className="inp" value={officeForm.name} onChange={e=>setOfficeForm(f=>({...f,name:e.target.value}))}
-                      placeholder="e.g. Oklahoma City, Dallas, Denver"/>
+                    <label className="lbl">Street Address</label>
+                    <input className="inp" value={officeForm.street} onChange={e=>setOfficeForm(f=>({...f,street:e.target.value}))}
+                      placeholder="1234 Commerce Dr"/>
                   </div>
                   <div>
                     <label className="lbl">City</label>
                     <input className="inp" value={officeForm.city} onChange={e=>setOfficeForm(f=>({...f,city:e.target.value}))}
                       placeholder="Oklahoma City"/>
                   </div>
-                  <div>
-                    <label className="lbl">State</label>
-                    <input className="inp" value={officeForm.state} onChange={e=>setOfficeForm(f=>({...f,state:e.target.value}))}
-                      placeholder="OK"/>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                    <div>
+                      <label className="lbl">State</label>
+                      <input className="inp" value={officeForm.state} onChange={e=>setOfficeForm(f=>({...f,state:e.target.value}))}
+                        placeholder="OK"/>
+                    </div>
+                    <div>
+                      <label className="lbl">ZIP</label>
+                      <input className="inp" value={officeForm.zip} onChange={e=>setOfficeForm(f=>({...f,zip:e.target.value}))}
+                        placeholder="73102"/>
+                    </div>
                   </div>
                 </div>
+
+                {/* Geocode button + status */}
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,padding:"10px 13px",background:"var(--s3)",borderRadius:8,border:"1px solid var(--br)"}}>
+                  <div style={{flex:1}}>
+                    {officeGeoStatus === "ok" && officeForm.lat ? (
+                      <div style={{fontSize:11,color:"var(--green)"}}>
+                        <span style={{fontWeight:700,fontFamily:"var(--mono)"}}>✓ GEOCODED</span>
+                        <span style={{color:"var(--t3)",marginLeft:8}}>{officeForm.lat.toFixed(5)}, {officeForm.lng.toFixed(5)}</span>
+                      </div>
+                    ) : officeGeoStatus === "pending" ? (
+                      <div style={{fontSize:11,color:"var(--amber)",fontFamily:"var(--mono)"}}>Geocoding…</div>
+                    ) : officeGeoStatus === "fail" ? (
+                      <div style={{fontSize:11,color:"var(--acc)"}}>Geocode failed — address not found</div>
+                    ) : (
+                      <div style={{fontSize:11,color:"var(--t3)"}}>No coordinates yet — geocode the address for automatic project assignment</div>
+                    )}
+                  </div>
+                  <button className="btn btn-ghost btn-xs" onClick={geocodeOffice} disabled={officeGeoStatus==="pending"}
+                    style={{flexShrink:0,whiteSpace:"nowrap"}}>
+                    {officeGeoStatus==="pending" ? "…" : officeGeoStatus==="ok" ? "Re-geocode" : "📍 Geocode Address"}
+                  </button>
+                </div>
+
+                {/* Manual lat/lng override */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+                  <div>
+                    <label className="lbl">Latitude <span style={{color:"var(--t3)",fontWeight:400,textTransform:"none",letterSpacing:0}}>(or enter manually)</span></label>
+                    <input className="inp" type="number" step="0.00001" value={officeForm.lat||""}
+                      onChange={e=>{ const v=parseFloat(e.target.value); setOfficeForm(f=>({...f,lat:isNaN(v)?null:v})); setOfficeGeoStatus(v?"ok":null); }}
+                      placeholder="35.46756"/>
+                  </div>
+                  <div>
+                    <label className="lbl">Longitude</label>
+                    <input className="inp" type="number" step="0.00001" value={officeForm.lng||""}
+                      onChange={e=>{ const v=parseFloat(e.target.value); setOfficeForm(f=>({...f,lng:isNaN(v)?null:v})); }}
+                      placeholder="-97.51643"/>
+                  </div>
+                </div>
+
+                {/* Color */}
                 <div style={{marginBottom:14}}>
                   <label className="lbl">Office Color</label>
                   <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:6}}>
@@ -5490,6 +5814,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                       style={{width:22,height:22,border:"none",background:"none",cursor:"pointer",padding:0}}/>
                   </div>
                 </div>
+
                 {officeError && (
                   <div style={{marginBottom:10,padding:"7px 11px",background:"rgba(228,53,49,.08)",
                     border:"1px solid rgba(228,53,49,.2)",borderRadius:7,fontSize:11,color:"var(--acc)"}}>
@@ -5500,7 +5825,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                   <button className="btn btn-primary" onClick={saveOffice} disabled={officeSaving}>
                     {officeSaving ? "Saving…" : officeEditId ? "Save Changes" : "Create Office"}
                   </button>
-                  <button className="btn btn-ghost" onClick={()=>{setShowOfficeForm(false);setOfficeEditId(null);setOfficeError("");}}>
+                  <button className="btn btn-ghost" onClick={()=>{setShowOfficeForm(false);setOfficeEditId(null);setOfficeError("");setOfficeGeoStatus(null);}}>
                     Cancel
                   </button>
                 </div>
@@ -5516,26 +5841,39 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
             ) : (
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
                 {offices.map(o => {
-                  const staffCount = globalStaff.filter(s=>s.officeId===o.id).length;
+                  const staffCount = globalStaff.filter(s=>(s.officeIds||[]).includes(o.id)).length;
+                  const hasGeo = o.lat != null && o.lng != null;
+                  const addrLine = [o.street, o.city, o.state, o.zip].filter(Boolean).join(", ");
                   return (
-                    <div key={o.id} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",
+                    <div key={o.id} style={{display:"flex",alignItems:"flex-start",gap:14,padding:"14px 16px",
                       background:"var(--s2)",border:"1px solid var(--br)",borderRadius:10}}>
                       <div style={{width:14,height:14,borderRadius:"50%",background:o.color||"var(--teal)",flexShrink:0,
-                        boxShadow:`0 0 10px ${o.color||"var(--teal)"}55`}}/>
-                      <div style={{flex:1}}>
+                        marginTop:3,boxShadow:`0 0 10px ${o.color||"var(--teal)"}55`}}/>
+                      <div style={{flex:1,minWidth:0}}>
                         <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>{o.name}</div>
-                        {(o.city||o.state) && (
-                          <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>
-                            {[o.city,o.state].filter(Boolean).join(", ")}
-                          </div>
-                        )}
+                        {addrLine && <div style={{fontSize:11,color:"var(--t2)",marginTop:2}}>{addrLine}</div>}
+                        <div style={{display:"flex",gap:8,marginTop:5,flexWrap:"wrap",alignItems:"center"}}>
+                          <span style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",
+                            background:"var(--s3)",padding:"2px 8px",borderRadius:5}}>
+                            {staffCount} staff
+                          </span>
+                          {hasGeo ? (
+                            <span style={{fontSize:9,color:"var(--green)",fontFamily:"var(--mono)",
+                              background:"rgba(26,217,138,.1)",border:"1px solid rgba(26,217,138,.25)",
+                              padding:"2px 7px",borderRadius:5}}>
+                              📍 {o.lat.toFixed(4)}, {o.lng.toFixed(4)}
+                            </span>
+                          ) : (
+                            <span style={{fontSize:9,color:"var(--amber)",fontFamily:"var(--mono)",
+                              background:"rgba(232,156,24,.1)",border:"1px solid rgba(232,156,24,.25)",
+                              padding:"2px 7px",borderRadius:5}}>
+                              ⚠ NO COORDINATES — auto-assign disabled
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div style={{fontSize:11,color:"var(--t2)",fontFamily:"var(--mono)",
-                        background:"var(--s3)",padding:"3px 10px",borderRadius:6,flexShrink:0}}>
-                        {staffCount} {staffCount===1?"staff":"staff"}
-                      </div>
-                      {isAdmin && (
-                        <div style={{display:"flex",gap:5}}>
+                      {canManageStaffLocal && (
+                        <div style={{display:"flex",gap:5,flexShrink:0}}>
                           <button className="btn btn-ghost btn-xs" onClick={()=>openEditOffice(o)}>{Ic.doc} Edit</button>
                           <button className="btn btn-danger btn-xs" onClick={()=>deleteOffice(o.id)}>{Ic.trash}</button>
                         </div>
@@ -5551,11 +5889,12 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
               borderRadius:9,padding:"12px 16px",display:"flex",gap:12,alignItems:"flex-start"}}>
               <div style={{color:"var(--teal)",flexShrink:0,marginTop:1}}>{Ic.mindflow}</div>
               <div>
-                <div style={{fontSize:12,fontWeight:700,color:"var(--teal)",marginBottom:4}}>How Office Routing Works</div>
+                <div style={{fontSize:12,fontWeight:700,color:"var(--teal)",marginBottom:4}}>Office Auto-Assignment</div>
                 <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.8}}>
-                  1. Create offices here, then assign each staff member to an office in <strong style={{color:"var(--t1)"}}>Settings › Staff</strong>.<br/>
-                  2. When creating a project, select the office location in the New Project form.<br/>
-                  3. CortexAI reads both <strong style={{color:"var(--t1)"}}>System Role</strong> and <strong style={{color:"var(--t1)"}}>Office</strong> from localStorage to intelligently assign tasks to the right people at the right location.
+                  1. Add a street address to each office and click <strong style={{color:"var(--t1)"}}>📍 Geocode Address</strong> to save coordinates.<br/>
+                  2. When you enter a project address in the New Project form, it will be geocoded and automatically assigned to the closest office.<br/>
+                  3. You can always override the auto-assignment by selecting a different office from the dropdown.<br/>
+                  4. CortexAI uses <strong style={{color:"var(--t1)"}}>System Role + Office</strong> together to route task assignments to the right team.
                 </div>
               </div>
             </div>
@@ -5575,7 +5914,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                 <div><label className="lbl">CortexAI File Path</label><input className="inp" defaultValue="mindflow.html"/></div>
               </div>
               <div style={{marginTop:14,display:"flex",gap:8}}>
-                <button className="btn btn-primary" onClick={()=>window.open("/mindflow.html","_blank")}>Open CortexAI</button>
+                <button className="btn btn-primary" onClick={()=>window.open("mindflow.html","_blank")}>Open CortexAI</button>
                 <button className="btn btn-ghost">Test Connection</button>
               </div>
             </div>
@@ -5591,9 +5930,14 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
           </div>
         )}
 
-        {tab==="general" && (
+        {tab==="general" && (permLevel >= 8 ? (
           <GeneralSettingsTab/>
-        )}
+        ) : (
+          <div className="card" style={{padding:28,textAlign:"center",color:"var(--t3)"}}>
+            <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>Access Restricted</div>
+            <div style={{fontSize:11}}>Level 8 or higher required to access General Settings.</div>
+          </div>
+        ))}
         {tab==="roadmap" && (
           <div className="card" style={{padding:28,textAlign:"center",color:"var(--t3)"}}>
             <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>Feature Roadmap</div>
@@ -5615,7 +5959,7 @@ export default function JobDoxPortal() {
   const [showTools,     setShowTools]    = useState(false);
   const [clockInState,  setClockInState] = useState(null);
   const [projectShifts, setProjectShifts]= useState({});
-  const [permission,    setPermission]   = useState("staff"); // real value loaded from Firestore
+  const [permission,    setPermission]   = useState(1); // numeric 1-10, loaded from Firestore
   const [globalStaff,      setGlobalStaff]     = useState([]);
   const [pendingInvites,   setPendingInvites]   = useState([]);
   const [offices,          setOffices]          = useState([]);
@@ -5638,7 +5982,8 @@ export default function JobDoxPortal() {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  const canViewRates = CAN_VIEW_RATES.includes(permission);
+  const caps = permCaps(permission);
+  const { canViewRates, canViewBudget, canViewBillingScope, canViewPayRates, canAddProject, canManageStaff, canManagePermissions, canAccessSettings, canViewOwnJobsOnly, canViewOfficeJobs, canViewAllJobs } = caps;
   const currentUser  = currentMember
     ? { name: `${currentMember.customFields?.firstName||""} ${currentMember.customFields?.lastName||""}`.trim() || currentMember.auth?.email || "User",
         position: currentMember.customFields?.systemRole || "Project Manager" }
@@ -5717,7 +6062,7 @@ export default function JobDoxPortal() {
               systemRole: staffRecord?.systemRole || "Project Manager",
               title:      "Account Owner",
               photoUrl:   staffRecord?.photoUrl || "",
-              permission: "admin",
+              permission: 10,
               status:     "active",
               joinedAt:   staffRecord?.joinedAt || new Date().toISOString(),
             });
@@ -5727,9 +6072,9 @@ export default function JobDoxPortal() {
           if (!existingCo.name && member.customFields?.["company-name"]) {
             saveCoInfo({ ...existingCo, name: member.customFields["company-name"] });
           }
-          setPermission("admin");
+          setPermission(10);
         } else if (staffRecord) {
-          setPermission(staffRecord.permission || "staff");
+          setPermission(normPerm(staffRecord.permission ?? 3));
         }
       } catch(e) { console.warn("Staff record load failed:", e); }
 
@@ -5850,14 +6195,26 @@ export default function JobDoxPortal() {
     if (existing) { existing.textContent=CSS; }
     else { el.textContent=CSS; document.head.appendChild(el); }
     document.body.classList.add("jd-new-theme");
+    // Apply persisted theme on mount
+    if (localStorage.getItem("jd-theme") === "light") {
+      document.body.classList.add("jd-light-mode");
+    } else {
+      document.body.classList.remove("jd-light-mode");
+    }
     const obs = new MutationObserver(()=>setIsLight(document.body.classList.contains("jd-light-mode")));
     obs.observe(document.body,{attributes:true,attributeFilter:["class"]});
     return ()=>{ obs.disconnect(); document.body.classList.remove("jd-new-theme"); try{document.head.removeChild(document.getElementById("jdp2css"));}catch(_){} };
   },[]);
 
   const toggleTheme = () => {
-    if (window.JDTheme?.toggleColorMode) window.JDTheme.toggleColorMode();
-    else document.body.classList.toggle("jd-light-mode");
+    if (window.JDTheme?.toggleColorMode) {
+      window.JDTheme.toggleColorMode();
+    } else {
+      const next = !document.body.classList.contains("jd-light-mode");
+      document.body.classList.toggle("jd-light-mode", next);
+      localStorage.setItem("jd-theme", next ? "light" : "dark");
+      setIsLight(next);
+    }
   };
 
   const navTo = (pg) => { setPage(pg); setSelected(null); setShowTools(false); };
@@ -5892,13 +6249,13 @@ export default function JobDoxPortal() {
           {Ic.stopwatch}
         </button>
         <button className="rail-btn" data-tip="History">{Ic.history}</button>
-        <button className="rail-btn" data-tip={`Signed in as ${PERM_CONFIG[permission]?.label||"Staff"}`}
+        <button className="rail-btn" data-tip={`Signed in as ${PERM_LEVELS[caps.level]?.label||"Staff"}`}
           style={{position:"relative",cursor:"default"}}>
           {Ic.account}
           <span style={{position:"absolute",bottom:5,right:5,fontSize:7,fontFamily:"var(--mono)",fontWeight:700,
-            background:permission==="admin"?"var(--acc)":permission==="manager"?"var(--blue)":"var(--t3)",
+            background:PERM_LEVELS[caps.level]?.color||"var(--t3)",
             color:"#fff",borderRadius:3,padding:"1px 3px",lineHeight:1.2,letterSpacing:".02em"}}>
-            {permission==="admin"?"ADM":permission==="manager"?"MGR":"STF"}
+            {PERM_LEVELS[caps.level]?.short||"?"}
           </span>
         </button>
         <button className="rail-btn" data-tip={isLight?"Dark mode":"Light mode"} onClick={toggleTheme} style={{color:isLight?"var(--t2)":"#f5c518"}}>
@@ -5963,7 +6320,7 @@ export default function JobDoxPortal() {
               currentMemberName={currentUser?.name}
               offices={offices}
               onPermissionChange={(memberId, newPerm) => {
-                if (memberId === currentMember?.id) setPermission(newPerm);
+                if (memberId === currentMember?.id) setPermission(normPerm(newPerm));
               }}
             />
           </>
@@ -5981,6 +6338,10 @@ export default function JobDoxPortal() {
             projectShifts={projectShifts}
             currentUser={currentUser}
             canViewRates={canViewRates}
+            canViewBudget={canViewBudget}
+            canViewBillingScope={canViewBillingScope}
+            canViewPayRates={canViewPayRates}
+            canManageStaff={canManageStaff}
             globalStaff={globalStaff}
             priceLists={priceLists}
             setPriceLists={setPriceLists}
@@ -5996,6 +6357,9 @@ export default function JobDoxPortal() {
             onClockOut={handleClockOut}
             currentUser={currentUser}
             canViewRates={canViewRates}
+            canViewBudget={canViewBudget}
+            canAddProject={canAddProject}
+            currentMemberId={currentMember?.id||""}
             globalStaff={globalStaff}
             customWorkTypes={customWorkTypes}
             customStatuses={customStatuses}
