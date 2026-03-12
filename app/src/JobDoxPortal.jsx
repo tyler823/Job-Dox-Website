@@ -6775,7 +6775,7 @@ function PhoneSettingsTab({ companyId, globalStaff=[], permLevel=1 }) {
                 );
               })}
             </div>
-            <div style={{display:"flex",gap:8"}}>
+            <div style={{display:"flex",gap:8}}>
               <button className="btn btn-ghost btn-xs" onClick={() => setAddingGroup(false)}>Cancel</button>
               <button className="btn btn-primary btn-xs" onClick={saveGroup} disabled={!groupName.trim()}>
                 {editGroupId ? "Save Changes" : "Add Group"}
