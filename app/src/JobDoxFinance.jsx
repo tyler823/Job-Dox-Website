@@ -23,7 +23,9 @@ import { getFirestore, doc, onSnapshot, setDoc, updateDoc, serverTimestamp } fro
 /* ─────────────────────────────────────────────────────────────────────────────
    HELPERS & CONSTANTS
 ───────────────────────────────────────────────────────────────────────────── */
-const db = getFirestore();
+// Lazy db getter — avoids calling getFirestore() before Firebase is initialized
+let _db = null;
+const getDb = () => { if (!_db) _db = getFirestore(); return _db; };
 let _fid = 9000;
 const fuid = () => `f${++_fid}`;
 
@@ -164,7 +166,7 @@ export function FinancialHealthBadge({ projId, companyId }) {
   const [health, setHealth] = useState(null);
   useEffect(() => {
     if (!projId || !companyId) return;
-    const ref = doc(db, "companies", companyId, "jobFinancials", projId);
+    const ref = doc(getDb(), "companies", companyId, "jobFinancials", projId);
     const unsub = onSnapshot(ref, snap => {
       if (snap.exists()) setHealth(computeHealth(snap.data()));
     });
@@ -659,7 +661,7 @@ export function FinancialTab({ proj, companyId, laborCost=0 }) {
 
   // Firestore path
   const docRef = useMemo(()=>
-    companyId ? doc(db,"companies",companyId,"jobFinancials",proj.id) : null,
+    companyId ? doc(getDb(),"companies",companyId,"jobFinancials",proj.id) : null,
     [companyId, proj.id]
   );
 
@@ -886,7 +888,7 @@ export function FinancialDashboard({ projects=[], companyId, onNavigate }) {
     if (!companyId || !projects.length) { setLoading(false); return; }
     let loaded = 0;
     const unsubs = projects.map(p => {
-      const ref = doc(db,"companies",companyId,"jobFinancials",p.id);
+      const ref = doc(getDb(),"companies",companyId,"jobFinancials",p.id);
       return onSnapshot(ref, snap => {
         setJobData(prev => ({ ...prev, [p.id]: snap.exists() ? snap.data() : null }));
         loaded++;
