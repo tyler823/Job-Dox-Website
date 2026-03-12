@@ -968,6 +968,10 @@ document.querySelectorAll('.roi-charts').forEach(el=>{el.querySelectorAll('.ann-
             window.location.href = dest;
           }
         });
+        // Close modal and show message after signup form submission
+        ms.on && ms.on('memberSignedUp', function() {
+          window.$memberstackDom.hideModal();
+        });
       });
     }
 
