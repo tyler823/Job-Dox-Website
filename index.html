@@ -936,39 +936,41 @@ document.querySelectorAll('.roi-charts').forEach(el=>{el.querySelectorAll('.ann-
 })();
 
 (function waitForMemberstack() {
-  if (window.$memberstackDom && window.$memberstackDom.onReady) {
-    window.$memberstackDom.onReady.then(function(ms) {
+  if (window.$memberstackDom) {
 
-      // Manually bind all signup/login buttons
-      document.querySelectorAll('[data-ms-action="signup"]').forEach(function(el) {
-        el.addEventListener('click', function(e) {
-          e.preventDefault();
-          var plan  = el.getAttribute('data-ms-plan');
-          var price = el.getAttribute('data-ms-price');
-          var opts  = {};
-          if (plan)  opts.planId  = plan;
-          if (price) opts.priceId = price;
-          window.$memberstackDom.openModal('signup', opts);
-        });
+    // Bind buttons immediately — don't wait for onReady
+    document.querySelectorAll('[data-ms-action="signup"]').forEach(function(el) {
+      el.addEventListener('click', function(e) {
+        e.preventDefault();
+        var plan  = el.getAttribute('data-ms-plan');
+        var price = el.getAttribute('data-ms-price');
+        var opts  = {};
+        if (plan)  opts.planId  = plan;
+        if (price) opts.priceId = price;
+        window.$memberstackDom.openModal('signup', opts);
       });
-      document.querySelectorAll('[data-ms-action="login"]').forEach(function(el) {
-        el.addEventListener('click', function(e) {
-          e.preventDefault();
-          window.$memberstackDom.openModal('login');
-        });
-      });
-
-      // Redirect to portal after login or signup
-      ms.onAuthChange(function(payload) {
-        if (payload && payload.member) {
-          var invite = sessionStorage.getItem('jd_invite');
-          var dest = '/app/dist/';
-          if (invite) dest += '?invite=' + invite;
-          window.location.href = dest;
-        }
-      });
-
     });
+    document.querySelectorAll('[data-ms-action="login"]').forEach(function(el) {
+      el.addEventListener('click', function(e) {
+        e.preventDefault();
+        window.$memberstackDom.openModal('login');
+      });
+    });
+
+    // Redirect after auth — use onReady for this part only
+    if (window.$memberstackDom.onReady) {
+      window.$memberstackDom.onReady.then(function(ms) {
+        ms.onAuthChange(function(payload) {
+          if (payload && payload.member) {
+            var invite = sessionStorage.getItem('jd_invite');
+            var dest = '/app/dist/';
+            if (invite) dest += '?invite=' + invite;
+            window.location.href = dest;
+          }
+        });
+      });
+    }
+
   } else {
     setTimeout(waitForMemberstack, 50);
   }
