@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
+import { DocumentsTab, LogoUploadSection, DocumentTemplateCenter } from "./JobDoxDocuments.jsx";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
          doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where } from "firebase/firestore";
@@ -2719,30 +2720,7 @@ function MediaTab({ folders:foldersIn, setFolders:setFoldersIn, uploads:uploadsI
   );
 }
 
-function DocumentsTab({ docs:docsIn, setDocs:setDocsIn }) {
-  const [docsL, setDocsL] = useState(docsIn || DOCS_SEED);
-  const docs = docsIn || docsL;
-  const setDocs = v => { const val = typeof v === "function" ? v(docs) : v; setDocsL(val); if(setDocsIn) setDocsIn(val); };
-  const fileRef = useRef();
-  const typeC = {DryDox:"var(--blue)",ContentsDox:"var(--green)",Invoice:"var(--amber)",Contract:"var(--purple)",Uploaded:"var(--t2)"};
-  const handleUp = e => { Array.from(e.target.files).forEach(f=>setDocs(d=>[...d,{id:uid(),name:f.name,type:"Uploaded",size:`${(f.size/1024).toFixed(0)} KB`,date:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),gen:false}])); e.target.value=""; };
-  return (
-    <div className="scroll"><div style={{maxWidth:800,margin:"0 auto"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-        <div className="sec">Documents</div>
-        <div style={{display:"flex",gap:7}}><input ref={fileRef} type="file" accept=".pdf,.doc,.docx" multiple style={{display:"none"}} onChange={handleUp}/><button className="btn btn-secondary btn-xs" onClick={()=>fileRef.current.click()}>{Ic.upload} Upload</button></div>
-      </div>
-      {docs.map(d=>{const c=typeC[d.type]||"var(--t2)";return(
-        <div key={d.id} className="row" style={{display:"flex",alignItems:"center",gap:9,cursor:"pointer"}}>
-          <div style={{width:30,height:30,borderRadius:7,background:c+"18",display:"flex",alignItems:"center",justifyContent:"center",color:c,flexShrink:0}}>{Ic.pdf}</div>
-          <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</div><div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{d.size} · {d.date}</div></div>
-          <span style={{borderRadius:20,padding:"2px 8px",fontSize:9,background:c+"18",color:c,fontWeight:600}}>{d.type}</span>
-          <button className="btn btn-danger btn-xs" onClick={()=>setDocs(p=>p.filter(x=>x.id!==d.id))}>{Ic.trash}</button>
-        </div>
-      );})}
-    </div></div>
-  );
-}
+// DocumentsTab is imported from ./JobDoxDocuments.jsx
 
 /* ── TaskCommentModal: opens from both TasksTab and MyDayPage ── */
 function TaskCommentModal({ task, onClose, currentUserName="You", globalStaff=[], companyId="", phoneSettings={} }) {
@@ -5993,7 +5971,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       {tab==="estimatedox"    && <EstimateDoxTab proj={proj}/>}
       {tab==="contacts"       && <ContactsTab/>}
       {tab==="media"          && <MediaTab       folders={mediaFolders} setFolders={setMediaFolders} uploads={mediaUploads} setUploads={setMediaUploads}/>}
-      {tab==="documents"      && <DocumentsTab   docs={projDocs} setDocs={setProjDocs}/>}
+      {tab==="documents"      && <DocumentsTab   proj={proj} docs={projDocs} setDocs={setProjDocs}/>}
       {tab==="tasks"          && <TasksTab initialTasks={proj.templateTasks||[]} globalStaff={globalStaff} companyId={companyId} phoneSettings={phoneSettings}/>}
       {tab==="budget"         && <BudgetTab proj={proj} laborCost={laborCost}/>}
       {tab==="shifts"         && <ShiftsTab projId={proj.id} externalShifts={myShifts} canViewRates={canViewRates}/>}
@@ -6013,12 +5991,14 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
 function AdvToolsPanel({ onClose, priceLists, setPriceLists, companyId, globalStaff=[], projects=[] }) {
   const [showPLManager,    setShowPLManager]    = useState(false);
   const [showMsgCenter,    setShowMsgCenter]    = useState(false);
+  const [showDocTemplates, setShowDocTemplates] = useState(false);
   const TOOLS = [
-    { icon:Ic.msg,      label:"Message Center",    desc:"Company-wide calls, texts & emails", action:()=>setShowMsgCenter(true) },
-    { icon:Ic.mindflow, label:"CortexAI",           desc:"AI-powered workflow generation", link:"mindflow.html" },
-    { icon:Ic.pricetag, label:"Price Lists",         desc:`${priceLists.length} lists · Manage equipment & material pricing`, action:()=>setShowPLManager(true) },
-    { icon:Ic.attr,     label:"Attribute Templates", desc:"Configure custom project fields" },
-    { icon:Ic.report,   label:"Reporting",           desc:"Advanced analytics & exports" },
+    { icon:Ic.msg,      label:"Message Center",       desc:"Company-wide calls, texts & emails", action:()=>setShowMsgCenter(true) },
+    { icon:Ic.mindflow, label:"CortexAI",              desc:"AI-powered workflow generation", link:"mindflow.html" },
+    { icon:Ic.pricetag, label:"Price Lists",            desc:`${priceLists.length} lists · Manage equipment & material pricing`, action:()=>setShowPLManager(true) },
+    { icon:Ic.doc,      label:"Document Templates",    desc:"Manage reusable contracts, authorizations & change orders", action:()=>setShowDocTemplates(true) },
+    { icon:Ic.attr,     label:"Attribute Templates",   desc:"Configure custom project fields" },
+    { icon:Ic.report,   label:"Reporting",              desc:"Advanced analytics & exports" },
   ];
   return (
     <>
@@ -6036,6 +6016,13 @@ function AdvToolsPanel({ onClose, priceLists, setPriceLists, companyId, globalSt
           globalStaff={globalStaff}
           projects={projects}
         />
+      )}
+      {showDocTemplates && (
+        <div className="overlay" onClick={e=>e.target===e.currentTarget&&setShowDocTemplates(false)}>
+          <div style={{background:"var(--s1)",borderRadius:14,width:"min(760px,96vw)",maxHeight:"90vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            <DocumentTemplateCenter onClose={()=>setShowDocTemplates(false)}/>
+          </div>
+        </div>
       )}
       <div style={{position:"fixed",inset:0,zIndex:300}} onClick={e=>e.target===e.currentTarget&&onClose()}>
         <div className="tools-panel">
@@ -6222,6 +6209,7 @@ function GeneralSettingsTab() {
               </div>
             ))}
           </div>
+          <LogoUploadSection coInfo={coInfo} setCoInfo={setCoInfo} />
           <button className="btn btn-p btn-sm" style={{marginTop:16}} onClick={saveCompany}>
             {coSaved ? "✓ Saved" : "Save Company Info"}
           </button>
