@@ -1725,8 +1725,13 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
     ? `${viewingStaff.firstName||""} ${viewingStaff.lastName||""}`.trim()
     : currentUser?.name || "Me";
 
-  // ── Tasks & Appointments ──
-  const [allTasks, setAllTasks] = useState(MY_TASKS);
+  // ── Tasks & Appointments — persisted to localStorage ──
+  const tasksKey = companyId && currentMemberId ? `jd_myday_tasks_${companyId}_${currentMemberId}` : null;
+  const [allTasks, setAllTasks] = useState(() => {
+    if (!tasksKey) return MY_TASKS;
+    try { return JSON.parse(localStorage.getItem(tasksKey)) || MY_TASKS; } catch { return MY_TASKS; }
+  });
+  const saveTasks = (tasks) => { if (tasksKey) { try { localStorage.setItem(tasksKey, JSON.stringify(tasks)); } catch {} } };
   const [selDate, setSelDate]   = useState(TODAY_ISO);
   const [calYear,  setCalYear]  = useState(() => new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
@@ -1737,7 +1742,11 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
   const [newForm, setNewForm] = useState({title:"", priority:"med", due:"", time:"", notes:"", assignedUserIds:[]});
   const [commentTask, setCommentTask] = useState(null);
 
-  const toggleTask = id => setAllTasks(t => t.map(x => x.id===id ? {...x, done:!x.done} : x));
+  const toggleTask = id => {
+    const updated = allTasks.map(x => x.id===id ? {...x, done:!x.done} : x);
+    setAllTasks(updated);
+    saveTasks(updated);
+  };
 
   const createTask = () => {
     if (!newForm.title.trim()) return;
@@ -1756,7 +1765,9 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
       done: false,
       commentThread: [],
     };
-    setAllTasks(p => [...p, t]);
+    const updated = [...allTasks, t];
+    setAllTasks(updated);
+    saveTasks(updated);
     setNewForm({title:"", priority:"med", due:"", time:"", notes:"", assignedUserIds:[]});
     setAddingModal(false);
   };
@@ -2343,7 +2354,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
   );
 }
 
-function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emailSchedule="weekly", setEmailSchedule=()=>{}, clientPortal=false, setClientPortal=()=>{}, globalStaff=[], worktypes=[], setWorktypes=()=>{} }) {
+function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emailSchedule="weekly", setEmailSchedule=()=>{}, clientPortal=false, setClientPortal=()=>{}, globalStaff=[], worktypes=[], setWorktypes=()=>{}, currentUser=null }) {
   const [attrs, setAttrs]           = useState({});
   const [assigned, setAssigned]     = useState([]);   // project-level assignments from globalStaff
   const [addingNote, setAddingNote] = useState(false);
@@ -2354,7 +2365,7 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
 
   const addNote = () => {
     if(!noteText.trim()) return;
-    const n = {id:uid(), date:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}), author:"Tyler Mitchell", content:noteText.trim(), visibleToClient:true};
+    const n = {id:uid(), date:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}), author:currentUser?.name||"Staff", content:noteText.trim(), visibleToClient:true};
     setDailyNotes(p=>[n,...p]);
     setNoteText(""); setAddingNote(false);
   };
@@ -5965,7 +5976,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
           </button>
         ))}
       </div>
-      {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff} worktypes={worktypes} setWorktypes={setWorktypes}/>}
+      {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff} worktypes={worktypes} setWorktypes={setWorktypes} currentUser={currentUser}/>}
       {tab==="drydox"         && <DryDoxTab      proj={proj} priceLists={priceLists} onPushToScope={handlePushToScope}/>}
       {tab==="contentsdox"    && <ContentsDoxTab proj={proj} onPushToScope={handlePushToScope}/>}
       {tab==="estimatedox"    && <EstimateDoxTab proj={proj}/>}
@@ -7816,7 +7827,7 @@ export default function JobDoxPortal() {
       const durationSec = Math.floor((Date.now() - clockInState.startTime) / 1000);
       const hours = Math.round((durationSec / 3600) * 100) / 100;
       const autoShift = {
-        id: uid(), tech: "Tyler Mitchell", task: clockInState.label, mode: "auto",
+        id: uid(), tech: currentUser?.name||"Staff", task: clockInState.label, mode: "auto",
         position: clockInState.position, rate: clockInState.rate,
         clockIn: new Date(clockInState.startTime).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}),
         clockOut: new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}),
