@@ -4624,7 +4624,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
 function AdvToolsPanel({ onClose, priceLists, setPriceLists }) {
   const [showPLManager, setShowPLManager] = useState(false);
   const TOOLS = [
-    { icon:Ic.mindflow, label:"CortexAI",           desc:"AI-powered workflow generation", link:"mindflow.html" },
+    { icon:Ic.mindflow, label:"CortexAI",           desc:"AI-powered workflow generation", link:"/mindflow.html" },
     { icon:Ic.pricetag, label:"Price Lists",         desc:`${priceLists.length} lists · Manage equipment & material pricing`, action:()=>setShowPLManager(true) },
     { icon:Ic.attr,     label:"Attribute Templates", desc:"Configure custom project fields" },
     { icon:Ic.report,   label:"Reporting",           desc:"Advanced analytics & exports" },
@@ -5575,7 +5575,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                 <div><label className="lbl">CortexAI File Path</label><input className="inp" defaultValue="mindflow.html"/></div>
               </div>
               <div style={{marginTop:14,display:"flex",gap:8}}>
-                <button className="btn btn-primary" onClick={()=>window.open("mindflow.html","_blank")}>Open CortexAI</button>
+                <button className="btn btn-primary" onClick={()=>window.open("/mindflow.html","_blank")}>Open CortexAI</button>
                 <button className="btn btn-ghost">Test Connection</button>
               </div>
             </div>
