@@ -812,7 +812,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <li><span class="ck">✓</span> Priority Support</li>
 </ul>
 <a href="#" class="btn btn-p btn-a" style="width:100%;justify-content:center" data-ms-action="signup" data-ms-plan="pln_cortex-by-job-dox-w6l0yeo" data-ms-price="prc_cortex-by-job-dox-41m0yuk">Start Your 7-Day Free Trial</a>
-<p class="pnt">7-day free trial — no credit card required to start</p>
+<p class="pnt">Start free for 7 days — then $500/month, 12-month agreement</p>
 </div>
 <div class="reveal" style="text-align:center;margin-top:32px">
 <p style="color:var(--t2);font-size:.9rem">Need a custom solution for a larger team? <a href="https://ro.am/J0B-D0X/" style="color:var(--rb);text-decoration:underline">Let's talk</a></p>
@@ -942,14 +942,26 @@ document.querySelectorAll('.roi-charts').forEach(el=>{el.querySelectorAll('.ann-
     document.querySelectorAll('[data-ms-action="signup"]').forEach(function(el) {
       el.addEventListener('click', function(e) {
         e.preventDefault();
-        var plan  = el.getAttribute('data-ms-plan');
         var price = el.getAttribute('data-ms-price');
-        var opts = {};
-        if (plan) {
-          opts.signup = { plans: [{ planId: plan }] };
-          if (price) opts.signup.priceId = price;
-        }
-        window.$memberstackDom.openModal('SIGNUP', opts);
+        // Open signup modal with no plan — paid plans must go through purchasePlansWithCheckout
+        window.$memberstackDom.openModal('SIGNUP').then(function(result) {
+          if (result && result.data) {
+            // Member signed up — now send them to Stripe checkout for the paid plan
+            if (price) {
+              window.$memberstackDom.purchasePlansWithCheckout({
+                priceId: price,
+                successUrl: window.location.origin + '/app/dist/?stripe=success',
+                cancelUrl: window.location.href,
+              });
+            } else {
+              // No price — go straight to portal
+              var invite = sessionStorage.getItem('jd_invite');
+              var dest = '/app/dist/';
+              if (invite) dest += '?invite=' + invite;
+              window.location.href = dest;
+            }
+          }
+        });
       });
     });
     document.querySelectorAll('[data-ms-action="login"]').forEach(function(el) {
@@ -959,20 +971,16 @@ document.querySelectorAll('.roi-charts').forEach(el=>{el.querySelectorAll('.ann-
       });
     });
 
-    // Redirect after auth — use onReady for this part only
+    // Redirect after login — signup is handled by purchasePlansWithCheckout
     if (window.$memberstackDom.onReady) {
       window.$memberstackDom.onReady.then(function(ms) {
         ms.onAuthChange(function(payload) {
-          if (payload && payload.member) {
+          if (payload && payload.member && payload.type === 'LOGIN') {
             var invite = sessionStorage.getItem('jd_invite');
             var dest = '/app/dist/';
             if (invite) dest += '?invite=' + invite;
             window.location.href = dest;
           }
-        });
-        // Close modal and show message after signup form submission
-        ms.on && ms.on('memberSignedUp', function() {
-          window.$memberstackDom.hideModal();
         });
       });
     }
