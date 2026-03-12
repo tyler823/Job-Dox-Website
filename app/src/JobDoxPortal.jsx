@@ -402,6 +402,9 @@ const WT_PHASE_C = {
 const LS_CWT_KEY  = "jd_company_worktypes";
 const LS_CST_KEY  = "jd_company_statuses";
 const LS_CPT_KEY  = "jd_company_project_types";
+const LS_CO_KEY   = "jd_company_info";
+
+const DEFAULT_COMPANY_INFO = { name:"", address:"", city:"", state:"", zip:"", phone:"", email:"", website:"", logo:"" };
 
 const DEFAULT_WORK_TYPES = [
   { id:"wt-1", name:"Water Mitigation", color:"#3b82f6", hasWorkflow:true  },
@@ -435,9 +438,11 @@ const DEFAULT_PROJECT_TYPES = [
 function loadCWT()  { try { return JSON.parse(localStorage.getItem(LS_CWT_KEY)) || DEFAULT_WORK_TYPES; }  catch { return DEFAULT_WORK_TYPES; } }
 function loadCST()  { try { return JSON.parse(localStorage.getItem(LS_CST_KEY)) || DEFAULT_STATUSES; }    catch { return DEFAULT_STATUSES; } }
 function loadCPT()  { try { return JSON.parse(localStorage.getItem(LS_CPT_KEY)) || DEFAULT_PROJECT_TYPES; } catch { return DEFAULT_PROJECT_TYPES; } }
+function loadCO()   { try { return { ...DEFAULT_COMPANY_INFO, ...JSON.parse(localStorage.getItem(LS_CO_KEY)) }; } catch { return DEFAULT_COMPANY_INFO; } }
 function saveCWT(v) { try { localStorage.setItem(LS_CWT_KEY, JSON.stringify(v)); } catch {} }
 function saveCST(v) { try { localStorage.setItem(LS_CST_KEY, JSON.stringify(v)); } catch {} }
 function saveCPT(v) { try { localStorage.setItem(LS_CPT_KEY, JSON.stringify(v)); } catch {} }
+function saveCO(v)  { try { localStorage.setItem(LS_CO_KEY,  JSON.stringify(v)); } catch {} }
 
 // Merge WT_META icons into a custom work type
 function getWTMeta(name, customWorkTypes=[]) {
@@ -4548,13 +4553,16 @@ function ColorPicker({ value, onChange }) {
 }
 
 function GeneralSettingsTab() {
-  const [sec, setSec]         = useState("worktypes");
+  const [sec, setSec]         = useState("company");
   const [workTypes, setWT]    = useState(loadCWT);
   const [statuses,  setST]    = useState(loadCST);
   const [projTypes, setPT]    = useState(loadCPT);
   const [editId,    setEditId]= useState(null);
   const [draft,     setDraft] = useState({});
   const [newMode,   setNewMode]= useState(false);
+  const [company,   setCompany]= useState(loadCO);
+  const [coSaved,   setCoSaved]= useState(false);
+  const logoRef = useRef(null);
 
   const save = (wt, st, pt) => {
     syncCompanyConfigToLS(wt, st, pt);
@@ -4613,9 +4621,10 @@ function GeneralSettingsTab() {
   const deletePT = (id) => savePT(projTypes.filter(p=>p.id!==id));
 
   const SECTIONS = [
-    {id:"worktypes",  label:"Work Types"},
-    {id:"statuses",   label:"Statuses"},
-    {id:"projtypes",  label:"Project Types"},
+    {id:"company",   label:"Company Info"},
+    {id:"worktypes", label:"Work Types"},
+    {id:"statuses",  label:"Statuses"},
+    {id:"projtypes", label:"Project Types"},
   ];
 
   const cancelEdit = () => {
@@ -4640,6 +4649,127 @@ function GeneralSettingsTab() {
           </button>
         ))}
       </div>
+
+      {/* ── COMPANY INFO ── */}
+      {sec==="company" && (
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <div className="card" style={{padding:18}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:700}}>Company Information</div>
+                <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>Used to auto-fill invoices, contracts, and other documents.</div>
+              </div>
+              {coSaved && <span style={{fontSize:10,color:"var(--green)",fontFamily:"var(--mono)",background:"rgba(26,217,138,.12)",padding:"3px 9px",borderRadius:5}}>✓ SAVED</span>}
+            </div>
+
+            {/* Logo Upload */}
+            <div style={{marginBottom:16}}>
+              <label className="lbl">Company Logo</label>
+              <div style={{display:"flex",alignItems:"center",gap:14}}>
+                <div onClick={()=>logoRef.current?.click()}
+                  style={{width:80,height:80,borderRadius:10,border:`2px dashed var(--br)`,background:"var(--s3)",cursor:"pointer",
+                    display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:5,flexShrink:0,overflow:"hidden",
+                    transition:"border-color .15s",position:"relative"}}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor="var(--acc)"}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor="var(--br)"}>
+                  {company.logo
+                    ? <img src={company.logo} alt="logo" style={{width:"100%",height:"100%",objectFit:"contain",padding:6}}/>
+                    : <>{Ic.upload}<span style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)"}}>UPLOAD</span></>}
+                </div>
+                <input ref={logoRef} type="file" accept="image/*" style={{display:"none"}}
+                  onChange={e=>{
+                    const f = e.target.files[0]; if(!f) return;
+                    const reader = new FileReader();
+                    reader.onload = ev => setCompany(c=>({...c, logo: ev.target.result}));
+                    reader.readAsDataURL(f);
+                  }}/>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:11,color:"var(--t2)",marginBottom:6}}>Upload your company logo to embed it in generated documents.</div>
+                  {company.logo && <button className="btn btn-ghost btn-xs" style={{color:"var(--acc)"}} onClick={()=>setCompany(c=>({...c,logo:""}))}>Remove logo</button>}
+                </div>
+              </div>
+            </div>
+
+            {/* Fields */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+              <div style={{gridColumn:"1/-1"}}>
+                <label className="lbl">Company Name</label>
+                <input className="inp" value={company.name} placeholder="Acme Restoration Co."
+                  onChange={e=>setCompany(c=>({...c,name:e.target.value}))}/>
+              </div>
+              <div style={{gridColumn:"1/-1"}}>
+                <label className="lbl">Street Address</label>
+                <input className="inp" value={company.address} placeholder="123 Main Street"
+                  onChange={e=>setCompany(c=>({...c,address:e.target.value}))}/>
+              </div>
+              <div>
+                <label className="lbl">City</label>
+                <input className="inp" value={company.city} placeholder="Oklahoma City"
+                  onChange={e=>setCompany(c=>({...c,city:e.target.value}))}/>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                <div>
+                  <label className="lbl">State</label>
+                  <input className="inp" value={company.state} placeholder="OK"
+                    onChange={e=>setCompany(c=>({...c,state:e.target.value}))}/>
+                </div>
+                <div>
+                  <label className="lbl">ZIP</label>
+                  <input className="inp" value={company.zip} placeholder="73008"
+                    onChange={e=>setCompany(c=>({...c,zip:e.target.value}))}/>
+                </div>
+              </div>
+              <div>
+                <label className="lbl">Phone Number</label>
+                <input className="inp" value={company.phone} placeholder="(405) 555-0100"
+                  onChange={e=>setCompany(c=>({...c,phone:e.target.value}))}/>
+              </div>
+              <div>
+                <label className="lbl">Email Address</label>
+                <input className="inp" value={company.email} placeholder="info@yourcompany.com"
+                  onChange={e=>setCompany(c=>({...c,email:e.target.value}))}/>
+              </div>
+              <div style={{gridColumn:"1/-1"}}>
+                <label className="lbl">Website</label>
+                <input className="inp" value={company.website} placeholder="https://yourcompany.com"
+                  onChange={e=>setCompany(c=>({...c,website:e.target.value}))}/>
+              </div>
+            </div>
+
+            <button className="btn btn-primary" onClick={()=>{saveCO(company);setCoSaved(true);setTimeout(()=>setCoSaved(false),2500);}}>
+              Save Company Info
+            </button>
+          </div>
+
+          {/* Document Variable Reference */}
+          <div className="card" style={{padding:18,background:"rgba(91,163,245,0.05)",border:"1px solid rgba(91,163,245,0.18)"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"var(--blue)",marginBottom:10}}>Document Template Variables</div>
+            <div style={{fontSize:11,color:"var(--t2)",marginBottom:12,lineHeight:1.7}}>
+              Use these variables in your invoice and contract templates. They will be automatically replaced with your company info when generating documents.
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+              {[
+                ["{{company.name}}",    "Company name"],
+                ["{{company.address}}", "Street address"],
+                ["{{company.city}}",    "City"],
+                ["{{company.state}}",   "State"],
+                ["{{company.zip}}",     "ZIP code"],
+                ["{{company.phone}}",   "Phone number"],
+                ["{{company.email}}",   "Email address"],
+                ["{{company.website}}", "Website URL"],
+                ["{{company.logo}}",    "Logo (img tag)"],
+                ["{{company.fullAddress}}", "Full address block"],
+              ].map(([token, desc])=>(
+                <div key={token} style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+                  background:"var(--s3)",border:"1px solid var(--br)",borderRadius:6,padding:"5px 10px",gap:8}}>
+                  <code style={{fontSize:10,color:"var(--blue)",fontFamily:"var(--mono)",letterSpacing:".01em"}}>{token}</code>
+                  <span style={{fontSize:10,color:"var(--t3)",whiteSpace:"nowrap"}}>{desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── WORK TYPES ── */}
       {sec==="worktypes" && (
@@ -5089,7 +5219,7 @@ export default function JobDoxPortal() {
   const [selected,      setSelected]     = useState(null);
   const [selTab,        setSelTab]       = useState("overview");
   const [page,          setPage]         = useState("portfolio");
-  const [isLight,       setIsLight]      = useState(false);
+  const [isLight,       setIsLight]      = useState(() => localStorage.getItem("jd-theme") === "light");
   const [showTools,     setShowTools]    = useState(false);
   const [clockInState,  setClockInState] = useState(null);
   const [projectShifts, setProjectShifts]= useState({});
@@ -5204,6 +5334,7 @@ export default function JobDoxPortal() {
     if (existing) { existing.textContent=CSS; }
     else { el.textContent=CSS; document.head.appendChild(el); }
     document.body.classList.add("jd-new-theme");
+    if (localStorage.getItem("jd-theme") === "light") document.body.classList.add("jd-light-mode");
     const obs = new MutationObserver(()=>setIsLight(document.body.classList.contains("jd-light-mode")));
     obs.observe(document.body,{attributes:true,attributeFilter:["class"]});
     return ()=>{ obs.disconnect(); document.body.classList.remove("jd-new-theme"); try{document.head.removeChild(document.getElementById("jdp2css"));}catch(_){} };
@@ -5212,6 +5343,8 @@ export default function JobDoxPortal() {
   const toggleTheme = () => {
     if (window.JDTheme?.toggleColorMode) window.JDTheme.toggleColorMode();
     else document.body.classList.toggle("jd-light-mode");
+    const nowLight = document.body.classList.contains("jd-light-mode");
+    localStorage.setItem("jd-theme", nowLight ? "light" : "dark");
   };
 
   const navTo = (pg) => { setPage(pg); setSelected(null); setShowTools(false); };
@@ -5257,6 +5390,11 @@ export default function JobDoxPortal() {
         </button>
         <button className="rail-btn" data-tip={isLight?"Dark mode":"Light mode"} onClick={toggleTheme} style={{color:isLight?"var(--t2)":"#f5c518"}}>
           {isLight ? Ic.sun : Ic.moon}
+        </button>
+        <button className="rail-btn" data-tip="Sign Out"
+          onClick={()=>{ if(window.$memberstackDom) window.$memberstackDom.logout(); else alert("Sign out not available in preview mode."); }}
+          style={{color:"var(--t3)",marginBottom:4}}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
         </button>
       </nav>
 
