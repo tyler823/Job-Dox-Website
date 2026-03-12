@@ -10,7 +10,7 @@
  *   ANTHROPIC_API_KEY = sk-ant-...
  */
 
-const ALLOWED_ORIGIN = process.env.SITE_URL || 'https://job-dox.com';
+const ALLOWED_ORIGIN = process.env.SITE_URL || 'https://job-dox.ai';
 
 exports.handler = async (event) => {
   // ── CORS ──
