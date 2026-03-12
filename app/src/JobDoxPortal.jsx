@@ -703,14 +703,38 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 
 async function geocodeAddress(addressStr) {
   if (!addressStr?.trim()) return null;
+
+  // ── Attempt 1: Photon (komoot) — purpose-built for browser use, no key needed ──
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressStr)}&limit=1&countrycodes=us`;
-    const res = await fetch(url, { headers: { "Accept-Language": "en-US" } });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data.length) return null;
-    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), display: data[0].display_name };
-  } catch { return null; }
+    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(addressStr)}&limit=3&lang=en`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      // Prefer US results
+      const features = (data.features || []);
+      const us = features.find(f => f.properties?.countrycode === 'US') || features[0];
+      if (us) {
+        const [lng, lat] = us.geometry.coordinates;
+        const p = us.properties;
+        const display = [p.name, p.street, p.city, p.state, p.country].filter(Boolean).join(', ');
+        return { lat, lng, display };
+      }
+    }
+  } catch { /* fall through to Nominatim */ }
+
+  // ── Attempt 2: Nominatim — browser sends its own User-Agent which usually works ──
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressStr)}&limit=1&countrycodes=us&addressdetails=1`;
+    const res = await fetch(url, { headers: { "Accept-Language": "en-US,en" } });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.length) {
+        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), display: data[0].display_name };
+      }
+    }
+  } catch { /* both failed */ }
+
+  return null;
 }
 
 function nearestOffice(offices, lat, lng) {
@@ -5282,7 +5306,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
       setOfficeGeoStatus("ok");
     } else {
       setOfficeGeoStatus("fail");
-      setOfficeError("Could not geocode this address — check it and try again, or coordinates can be added manually.");
+      setOfficeError("Address not found — try including the full street address and ZIP code, or enter coordinates manually.");
     }
   };
   const saveOffice = async () => {
