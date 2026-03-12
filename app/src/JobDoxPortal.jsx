@@ -405,6 +405,10 @@ const LS_CWT_KEY  = "jd_company_worktypes";
 const LS_CST_KEY  = "jd_company_statuses";
 const LS_CPT_KEY  = "jd_company_project_types";
 const LS_CO_KEY   = "jd_company_info";
+const LS_OFFICES_KEY = "jd_company_offices";
+
+function loadOfficesLS()  { try { return JSON.parse(localStorage.getItem(LS_OFFICES_KEY)) || []; } catch { return []; } }
+function saveOfficesToLS(offices) { try { localStorage.setItem(LS_OFFICES_KEY, JSON.stringify(offices)); } catch {} }
 
 const DEFAULT_CO_INFO = { name:"", address:"", city:"", state:"", zip:"", phone:"", email:"", website:"", logo:"" };
 function loadCoInfo() {
@@ -599,8 +603,15 @@ const ROLE_COLORS = {
 const PERM_LABELS = { admin:"Admin", manager:"Manager", staff:"Staff" };
 const PERM_COLORS = { admin:"var(--acc)", manager:"var(--blue)", staff:"var(--t3)" };
 
-function syncStaffToLS(staffArr) {
-  try { localStorage.setItem("jd_staff", JSON.stringify(staffArr)); } catch {}
+function syncStaffToLS(staffArr, officesArr=[]) {
+  try {
+    // Enrich each staff member with their office name so CortexAI can use role+office for assignment
+    const enriched = staffArr.map(s => ({
+      ...s,
+      officeName: officesArr.find(o => o.id === s.officeId)?.name || "",
+    }));
+    localStorage.setItem("jd_staff", JSON.stringify(enriched));
+  } catch {}
 }
 
 /* ══════════════════════════════════════════════
@@ -659,6 +670,18 @@ async function fsFindInviteByEmail(companyId, email) {
   if (snap.empty) return null;
   const d = snap.docs[0];
   return { id: d.id, ...d.data() };
+}
+
+/* ── Offices helpers ── */
+function fsListenOffices(companyId, cb) {
+  const q = collection(db, "companies", companyId, "offices");
+  return onSnapshot(q, snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+}
+async function fsSetOffice(companyId, officeId, data) {
+  await setDoc(doc(db, "companies", companyId, "offices", officeId), data, { merge: true });
+}
+async function fsDeleteOffice(companyId, officeId) {
+  await deleteDoc(doc(db, "companies", companyId, "offices", officeId));
 }
 
 function Av({ name, color, size=34 }) {
@@ -1016,8 +1039,10 @@ function CommModal({ proj, onClose }) {
   );
 }
 
-function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], customProjectTypes=[] }) {
-  const [f, setF] = useState({name:"",type:"",address:"",city:"",state:"OK",zip:"",clientName:"",clientPhone:"",clientEmail:"",carrier:"",claim:"",adjuster:"",dateOfLoss:"",notes:""});
+function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[] }) {
+  const [f, setF] = useState({name:"",type:"",address:"",city:"",state:"OK",zip:"",clientName:"",clientPhone:"",clientEmail:"",carrier:"",claim:"",adjuster:"",dateOfLoss:"",notes:"",officeId:""});
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const s = (k,v) => setF(p=>({...p,[k]:v}));
 
   // Load saved workflow templates once
@@ -1041,7 +1066,7 @@ function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], c
   const projTypeNames = customProjectTypes.length ? customProjectTypes.map(t=>t.name) : ["Water Damage","Fire & Smoke","Mold Remediation","Storm Damage","Reconstruction","Other"];
   const statusNames   = customStatuses.length     ? customStatuses.map(s=>s.name)     : ["New Lead","Scoping","In Progress"];
 
-  const submit = () => {
+  const submit = async () => {
     if (!f.name || !f.type) return;
     // Build tasks from saved templates for each selected work type
     const templateTasks = [];
@@ -1068,20 +1093,28 @@ function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], c
         });
       });
     });
-    onAdd({
-      ...f,
-      id: `JD-${new Date().getFullYear()}-${String(uid()).padStart(3,"0")}`,
-      status: f.status || "New Lead",
-      client: f.clientName,
-      clientPhone: f.clientPhone,
-      clientEmail: f.clientEmail,
-      address: `${f.address}, ${f.city}, ${f.state} ${f.zip}`.trim(),
-      created: new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),
-      budget:0, spent:0, tasks: templateTasks.length, tasksOpen: templateTasks.length,
-      worktypes: selectedWTs,
-      templateTasks,
-    });
-    onClose();
+    setSaving(true);
+    setSaveError("");
+    try {
+      await onAdd({
+        ...f,
+        id: `JD-${new Date().getFullYear()}-${String(uid()).padStart(3,"0")}`,
+        status: f.status || "New Lead",
+        client: f.clientName,
+        clientPhone: f.clientPhone,
+        clientEmail: f.clientEmail,
+        address: `${f.address}, ${f.city}, ${f.state} ${f.zip}`.trim(),
+        created: new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),
+        budget:0, spent:0, tasks: templateTasks.length, tasksOpen: templateTasks.length,
+        worktypes: selectedWTs,
+        templateTasks,
+      });
+      onClose();
+    } catch(err) {
+      setSaveError(err?.message || "Failed to create project. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -1096,6 +1129,15 @@ function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], c
               <F label="Date of Loss" value={f.dateOfLoss} onChange={v=>s("dateOfLoss",v)} type="date"/>
               <F label="Initial Status" value={f.status||"New Lead"} onChange={v=>s("status",v)} options={statusNames}/>
             </div>
+            {offices.length > 0 && (
+              <div style={{marginTop:10}}>
+                <label className="lbl">Office Location</label>
+                <select className="sel" value={f.officeId} onChange={e=>s("officeId",e.target.value)}>
+                  <option value="">— No office assigned —</option>
+                  {offices.map(o=><option key={o.id} value={o.id}>{o.name}{o.city?` · ${o.city}`:""}</option>)}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* ── Work Types ── */}
@@ -1162,8 +1204,11 @@ function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], c
           <F label="Initial Notes" value={f.notes} onChange={v=>s("notes",v)} rows={3} placeholder="Brief description of loss…"/>
         </div>
         <div className="modal-ft">
-          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary btn-lg" onClick={submit} style={{opacity:(!f.name||!f.type)?.5:1}}>{Ic.plus} Create Project</button>
+          {saveError && <span style={{flex:1,fontSize:11,color:"var(--acc)",fontFamily:"var(--mono)"}}>{saveError}</span>}
+          <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn btn-primary btn-lg" onClick={submit} disabled={saving||!f.name||!f.type} style={{opacity:(!f.name||!f.type||saving)?.5:1}}>
+            {saving ? "Saving…" : <>{Ic.plus} Create Project</>}
+          </button>
         </div>
       </div>
     </div>
@@ -1414,10 +1459,11 @@ function MyDayPage({ onNavigate }) {
   );
 }
 
-function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[] }) {
+function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[] }) {
   const [search, setSearch]   = useState("");
   const [fType, setFType]     = useState("All");
   const [fStatus, setFStatus] = useState("All");
+  const [fOffice, setFOffice] = useState("All");
   const [showAdd, setShowAdd] = useState(false);
   const [clockProj, setClock] = useState(null);
   const [notifyProj, setNotify]= useState(null);
@@ -1432,13 +1478,14 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
     const q = search.toLowerCase();
     return (!q || [p.name,p.address,p.client||""].join(" ").toLowerCase().includes(q))
       && (fType==="All"   || p.type===fType)
-      && (fStatus==="All" || p.status===fStatus);
+      && (fStatus==="All" || p.status===fStatus)
+      && (fOffice==="All" || p.officeId===fOffice);
   });
   const openMaps = (proj) => window.open(`https://maps.google.com/?q=${encodeURIComponent(proj.address)}`,"_blank");
 
   return (
     <>
-      {showAdd    && <AddProjModal onClose={()=>setShowAdd(false)} onAdd={p=>{onAdd(p);setShowAdd(false);}} customWorkTypes={customWorkTypes} customStatuses={customStatuses} customProjectTypes={customProjectTypes}/>}
+      {showAdd    && <AddProjModal onClose={()=>setShowAdd(false)} onAdd={onAdd} customWorkTypes={customWorkTypes} customStatuses={customStatuses} customProjectTypes={customProjectTypes} offices={offices}/>}
       {clockProj  && <ClockInModal proj={clockProj} clockInState={clockInState} onClockIn={onClockIn} onClockOut={onClockOut} onClose={()=>setClock(null)} currentUser={currentUser} canViewRates={canViewRates}/>}
       {notifyProj && <NotifyModal proj={notifyProj} onClose={()=>setNotify(null)} globalStaff={globalStaff}/>}
       {commProj   && <CommModal    proj={commProj}   onClose={()=>setComm(null)}/>}
@@ -1474,6 +1521,16 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
               return <button key={s} className={`chip${fStatus===s?" on":""}`} onClick={()=>setFStatus(s)}
                 style={fStatus===s && stConf ? {borderColor:stConf.color,color:stConf.color,background:`${stConf.color}18`} : {}}>{s}</button>;
             })}
+            {offices.length > 0 && <>
+              <span style={{width:1,height:15,background:"var(--br)",margin:"0 3px"}}/>
+              <span className="mono" style={{fontSize:9,color:"var(--t3)"}}>OFFICE</span>
+              <button className={`chip${fOffice==="All"?" on":""}`} onClick={()=>setFOffice("All")}>All</button>
+              {offices.map(o=>{
+                const oc = o.color||"var(--teal)";
+                return <button key={o.id} className={`chip${fOffice===o.id?" on":""}`} onClick={()=>setFOffice(o.id)}
+                  style={fOffice===o.id?{borderColor:oc,color:oc,background:`${oc}18`}:{}}>{o.name}</button>;
+              })}
+            </>}
           </div>
 
           {viewMode === "card" && (
@@ -4939,16 +4996,24 @@ function GeneralSettingsTab() {
   );
 }
 
-function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission, currentMemberId, currentMemberName, onPermissionChange }) {
+function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission, currentMemberId, currentMemberName, onPermissionChange, offices=[] }) {
   const [tab,      setTab]      = useState("staff");
   const [editId,   setEditId]   = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [saving,   setSaving]   = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [inviteSaved, setInviteSaved] = useState(false);
-  const blank = { firstName:"", lastName:"", email:"", phone:"", systemRole:"Project Manager", title:"", photoUrl:"" };
+  const blank = { firstName:"", lastName:"", email:"", phone:"", systemRole:"Project Manager", title:"", photoUrl:"", officeId:"" };
   const [form, setForm] = useState(blank);
   const [inviteForm, setInviteForm] = useState({ email:"", permission:"staff" });
+
+  // ── Offices local state (mirrors Firestore via prop) ──
+  const [officeForm, setOfficeForm] = useState({ name:"", city:"", state:"", color:"#22d3ee" });
+  const [officeEditId, setOfficeEditId] = useState(null);
+  const [showOfficeForm, setShowOfficeForm] = useState(false);
+  const [officeSaving, setOfficeSaving] = useState(false);
+  const [officeError, setOfficeError] = useState("");
   const fileRef = useRef();
   const isAdmin = currentPermission === "admin";
 
@@ -4964,21 +5029,24 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
   const openEdit = s => {
     setForm({ firstName:s.firstName||"", lastName:s.lastName||"", email:s.email||"",
               phone:s.phone||"", systemRole:s.systemRole||"Project Manager",
-              title:s.title||"", photoUrl:s.photoUrl||"" });
+              title:s.title||"", photoUrl:s.photoUrl||"", officeId:s.officeId||"" });
     setEditId(s.id);
     setShowForm(true);
+    setSaveError("");
   };
-  const cancelForm = () => { setShowForm(false); setEditId(null); };
+  const cancelForm = () => { setShowForm(false); setEditId(null); setSaveError(""); };
 
   const saveStaff = async () => {
-    if (!form.firstName.trim() || !form.email.trim() || !companyId) return;
+    if (!form.firstName.trim() || !form.email.trim() || !companyId) {
+      setSaveError(!companyId ? "Company ID not loaded yet — please wait." : "First name and email are required.");
+      return;
+    }
     setSaving(true);
+    setSaveError("");
     try {
       if (editId) {
-        // editId IS the Firestore doc ID (memberstackId for real members, or a uid for manually added)
         await fsSetStaff(companyId, editId, { ...form, color: ROLE_COLORS[form.systemRole] || "#5ba3f5" });
       } else {
-        // Manually added staff (no Memberstack account yet) — use a generated id
         const newId = `manual-${Date.now()}`;
         await fsSetStaff(companyId, newId, {
           ...form,
@@ -4991,7 +5059,10 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
       }
       setShowForm(false);
       setEditId(null);
-    } catch(e) { console.error("Save staff failed:", e); }
+      setSaveError("");
+    } catch(e) {
+      setSaveError(e?.message || "Save failed — check your connection and try again.");
+    }
     setSaving(false);
   };
 
@@ -5026,6 +5097,34 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     try { await fsCancelInvite(companyId, inviteId); } catch(e) { console.error(e); }
   };
 
+  // ── Office CRUD ──
+  const openAddOffice = () => {
+    setOfficeForm({ name:"", city:"", state:"", color:"#22d3ee" });
+    setOfficeEditId(null);
+    setShowOfficeForm(true);
+    setOfficeError("");
+  };
+  const openEditOffice = o => {
+    setOfficeForm({ name:o.name||"", city:o.city||"", state:o.state||"", color:o.color||"#22d3ee" });
+    setOfficeEditId(o.id);
+    setShowOfficeForm(true);
+    setOfficeError("");
+  };
+  const saveOffice = async () => {
+    if (!officeForm.name.trim() || !companyId) { setOfficeError("Office name is required."); return; }
+    setOfficeSaving(true); setOfficeError("");
+    try {
+      const oid = officeEditId || `office-${Date.now()}`;
+      await fsSetOffice(companyId, oid, { ...officeForm, id: oid });
+      setShowOfficeForm(false); setOfficeEditId(null);
+    } catch(e) { setOfficeError(e?.message || "Save failed — check your connection."); }
+    setOfficeSaving(false);
+  };
+  const deleteOffice = async (officeId) => {
+    if (!companyId || !window.confirm("Remove this office? Projects assigned to it will lose their office assignment.")) return;
+    try { await fsDeleteOffice(companyId, officeId); } catch(e) { console.error(e); }
+  };
+
   const inviteLink = companyId ? `${window.location.origin}${window.location.pathname}?invite=${companyId}` : "";
 
   const fld = (label, key, opts={}) => (
@@ -5042,7 +5141,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     </div>
   );
 
-  const TABS = [["staff","Staff"],["cortex","CortexAI"],["general","General"],["roadmap","Roadmap"]];
+  const TABS = [["staff","Staff"],["offices","Offices"],["cortex","CortexAI"],["general","General"],["roadmap","Roadmap"]];
 
   return (
     <div className="scroll" style={{flex:1,overflow:"auto"}}>
@@ -5177,6 +5276,20 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                   {fld("Public Title","title",{placeholder:"e.g. Senior Technician, Field Lead"})}
                 </div>
 
+                {/* Office assignment */}
+                {offices.length > 0 && (
+                  <div style={{marginBottom:12}}>
+                    <label className="lbl">Office Location</label>
+                    <select className="sel" value={form.officeId} onChange={e=>setForm(f=>({...f,officeId:e.target.value}))}>
+                      <option value="">— No office assigned —</option>
+                      {offices.map(o=><option key={o.id} value={o.id}>{o.name}{o.city?` · ${o.city}`:""}</option>)}
+                    </select>
+                    <div style={{fontSize:10,color:"var(--t3)",marginTop:4}}>
+                      CortexAI uses this with System Role to assign tasks from the correct office pool.
+                    </div>
+                  </div>
+                )}
+
                 <div style={{background:"var(--s3)",borderRadius:7,padding:"8px 13px",marginBottom:14,
                   display:"flex",alignItems:"center",gap:8,fontSize:11,color:"var(--t2)"}}>
                   <div style={{width:8,height:8,borderRadius:"50%",background:ROLE_COLORS[form.systemRole]||"#5ba3f5",flexShrink:0}}/>
@@ -5206,8 +5319,14 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                   </div>
                 </div>
 
+                {saveError && (
+                  <div style={{marginBottom:12,padding:"8px 12px",background:"rgba(228,53,49,.08)",
+                    border:"1px solid rgba(228,53,49,.2)",borderRadius:7,fontSize:11,color:"var(--acc)"}}>
+                    {saveError}
+                  </div>
+                )}
                 <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
-                  <button className="btn btn-ghost" onClick={cancelForm}>Cancel</button>
+                  <button className="btn btn-ghost" onClick={cancelForm} disabled={saving}>Cancel</button>
                   <button className="btn btn-primary" onClick={saveStaff} disabled={saving}>
                     {saving ? "Saving…" : editId ? "Save Changes" : "Add Member"}
                   </button>
@@ -5260,6 +5379,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                             background:"rgba(91,163,245,.12)",padding:"1px 6px",borderRadius:4}}>YOU</span>}
                         </div>
                         {s.title && <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{s.title}</div>}
+                        {s.officeId && (() => { const ov = offices.find(o=>o.id===s.officeId); return ov ? <div style={{fontSize:9,color:"var(--teal)",marginTop:2,fontFamily:"var(--mono)"}}>{ov.name}{ov.city?` · ${ov.city}`:""}</div> : null; })()}
                       </div>
                       {/* System role */}
                       <div>
@@ -5314,7 +5434,128 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                 <div style={{fontSize:12,fontWeight:700,color:"var(--blue)",marginBottom:4}}>CortexAI Staff Sync</div>
                 <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.7}}>
                   Staff are stored in Firestore and synced to <code style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--t1)"}}>localStorage</code> automatically
-                  for CortexAI (mindflow.html) task assignment by System Role.
+                  for CortexAI (mindflow.html) task assignment by System Role and Office.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── OFFICES TAB ── */}
+        {tab==="offices" && (
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+              <div>
+                <div style={{fontSize:14,fontWeight:700,color:"var(--t1)"}}>Office Locations</div>
+                <div style={{fontSize:11,color:"var(--t3)",marginTop:3,maxWidth:560}}>
+                  Define your company's office locations. Assign staff and projects to offices so CortexAI knows which pool of people to draw from when auto-assigning tasks.
+                </div>
+              </div>
+              {isAdmin && !showOfficeForm && (
+                <button className="btn btn-primary" onClick={openAddOffice}>{Ic.plus} Add Office</button>
+              )}
+            </div>
+
+            {/* ── OFFICE FORM ── */}
+            {showOfficeForm && isAdmin && (
+              <div style={{background:"var(--s2)",border:"1px solid var(--blue)",borderRadius:10,padding:20,marginBottom:20}}>
+                <div style={{fontSize:13,fontWeight:700,marginBottom:16,color:"var(--t1)"}}>
+                  {officeEditId ? "Edit Office" : "Add Office"}
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+                  <div style={{gridColumn:"1/-1"}}>
+                    <label className="lbl">Office Name <span style={{color:"var(--acc)"}}>*</span></label>
+                    <input className="inp" value={officeForm.name} onChange={e=>setOfficeForm(f=>({...f,name:e.target.value}))}
+                      placeholder="e.g. Oklahoma City, Dallas, Denver"/>
+                  </div>
+                  <div>
+                    <label className="lbl">City</label>
+                    <input className="inp" value={officeForm.city} onChange={e=>setOfficeForm(f=>({...f,city:e.target.value}))}
+                      placeholder="Oklahoma City"/>
+                  </div>
+                  <div>
+                    <label className="lbl">State</label>
+                    <input className="inp" value={officeForm.state} onChange={e=>setOfficeForm(f=>({...f,state:e.target.value}))}
+                      placeholder="OK"/>
+                  </div>
+                </div>
+                <div style={{marginBottom:14}}>
+                  <label className="lbl">Office Color</label>
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:6}}>
+                    {["#22d3ee","#5ba3f5","#1ad98a","#a78bfa","#f97316","#e43531","#e89c18","#ec4899"].map(c=>(
+                      <button key={c} onClick={()=>setOfficeForm(f=>({...f,color:c}))}
+                        style={{width:22,height:22,borderRadius:"50%",background:c,border:officeForm.color===c?"3px solid var(--t1)":"2px solid transparent",cursor:"pointer",outline:"none"}}/>
+                    ))}
+                    <input type="color" value={officeForm.color} onChange={e=>setOfficeForm(f=>({...f,color:e.target.value}))}
+                      style={{width:22,height:22,border:"none",background:"none",cursor:"pointer",padding:0}}/>
+                  </div>
+                </div>
+                {officeError && (
+                  <div style={{marginBottom:10,padding:"7px 11px",background:"rgba(228,53,49,.08)",
+                    border:"1px solid rgba(228,53,49,.2)",borderRadius:7,fontSize:11,color:"var(--acc)"}}>
+                    {officeError}
+                  </div>
+                )}
+                <div style={{display:"flex",gap:8}}>
+                  <button className="btn btn-primary" onClick={saveOffice} disabled={officeSaving}>
+                    {officeSaving ? "Saving…" : officeEditId ? "Save Changes" : "Create Office"}
+                  </button>
+                  <button className="btn btn-ghost" onClick={()=>{setShowOfficeForm(false);setOfficeEditId(null);setOfficeError("");}}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── OFFICES LIST ── */}
+            {offices.length === 0 && !showOfficeForm ? (
+              <div style={{textAlign:"center",padding:"52px 0",color:"var(--t3)",background:"var(--s1)",borderRadius:10,border:"1px solid var(--br)"}}>
+                <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>No offices added yet</div>
+                <div style={{fontSize:11}}>Add your first office location to enable office-based filtering and CortexAI staff routing.</div>
+              </div>
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {offices.map(o => {
+                  const staffCount = globalStaff.filter(s=>s.officeId===o.id).length;
+                  return (
+                    <div key={o.id} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",
+                      background:"var(--s2)",border:"1px solid var(--br)",borderRadius:10}}>
+                      <div style={{width:14,height:14,borderRadius:"50%",background:o.color||"var(--teal)",flexShrink:0,
+                        boxShadow:`0 0 10px ${o.color||"var(--teal)"}55`}}/>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>{o.name}</div>
+                        {(o.city||o.state) && (
+                          <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>
+                            {[o.city,o.state].filter(Boolean).join(", ")}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{fontSize:11,color:"var(--t2)",fontFamily:"var(--mono)",
+                        background:"var(--s3)",padding:"3px 10px",borderRadius:6,flexShrink:0}}>
+                        {staffCount} {staffCount===1?"staff":"staff"}
+                      </div>
+                      {isAdmin && (
+                        <div style={{display:"flex",gap:5}}>
+                          <button className="btn btn-ghost btn-xs" onClick={()=>openEditOffice(o)}>{Ic.doc} Edit</button>
+                          <button className="btn btn-danger btn-xs" onClick={()=>deleteOffice(o.id)}>{Ic.trash}</button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Info card */}
+            <div style={{marginTop:20,background:"rgba(34,211,238,0.07)",border:"1px solid rgba(34,211,238,0.18)",
+              borderRadius:9,padding:"12px 16px",display:"flex",gap:12,alignItems:"flex-start"}}>
+              <div style={{color:"var(--teal)",flexShrink:0,marginTop:1}}>{Ic.mindflow}</div>
+              <div>
+                <div style={{fontSize:12,fontWeight:700,color:"var(--teal)",marginBottom:4}}>How Office Routing Works</div>
+                <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.8}}>
+                  1. Create offices here, then assign each staff member to an office in <strong style={{color:"var(--t1)"}}>Settings › Staff</strong>.<br/>
+                  2. When creating a project, select the office location in the New Project form.<br/>
+                  3. CortexAI reads both <strong style={{color:"var(--t1)"}}>System Role</strong> and <strong style={{color:"var(--t1)"}}>Office</strong> from localStorage to intelligently assign tasks to the right people at the right location.
                 </div>
               </div>
             </div>
@@ -5377,6 +5618,7 @@ export default function JobDoxPortal() {
   const [permission,    setPermission]   = useState("staff"); // real value loaded from Firestore
   const [globalStaff,      setGlobalStaff]     = useState([]);
   const [pendingInvites,   setPendingInvites]   = useState([]);
+  const [offices,          setOffices]          = useState([]);
   const [companyId,        setCompanyId]       = useState(null);
   const [currentMember,    setCurrentMember]   = useState(null); // Memberstack member object
   const [priceLists,       setPriceLists]      = useState(INITIAL_PRICE_LISTS);
@@ -5407,6 +5649,7 @@ export default function JobDoxPortal() {
     let unsubProjects = null;
     let unsubStaff    = null;
     let unsubInvites  = null;
+    let unsubOffices  = null;
 
     async function initMember(member) {
       setCurrentMember(member);
@@ -5499,7 +5742,15 @@ export default function JobDoxPortal() {
       // ── Stream staff roster (for SettingsPage + NotifyModal etc.) ──
       unsubStaff = fsListenStaff(cid, list => {
         setGlobalStaff(list);
-        syncStaffToLS(list); // keep CortexAI in sync
+        syncStaffToLS(list, loadOfficesLS()); // keep CortexAI in sync with role+office
+      });
+
+      // ── Stream offices ──
+      unsubOffices = fsListenOffices(cid, list => {
+        setOffices(list);
+        saveOfficesToLS(list);
+        // Re-sync staff with updated office names
+        syncStaffToLS(JSON.parse(localStorage.getItem("jd_staff") || "[]"), list);
       });
 
       // ── Stream pending invites (admin only, but harmless to load) ──
@@ -5531,12 +5782,13 @@ export default function JobDoxPortal() {
       if (unsubProjects) unsubProjects();
       if (unsubStaff)    unsubStaff();
       if (unsubInvites)  unsubInvites();
+      if (unsubOffices)  unsubOffices();
     };
   }, []);
 
   // ── Add project ──
   const handleAddProject = async (p) => {
-    if (!companyId) return;
+    if (!companyId) throw new Error("Not authenticated — company ID missing.");
     await addDoc(collection(db, "companies", companyId, "projects"), {
       ...p,
       createdAt: serverTimestamp(),
@@ -5709,6 +5961,7 @@ export default function JobDoxPortal() {
               currentPermission={permission}
               currentMemberId={currentMember?.id}
               currentMemberName={currentUser?.name}
+              offices={offices}
               onPermissionChange={(memberId, newPerm) => {
                 if (memberId === currentMember?.id) setPermission(newPerm);
               }}
@@ -5747,6 +6000,7 @@ export default function JobDoxPortal() {
             customWorkTypes={customWorkTypes}
             customStatuses={customStatuses}
             customProjectTypes={customProjectTypes}
+            offices={offices}
           />
         )}
       </div>
