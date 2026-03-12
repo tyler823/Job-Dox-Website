@@ -875,7 +875,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <div class="ft-b"><p>&copy; 2026 Job-Dox. All rights reserved.</p><div class="ft-bl"><a href="privacy-policy.html">Privacy Policy</a><a href="terms-conditions.html">Terms & Conditions</a></div></div>
 </div></footer>
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+<script>
 const nav=document.getElementById('nav');
 window.addEventListener('scroll',()=>{nav.classList.toggle('scrolled',window.scrollY>40)});
 const toggle=document.getElementById('navToggle'),mm=document.getElementById('mobileMenu'),mc=document.getElementById('mobileClose');
@@ -886,7 +886,7 @@ const reveals=document.querySelectorAll('.reveal');
 reveals.forEach(el=>el.classList.add('hidden'));
 const obs=new IntersectionObserver(e=>{e.forEach(en=>{if(en.isIntersecting){en.target.classList.remove('hidden');en.target.classList.add('visible')}})},{threshold:.1,rootMargin:'0px 0px -40px 0px'});
 reveals.forEach(el=>obs.observe(el));
-document.querySelectorAll('a[href^="#"]:not([href="#"]):not([data-ms-action])').forEach(a=>{a.addEventListener('click',e=>{const t=document.querySelector(a.getAttribute('href'));if(t){e.preventDefault();document.getElementById('mobileMenu').classList.remove('active');setTimeout(()=>{t.scrollIntoView({behavior:'smooth',block:'start'})},100)}})});
+document.querySelectorAll('a[href^="#"]:not([href="#"]):not([href^="#/"]):not([data-ms-action])').forEach(a=>{a.addEventListener('click',e=>{const t=document.querySelector(a.getAttribute('href'));if(t){e.preventDefault();document.getElementById('mobileMenu').classList.remove('active');setTimeout(()=>{t.scrollIntoView({behavior:'smooth',block:'start'})},100)}})});
 
 // ROI Calculators
 const slider=document.getElementById('roiSlider'),sv=document.getElementById('sliderVal');
@@ -936,7 +936,6 @@ document.querySelectorAll('.roi-charts').forEach(el=>{el.querySelectorAll('.ann-
 })();
 
 // Memberstack: redirect to portal after login or signup
-// Poll until both $memberstackDom AND onReady are available
 (function waitForMemberstack() {
   if (window.$memberstackDom && window.$memberstackDom.onReady) {
     window.$memberstackDom.onReady.then(function(ms) {
