@@ -927,11 +927,22 @@ document.querySelectorAll('.roi-charts').forEach(el=>{el.querySelectorAll('.ann-
 </script>
 
 <script>
+// Preserve ?invite= param across Memberstack auth redirect
+(function() {
+  var inviteParam = new URLSearchParams(window.location.search).get('invite');
+  if (inviteParam) {
+    sessionStorage.setItem('jd_invite', inviteParam);
+  }
+})();
+
 // Memberstack: redirect to portal after login or signup
 window.$memberstackDom.onReady.then(function(ms) {
   ms.onAuthChange(function(payload) {
     if (payload && payload.member) {
-      window.location.href = '/app/dist/';
+      var invite = sessionStorage.getItem('jd_invite');
+      var dest = '/app/dist/';
+      if (invite) dest += '?invite=' + invite;
+      window.location.href = dest;
     }
   });
 });
