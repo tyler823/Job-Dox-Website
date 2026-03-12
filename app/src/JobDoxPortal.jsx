@@ -1,14 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from "firebase/firestore";
+import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
+         doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where } from "firebase/firestore";
 
 const FIREBASE_CONFIG = {
-  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey:            "AIzaSyAFwSEDPqKgAUbwbh_2KZNwLDdGCZEiq3E",
+  authDomain:        "cortex-717c6.firebaseapp.com",
+  projectId:         "cortex-717c6",
+  storageBucket:     "cortex-717c6.firebasestorage.app",
+  messagingSenderId: "496631882511",
+  appId:             "1:496631882511:web:3f7be61bcbb83a6ab4d47a",
 };
 const _fbApp = initializeApp(FIREBASE_CONFIG);
 const db = getFirestore(_fbApp);
@@ -402,9 +403,6 @@ const WT_PHASE_C = {
 const LS_CWT_KEY  = "jd_company_worktypes";
 const LS_CST_KEY  = "jd_company_statuses";
 const LS_CPT_KEY  = "jd_company_project_types";
-const LS_CO_KEY   = "jd_company_info";
-
-const DEFAULT_COMPANY_INFO = { name:"", address:"", city:"", state:"", zip:"", phone:"", email:"", website:"", logo:"" };
 
 const DEFAULT_WORK_TYPES = [
   { id:"wt-1", name:"Water Mitigation", color:"#3b82f6", hasWorkflow:true  },
@@ -438,11 +436,9 @@ const DEFAULT_PROJECT_TYPES = [
 function loadCWT()  { try { return JSON.parse(localStorage.getItem(LS_CWT_KEY)) || DEFAULT_WORK_TYPES; }  catch { return DEFAULT_WORK_TYPES; } }
 function loadCST()  { try { return JSON.parse(localStorage.getItem(LS_CST_KEY)) || DEFAULT_STATUSES; }    catch { return DEFAULT_STATUSES; } }
 function loadCPT()  { try { return JSON.parse(localStorage.getItem(LS_CPT_KEY)) || DEFAULT_PROJECT_TYPES; } catch { return DEFAULT_PROJECT_TYPES; } }
-function loadCO()   { try { return { ...DEFAULT_COMPANY_INFO, ...JSON.parse(localStorage.getItem(LS_CO_KEY)) }; } catch { return DEFAULT_COMPANY_INFO; } }
 function saveCWT(v) { try { localStorage.setItem(LS_CWT_KEY, JSON.stringify(v)); } catch {} }
 function saveCST(v) { try { localStorage.setItem(LS_CST_KEY, JSON.stringify(v)); } catch {} }
 function saveCPT(v) { try { localStorage.setItem(LS_CPT_KEY, JSON.stringify(v)); } catch {} }
-function saveCO(v)  { try { localStorage.setItem(LS_CO_KEY,  JSON.stringify(v)); } catch {} }
 
 // Merge WT_META icons into a custom work type
 function getWTMeta(name, customWorkTypes=[]) {
@@ -576,6 +572,85 @@ const pct   = (a,b) => b>0 ? Math.min(100,a/b*100).toFixed(0) : 0;
 let _id = 300; const uid = () => ++_id;
 const AVCOLORS = ["#5ba3f5","#1ad98a","#e89c18","#a78bfa","#e43531","#22d3ee"];
 
+/* ── Staff constants ── */
+const SYSTEM_ROLES = [
+  "Project Manager","Lead Technician","Field Technician",
+  "Estimator","Subcontractor","Office Admin","Sales",
+];
+const ROLE_COLORS = {
+  "Project Manager":  "#5ba3f5",
+  "Lead Technician":  "#1ad98a",
+  "Field Technician": "#22d3ee",
+  "Estimator":        "#a78bfa",
+  "Subcontractor":    "#e89c18",
+  "Office Admin":     "#ec4899",
+  "Sales":            "#f97316",
+};
+const PERM_LABELS = { admin:"Admin", manager:"Manager", staff:"Staff" };
+const PERM_COLORS = { admin:"var(--acc)", manager:"var(--blue)", staff:"var(--t3)" };
+
+function syncStaffToLS(staffArr) {
+  try { localStorage.setItem("jd_staff", JSON.stringify(staffArr)); } catch {}
+}
+
+/* ══════════════════════════════════════════════
+   FIRESTORE — Staff & Invite helpers
+══════════════════════════════════════════════ */
+// Listen to all active staff in real-time
+function fsListenStaff(companyId, cb) {
+  const q = query(collection(db, "companies", companyId, "staff"));
+  return onSnapshot(q, snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+}
+// Listen to pending invites in real-time
+function fsListenInvites(companyId, cb) {
+  const q = query(collection(db, "companies", companyId, "invites"), where("status","==","pending"));
+  return onSnapshot(q, snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+}
+// Save or update a staff member doc (keyed by memberstackId)
+async function fsSetStaff(companyId, memberstackId, data) {
+  await setDoc(doc(db, "companies", companyId, "staff", memberstackId), data, { merge: true });
+}
+// Update a specific field on a staff member (e.g. permission)
+async function fsUpdateStaffField(companyId, memberstackId, fields) {
+  await updateDoc(doc(db, "companies", companyId, "staff", memberstackId), fields);
+}
+// Remove a staff member
+async function fsRemoveStaff(companyId, memberstackId) {
+  await deleteDoc(doc(db, "companies", companyId, "staff", memberstackId));
+}
+// Get a single staff record (used on login)
+async function fsGetStaff(companyId, memberstackId) {
+  const snap = await getDoc(doc(db, "companies", companyId, "staff", memberstackId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+// Create an invite
+async function fsCreateInvite(companyId, email, permission, invitedByName) {
+  const ref = await addDoc(collection(db, "companies", companyId, "invites"), {
+    email: email.toLowerCase().trim(),
+    permission,
+    invitedBy: invitedByName,
+    status: "pending",
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+// Cancel/delete an invite
+async function fsCancelInvite(companyId, inviteId) {
+  await deleteDoc(doc(db, "companies", companyId, "invites", inviteId));
+}
+// Find a pending invite by email across a company
+async function fsFindInviteByEmail(companyId, email) {
+  const q = query(
+    collection(db, "companies", companyId, "invites"),
+    where("email","==", email.toLowerCase().trim()),
+    where("status","==","pending")
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return { id: d.id, ...d.data() };
+}
+
 function Av({ name, color, size=34 }) {
   const init = (name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
   return <div style={{width:size,height:size,borderRadius:"50%",background:color||"var(--s4)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.34,fontWeight:700,flexShrink:0,letterSpacing:"-0.5px"}}>{init}</div>;
@@ -623,6 +698,9 @@ const PERM_CONFIG = {
   manager: { label:"Manager", canViewRates: true  },
   staff:   { label:"Staff",   canViewRates: false },
 };
+// Permission hierarchy — used to determine what each role can do
+const CAN_MANAGE_STAFF = ["admin"];
+const CAN_VIEW_RATES   = ["admin","manager"];
 
 function useElapsed(startTime) {
   const [elapsed, setElapsed] = useState(0);
@@ -4553,16 +4631,13 @@ function ColorPicker({ value, onChange }) {
 }
 
 function GeneralSettingsTab() {
-  const [sec, setSec]         = useState("company");
+  const [sec, setSec]         = useState("worktypes");
   const [workTypes, setWT]    = useState(loadCWT);
   const [statuses,  setST]    = useState(loadCST);
   const [projTypes, setPT]    = useState(loadCPT);
   const [editId,    setEditId]= useState(null);
   const [draft,     setDraft] = useState({});
   const [newMode,   setNewMode]= useState(false);
-  const [company,   setCompany]= useState(loadCO);
-  const [coSaved,   setCoSaved]= useState(false);
-  const logoRef = useRef(null);
 
   const save = (wt, st, pt) => {
     syncCompanyConfigToLS(wt, st, pt);
@@ -4621,10 +4696,9 @@ function GeneralSettingsTab() {
   const deletePT = (id) => savePT(projTypes.filter(p=>p.id!==id));
 
   const SECTIONS = [
-    {id:"company",   label:"Company Info"},
-    {id:"worktypes", label:"Work Types"},
-    {id:"statuses",  label:"Statuses"},
-    {id:"projtypes", label:"Project Types"},
+    {id:"worktypes",  label:"Work Types"},
+    {id:"statuses",   label:"Statuses"},
+    {id:"projtypes",  label:"Project Types"},
   ];
 
   const cancelEdit = () => {
@@ -4649,127 +4723,6 @@ function GeneralSettingsTab() {
           </button>
         ))}
       </div>
-
-      {/* ── COMPANY INFO ── */}
-      {sec==="company" && (
-        <div style={{display:"flex",flexDirection:"column",gap:14}}>
-          <div className="card" style={{padding:18}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-              <div>
-                <div style={{fontSize:13,fontWeight:700}}>Company Information</div>
-                <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>Used to auto-fill invoices, contracts, and other documents.</div>
-              </div>
-              {coSaved && <span style={{fontSize:10,color:"var(--green)",fontFamily:"var(--mono)",background:"rgba(26,217,138,.12)",padding:"3px 9px",borderRadius:5}}>✓ SAVED</span>}
-            </div>
-
-            {/* Logo Upload */}
-            <div style={{marginBottom:16}}>
-              <label className="lbl">Company Logo</label>
-              <div style={{display:"flex",alignItems:"center",gap:14}}>
-                <div onClick={()=>logoRef.current?.click()}
-                  style={{width:80,height:80,borderRadius:10,border:`2px dashed var(--br)`,background:"var(--s3)",cursor:"pointer",
-                    display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:5,flexShrink:0,overflow:"hidden",
-                    transition:"border-color .15s",position:"relative"}}
-                  onMouseEnter={e=>e.currentTarget.style.borderColor="var(--acc)"}
-                  onMouseLeave={e=>e.currentTarget.style.borderColor="var(--br)"}>
-                  {company.logo
-                    ? <img src={company.logo} alt="logo" style={{width:"100%",height:"100%",objectFit:"contain",padding:6}}/>
-                    : <>{Ic.upload}<span style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)"}}>UPLOAD</span></>}
-                </div>
-                <input ref={logoRef} type="file" accept="image/*" style={{display:"none"}}
-                  onChange={e=>{
-                    const f = e.target.files[0]; if(!f) return;
-                    const reader = new FileReader();
-                    reader.onload = ev => setCompany(c=>({...c, logo: ev.target.result}));
-                    reader.readAsDataURL(f);
-                  }}/>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:11,color:"var(--t2)",marginBottom:6}}>Upload your company logo to embed it in generated documents.</div>
-                  {company.logo && <button className="btn btn-ghost btn-xs" style={{color:"var(--acc)"}} onClick={()=>setCompany(c=>({...c,logo:""}))}>Remove logo</button>}
-                </div>
-              </div>
-            </div>
-
-            {/* Fields */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-              <div style={{gridColumn:"1/-1"}}>
-                <label className="lbl">Company Name</label>
-                <input className="inp" value={company.name} placeholder="Acme Restoration Co."
-                  onChange={e=>setCompany(c=>({...c,name:e.target.value}))}/>
-              </div>
-              <div style={{gridColumn:"1/-1"}}>
-                <label className="lbl">Street Address</label>
-                <input className="inp" value={company.address} placeholder="123 Main Street"
-                  onChange={e=>setCompany(c=>({...c,address:e.target.value}))}/>
-              </div>
-              <div>
-                <label className="lbl">City</label>
-                <input className="inp" value={company.city} placeholder="Oklahoma City"
-                  onChange={e=>setCompany(c=>({...c,city:e.target.value}))}/>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                <div>
-                  <label className="lbl">State</label>
-                  <input className="inp" value={company.state} placeholder="OK"
-                    onChange={e=>setCompany(c=>({...c,state:e.target.value}))}/>
-                </div>
-                <div>
-                  <label className="lbl">ZIP</label>
-                  <input className="inp" value={company.zip} placeholder="73008"
-                    onChange={e=>setCompany(c=>({...c,zip:e.target.value}))}/>
-                </div>
-              </div>
-              <div>
-                <label className="lbl">Phone Number</label>
-                <input className="inp" value={company.phone} placeholder="(405) 555-0100"
-                  onChange={e=>setCompany(c=>({...c,phone:e.target.value}))}/>
-              </div>
-              <div>
-                <label className="lbl">Email Address</label>
-                <input className="inp" value={company.email} placeholder="info@yourcompany.com"
-                  onChange={e=>setCompany(c=>({...c,email:e.target.value}))}/>
-              </div>
-              <div style={{gridColumn:"1/-1"}}>
-                <label className="lbl">Website</label>
-                <input className="inp" value={company.website} placeholder="https://yourcompany.com"
-                  onChange={e=>setCompany(c=>({...c,website:e.target.value}))}/>
-              </div>
-            </div>
-
-            <button className="btn btn-primary" onClick={()=>{saveCO(company);setCoSaved(true);setTimeout(()=>setCoSaved(false),2500);}}>
-              Save Company Info
-            </button>
-          </div>
-
-          {/* Document Variable Reference */}
-          <div className="card" style={{padding:18,background:"rgba(91,163,245,0.05)",border:"1px solid rgba(91,163,245,0.18)"}}>
-            <div style={{fontSize:12,fontWeight:700,color:"var(--blue)",marginBottom:10}}>Document Template Variables</div>
-            <div style={{fontSize:11,color:"var(--t2)",marginBottom:12,lineHeight:1.7}}>
-              Use these variables in your invoice and contract templates. They will be automatically replaced with your company info when generating documents.
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-              {[
-                ["{{company.name}}",    "Company name"],
-                ["{{company.address}}", "Street address"],
-                ["{{company.city}}",    "City"],
-                ["{{company.state}}",   "State"],
-                ["{{company.zip}}",     "ZIP code"],
-                ["{{company.phone}}",   "Phone number"],
-                ["{{company.email}}",   "Email address"],
-                ["{{company.website}}", "Website URL"],
-                ["{{company.logo}}",    "Logo (img tag)"],
-                ["{{company.fullAddress}}", "Full address block"],
-              ].map(([token, desc])=>(
-                <div key={token} style={{display:"flex",alignItems:"center",justifyContent:"space-between",
-                  background:"var(--s3)",border:"1px solid var(--br)",borderRadius:6,padding:"5px 10px",gap:8}}>
-                  <code style={{fontSize:10,color:"var(--blue)",fontFamily:"var(--mono)",letterSpacing:".01em"}}>{token}</code>
-                  <span style={{fontSize:10,color:"var(--t3)",whiteSpace:"nowrap"}}>{desc}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── WORK TYPES ── */}
       {sec==="worktypes" && (
@@ -4938,13 +4891,18 @@ function GeneralSettingsTab() {
   );
 }
 
-function SettingsPage({ globalStaff, setGlobalStaff }) {
-  const [tab,    setTab]    = useState("staff");
-  const [editId, setEditId] = useState(null);   // null = adding new
+function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission, currentMemberId, currentMemberName, onPermissionChange }) {
+  const [tab,      setTab]      = useState("staff");
+  const [editId,   setEditId]   = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
+  const [saving,   setSaving]   = useState(false);
+  const [inviteSaved, setInviteSaved] = useState(false);
   const blank = { firstName:"", lastName:"", email:"", phone:"", systemRole:"Project Manager", title:"", photoUrl:"" };
-  const [form,   setForm]   = useState(blank);
+  const [form, setForm] = useState(blank);
+  const [inviteForm, setInviteForm] = useState({ email:"", permission:"staff" });
   const fileRef = useRef();
+  const isAdmin = currentPermission === "admin";
 
   const handlePhoto = e => {
     const file = e.target.files[0];
@@ -4954,34 +4912,73 @@ function SettingsPage({ globalStaff, setGlobalStaff }) {
     reader.readAsDataURL(file);
   };
 
-  const openAdd = () => { setForm(blank); setEditId(null); setShowForm(true); };
+  const openAdd  = () => { setForm(blank); setEditId(null); setShowForm(true); };
   const openEdit = s => {
-    setForm({ firstName:s.firstName, lastName:s.lastName, email:s.email,
-              phone:s.phone, systemRole:s.systemRole, title:s.title, photoUrl:s.photoUrl||"" });
+    setForm({ firstName:s.firstName||"", lastName:s.lastName||"", email:s.email||"",
+              phone:s.phone||"", systemRole:s.systemRole||"Project Manager",
+              title:s.title||"", photoUrl:s.photoUrl||"" });
     setEditId(s.id);
     setShowForm(true);
   };
   const cancelForm = () => { setShowForm(false); setEditId(null); };
 
-  const saveStaff = () => {
-    if (!form.firstName.trim() || !form.email.trim()) return;
-    let next;
-    if (editId) {
-      next = globalStaff.map(s => s.id === editId ? { ...s, ...form } : s);
-    } else {
-      next = [...globalStaff, { ...form, id: uid(), color: ROLE_COLORS[form.systemRole] || "#5ba3f5" }];
-    }
-    setGlobalStaff(next);
-    syncStaffToLS(next);
-    setShowForm(false);
-    setEditId(null);
+  const saveStaff = async () => {
+    if (!form.firstName.trim() || !form.email.trim() || !companyId) return;
+    setSaving(true);
+    try {
+      if (editId) {
+        // editId IS the Firestore doc ID (memberstackId for real members, or a uid for manually added)
+        await fsSetStaff(companyId, editId, { ...form, color: ROLE_COLORS[form.systemRole] || "#5ba3f5" });
+      } else {
+        // Manually added staff (no Memberstack account yet) — use a generated id
+        const newId = `manual-${Date.now()}`;
+        await fsSetStaff(companyId, newId, {
+          ...form,
+          id: newId,
+          color: ROLE_COLORS[form.systemRole] || "#5ba3f5",
+          permission: "staff",
+          status: "active",
+          joinedAt: new Date().toISOString(),
+        });
+      }
+      setShowForm(false);
+      setEditId(null);
+    } catch(e) { console.error("Save staff failed:", e); }
+    setSaving(false);
   };
 
-  const removeStaff = id => {
-    const next = globalStaff.filter(s => s.id !== id);
-    setGlobalStaff(next);
-    syncStaffToLS(next);
+  const removeStaff = async (memberId) => {
+    if (!companyId || memberId === currentMemberId) return; // can't remove yourself
+    if (!window.confirm("Remove this person from the team?")) return;
+    try { await fsRemoveStaff(companyId, memberId); } catch(e) { console.error(e); }
   };
+
+  const changePermission = async (memberId, newPerm) => {
+    if (!companyId || !isAdmin) return;
+    try {
+      await fsUpdateStaffField(companyId, memberId, { permission: newPerm });
+      if (onPermissionChange) onPermissionChange(memberId, newPerm);
+    } catch(e) { console.error("Permission change failed:", e); }
+  };
+
+  const sendInvite = async () => {
+    if (!inviteForm.email.trim() || !companyId) return;
+    setSaving(true);
+    try {
+      await fsCreateInvite(companyId, inviteForm.email, inviteForm.permission, currentMemberName || "Admin");
+      setInviteSaved(true);
+      setTimeout(() => setInviteSaved(false), 3000);
+      setInviteForm({ email:"", permission:"staff" });
+    } catch(e) { console.error("Invite failed:", e); }
+    setSaving(false);
+  };
+
+  const cancelInvite = async (inviteId) => {
+    if (!companyId) return;
+    try { await fsCancelInvite(companyId, inviteId); } catch(e) { console.error(e); }
+  };
+
+  const inviteLink = companyId ? `${window.location.origin}${window.location.pathname}?invite=${companyId}` : "";
 
   const fld = (label, key, opts={}) => (
     <div>
@@ -5026,19 +5023,102 @@ function SettingsPage({ globalStaff, setGlobalStaff }) {
               <div>
                 <div style={{fontSize:14,fontWeight:700,color:"var(--t1)"}}>Company Staff</div>
                 <div style={{fontSize:11,color:"var(--t3)",marginTop:3,maxWidth:520}}>
-                  Staff added here sync automatically to CortexAI for workflow task assignment by System Role.
+                  {isAdmin
+                    ? "Manage your team, adjust permissions, and invite new members."
+                    : "Your company's team roster."}
                 </div>
               </div>
-              {!showForm && (
-                <button className="btn btn-primary" onClick={openAdd}>{Ic.plus} Add Staff Member</button>
+              {isAdmin && !showForm && !showInvite && (
+                <div style={{display:"flex",gap:7}}>
+                  <button className="btn btn-secondary" onClick={()=>setShowInvite(true)}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                    Invite Member
+                  </button>
+                  <button className="btn btn-primary" onClick={openAdd}>{Ic.plus} Add Manually</button>
+                </div>
               )}
             </div>
 
-            {/* Add / Edit form */}
+            {/* ── INVITE FORM ── */}
+            {showInvite && isAdmin && (
+              <div style={{background:"var(--s2)",border:"1px solid var(--blue)",borderRadius:10,padding:20,marginBottom:20}}>
+                <div style={{fontSize:13,fontWeight:700,marginBottom:4,color:"var(--t1)"}}>Invite a Team Member</div>
+                <div style={{fontSize:11,color:"var(--t3)",marginBottom:16}}>
+                  They'll receive a link to join your company workspace. Once they sign in, they'll be added automatically.
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 180px",gap:12,marginBottom:14}}>
+                  <div>
+                    <label className="lbl">Email Address <span style={{color:"var(--acc)"}}>*</span></label>
+                    <input className="inp" type="email" placeholder="colleague@company.com"
+                      value={inviteForm.email} onChange={e=>setInviteForm(f=>({...f,email:e.target.value}))}/>
+                  </div>
+                  <div>
+                    <label className="lbl">Permission Level</label>
+                    <select className="sel" value={inviteForm.permission}
+                      onChange={e=>setInviteForm(f=>({...f,permission:e.target.value}))}>
+                      <option value="staff">Staff</option>
+                      <option value="manager">Manager</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Invite link to share */}
+                <div style={{marginBottom:14}}>
+                  <label className="lbl">Shareable Invite Link</label>
+                  <div style={{display:"flex",gap:7,alignItems:"center"}}>
+                    <input className="inp" readOnly value={inviteLink}
+                      style={{fontSize:10,color:"var(--t3)",flex:1}}/>
+                    <button className="btn btn-ghost btn-xs"
+                      onClick={()=>{navigator.clipboard.writeText(inviteLink);}}>
+                      {Ic.copy} Copy
+                    </button>
+                  </div>
+                  <div style={{fontSize:10,color:"var(--t3)",marginTop:5}}>
+                    Share this link + their email invite. When they sign in via this link, they'll be automatically added to your team.
+                  </div>
+                </div>
+
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <button className="btn btn-primary" onClick={sendInvite} disabled={saving||!inviteForm.email.trim()}>
+                    {saving ? "Sending…" : "Send Invite"}
+                  </button>
+                  <button className="btn btn-ghost" onClick={()=>{setShowInvite(false);setInviteForm({email:"",permission:"staff"});}}>Cancel</button>
+                  {inviteSaved && <span style={{fontSize:11,color:"var(--green)",fontWeight:600}}>✓ Invite created</span>}
+                </div>
+              </div>
+            )}
+
+            {/* ── PENDING INVITES ── */}
+            {isAdmin && pendingInvites.length > 0 && !showForm && (
+              <div style={{marginBottom:16}}>
+                <div className="mono" style={{fontSize:9,color:"var(--t3)",marginBottom:8}}>PENDING INVITES ({pendingInvites.length})</div>
+                {pendingInvites.map(inv => (
+                  <div key={inv.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 14px",
+                    background:"rgba(232,156,24,.07)",border:"1px solid rgba(232,156,24,.2)",
+                    borderRadius:8,marginBottom:5}}>
+                    <div style={{width:8,height:8,borderRadius:"50%",background:"var(--amber)",flexShrink:0,
+                      boxShadow:"0 0 6px var(--amber)"}}/>
+                    <div style={{flex:1}}>
+                      <span style={{fontSize:12,color:"var(--t1)",fontWeight:600}}>{inv.email}</span>
+                      <span style={{fontSize:10,color:"var(--t3)",marginLeft:10}}>Invited by {inv.invitedBy}</span>
+                    </div>
+                    <span style={{fontSize:10,color:"var(--amber)",fontFamily:"var(--mono)",
+                      background:"rgba(232,156,24,.12)",padding:"2px 8px",borderRadius:4,marginRight:4}}>
+                      {(inv.permission||"staff").toUpperCase()}
+                    </span>
+                    <span style={{fontSize:10,color:"var(--t3)",marginRight:8}}>Awaiting sign-in</span>
+                    <button className="btn btn-ghost btn-xs" style={{color:"var(--acc)"}}
+                      onClick={()=>cancelInvite(inv.id)}>Cancel</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── ADD / EDIT FORM ── */}
             {showForm && (
               <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:10,padding:20,marginBottom:20}}>
                 <div style={{fontSize:13,fontWeight:700,marginBottom:16,color:"var(--t1)"}}>
-                  {editId ? "Edit Staff Member" : "Add Staff Member"}
+                  {editId ? "Edit Staff Member" : "Add Staff Member Manually"}
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
                   {fld("First Name","firstName",{required:true,placeholder:"First name"})}
@@ -5049,7 +5129,6 @@ function SettingsPage({ globalStaff, setGlobalStaff }) {
                   {fld("Public Title","title",{placeholder:"e.g. Senior Technician, Field Lead"})}
                 </div>
 
-                {/* Role assignment note */}
                 <div style={{background:"var(--s3)",borderRadius:7,padding:"8px 13px",marginBottom:14,
                   display:"flex",alignItems:"center",gap:8,fontSize:11,color:"var(--t2)"}}>
                   <div style={{width:8,height:8,borderRadius:"50%",background:ROLE_COLORS[form.systemRole]||"#5ba3f5",flexShrink:0}}/>
@@ -5057,7 +5136,6 @@ function SettingsPage({ globalStaff, setGlobalStaff }) {
                   <span style={{color:"var(--t3)",marginLeft:6}}>— CortexAI will auto-assign tasks with this role to this person.</span></span>
                 </div>
 
-                {/* Photo */}
                 <div style={{marginBottom:16}}>
                   <label className="lbl">Profile Photo</label>
                   <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -5082,35 +5160,39 @@ function SettingsPage({ globalStaff, setGlobalStaff }) {
 
                 <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
                   <button className="btn btn-ghost" onClick={cancelForm}>Cancel</button>
-                  <button className="btn btn-primary" onClick={saveStaff}>
-                    {editId ? "Save Changes" : "Add Member"}
+                  <button className="btn btn-primary" onClick={saveStaff} disabled={saving}>
+                    {saving ? "Saving…" : editId ? "Save Changes" : "Add Member"}
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Staff roster */}
+            {/* ── STAFF ROSTER ── */}
             {globalStaff.length === 0 ? (
               <div style={{textAlign:"center",padding:"52px 0",color:"var(--t3)",background:"var(--s1)",borderRadius:10,border:"1px solid var(--br)"}}>
                 <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>No staff members yet</div>
-                <div style={{fontSize:11}}>Add your first team member to get started.</div>
+                <div style={{fontSize:11}}>
+                  {isAdmin ? "Add your first team member or send an invite to get started." : "Your admin hasn't added any team members yet."}
+                </div>
               </div>
             ) : (
               <div>
-                {/* Column headers */}
-                <div style={{display:"grid",gridTemplateColumns:"48px 1fr 190px 200px 160px 140px 72px",
+                <div style={{display:"grid",gridTemplateColumns:"48px 1fr 150px 190px 160px 130px 110px",
                   gap:10,padding:"3px 14px",marginBottom:6}}>
-                  {["","Name","System Role","Email","Phone","Title",""].map((h,i) => (
+                  {["","Name","System Role","Email","Phone","Permission",""].map((h,i) => (
                     <div key={i} className="mono" style={{fontSize:9,color:"var(--t3)"}}>{h}</div>
                   ))}
                 </div>
                 {globalStaff.map(s => {
-                  const rc = ROLE_COLORS[s.systemRole] || "#5ba3f5";
+                  const rc   = ROLE_COLORS[s.systemRole] || "#5ba3f5";
+                  const pc   = PERM_COLORS[s.permission] || "var(--t3)";
+                  const isSelf = s.id === currentMemberId;
                   return (
                     <div key={s.id} style={{display:"grid",
-                      gridTemplateColumns:"48px 1fr 190px 200px 160px 140px 72px",
+                      gridTemplateColumns:"48px 1fr 150px 190px 160px 130px 110px",
                       gap:10,alignItems:"center",padding:"10px 14px",
-                      background:"var(--s2)",border:"1px solid var(--br)",
+                      background:isSelf?"rgba(91,163,245,.04)":"var(--s2)",
+                      border:`1px solid ${isSelf?"rgba(91,163,245,.25)":"var(--br)"}`,
                       borderRadius:9,marginBottom:6}}>
                       {/* Avatar */}
                       <div style={{width:40,height:40,borderRadius:"50%",overflow:"hidden",
@@ -5124,7 +5206,11 @@ function SettingsPage({ globalStaff, setGlobalStaff }) {
                       </div>
                       {/* Name */}
                       <div>
-                        <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>{s.firstName} {s.lastName}</div>
+                        <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>
+                          {s.firstName} {s.lastName}
+                          {isSelf && <span style={{marginLeft:7,fontSize:9,color:"var(--blue)",fontFamily:"var(--mono)",
+                            background:"rgba(91,163,245,.12)",padding:"1px 6px",borderRadius:4}}>YOU</span>}
+                        </div>
                         {s.title && <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{s.title}</div>}
                       </div>
                       {/* System role */}
@@ -5133,19 +5219,38 @@ function SettingsPage({ globalStaff, setGlobalStaff }) {
                           borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,
                           background:`${rc}18`,color:rc,border:`1px solid ${rc}35`}}>
                           <span style={{width:5,height:5,borderRadius:"50%",background:rc,flexShrink:0}}/>
-                          {s.systemRole}
+                          {s.systemRole||"—"}
                         </span>
                       </div>
                       {/* Email */}
                       <div style={{fontSize:11,color:"var(--blue)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.email}</div>
                       {/* Phone */}
                       <div style={{fontSize:11,color:"var(--t2)"}}>{s.phone||"—"}</div>
-                      {/* Title */}
-                      <div style={{fontSize:11,color:"var(--t3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.title||"—"}</div>
+                      {/* Permission — dropdown for admins, badge for others */}
+                      <div>
+                        {isAdmin && !isSelf ? (
+                          <select className="sel" value={s.permission||"staff"}
+                            onChange={e=>changePermission(s.id,e.target.value)}
+                            style={{fontSize:11,padding:"4px 8px",height:"auto",
+                              color:pc,background:"var(--s3)"}}>
+                            <option value="admin">Admin</option>
+                            <option value="manager">Manager</option>
+                            <option value="staff">Staff</option>
+                          </select>
+                        ) : (
+                          <span style={{display:"inline-flex",alignItems:"center",gap:5,
+                            borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,
+                            background:`${pc}18`,color:pc,border:`1px solid ${pc}35`}}>
+                            {PERM_LABELS[s.permission||"staff"]}
+                          </span>
+                        )}
+                      </div>
                       {/* Actions */}
                       <div style={{display:"flex",gap:4}}>
-                        <button className="btn btn-ghost btn-xs" title="Edit" onClick={()=>openEdit(s)}>{Ic.doc}</button>
-                        <button className="btn btn-danger btn-xs" title="Remove" onClick={()=>removeStaff(s.id)}>{Ic.trash}</button>
+                        {isAdmin && <button className="btn btn-ghost btn-xs" title="Edit" onClick={()=>openEdit(s)}>{Ic.doc}</button>}
+                        {isAdmin && !isSelf && (
+                          <button className="btn btn-danger btn-xs" title="Remove from team" onClick={()=>removeStaff(s.id)}>{Ic.trash}</button>
+                        )}
                       </div>
                     </div>
                   );
@@ -5160,10 +5265,8 @@ function SettingsPage({ globalStaff, setGlobalStaff }) {
               <div>
                 <div style={{fontSize:12,fontWeight:700,color:"var(--blue)",marginBottom:4}}>CortexAI Staff Sync</div>
                 <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.7}}>
-                  Staff saved here are written to <code style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--t1)"}}>localStorage</code> and
-                  picked up automatically by CortexAI (mindflow.html) within 2 seconds.
-                  Open both files in the same browser — no manual sync required.
-                  Tasks are matched to staff by <strong style={{color:"var(--t1)"}}>System Role</strong>.
+                  Staff are stored in Firestore and synced to <code style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--t1)"}}>localStorage</code> automatically
+                  for CortexAI (mindflow.html) task assignment by System Role.
                 </div>
               </div>
             </div>
@@ -5223,9 +5326,11 @@ export default function JobDoxPortal() {
   const [showTools,     setShowTools]    = useState(false);
   const [clockInState,  setClockInState] = useState(null);
   const [projectShifts, setProjectShifts]= useState({});
-  const [permission,    setPermission]   = useState("admin");
+  const [permission,    setPermission]   = useState("staff"); // real value loaded from Firestore
   const [globalStaff,      setGlobalStaff]     = useState([]);
+  const [pendingInvites,   setPendingInvites]   = useState([]);
   const [companyId,        setCompanyId]       = useState(null);
+  const [currentMember,    setCurrentMember]   = useState(null); // Memberstack member object
   const [priceLists,       setPriceLists]      = useState(INITIAL_PRICE_LISTS);
   const [customWorkTypes,  setCustomWorkTypes] = useState(loadCWT);
   const [customStatuses,   setCustomStatuses]  = useState(loadCST);
@@ -5243,34 +5348,122 @@ export default function JobDoxPortal() {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  const permCycle  = ["admin","manager","staff"];
-  const cyclePerms = () => setPermission(p => permCycle[(permCycle.indexOf(p)+1) % permCycle.length]);
-  const canViewRates  = PERM_CONFIG[permission]?.canViewRates ?? false;
-  const currentUser   = CURRENT_USER;
+  const canViewRates = CAN_VIEW_RATES.includes(permission);
+  const currentUser  = currentMember
+    ? { name: `${currentMember.customFields?.firstName||""} ${currentMember.customFields?.lastName||""}`.trim() || currentMember.auth?.email || "User",
+        position: currentMember.customFields?.systemRole || "Project Manager" }
+    : CURRENT_USER;
 
-  // ── Resolve companyId from Memberstack, then stream projects from Firestore ──
+  // ── Resolve companyId + permission from Memberstack, then stream Firestore ──
   useEffect(() => {
-    let unsub = null;
+    let unsubProjects = null;
+    let unsubStaff    = null;
+    let unsubInvites  = null;
+
+    async function initMember(member) {
+      setCurrentMember(member);
+      const email = member.auth?.email || "";
+
+      // Check if this user belongs to a company as a staff member
+      // companyId is stored in their Memberstack custom fields after accepting an invite
+      let cid = member.customFields?.jd_company_id || null;
+
+      // If no stored companyId, this user is the account owner — their own ID IS the companyId
+      if (!cid) cid = member.id;
+
+      setCompanyId(cid);
+
+      // ── Check for invite in URL: ?invite={companyId} ──
+      const urlParams = new URLSearchParams(window.location.search);
+      const inviteCid = urlParams.get("invite");
+      if (inviteCid && email) {
+        try {
+          const invite = await fsFindInviteByEmail(inviteCid, email);
+          if (invite) {
+            // Accept the invite: write staff record, store companyId in Memberstack
+            await fsSetStaff(inviteCid, member.id, {
+              firstName: member.customFields?.firstName || "",
+              lastName:  member.customFields?.lastName  || "",
+              email,
+              phone:      member.customFields?.phone || "",
+              systemRole: member.customFields?.systemRole || "Field Technician",
+              title:      "",
+              photoUrl:   "",
+              permission: invite.permission,
+              status:     "active",
+              joinedAt:   new Date().toISOString(),
+            });
+            // Mark invite as accepted
+            await updateDoc(doc(db, "companies", inviteCid, "invites", invite.id), { status: "accepted" });
+            // Store companyId in Memberstack so future logins know which company they belong to
+            if (window.$memberstackDom?.updateMember) {
+              await window.$memberstackDom.updateMember({ customFields: { jd_company_id: inviteCid } });
+            }
+            cid = inviteCid;
+            setCompanyId(cid);
+            // Clean up URL
+            const url = new URL(window.location);
+            url.searchParams.delete("invite");
+            window.history.replaceState({}, "", url);
+          }
+        } catch(e) { console.warn("Invite acceptance failed:", e); }
+      }
+
+      // ── Load this user's permission from their staff record ──
+      try {
+        const staffRecord = await fsGetStaff(cid, member.id);
+        if (staffRecord) {
+          setPermission(staffRecord.permission || "staff");
+        } else if (cid === member.id) {
+          // Account owner — ensure they exist in staff as admin
+          await fsSetStaff(cid, member.id, {
+            firstName: member.customFields?.firstName || "",
+            lastName:  member.customFields?.lastName  || "",
+            email,
+            phone:      member.customFields?.phone || "",
+            systemRole: "Project Manager",
+            title:      "Account Owner",
+            photoUrl:   "",
+            permission: "admin",
+            status:     "active",
+            joinedAt:   new Date().toISOString(),
+          });
+          setPermission("admin");
+        }
+      } catch(e) { console.warn("Staff record load failed:", e); }
+
+      // ── Stream projects ──
+      const pq = query(collection(db, "companies", cid, "projects"), orderBy("createdAt","desc"));
+      unsubProjects = onSnapshot(pq, snap => {
+        setProjects(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      });
+
+      // ── Stream staff roster (for SettingsPage + NotifyModal etc.) ──
+      unsubStaff = fsListenStaff(cid, list => {
+        setGlobalStaff(list);
+        syncStaffToLS(list); // keep CortexAI in sync
+      });
+
+      // ── Stream pending invites (admin only, but harmless to load) ──
+      unsubInvites = fsListenInvites(cid, list => setPendingInvites(list));
+    }
+
     function getMember() {
       if (!window.$memberstackDom) { setTimeout(getMember, 250); return; }
       window.$memberstackDom.getCurrentMember().then(({ data: member }) => {
-        if (!member) return;
-        const cid = member.id;
-        setCompanyId(cid);
-        const q = query(
-          collection(db, "companies", cid, "projects"),
-          orderBy("createdAt", "desc")
-        );
-        unsub = onSnapshot(q, snap => {
-          setProjects(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
+        if (member) initMember(member);
       });
     }
     getMember();
-    return () => { if (unsub) unsub(); };
+
+    return () => {
+      if (unsubProjects) unsubProjects();
+      if (unsubStaff)    unsubStaff();
+      if (unsubInvites)  unsubInvites();
+    };
   }, []);
 
-  // ── Add project — saves to Firestore, listener updates state automatically ──
+  // ── Add project ──
   const handleAddProject = async (p) => {
     if (!companyId) return;
     await addDoc(collection(db, "companies", companyId, "projects"), {
@@ -5334,7 +5527,6 @@ export default function JobDoxPortal() {
     if (existing) { existing.textContent=CSS; }
     else { el.textContent=CSS; document.head.appendChild(el); }
     document.body.classList.add("jd-new-theme");
-    if (localStorage.getItem("jd-theme") === "light") document.body.classList.add("jd-light-mode");
     const obs = new MutationObserver(()=>setIsLight(document.body.classList.contains("jd-light-mode")));
     obs.observe(document.body,{attributes:true,attributeFilter:["class"]});
     return ()=>{ obs.disconnect(); document.body.classList.remove("jd-new-theme"); try{document.head.removeChild(document.getElementById("jdp2css"));}catch(_){} };
@@ -5343,8 +5535,6 @@ export default function JobDoxPortal() {
   const toggleTheme = () => {
     if (window.JDTheme?.toggleColorMode) window.JDTheme.toggleColorMode();
     else document.body.classList.toggle("jd-light-mode");
-    const nowLight = document.body.classList.contains("jd-light-mode");
-    localStorage.setItem("jd-theme", nowLight ? "light" : "dark");
   };
 
   const navTo = (pg) => { setPage(pg); setSelected(null); setShowTools(false); };
@@ -5379,8 +5569,8 @@ export default function JobDoxPortal() {
           {Ic.stopwatch}
         </button>
         <button className="rail-btn" data-tip="History">{Ic.history}</button>
-        <button className="rail-btn" data-tip={`Permission: ${PERM_CONFIG[permission].label} — click to switch`}
-          onClick={cyclePerms} style={{position:"relative"}}>
+        <button className="rail-btn" data-tip={`Signed in as ${PERM_CONFIG[permission]?.label||"Staff"}`}
+          style={{position:"relative",cursor:"default"}}>
           {Ic.account}
           <span style={{position:"absolute",bottom:5,right:5,fontSize:7,fontFamily:"var(--mono)",fontWeight:700,
             background:permission==="admin"?"var(--acc)":permission==="manager"?"var(--blue)":"var(--t3)",
@@ -5390,11 +5580,6 @@ export default function JobDoxPortal() {
         </button>
         <button className="rail-btn" data-tip={isLight?"Dark mode":"Light mode"} onClick={toggleTheme} style={{color:isLight?"var(--t2)":"#f5c518"}}>
           {isLight ? Ic.sun : Ic.moon}
-        </button>
-        <button className="rail-btn" data-tip="Sign Out"
-          onClick={()=>{ if(window.$memberstackDom) window.$memberstackDom.logout(); else alert("Sign out not available in preview mode."); }}
-          style={{color:"var(--t3)",marginBottom:4}}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
         </button>
       </nav>
 
@@ -5433,7 +5618,18 @@ export default function JobDoxPortal() {
                 <div className="topbar-sub">WORKSPACE CONFIGURATION</div>
               </div>
             </div>
-            <SettingsPage globalStaff={globalStaff} setGlobalStaff={setGlobalStaff}/>
+            <SettingsPage
+              globalStaff={globalStaff}
+              setGlobalStaff={setGlobalStaff}
+              pendingInvites={pendingInvites}
+              companyId={companyId}
+              currentPermission={permission}
+              currentMemberId={currentMember?.id}
+              currentMemberName={currentUser?.name}
+              onPermissionChange={(memberId, newPerm) => {
+                if (memberId === currentMember?.id) setPermission(newPerm);
+              }}
+            />
           </>
         ) : page==="myday" ? (
           <MyDayPage onNavigate={handleNavigate}/>
