@@ -176,13 +176,14 @@ body{background:var(--bg);color:var(--t1);font-family:'Outfit',sans-serif;height
     </div>
     <div class="view-btns">
       <button class="vbtn on" onclick="setView('builder')" id="vb-builder">⬡ Mind Map</button>
-      <button class="vbtn off" onclick="setView('results')" id="vb-results" id="vb-results">◈ Workflow (<span id="task-count-nav">94</span>)</button>
+      <button class="vbtn off" onclick="setView('results')" id="vb-results" id="vb-results">◈ Workflow (<span id="task-count-nav">0</span>)</button>
     </div>
     <div class="nav-right">
       <div class="conn-row" id="staff-status-row">
         <div class="dot idle" id="staff-dot"></div>
         <span class="mono-sm" id="staff-status-lbl">staff: not synced</span>
       </div>
+      <span id="perm-banner" style="font-family:'Space Mono',monospace;font-size:9px;font-weight:700;padding:3px 9px;border-radius:4px;border:1px solid transparent;letter-spacing:.04em;"></span>
       <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">🌙 Dark</button>
       <button class="push-btn" onclick="setView('results')">↑ Push to Job-Dox</button>
     </div>
@@ -198,6 +199,7 @@ body{background:var(--bg);color:var(--t1);font-family:'Outfit',sans-serif;height
         <select class="selc" id="worktype-sel" onchange="onWorkTypeChange()">
           <option value="">— Select Work Type —</option>
         </select>
+        <div id="wt-no-data-warn" style="display:none;margin-top:6px;padding:7px 10px;background:rgba(91,163,245,0.08);border:1px solid rgba(91,163,245,0.2);border-radius:6px;font-size:10px;color:var(--blue);line-height:1.5;">Work types are configured in <strong>Job-Dox Settings › General</strong>. Open the portal to sync.</div>
         <div id="wt-no-workflow-warn" style="display:none;margin-top:6px;padding:6px 9px;background:rgba(232,156,24,.1);border:1px solid rgba(232,156,24,.3);border-radius:6px;font-size:10px;color:#e89c18;line-height:1.5;">
           <strong>No workflow built</strong> for this type yet. You can still generate a blank scaffold and build it out here.
         </div>
@@ -390,8 +392,9 @@ body{background:var(--bg);color:var(--t1);font-family:'Outfit',sans-serif;height
           </select>
         </div>
       </div>
+      <div id="billing-restrict-notice" style="display:none;padding:6px 14px;background:rgba(232,156,24,.08);border-bottom:1px solid rgba(232,156,24,.2);font-size:10px;color:var(--amber);flex-shrink:0;">⚠ Billing, invoicing, and scope tasks are hidden — your permission level (below Level 7) does not include financial workflow access.</div>
       <div class="summary-bar">
-        <span id="summary-text" style="font-size:11px;color:var(--t2);line-height:1.5;">Standard water damage restoration workflow — 94 tasks across 6 phases. Assign to any water loss job in CortexAI.</span>
+        <span id="summary-text" style="font-size:11px;color:var(--t2);line-height:1.5;">Select a work type and generate a workflow to get started.</span>
       </div>
       <div class="task-list" id="task-list"></div>
     </div>
@@ -480,7 +483,7 @@ body{background:var(--bg);color:var(--t1);font-family:'Outfit',sans-serif;height
 /* ══════════════════════════════════════════════
    STAFF BRIDGE — reads from localStorage written by JobDoxPortal
 ══════════════════════════════════════════════ */
-let STAFF = [];       // loaded from localStorage (jd_cortex_staff)
+let STAFF = [];       // loaded from localStorage (jd_staff)
 let ROLE_MAP = {};    // { "Project Manager": [{name,photoUrl,color,...}] }
 
 const ROLE_COLORS = {
@@ -494,16 +497,11 @@ function roleColor(role) { return ROLE_COLORS[role] || '#5ba3f5'; }
 
 function loadStaff() {
   try {
-    const raw = localStorage.getItem('jd_cortex_staff');
+    const raw = localStorage.getItem('jd_staff');
     if (raw) {
       STAFF = JSON.parse(raw);
     } else {
-      // Fallback demo staff so the tool is usable without portal open
-      STAFF = [
-        {id:1,name:"Jake Reynolds",firstName:"Jake",lastName:"Reynolds",systemRole:"Lead Technician",title:"Lead Tech",email:"jake@company.com",phone:"(405) 555-4411",photoUrl:"",color:"#5ba3f5"},
-        {id:2,name:"Maria Santos",firstName:"Maria",lastName:"Santos",systemRole:"Field Technician",title:"Field Tech",email:"maria@company.com",phone:"(405) 555-7723",photoUrl:"",color:"#1ad98a"},
-        {id:3,name:"Tyler Mitchell",firstName:"Tyler",lastName:"Mitchell",systemRole:"Project Manager",title:"Project Manager",email:"tyler@company.com",phone:"(405) 555-9901",photoUrl:"",color:"#e43531"}
-      ];
+      STAFF = []; // No staff — user must sync from Job-Dox portal
     }
   } catch(e) { STAFF = []; }
 
@@ -566,7 +564,7 @@ function updateStaffUI() {
     }
   } else {
     lbl.textContent = 'staff: not synced';
-    if (panel) panel.innerHTML = '<div style="color:var(--t3);font-size:11px;">No staff found in Job-Dox.<br>Go to Settings › Staff to add your team.</div>';
+    if (panel) panel.innerHTML = '<div style="color:var(--t3);font-size:11px;line-height:1.7;">No staff synced yet.<br/>Go to <strong style="color:var(--t1);">Settings › Staff</strong> in Job-Dox, add your team members, and they will appear here automatically.</div>';
   }
 }
 
@@ -726,6 +724,94 @@ let filterRole = '';
 let filterPrio = '';
 
 /* ══════════════════════════════════════════════
+   PERMISSION BRIDGE — reads jd_current_user from portal
+   Level 1-10 matching JobDoxPortal permission system
+══════════════════════════════════════════════ */
+let CURRENT_PERM = 3; // default: Technician until loaded
+
+function loadCurrentUser() {
+  try {
+    const raw = localStorage.getItem('jd_current_user');
+    if (raw) {
+      const u = JSON.parse(raw);
+      CURRENT_PERM = Math.min(10, Math.max(1, parseInt(u.permissionLevel) || 3));
+    }
+  } catch { CURRENT_PERM = 3; }
+  applyPermissionUI();
+}
+
+// Derive boolean caps — mirrors permCaps() in the portal
+function permCap() {
+  const lv = CURRENT_PERM;
+  return {
+    level:               lv,
+    canViewBudget:       lv >= 5,
+    canViewBillingScope: lv >= 7,
+    canViewPayRates:     lv >= 8,
+    canAddProject:       lv >= 5,
+    canSaveTemplate:     lv >= 7,   // Project Lead+
+    canPushOnce:         lv >= 5,   // Coordinator+
+    canAIGenerate:       lv >= 4,   // Senior Tech+
+    labelShort:          lv >= 10 ? 'L10 Admin' : lv >= 9 ? 'L9 Director' : lv >= 8 ? 'L8 Sr.Mgr' : lv >= 7 ? 'L7 Manager' : lv >= 6 ? 'L6 Lead' : lv >= 5 ? 'L5 Coord' : lv >= 4 ? 'L4 Sr.Tech' : lv >= 3 ? 'L3 Tech' : lv >= 2 ? 'L2 Field' : 'L1 Field',
+  };
+}
+
+// BILLING TASK FILTER — tasks gated by billing permissions
+const BILLING_TAGS = ['billing','invoice','xactimate','ar','scope'];
+const BILLING_ROLES = ['Billing Specialist','Estimator'];
+function isBillingTask(task) {
+  if (BILLING_ROLES.includes(task.role)) return true;
+  const titleLc = (task.title||'').toLowerCase();
+  if (/invoice|xactimate|billing|accounts rec/.test(titleLc)) return true;
+  return (task.tags||[]).some(t => BILLING_TAGS.includes(t.toLowerCase()));
+}
+
+function applyPermissionUI() {
+  const cap = permCap();
+
+  // Permission banner in nav
+  const banner = document.getElementById('perm-banner');
+  if (banner) {
+    banner.textContent = cap.labelShort;
+    const colors = {
+      10:'#e43531', 9:'#f97316', 8:'#a78bfa', 7:'#a78bfa',
+      6:'#5ba3f5', 5:'#5ba3f5', 4:'#22d3ee', 3:'#22d3ee', 2:'#6b7280', 1:'#6b7280'
+    };
+    banner.style.background = (colors[cap.level]||'#6b7280') + '22';
+    banner.style.color = colors[cap.level]||'#6b7280';
+    banner.style.borderColor = (colors[cap.level]||'#6b7280') + '50';
+  }
+
+  // Save template button
+  const saveBtn = document.getElementById('save-tpl-btn');
+  if (saveBtn) {
+    saveBtn.disabled = !cap.canSaveTemplate;
+    saveBtn.style.opacity = cap.canSaveTemplate ? '1' : '.35';
+    saveBtn.title = cap.canSaveTemplate ? '' : 'Level 7+ required to save templates';
+  }
+
+  // Push once button
+  const pushBtns = document.querySelectorAll('[onclick="pushOneTime()"]');
+  pushBtns.forEach(b => {
+    b.disabled = !cap.canPushOnce;
+    b.style.opacity = cap.canPushOnce ? '1' : '.35';
+    b.title = cap.canPushOnce ? '' : 'Level 5+ required';
+  });
+
+  // AI generate button
+  const aiBtn = document.getElementById('ai-gen-btn');
+  if (aiBtn) {
+    aiBtn.disabled = !cap.canAIGenerate;
+    aiBtn.style.opacity = cap.canAIGenerate ? '1' : '.35';
+    aiBtn.title = cap.canAIGenerate ? '' : 'Level 4+ required for AI workflow generation';
+  }
+
+  // Billing restriction notice
+  const billingNotice = document.getElementById('billing-restrict-notice');
+  if (billingNotice) billingNotice.style.display = !cap.canViewBillingScope ? 'block' : 'none';
+}
+
+/* ══════════════════════════════════════════════
    COMPANY CONFIG — reads from localStorage written by Job-Dox portal
    Keys: jd_company_config, jd_company_worktypes, jd_company_statuses
 ══════════════════════════════════════════════ */
@@ -745,26 +831,13 @@ function loadCompanyConfig() {
       COMPANY_WORK_TYPES = cfg.workTypes  || [];
       COMPANY_STATUSES   = cfg.statuses   || [];
     } else {
-      // Fallback defaults if portal hasn't synced yet
-      const wtRaw = localStorage.getItem('jd_company_worktypes');
-      const stRaw = localStorage.getItem('jd_company_statuses');
-      COMPANY_WORK_TYPES = wtRaw ? JSON.parse(wtRaw) : [
-        {id:"wt-1",name:"Water Mitigation",color:"#3b82f6",hasWorkflow:true},
-        {id:"wt-2",name:"Fire & Smoke",    color:"#f97316",hasWorkflow:false},
-        {id:"wt-3",name:"Mold Remediation",color:"#10b981",hasWorkflow:false},
-        {id:"wt-4",name:"Storm Damage",    color:"#8b5cf6",hasWorkflow:false},
-        {id:"wt-5",name:"Reconstruction",  color:"#6b7280",hasWorkflow:false},
-        {id:"wt-6",name:"Demo",            color:"#f43f5e",hasWorkflow:false},
-        {id:"wt-7",name:"Contents",        color:"#ec4899",hasWorkflow:false},
-      ];
-      COMPANY_STATUSES = stRaw ? JSON.parse(stRaw) : [
-        {id:"st-1",name:"New Lead",        color:"#8b95b0",triggerTask:""},
-        {id:"st-2",name:"Scoping",         color:"#e89c18",triggerTask:""},
-        {id:"st-3",name:"In Progress",     color:"#5ba3f5",triggerTask:"contract signed"},
-        {id:"st-4",name:"Pending Approval",color:"#a78bfa",triggerTask:"scope approved"},
-        {id:"st-5",name:"On Hold",         color:"#e43531",triggerTask:""},
-        {id:"st-6",name:"Completed",       color:"#1ad98a",triggerTask:"certificate of completion"},
-      ];
+      // Try separate keys the portal also writes
+      try {
+        const wtRaw = localStorage.getItem('jd_company_worktypes');
+        const stRaw = localStorage.getItem('jd_company_statuses');
+        COMPANY_WORK_TYPES = wtRaw ? JSON.parse(wtRaw) : [];
+        COMPANY_STATUSES   = stRaw ? JSON.parse(stRaw) : [];
+      } catch { COMPANY_WORK_TYPES = []; COMPANY_STATUSES = []; }
     }
   } catch(e) { COMPANY_WORK_TYPES = []; COMPANY_STATUSES = []; }
 
@@ -774,6 +847,14 @@ function loadCompanyConfig() {
 function populateWorkTypeSelector() {
   const sel = document.getElementById('worktype-sel');
   if (!sel) return;
+  if (COMPANY_WORK_TYPES.length === 0) {
+    sel.innerHTML = '<option value="">— No work types configured —</option>';
+    const warn = document.getElementById('wt-no-data-warn');
+    if (warn) warn.style.display = 'block';
+    return;
+  }
+  const warn2 = document.getElementById('wt-no-data-warn');
+  if (warn2) warn2.style.display = 'none';
   sel.innerHTML = '<option value="">— Select Work Type —</option>';
   COMPANY_WORK_TYPES.forEach(wt => {
     const opt = document.createElement('option');
@@ -871,13 +952,16 @@ function rerender() {
   const fRole = (document.getElementById('filter-role')?.value || '').toLowerCase();
   const fPrio = (document.getElementById('filter-prio')?.value || '').toLowerCase();
 
+  const cap = permCap();
   let totalAssigned = 0;
   let h = '';
 
   PHASES.forEach(ph => {
     const filtItems = ph.items.filter(t =>
       (!fRole || t.role.toLowerCase().includes(fRole)) &&
-      (!fPrio || t.prio.toLowerCase() === fPrio)
+      (!fPrio || t.prio.toLowerCase() === fPrio) &&
+      // Hide billing tasks from users without billing scope access
+      (cap.canViewBillingScope || !isBillingTask(t))
     );
     if (fRole || fPrio) { if (!filtItems.length) return; }
 
@@ -1231,11 +1315,24 @@ function setView(v) {
   if (v === 'results') rerender();
 }
 
-function toggleTheme() {
-  isDark = !isDark;
+function applyTheme(dark) {
+  isDark = dark;
   document.body.classList.toggle('light', !isDark);
-  document.getElementById('theme-btn').textContent = isDark ? '🌙 Dark' : '☀️ Light';
+  const btn = document.getElementById('theme-btn');
+  if (btn) btn.textContent = isDark ? '☀️ Light' : '🌙 Dark';
 }
+function toggleTheme() {
+  applyTheme(!isDark);
+  // Write back so portal and other tabs stay in sync
+  try { localStorage.setItem('jd-theme', isDark ? 'dark' : 'light'); } catch {}
+}
+// Sync theme from portal on storage events (portal changes theme → mindflow updates)
+window.addEventListener('storage', function(e) {
+  if (e.key === 'jd-theme') applyTheme(e.newValue !== 'light');
+  if (e.key === 'jd_staff') { loadStaff(); }
+  if (e.key === 'jd_company_config') { loadCompanyConfig(); }
+  if (e.key === 'jd_current_user') { loadCurrentUser(); }
+});
 
 
 function showToast(msg) {
@@ -1259,6 +1356,7 @@ async function aiGenerateWorkflow() {
   const status  = document.getElementById('ai-status');
 
   // Gather company context to send with the request
+  const cap = permCap();
   const context = {
     workType:   wt,
     notes:      notes,
@@ -1267,6 +1365,8 @@ async function aiGenerateWorkflow() {
     statusTriggers: COMPANY_STATUSES.filter(s=>s.triggerTask).map(s=>({
       keyword: s.triggerTask, toStatus: s.name
     })),
+    permissionLevel: cap.level,
+    includeBilling: cap.canViewBillingScope,
   };
 
   btn.disabled = true;
@@ -1343,7 +1443,7 @@ async function aiGenerateWorkflow() {
 // Poll localStorage every 2s so staff AND company config sync from portal is live
 function pollStaff() {
   try {
-    const raw = localStorage.getItem('jd_cortex_staff');
+    const raw = localStorage.getItem('jd_staff');
     const latest = raw ? JSON.parse(raw) : null;
     if (latest && JSON.stringify(latest) !== JSON.stringify(STAFF)) {
       loadStaff();
@@ -1368,11 +1468,22 @@ function pollCompanyConfig() {
   } catch(_){}
 }
 
-// Init
+// ── Init ──
+// Apply portal theme before anything renders (prevents flash)
+(function() {
+  const saved = localStorage.getItem('jd-theme');
+  if (saved === 'light') { document.body.classList.add('light'); isDark = false; }
+  else { document.body.classList.remove('light'); isDark = true; }
+  const btn = document.getElementById('theme-btn');
+  if (btn) btn.textContent = isDark ? '☀️ Light' : '🌙 Dark';
+})();
+
+loadCurrentUser();
 loadCompanyConfig();
 loadStaff();
 setInterval(pollStaff, 2000);
 setInterval(pollCompanyConfig, 3000);
+setInterval(() => { loadCurrentUser(); }, 5000); // re-check perm every 5s
 </script>
 </body>
 </html>
