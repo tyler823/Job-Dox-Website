@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
          doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where } from "firebase/firestore";
-import { getFunctions, httpsCallable } from "firebase/functions";
 
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyAFwSEDPqKgAUbwbh_2KZNwLDdGCZEiq3E",
@@ -13,11 +12,23 @@ const FIREBASE_CONFIG = {
   appId:             "1:496631882511:web:3f7be61bcbb83a6ab4d47a",
 };
 const _fbApp = initializeApp(FIREBASE_CONFIG);
-const db        = getFirestore(_fbApp);
-const _fbFns          = getFunctions(_fbApp);
-const sendSMS         = httpsCallable(_fbFns, "sendSMS");
-const initiateCall    = httpsCallable(_fbFns, "initiateCall");
-const savePhoneSettings = httpsCallable(_fbFns, "savePhoneSettings");
+const db     = getFirestore(_fbApp);
+
+/* ── Netlify function caller — mirrors the Firebase httpsCallable API ── */
+const NETLIFY = "/.netlify/functions";
+async function callFn(name, data) {
+  const res = await fetch(`${NETLIFY}/${name}`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify(data),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || `${name} failed (${res.status})`);
+  return json;
+}
+const sendSMS           = data => callFn("send-sms",            data);
+const initiateCall      = data => callFn("initiate-call",       data);
+const savePhoneSettings = data => callFn("save-phone-settings", data);
 
 /* ── Google Maps key — restrict this to your domain in Google Cloud Console ── */
 const GMAPS_KEY = "YOUR_GOOGLE_MAPS_API_KEY"; // ← replace with real key
@@ -1111,9 +1122,13 @@ function NotifyModal({ proj, onClose, globalStaff=[] }) {
     setSendError("");
     try {
       await sendSMS({
-        to:       proj.clientPhone,
-        body:     msg,
-        mediaUrl: photoUrl,           // empty string → ignored by Cloud Function → plain SMS
+        to:          proj.clientPhone,
+        messageBody: msg,
+        mediaUrl:    photoUrl,
+        from:        phoneSettings?.twilioNumber || "",
+        contactName: proj.client || proj.clientPhone,
+        companyId,
+        projectId:   proj.id,
       });
       setSent(true);
       setTimeout(onClose, 2500);
@@ -1259,7 +1274,7 @@ function NotifyModal({ proj, onClose, globalStaff=[] }) {
   );
 }
 
-function CommModal({ proj, onClose, currentUser }) {
+function CommModal({ proj, onClose, currentUser, phoneSettings={}, companyId="" }) {
   const [msg,       setMsg]       = useState("");
   const [sending,   setSending]   = useState(false);
   const [sent,      setSent]      = useState(false);
@@ -1272,7 +1287,14 @@ function CommModal({ proj, onClose, currentUser }) {
     setSending(true);
     setSendError("");
     try {
-      await sendSMS({ to: proj.clientPhone, body: msg.trim() });
+      await sendSMS({
+        to:          proj.clientPhone,
+        messageBody: msg.trim(),
+        from:        phoneSettings?.twilioNumber || "",
+        contactName: proj.client || proj.clientPhone,
+        companyId,
+        projectId:   proj.id,
+      });
       setSent(true);
       setTimeout(onClose, 2000);
     } catch (err) {
@@ -1864,6 +1886,8 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
           onClose={() => setCommentTask(null)}
           currentUserName={viewingName}
           globalStaff={globalStaff}
+          companyId={companyId}
+          phoneSettings={phoneSettings}
         />
       )}
 
@@ -2115,7 +2139,7 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
   );
 }
 
-function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, canViewBudget=false, canAddProject=false, currentMemberId="", globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[] }) {
+function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, canViewBudget=false, canAddProject=false, currentMemberId="", globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[], companyId="", phoneSettings={} }) {
   const [search, setSearch]   = useState("");
   const [fType, setFType]     = useState("All");
   const [fStatus, setFStatus] = useState("All");
@@ -2151,7 +2175,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
       {showAdd    && <AddProjModal onClose={()=>setShowAdd(false)} onAdd={onAdd} customWorkTypes={customWorkTypes} customStatuses={customStatuses} customProjectTypes={customProjectTypes} offices={offices}/>}
       {clockProj  && <ClockInModal proj={clockProj} clockInState={clockInState} onClockIn={onClockIn} onClockOut={onClockOut} onClose={()=>setClock(null)} currentUser={currentUser} canViewRates={canViewRates}/>}
       {notifyProj && <NotifyModal proj={notifyProj} onClose={()=>setNotify(null)} globalStaff={globalStaff}/>}
-      {commProj   && <CommModal    proj={commProj}   onClose={()=>setComm(null)} currentUser={currentUser}/>}
+      {commProj   && <CommModal    proj={commProj}   onClose={()=>setComm(null)} currentUser={currentUser} phoneSettings={phoneSettings} companyId={companyId}/>}
 
       <div className="topbar">
         <div><div className="topbar-ttl">Projects</div><div className="topbar-sub">JOB-DOX · PORTFOLIO</div></div>
@@ -2721,7 +2745,7 @@ function DocumentsTab({ docs:docsIn, setDocs:setDocsIn }) {
 }
 
 /* ── TaskCommentModal: opens from both TasksTab and MyDayPage ── */
-function TaskCommentModal({ task, onClose, currentUserName="You", globalStaff=[] }) {
+function TaskCommentModal({ task, onClose, currentUserName="You", globalStaff=[], companyId="", phoneSettings={} }) {
   const [comments, setComments] = useState(task.commentThread || []);
   const [text, setText] = useState("");
   const [sent, setSent] = useState(false);
@@ -2764,12 +2788,18 @@ function TaskCommentModal({ task, onClose, currentUserName="You", globalStaff=[]
         : [];
 
       if (toNumbers.length) {
-        const body = `[Job-Dox] ${currentUserName} commented on "${task.title}"${task.proj ? ` (${task.proj})` : ""}:\n"${text.trim()}"`;
+        const msgBody = `[Job-Dox] ${currentUserName} commented on "${task.title}"${task.proj ? ` (${task.proj})` : ""}:\n"${text.trim()}"`;
         try {
-          await sendSMS({ to: toNumbers, body });
+          await sendSMS({
+            to:          toNumbers,
+            messageBody: msgBody,
+            from:        phoneSettings?.twilioNumber || "",
+            companyId,
+            staffName:   currentUserName,
+            projectId:   task.projId || null,
+          });
           setSent(true);
         } catch {
-          // Non-fatal — comment still posted even if SMS fails
           setSent(true);
         }
       } else {
@@ -2878,7 +2908,7 @@ function TaskCommentModal({ task, onClose, currentUserName="You", globalStaff=[]
   );
 }
 
-function TasksTab({ initialTasks=[], globalStaff=[] }) {
+function TasksTab({ initialTasks=[], globalStaff=[], companyId="", phoneSettings={} }) {
   const [tasks, setTasks] = useState(() => initialTasks.length ? initialTasks : TASKS_SEED);
   const [filter, setFilter] = useState("open");
   const [adding, setAdding] = useState(false);
@@ -2934,10 +2964,11 @@ function TasksTab({ initialTasks=[], globalStaff=[] }) {
         <TaskCommentModal
           task={commentTask}
           onClose={() => {
-            // persist updated comment thread back to task
             setCommentTask(null);
           }}
           globalStaff={globalStaff}
+          companyId={companyId}
+          phoneSettings={phoneSettings}
         />
       )}
       <div style={{maxWidth:800, margin:"0 auto"}}>
@@ -5909,7 +5940,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
     <>
       {clockModal  && <ClockInModal proj={proj} clockInState={clockInState} onClockIn={onClockIn} onClockOut={onClockOut} onClose={()=>setClock(false)} currentUser={currentUser} canViewRates={canViewRates}/>}
       {notifyModal && <NotifyModal proj={proj} onClose={()=>setNotify(false)} globalStaff={globalStaff}/>}
-      {commModal   && <CommModal    proj={proj} onClose={()=>setComm(false)} currentUser={currentUser}/>}
+      {commModal   && <CommModal    proj={proj} onClose={()=>setComm(false)} currentUser={currentUser} phoneSettings={phoneSettings} companyId={companyId}/>}
       <div className="topbar">
         <div style={{display:"flex",alignItems:"center",gap:11}}>
           <button className="back-btn" onClick={onBack}>{Ic.back} Projects</button>
@@ -5963,7 +5994,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       {tab==="contacts"       && <ContactsTab/>}
       {tab==="media"          && <MediaTab       folders={mediaFolders} setFolders={setMediaFolders} uploads={mediaUploads} setUploads={setMediaUploads}/>}
       {tab==="documents"      && <DocumentsTab   docs={projDocs} setDocs={setProjDocs}/>}
-      {tab==="tasks"          && <TasksTab initialTasks={proj.templateTasks||[]} globalStaff={globalStaff}/>}
+      {tab==="tasks"          && <TasksTab initialTasks={proj.templateTasks||[]} globalStaff={globalStaff} companyId={companyId} phoneSettings={phoneSettings}/>}
       {tab==="budget"         && <BudgetTab proj={proj} laborCost={laborCost}/>}
       {tab==="shifts"         && <ShiftsTab projId={proj.id} externalShifts={myShifts} canViewRates={canViewRates}/>}
       {tab==="scope"          && <ScopeTab scopeItems={scopeItems} setScopeItems={setScopeItems}/>}
@@ -8008,6 +8039,8 @@ export default function JobDoxPortal() {
             customStatuses={customStatuses}
             customProjectTypes={customProjectTypes}
             offices={offices}
+            companyId={companyId}
+            phoneSettings={phoneSettings}
           />
         )}
       </div>
