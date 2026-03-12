@@ -936,16 +936,23 @@ document.querySelectorAll('.roi-charts').forEach(el=>{el.querySelectorAll('.ann-
 })();
 
 // Memberstack: redirect to portal after login or signup
-window.$memberstackDom.onReady.then(function(ms) {
-  ms.onAuthChange(function(payload) {
-    if (payload && payload.member) {
-      var invite = sessionStorage.getItem('jd_invite');
-      var dest = '/app/dist/';
-      if (invite) dest += '?invite=' + invite;
-      window.location.href = dest;
-    }
-  });
-});
+// Poll until $memberstackDom is available (timing issue with script load order)
+(function waitForMemberstack() {
+  if (window.$memberstackDom) {
+    window.$memberstackDom.onReady.then(function(ms) {
+      ms.onAuthChange(function(payload) {
+        if (payload && payload.member) {
+          var invite = sessionStorage.getItem('jd_invite');
+          var dest = '/app/dist/';
+          if (invite) dest += '?invite=' + invite;
+          window.location.href = dest;
+        }
+      });
+    });
+  } else {
+    setTimeout(waitForMemberstack, 50);
+  }
+})();
 </script>
 </body>
 </html>
