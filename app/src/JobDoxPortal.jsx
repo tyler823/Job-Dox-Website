@@ -5366,7 +5366,7 @@ export default function JobDoxPortal() {
 
       // Check if this user belongs to a company as a staff member
       // companyId is stored in their Memberstack custom fields after accepting an invite
-      let cid = member.customFields?.jd_company_id || null;
+      let cid = member.customFields?.["company-id"] || null;
 
       // If no stored companyId, this user is the account owner — their own ID IS the companyId
       if (!cid) cid = member.id;
@@ -5397,7 +5397,7 @@ export default function JobDoxPortal() {
             await updateDoc(doc(db, "companies", inviteCid, "invites", invite.id), { status: "accepted" });
             // Store companyId in Memberstack so future logins know which company they belong to
             if (window.$memberstackDom?.updateMember) {
-              await window.$memberstackDom.updateMember({ customFields: { jd_company_id: inviteCid } });
+              await window.$memberstackDom.updateMember({ customFields: { "company-id": inviteCid } });
             }
             cid = inviteCid;
             setCompanyId(cid);
