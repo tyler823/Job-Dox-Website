@@ -196,19 +196,17 @@ body{background:var(--bg);color:var(--t1);font-family:'Outfit',sans-serif;height
       <div class="sb-sec">
         <span class="fl">Work Type</span>
         <select class="selc" id="worktype-sel" onchange="onWorkTypeChange()">
-          <option value="water">💧 Water Damage Restoration</option>
-          <option value="fire">🔥 Fire &amp; Smoke Damage</option>
-          <option value="mold">🌿 Mold Remediation</option>
-          <option value="bio">⚠️ Biohazard Cleanup</option>
-          <option value="contents">📦 Contents Restoration</option>
-          <option value="storm">⛈️ Storm Damage</option>
+          <option value="">— Select Work Type —</option>
         </select>
+        <div id="wt-no-workflow-warn" style="display:none;margin-top:6px;padding:6px 9px;background:rgba(232,156,24,.1);border:1px solid rgba(232,156,24,.3);border-radius:6px;font-size:10px;color:#e89c18;line-height:1.5;">
+          <strong>No workflow built</strong> for this type yet. You can still generate a blank scaffold and build it out here.
+        </div>
       </div>
       <div class="sb-sec">
         <span class="fl">Templates</span>
-        <button class="tpl-btn" id="tpl-water" onclick="loadTemplate('water')" style="background:rgba(228,53,49,0.09);border:1px solid #e43531;color:#e43531;">💧 Water</button>
-        <button class="tpl-btn" id="tpl-fire"  onclick="loadTemplate('fire')"  style="background:var(--s2);border:1px solid var(--br);color:var(--t2);">🔥 Fire</button>
-        <button class="tpl-btn" id="tpl-mold"  onclick="loadTemplate('mold')"  style="background:var(--s2);border:1px solid var(--br);color:var(--t2);">🌿 Mold</button>
+        <div id="template-btns" style="display:flex;flex-direction:column;gap:3px;">
+          <div style="font-size:10px;color:var(--t3);">Select a work type to see available templates.</div>
+        </div>
       </div>
       <div class="sb-sec">
         <span class="fl">Legend</span>
@@ -222,7 +220,16 @@ body{background:var(--bg);color:var(--t1);font-family:'Outfit',sans-serif;height
         <textarea class="fi" placeholder="Optional notes — e.g. residential vs commercial, Cat 2 vs Cat 3 considerations…"></textarea>
       </div>
       <div class="sb-foot">
-        <button class="gen-btn" onclick="generateWorkflow()">⚡ Generate Workflow</button>
+        <button class="gen-btn" onclick="generateWorkflow()" style="margin-bottom:7px;">⚡ Generate Scaffold</button>
+        <button id="ai-gen-btn" onclick="aiGenerateWorkflow()"
+          style="width:100%;padding:9px 0;font-size:12px;letter-spacing:.04em;
+            background:linear-gradient(135deg,#5ba3f5,#a78bfa);border:none;border-radius:6px;
+            color:#fff;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;
+            box-shadow:0 0 14px rgba(91,163,245,.35);transition:opacity .15s;"
+          onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+          &#10038; AI Generate Workflow
+        </button>
+        <div id="ai-status" style="display:none;margin-top:7px;padding:7px 10px;background:var(--s2);border:1px solid var(--br);border-radius:6px;font-size:10px;color:var(--t2);text-align:center;font-family:'Space Mono',monospace;"></div>
       </div>
     </div>
 
@@ -331,7 +338,7 @@ body{background:var(--bg);color:var(--t1);font-family:'Outfit',sans-serif;height
         <div id="staff-list-panel" style="font-size:11px;color:var(--t3);">Loading staff from Job-Dox…</div>
         <div style="margin-top:auto;padding-top:12px;border-top:1px solid var(--br);">
           <div style="font-size:10px;color:var(--t3);line-height:1.6;">Staff are synced from <strong style="color:var(--t1);">Settings › Staff</strong> in Job-Dox. Tasks are auto-assigned by System Role when you generate a workflow.</div>
-          <a href="JobDoxPortal.jsx" target="_blank" style="display:block;margin-top:8px;padding:6px 10px;background:rgba(91,163,245,0.08);border:1px solid rgba(91,163,245,0.2);border-radius:6px;font-size:10px;color:var(--blue);text-decoration:none;text-align:center;">→ Open Job-Dox Settings</a>
+          <a href="/portal/" target="_blank" style="display:block;margin-top:8px;padding:6px 10px;background:rgba(91,163,245,0.08);border:1px solid rgba(91,163,245,0.2);border-radius:6px;font-size:10px;color:var(--blue);text-decoration:none;text-align:center;">→ Open Job-Dox Settings</a>
         </div>
       </div>
 
@@ -392,18 +399,22 @@ body{background:var(--bg);color:var(--t1);font-family:'Outfit',sans-serif;height
     <!-- Push Panel -->
     <div class="push-panel">
       <div class="rtabs">
-        <button class="rtab on">⬡ Push Config</button>
-        <button class="rtab">◈ Push Log</button>
+        <button class="rtab on" onclick="switchPtab(this,'save')" id="ptab-save">◈ Save Template</button>
+        <button class="rtab" onclick="switchPtab(this,'library')" id="ptab-library">⬡ Library</button>
       </div>
-      <div class="push-body">
+
+      <!-- ── SAVE TEMPLATE TAB ── -->
+      <div class="push-body" id="ptab-save-body">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
-          <span class="fl" style="margin-bottom:0;">Destination</span>
-          <span class="cortex-badge"><span class="cortex-dot"></span>CortexAI</span>
+          <span class="fl" style="margin-bottom:0;">Work Type</span>
+          <span class="cortex-badge" id="wt-badge-panel"><span class="cortex-dot"></span>none selected</span>
         </div>
-        <div><span class="fl">Workflow Name</span>
-          <input class="fi" style="font-size:11px;" id="wf-name" value="Water Damage Restoration — Standard SOP"/>
-          <p style="font-size:10px;color:var(--t3);margin-top:4px;line-height:1.5;">This workflow will be saved as a reusable template in Job-Dox, available to assign to any job.</p>
+
+        <div><span class="fl">Template Name</span>
+          <input class="fi" style="font-size:11px;" id="wf-name" value=""/>
+          <p style="font-size:10px;color:var(--t3);margin-top:4px;line-height:1.5;">Saved templates auto-apply when a matching work type is selected on new projects in Job-Dox.</p>
         </div>
+
         <div>
           <span class="fl">Staff Assignment Mode</span>
           <select class="fi" style="font-size:11px;cursor:pointer;" id="assign-mode" onchange="rerender()">
@@ -411,7 +422,6 @@ body{background:var(--bg);color:var(--t1);font-family:'Outfit',sans-serif;height
             <option value="manual">Manual (assign per task)</option>
             <option value="unassigned">Leave Unassigned</option>
           </select>
-          <p style="font-size:10px;color:var(--t3);margin-top:4px;line-height:1.5;">Auto mode matches task roles to staff from Settings › Staff in Job-Dox.</p>
         </div>
 
         <!-- Assigned staff summary -->
@@ -420,17 +430,43 @@ body{background:var(--bg);color:var(--t1);font-family:'Outfit',sans-serif;height
           <div id="assign-summary-list" style="font-size:11px;color:var(--t3);">No staff synced.</div>
         </div>
 
+        <!-- Overwrite warning (shown if template already exists) -->
+        <div id="overwrite-warn" style="display:none;padding:8px 11px;background:rgba(232,156,24,.1);border:1px solid rgba(232,156,24,.3);border-radius:7px;font-size:10px;color:var(--amber);line-height:1.6;">
+          <strong>Template exists</strong> for this work type.<br/>Saving will overwrite the current version.
+        </div>
+
         <div class="push-footer">
           <div class="push-summary" id="push-summary">
-            <span class="fl" style="margin-bottom:8px;">Push Summary</span>
-            <div class="push-row"><span class="push-lbl">Tasks</span><span class="push-val" style="color:#e43531;" id="ps-tasks">94</span></div>
-            <div class="push-row"><span class="push-lbl">Phases</span><span class="push-val" id="ps-phases">6</span></div>
-            <div class="push-row"><span class="push-lbl">Type</span><span class="push-val" style="color:var(--t2);" id="ps-type">Standard SOP</span></div>
-            <div class="push-row"><span class="push-lbl">Destination</span><span class="push-val" style="color:var(--blue);">Job-Dox</span></div>
+            <span class="fl" style="margin-bottom:8px;">Summary</span>
+            <div class="push-row"><span class="push-lbl">Tasks</span><span class="push-val" style="color:#e43531;" id="ps-tasks">0</span></div>
+            <div class="push-row"><span class="push-lbl">Phases</span><span class="push-val" id="ps-phases">0</span></div>
+            <div class="push-row"><span class="push-lbl">Triggers</span><span class="push-val" style="color:var(--purple);" id="ps-triggers">0</span></div>
           </div>
-          <button class="push-main-btn" onclick="pushWorkflow()">↑ Push to Job-Dox</button>
+          <button class="push-main-btn" onclick="saveAsTemplate()" id="save-tpl-btn" style="margin-bottom:8px;">
+            ◈ Save as Template
+          </button>
+          <button onclick="pushOneTime()" style="width:100%;padding:7px 0;font-size:11px;background:transparent;border:1px solid var(--br);border-radius:6px;color:var(--t2);cursor:pointer;font-family:'Outfit',sans-serif;transition:all .15s;"
+            onmouseover="this.style.borderColor='var(--blue)';this.style.color='var(--blue)'"
+            onmouseout="this.style.borderColor='var(--br)';this.style.color='var(--t2)'">
+            ↑ Push Once (no save)
+          </button>
         </div>
       </div>
+
+      <!-- ── LIBRARY TAB ── -->
+      <div class="push-body" id="ptab-library-body" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <span class="fl" style="margin-bottom:0;">Saved Templates</span>
+          <button onclick="refreshLibrary()" style="background:none;border:none;cursor:pointer;font-size:9px;color:var(--blue);font-family:'Space Mono',monospace;">↺ Refresh</button>
+        </div>
+        <div id="template-library-list" style="display:flex;flex-direction:column;gap:7px;">
+          <div style="font-size:11px;color:var(--t3);text-align:center;padding:20px 0;">No templates saved yet.</div>
+        </div>
+        <div style="margin-top:auto;padding-top:12px;border-top:1px solid var(--br);font-size:10px;color:var(--t3);line-height:1.6;">
+          Templates saved here auto-apply in Job-Dox when a project is created with a matching work type. Zero API cost — runs entirely from your saved data.
+        </div>
+      </div>
+
       <div class="conn-status">
         <div class="dot" id="conn-dot-results"></div>
         <span class="mono-sm" id="conn-lbl-results">checking…</span>
@@ -542,9 +578,9 @@ function updateFilterRoles() {
 }
 
 /* ══════════════════════════════════════════════
-   TASK DATA
+   BUILT-IN TEMPLATES
 ══════════════════════════════════════════════ */
-const PHASES=[
+const WATER_PHASES=[
   {
     name:'Emergency Response & Initial Dispatch',
     desc:'First contact protocol, crew mobilization, and on-site emergency stabilization',
@@ -636,10 +672,42 @@ const PHASES=[
       {id:'T083',title:'Final Invoice Generation & Submission',prio:'High',role:'Billing Specialist',min:30,tags:['billing','documentation'],
        desc:'Generate final invoice from approved Xactimate scope in billing system. Submit to TPA portal and email copy to adjuster. Set AR follow-up reminder at 14 days.',
        cl:['Open billing module; locate the job record','Import Xactimate totals from approved estimate','Verify all invoice line items match approved scope exactly','Generate invoice PDF; confirm invoice number is auto-assigned','Submit to TPA portal and email copy to adjuster','Set 14-day AR follow-up reminder','Update job status to "Invoice Submitted"'],
-       notes:'Standard payment terms: Net 30. Schedule AR follow-up at 14, 30, and 45 days.'},
+       notes:'Standard payment terms: Net 30. Schedule AR follow-up at 14, 30, and 45 days.',
+       statusTrigger:'Completed'},
     ]
   }
 ];
+
+// Mutable working set — loaded from template or blank scaffold
+let PHASES = [];
+
+// Generate blank scaffold phases for a work type with no template
+function buildBlankScaffold(workTypeName) {
+  const phases = [
+    { name:`${workTypeName} — Initial Response`,    desc:'First contact, dispatch, and site mobilization', dur:'TBD', tasks:1,
+      onCompleteStatus:'In Progress',
+      items:[{id:`T${Date.now()}-1`,title:'Initial Intake & Dispatch',prio:'Critical',role:'Project Manager',min:30,
+        tags:['intake'],desc:'Create job record, dispatch crew.',cl:['Create job record','Contact client','Dispatch crew'],notes:'',statusTrigger:'In Progress'}]
+    },
+    { name:`${workTypeName} — Assessment & Documentation`, desc:'Site assessment, documentation, and scope development', dur:'TBD', tasks:1,
+      items:[{id:`T${Date.now()}-2`,title:'Site Assessment & Photo Documentation',prio:'High',role:'Lead Technician',min:60,
+        tags:['assessment','documentation'],desc:'Assess site, document conditions, begin scope.',cl:['Walk site','Document all affected areas','Begin scope of work'],notes:''}]
+    },
+    { name:`${workTypeName} — Active Work`, desc:'Primary scope of work execution', dur:'TBD', tasks:1,
+      items:[{id:`T${Date.now()}-3`,title:'Execute Scope of Work',prio:'High',role:'Lead Technician',min:120,
+        tags:['field'],desc:'Perform primary work scope per IICRC standards.',cl:['Execute scope','Document progress','Update PM'],notes:''}]
+    },
+    { name:`${workTypeName} — QC & Completion`, desc:'Quality control inspection and customer sign-off', dur:'TBD', tasks:1,
+      items:[{id:`T${Date.now()}-4`,title:'Final Inspection & Certificate of Completion',prio:'Critical',role:'QC Inspector',min:45,
+        tags:['compliance','documentation'],desc:'Conduct final QC inspection and obtain customer sign-off.',cl:['Inspect all work','Walk through with customer','Obtain signature on Certificate of Completion'],notes:'',statusTrigger:'Completed'}]
+    },
+    { name:`${workTypeName} — Billing & Closeout`, desc:'Invoice generation and job record closeout', dur:'TBD', tasks:1,
+      items:[{id:`T${Date.now()}-5`,title:'Generate Invoice & Close Job',prio:'High',role:'Billing Specialist',min:30,
+        tags:['billing'],desc:'Generate final invoice and close job record.',cl:['Build estimate','Generate invoice','Submit to client/TPA','Close job record'],notes:''}]
+    },
+  ];
+  return phases;
+}
 
 const STAFF_ROLES_DEFAULT=[
   {name:'Project Manager',color:'#e43531'},{name:'Lead Technician',color:'#5ba3f5'},
@@ -651,11 +719,131 @@ const STAFF_ROLES_DEFAULT=[
 
 const PRIO={Critical:{color:'#e43531',bg:'rgba(228,53,49,0.12)'},High:{color:'#e89c18',bg:'rgba(232,156,24,0.12)'},Medium:{color:'#5ba3f5',bg:'rgba(91,163,245,0.12)'},Low:{color:'#404866',bg:'rgba(64,72,102,0.15)'}};
 
-let openPh = new Set([PHASES[0].name]);
+let openPh = new Set();
 let openTk = new Set();
 let isDark  = true;
 let filterRole = '';
 let filterPrio = '';
+
+/* ══════════════════════════════════════════════
+   COMPANY CONFIG — reads from localStorage written by Job-Dox portal
+   Keys: jd_company_config, jd_company_worktypes, jd_company_statuses
+══════════════════════════════════════════════ */
+let COMPANY_WORK_TYPES = [];   // [{id, name, color, hasWorkflow}]
+let COMPANY_STATUSES   = [];   // [{id, name, color, triggerTask}]
+let ACTIVE_WORK_TYPE   = null; // currently selected work type name
+
+const BUILTIN_TEMPLATES = {
+  "Water Mitigation": true,
+};
+
+function loadCompanyConfig() {
+  try {
+    const raw = localStorage.getItem('jd_company_config');
+    if (raw) {
+      const cfg = JSON.parse(raw);
+      COMPANY_WORK_TYPES = cfg.workTypes  || [];
+      COMPANY_STATUSES   = cfg.statuses   || [];
+    } else {
+      // Fallback defaults if portal hasn't synced yet
+      const wtRaw = localStorage.getItem('jd_company_worktypes');
+      const stRaw = localStorage.getItem('jd_company_statuses');
+      COMPANY_WORK_TYPES = wtRaw ? JSON.parse(wtRaw) : [
+        {id:"wt-1",name:"Water Mitigation",color:"#3b82f6",hasWorkflow:true},
+        {id:"wt-2",name:"Fire & Smoke",    color:"#f97316",hasWorkflow:false},
+        {id:"wt-3",name:"Mold Remediation",color:"#10b981",hasWorkflow:false},
+        {id:"wt-4",name:"Storm Damage",    color:"#8b5cf6",hasWorkflow:false},
+        {id:"wt-5",name:"Reconstruction",  color:"#6b7280",hasWorkflow:false},
+        {id:"wt-6",name:"Demo",            color:"#f43f5e",hasWorkflow:false},
+        {id:"wt-7",name:"Contents",        color:"#ec4899",hasWorkflow:false},
+      ];
+      COMPANY_STATUSES = stRaw ? JSON.parse(stRaw) : [
+        {id:"st-1",name:"New Lead",        color:"#8b95b0",triggerTask:""},
+        {id:"st-2",name:"Scoping",         color:"#e89c18",triggerTask:""},
+        {id:"st-3",name:"In Progress",     color:"#5ba3f5",triggerTask:"contract signed"},
+        {id:"st-4",name:"Pending Approval",color:"#a78bfa",triggerTask:"scope approved"},
+        {id:"st-5",name:"On Hold",         color:"#e43531",triggerTask:""},
+        {id:"st-6",name:"Completed",       color:"#1ad98a",triggerTask:"certificate of completion"},
+      ];
+    }
+  } catch(e) { COMPANY_WORK_TYPES = []; COMPANY_STATUSES = []; }
+
+  populateWorkTypeSelector();
+}
+
+function populateWorkTypeSelector() {
+  const sel = document.getElementById('worktype-sel');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Select Work Type —</option>';
+  COMPANY_WORK_TYPES.forEach(wt => {
+    const opt = document.createElement('option');
+    opt.value = wt.name;
+    opt.textContent = wt.name;
+    if (!wt.hasWorkflow) opt.textContent += ' ★ needs workflow';
+    sel.appendChild(opt);
+  });
+  updateTemplateBtns(null);
+}
+
+function updateTemplateBtns(wtName) {
+  const container = document.getElementById('template-btns');
+  if (!container) return;
+  const wt = COMPANY_WORK_TYPES.find(w=>w.name===wtName);
+  const hasBuiltin = BUILTIN_TEMPLATES[wtName];
+
+  if (!wtName) {
+    container.innerHTML = '<div style="font-size:10px;color:var(--t3);">Select a work type to see templates.</div>';
+    return;
+  }
+
+  if (hasBuiltin) {
+    container.innerHTML = `<button class="tpl-btn" onclick="loadBuiltinTemplate('${wtName}')"
+      style="background:rgba(91,163,245,0.09);border:1px solid #5ba3f5;color:#5ba3f5;">
+      Load ${wtName} SOP Template
+    </button>`;
+  } else {
+    container.innerHTML = `<div style="font-size:10px;color:var(--amber);line-height:1.6;padding:6px 8px;background:rgba(232,156,24,.07);border:1px solid rgba(232,156,24,.2);border-radius:5px;">
+      No template built yet for <strong style="color:var(--t1);">${wtName}</strong>.<br/>
+      Use <em>Generate Workflow</em> to create a blank scaffold, then customize it.
+    </div>`;
+  }
+}
+
+function onWorkTypeChange() {
+  const wt = document.getElementById('worktype-sel')?.value;
+  ACTIVE_WORK_TYPE = wt || null;
+  const wtConf = COMPANY_WORK_TYPES.find(w=>w.name===wt);
+  const warn = document.getElementById('wt-no-workflow-warn');
+  if (warn) warn.style.display = (wt && wtConf && !wtConf.hasWorkflow) ? 'block' : 'none';
+  updateTemplateBtns(wt);
+
+  // Panel badge
+  const badge = document.getElementById('wt-badge-panel');
+  if (badge) badge.innerHTML = wt
+    ? `<span class="cortex-dot" style="background:${wtConf?.color||'var(--blue)'}"></span>${wt}`
+    : `<span class="cortex-dot"></span>none selected`;
+
+  // Name field
+  const nameField = document.getElementById('wf-name');
+  if (nameField && wt) nameField.value = `${wt} — Standard SOP`;
+
+  // Overwrite warning
+  updateOverwriteWarning();
+
+  // AI button label
+  const aiBtn = document.getElementById('ai-gen-btn');
+  if (aiBtn) aiBtn.textContent = wt ? `\u2736 AI Generate: ${wt}` : '\u2736 AI Generate Workflow';
+}
+
+function loadBuiltinTemplate(name) {
+  if (name === 'Water Mitigation') {
+    PHASES = WATER_PHASES.map(p=>({...p}));
+    openPh = new Set([PHASES[0].name]);
+    openTk = new Set();
+    updateStats();
+    showToast(`Loaded: ${name} SOP template — ${PHASES.reduce((s,p)=>s+p.tasks,0)} tasks`);
+  }
+}
 
 /* Get assignee for a role */
 function getAssignee(role) {
@@ -723,6 +911,7 @@ function rerender() {
                 ${abadge}
                 <span class="time-badge">⏱ ${t.min}m</span>
                 ${t.tags.slice(0,3).map(tag=>`<span class="tag-chip"><span class="tag-v">${tag}</span></span>`).join('')}
+                ${t.statusTrigger ? `<span class="prio-badge" style="background:rgba(167,139,250,.15);color:#a78bfa;border:1px solid rgba(167,139,250,.3);">⚡ → ${t.statusTrigger}</span>` : ''}
               </div>
             </div>
             <span class="task-chevron">${ex ? '▴' : '▾'}</span>
@@ -771,32 +960,83 @@ function toggleTk(id) { openTk.has(id) ? openTk.delete(id) : openTk.add(id); rer
 function applyFilters() { rerender(); }
 
 function generateWorkflow() {
-  // Count all tasks
+  const wt = ACTIVE_WORK_TYPE || document.getElementById('worktype-sel')?.value;
+  if (!wt) { showToast('Select a work type first'); return; }
+
+  const wtConf = COMPANY_WORK_TYPES.find(w=>w.name===wt);
+  const hasBuiltin = BUILTIN_TEMPLATES[wt];
+
+  if (hasBuiltin && (!PHASES || PHASES.length === 0)) {
+    // Load the builtin template if not already loaded
+    PHASES = WATER_PHASES.map(p=>({...p}));
+  } else if (!hasBuiltin) {
+    // Build a blank scaffold for this work type
+    PHASES = buildBlankScaffold(wt);
+  }
+
+  // Inject status triggers into tasks based on company status config
+  PHASES.forEach(ph => {
+    ph.items.forEach(t => {
+      if (!t.statusTrigger) {
+        const lc = t.title.toLowerCase();
+        const match = COMPANY_STATUSES.find(s => s.triggerTask && lc.includes(s.triggerTask.toLowerCase()));
+        if (match) t.statusTrigger = match.name;
+      }
+    });
+  });
+
+  openPh = new Set([PHASES[0]?.name]);
+  openTk = new Set();
+
   const total = PHASES.reduce((s,p) => s + p.tasks, 0);
-  const navCount = document.getElementById('task-count-nav');
-  if (navCount) navCount.textContent = total;
-  document.getElementById('stat-tasks').textContent = total;
-  document.getElementById('ps-tasks').textContent = total;
-  document.getElementById('stat-phases').textContent = PHASES.length;
-  document.getElementById('ps-phases').textContent = PHASES.length;
-  showToast(`⚡ Workflow generated — ${total} tasks across ${PHASES.length} phases`);
+  updateStats();
+
+  const nameField = document.getElementById('wf-name');
+  if (nameField) nameField.value = `${wt} — Standard SOP`;
+
+  const wtype = !hasBuiltin ? 'scaffold' : 'SOP';
+  showToast(`⚡ ${wt} ${wtype} generated — ${total} tasks across ${PHASES.length} phases`);
   setView('results');
 }
 
-function pushWorkflow() {
-  const name = document.getElementById('wf-name')?.value || 'Workflow';
-  const mode = document.getElementById('assign-mode')?.value || 'auto';
+function updateStats() {
   const total = PHASES.reduce((s,p) => s + p.tasks, 0);
+  const triggerCount = PHASES.reduce((s,p) => s + p.items.filter(t=>t.statusTrigger).length, 0);
+  const navCount = document.getElementById('task-count-nav');
+  if (navCount) navCount.textContent = total;
+  const stEl = document.getElementById('stat-tasks');    if (stEl) stEl.textContent = total;
+  const psEl = document.getElementById('ps-tasks');      if (psEl) psEl.textContent = total;
+  const phEl = document.getElementById('stat-phases');   if (phEl) phEl.textContent = PHASES.length;
+  const ppEl = document.getElementById('ps-phases');     if (ppEl) ppEl.textContent = PHASES.length;
+  const ptEl = document.getElementById('ps-triggers');   if (ptEl) ptEl.textContent = triggerCount;
+  updateOverwriteWarning();
+  updateFilterRoles();
+}
 
-  // Build export object and write to localStorage
-  const wfExport = {
+/* ══════════════════════════════════════════════
+   TEMPLATE STORAGE — localStorage key: jd_workflow_templates
+   Schema: { [workTypeName]: { name, workType, savedAt, phases, statusTriggers } }
+══════════════════════════════════════════════ */
+const LS_WF_KEY = 'jd_workflow_templates';
+
+function loadAllTemplates() {
+  try { return JSON.parse(localStorage.getItem(LS_WF_KEY)) || {}; } catch { return {}; }
+}
+
+function buildWorkflowExport(name, mode) {
+  const triggers = COMPANY_STATUSES.filter(s=>s.triggerTask).map(s=>({
+    keyword: s.triggerTask, toStatus: s.name, color: s.color,
+  }));
+  return {
     name,
+    workType: ACTIVE_WORK_TYPE || '',
     generatedAt: new Date().toISOString(),
-    workType: document.getElementById('worktype-sel')?.value || 'water',
+    statusTriggers: triggers,
     phases: PHASES.map(ph => ({
       name: ph.name,
       desc: ph.desc,
       dur: ph.dur,
+      onCompleteStatus: ph.onCompleteStatus || null,
       tasks: ph.items.map(t => ({
         id: t.id,
         title: t.title,
@@ -805,7 +1045,8 @@ function pushWorkflow() {
         assignedTo: mode === 'auto' ? ((ROLE_MAP[t.role]||[])[0]?.name || null) : null,
         durationMin: t.min,
         tags: t.tags,
-        checklist: t.cl
+        checklist: t.cl,
+        statusTrigger: t.statusTrigger || null,
       }))
     })),
     staffAssignments: Object.keys(ROLE_MAP).map(r => ({
@@ -813,9 +1054,163 @@ function pushWorkflow() {
       assignees: ROLE_MAP[r].map(m => m.name||m.firstName+' '+(m.lastName||''))
     }))
   };
+}
 
-  try { localStorage.setItem('jd_cortex_workflow', JSON.stringify(wfExport)); } catch(_){}
-  showToast(`✓ "${name}" pushed to Job-Dox — ${total} tasks ready`);
+function saveAsTemplate() {
+  const wt = ACTIVE_WORK_TYPE;
+  if (!wt) { showToast('Select a work type before saving'); return; }
+  if (!PHASES || PHASES.length === 0) { showToast('Generate a workflow first'); return; }
+
+  const name = document.getElementById('wf-name')?.value || `${wt} — Standard SOP`;
+  const mode = document.getElementById('assign-mode')?.value || 'auto';
+  const wfExport = buildWorkflowExport(name, mode);
+
+  const all = loadAllTemplates();
+  const isOverwrite = !!all[wt];
+  all[wt] = { ...wfExport, savedAt: new Date().toISOString() };
+
+  try {
+    localStorage.setItem(LS_WF_KEY, JSON.stringify(all));
+    // Also mark the work type as having a workflow in company config
+    const cfg = JSON.parse(localStorage.getItem('jd_company_config') || '{}');
+    if (cfg.workTypes) {
+      cfg.workTypes = cfg.workTypes.map(w => w.name === wt ? {...w, hasWorkflow:true} : w);
+      localStorage.setItem('jd_company_config', JSON.stringify(cfg));
+    }
+    const total = PHASES.reduce((s,p)=>s+p.tasks,0);
+    showToast(`${isOverwrite ? '↺ Updated' : '◈ Saved'}: "${name}" — ${total} tasks auto-apply on new ${wt} projects`);
+    updateOverwriteWarning();
+    refreshLibrary();
+  } catch(e) {
+    showToast('Error saving template');
+  }
+}
+
+function pushOneTime() {
+  if (!PHASES || PHASES.length === 0) { showToast('Generate a workflow first'); return; }
+  const name = document.getElementById('wf-name')?.value || 'Workflow';
+  const mode = document.getElementById('assign-mode')?.value || 'auto';
+  const wfExport = buildWorkflowExport(name, mode);
+  const total = PHASES.reduce((s,p)=>s+p.tasks,0);
+  try {
+    localStorage.setItem('jd_cortex_workflow', JSON.stringify(wfExport));
+    showToast(`↑ "${name}" pushed once — ${total} tasks · not saved as template`);
+  } catch(_){}
+}
+
+function updateOverwriteWarning() {
+  const warn = document.getElementById('overwrite-warn');
+  if (!warn) return;
+  const all = loadAllTemplates();
+  warn.style.display = (ACTIVE_WORK_TYPE && all[ACTIVE_WORK_TYPE]) ? 'block' : 'none';
+}
+
+function refreshLibrary() {
+  const container = document.getElementById('template-library-list');
+  if (!container) return;
+  const all = loadAllTemplates();
+  const keys = Object.keys(all);
+  if (keys.length === 0) {
+    container.innerHTML = '<div style="font-size:11px;color:var(--t3);text-align:center;padding:20px 0;">No templates saved yet.<br/>Build a workflow and click Save as Template.</div>';
+    return;
+  }
+  container.innerHTML = keys.map(wt => {
+    const tpl = all[wt];
+    const taskCount = (tpl.phases||[]).reduce((s,p)=>s+(p.tasks||[]).length,0);
+    const phaseCount = (tpl.phases||[]).length;
+    const savedDate = tpl.savedAt ? new Date(tpl.savedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+    const wtConf = COMPANY_WORK_TYPES.find(w=>w.name===wt);
+    const color = wtConf?.color || '#5ba3f5';
+    return `
+      <div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;overflow:hidden;">
+        <div style="padding:10px 12px;border-left:3px solid ${color};">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+            <span style="font-size:12px;font-weight:700;color:var(--t1);">${wt}</span>
+            <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--green);background:rgba(26,217,138,.12);padding:1px 6px;border-radius:4px;">ACTIVE</span>
+          </div>
+          <div style="font-size:10px;color:var(--t3);">${tpl.name}</div>
+          <div style="display:flex;gap:10px;margin-top:6px;font-family:'Space Mono',monospace;font-size:9px;color:var(--t2);">
+            <span>${taskCount} tasks</span>
+            <span>${phaseCount} phases</span>
+            <span>Saved ${savedDate}</span>
+          </div>
+        </div>
+        <div style="display:flex;border-top:1px solid var(--br);">
+          <button onclick="loadTemplateIntoBuilder('${wt}')"
+            style="flex:1;padding:7px;font-size:10px;background:none;border:none;border-right:1px solid var(--br);color:var(--blue);cursor:pointer;font-family:'Outfit',sans-serif;">
+            Edit / Update
+          </button>
+          <button onclick="deleteTemplate('${wt}')"
+            style="padding:7px 14px;font-size:10px;background:none;border:none;color:var(--acc);cursor:pointer;font-family:'Outfit',sans-serif;">
+            Delete
+          </button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function loadTemplateIntoBuilder(wt) {
+  const all = loadAllTemplates();
+  const tpl = all[wt];
+  if (!tpl) return;
+  // Rebuild PHASES from saved template
+  PHASES = tpl.phases.map(ph => ({
+    name: ph.name,
+    desc: ph.desc,
+    dur: ph.dur,
+    tasks: ph.tasks.length,
+    onCompleteStatus: ph.onCompleteStatus || null,
+    items: ph.tasks.map(t => ({
+      id: t.id,
+      title: t.title,
+      prio: t.priority,
+      role: t.role,
+      min: t.durationMin,
+      tags: t.tags || [],
+      cl: t.checklist || [],
+      desc: '',
+      notes: '',
+      statusTrigger: t.statusTrigger || null,
+    }))
+  }));
+  ACTIVE_WORK_TYPE = wt;
+  openPh = new Set([PHASES[0]?.name]);
+  openTk = new Set();
+  // Sync selector
+  const sel = document.getElementById('worktype-sel');
+  if (sel) sel.value = wt;
+  const nameField = document.getElementById('wf-name');
+  if (nameField) nameField.value = tpl.name;
+  updateStats();
+  updateOverwriteWarning();
+  switchPtab(document.getElementById('ptab-save'), 'save');
+  setView('results');
+  showToast(`↺ Loaded "${tpl.name}" — edit and re-save to update`);
+}
+
+function deleteTemplate(wt) {
+  if (!confirm(`Delete the "${wt}" template? This cannot be undone.`)) return;
+  const all = loadAllTemplates();
+  delete all[wt];
+  localStorage.setItem(LS_WF_KEY, JSON.stringify(all));
+  // Mark work type as no longer having a workflow
+  try {
+    const cfg = JSON.parse(localStorage.getItem('jd_company_config') || '{}');
+    if (cfg.workTypes) {
+      cfg.workTypes = cfg.workTypes.map(w => w.name === wt ? {...w, hasWorkflow:false} : w);
+      localStorage.setItem('jd_company_config', JSON.stringify(cfg));
+    }
+  } catch {}
+  showToast(`Deleted "${wt}" template`);
+  refreshLibrary();
+}
+
+function switchPtab(btn, tab) {
+  document.querySelectorAll('.rtab').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  document.getElementById('ptab-save-body').style.display    = tab==='save'    ? 'flex' : 'none';
+  document.getElementById('ptab-library-body').style.display = tab==='library' ? 'flex' : 'none';
+  if (tab === 'library') refreshLibrary();
 }
 
 function switchRtab(btn, tab) {
@@ -842,24 +1237,6 @@ function toggleTheme() {
   document.getElementById('theme-btn').textContent = isDark ? '🌙 Dark' : '☀️ Light';
 }
 
-function onWorkTypeChange() {
-  const wt = document.getElementById('worktype-sel')?.value;
-  loadTemplate(wt || 'water');
-}
-
-function loadTemplate(type) {
-  document.querySelectorAll('.tpl-btn').forEach(b => {
-    b.style.background = 'var(--s2)';
-    b.style.border = '1px solid var(--br)';
-    b.style.color = 'var(--t2)';
-  });
-  const el = document.getElementById(`tpl-${type}`);
-  if (el) {
-    el.style.background = 'rgba(228,53,49,0.09)';
-    el.style.border = '1px solid #e43531';
-    el.style.color = '#e43531';
-  }
-}
 
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -868,7 +1245,102 @@ function showToast(msg) {
   setTimeout(() => t.style.display = 'none', 3000);
 }
 
-// Poll localStorage every 2s so staff sync from portal is live
+/* ══════════════════════════════════════════════
+   AI WORKFLOW GENERATION — Netlify Function proxy
+   Endpoint: /.netlify/functions/cortex-generate
+   Key never touches the browser — lives server-side only
+══════════════════════════════════════════════ */
+async function aiGenerateWorkflow() {
+  const wt = ACTIVE_WORK_TYPE;
+  if (!wt) { showToast('Select a work type first'); return; }
+
+  const notes   = document.querySelector('.sb-ctx textarea')?.value || '';
+  const btn     = document.getElementById('ai-gen-btn');
+  const status  = document.getElementById('ai-status');
+
+  // Gather company context to send with the request
+  const context = {
+    workType:   wt,
+    notes:      notes,
+    roles:      STAFF.length ? [...new Set(STAFF.map(s=>s.systemRole))] : Object.keys(ROLE_COLORS),
+    statuses:   COMPANY_STATUSES.map(s=>s.name),
+    statusTriggers: COMPANY_STATUSES.filter(s=>s.triggerTask).map(s=>({
+      keyword: s.triggerTask, toStatus: s.name
+    })),
+  };
+
+  btn.disabled = true;
+  btn.style.opacity = '.5';
+  status.style.display = 'block';
+  status.textContent = 'Contacting CortexAI...';
+
+  try {
+    const res = await fetch('/.netlify/functions/cortex-generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(context),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({error:'Server error'}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+
+    if (!data.phases || !Array.isArray(data.phases)) {
+      throw new Error('Invalid response from AI — no phases returned');
+    }
+
+    // Load AI-generated phases into working set
+    PHASES = data.phases.map((ph, pi) => ({
+      name:  ph.name,
+      desc:  ph.desc || '',
+      dur:   ph.dur  || 'TBD',
+      tasks: (ph.items||[]).length,
+      onCompleteStatus: ph.onCompleteStatus || null,
+      items: (ph.items||[]).map((t, ti) => ({
+        id:            `AI-${pi+1}-${ti+1}`,
+        title:         t.title,
+        prio:          t.priority || 'Medium',
+        role:          t.role || 'Project Manager',
+        min:           t.durationMin || 30,
+        tags:          t.tags || [],
+        cl:            t.checklist || [],
+        desc:          t.desc || '',
+        notes:         t.notes || '',
+        statusTrigger: t.statusTrigger || null,
+      }))
+    }));
+
+    openPh = new Set([PHASES[0]?.name]);
+    openTk = new Set();
+    updateStats();
+
+    const total = PHASES.reduce((s,p)=>s+p.tasks,0);
+    status.textContent = `Generated ${total} tasks across ${PHASES.length} phases`;
+    setTimeout(()=>{ status.style.display='none'; }, 4000);
+
+    const nameField = document.getElementById('wf-name');
+    if (nameField) nameField.value = `${wt} — AI Generated SOP`;
+
+    showToast(`\u2736 AI generated ${wt} workflow — ${total} tasks`);
+    setView('results');
+
+  } catch(err) {
+    console.error('AI generate error:', err);
+    status.style.display = 'block';
+    status.style.color = 'var(--acc)';
+    status.textContent = `Error: ${err.message}`;
+    setTimeout(()=>{ status.style.display='none'; status.style.color='var(--t2)'; }, 6000);
+    showToast('AI generation failed — try scaffold instead');
+  } finally {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  }
+}
+
+// Poll localStorage every 2s so staff AND company config sync from portal is live
 function pollStaff() {
   try {
     const raw = localStorage.getItem('jd_cortex_staff');
@@ -880,9 +1352,27 @@ function pollStaff() {
   } catch(_){}
 }
 
+function pollCompanyConfig() {
+  try {
+    const raw = localStorage.getItem('jd_company_config');
+    if (!raw) return;
+    const cfg = JSON.parse(raw);
+    const wtSig = JSON.stringify(cfg.workTypes);
+    const stSig = JSON.stringify(cfg.statuses);
+    if (wtSig !== JSON.stringify(COMPANY_WORK_TYPES) || stSig !== JSON.stringify(COMPANY_STATUSES)) {
+      COMPANY_WORK_TYPES = cfg.workTypes || [];
+      COMPANY_STATUSES   = cfg.statuses  || [];
+      populateWorkTypeSelector();
+      showToast('↺ Company config updated from Job-Dox');
+    }
+  } catch(_){}
+}
+
 // Init
+loadCompanyConfig();
 loadStaff();
 setInterval(pollStaff, 2000);
+setInterval(pollCompanyConfig, 3000);
 </script>
 </body>
 </html>
