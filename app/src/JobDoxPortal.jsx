@@ -5587,7 +5587,15 @@ export default function JobDoxPortal() {
         <button className="rail-btn" data-tip={isLight?"Dark mode":"Light mode"} onClick={toggleTheme} style={{color:isLight?"var(--t2)":"#f5c518"}}>
           {isLight ? Ic.sun : Ic.moon}
         </button>
-        <button className="rail-btn" data-tip="Sign Out" onClick={()=>window.$memberstackDom?.logout()} style={{color:"var(--t3)"}}>
+        <button className="rail-btn" data-tip="Sign Out" onClick={async()=>{
+          try {
+            if (window.$memberstackDom?.logout) await window.$memberstackDom.logout();
+          } catch(e) {}
+          // Clear all local state and redirect regardless
+          localStorage.clear();
+          sessionStorage.clear();
+          window.location.href = "https://job-dox.ai";
+        }} style={{color:"var(--t3)"}}>
           {Ic.logout}
         </button>
       </nav>
