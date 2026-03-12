@@ -1,13 +1,9 @@
-# ══════════════════════════════════════════════════
-#  Job-Dox · netlify.toml
-#  Marketing site at root + Vite app in /app
-# ══════════════════════════════════════════════════
-
 [build]
-  command = "cd app && npm install && npm run build"
-  publish = "."
+  command   = "cd app && npm install && npm run build"
+  publish   = "."
+  functions = "netlify/functions"
 
-# ── SPA routing for the portal app ────────────────
+# ── SPA routing for React portal ──
 [[redirects]]
   from   = "/app/*"
   to     = "/app/dist/index.html"
@@ -18,10 +14,18 @@
   to     = "/app/dist/index.html"
   status = 200
 
-# ── Security headers ──────────────────────────────
+# ── Security headers ──
 [[headers]]
   for = "/*"
   [headers.values]
-    X-Frame-Options        = "DENY"
+    X-Frame-Options       = "DENY"
     X-Content-Type-Options = "nosniff"
-    Referrer-Policy        = "strict-origin-when-cross-origin"
+    Referrer-Policy       = "strict-origin-when-cross-origin"
+
+# ── CortexAI function — tighter headers ──
+[[headers]]
+  for = "/.netlify/functions/cortex-generate"
+  [headers.values]
+    # Only your own domain can call this — blocks third-party abuse
+    Access-Control-Allow-Origin = "https://job-dox.ai"
+    Cache-Control               = "no-store"
