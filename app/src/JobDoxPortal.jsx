@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
          doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where } from "firebase/firestore";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyAFwSEDPqKgAUbwbh_2KZNwLDdGCZEiq3E",
@@ -12,7 +13,14 @@ const FIREBASE_CONFIG = {
   appId:             "1:496631882511:web:3f7be61bcbb83a6ab4d47a",
 };
 const _fbApp = initializeApp(FIREBASE_CONFIG);
-const db = getFirestore(_fbApp);
+const db        = getFirestore(_fbApp);
+const _fbFns          = getFunctions(_fbApp);
+const sendSMS         = httpsCallable(_fbFns, "sendSMS");
+const initiateCall    = httpsCallable(_fbFns, "initiateCall");
+const savePhoneSettings = httpsCallable(_fbFns, "savePhoneSettings");
+
+/* ── Google Maps key — restrict this to your domain in Google Cloud Console ── */
+const GMAPS_KEY = "YOUR_GOOGLE_MAPS_API_KEY"; // ← replace with real key
 
 /* ══════════════════════════════════════════════════════════════════
    MEMBERSTACK CONFIG
@@ -368,6 +376,12 @@ const Ic = {
   water2:  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8z"/></svg>,
   storm:   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M11.5 2C6.81 2 3 5.81 3 10.5S6.81 19 11.5 19h.5v3c4.86-2.34 8-7 8-11.5C20 5.81 16.19 2 11.5 2zm1 14.5h-2v-2h2v2zm0-4h-2c0-3.25 3-3 3-5 0-1.1-.9-2-2-2s-2 .9-2 2h-2c0-2.21 1.79-4 4-4s4 1.79 4 4c0 2.5-3 2.75-3 5z"/></svg>,
   ic_list: <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>,
+  record:  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"/></svg>,
+  call_in: <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20 5.41L18.59 4 7 15.59V9H5v10h10v-2H8.41L20 5.41zM6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.57l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>,
+  call_out:<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M9 5v2h6.59L4 18.59 5.41 20 17 8.41V15h2V5H9zM6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.57l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>,
+  play:    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>,
+  pause:   <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>,
+  group:   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>,
   estimate:<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM9 11H7V9h2v2zm4 0h-2V9h2v2zm4 0h-2V9h2v2z"/></svg>,
   proj_report:<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>,
   ic_grid: <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3V3zm0 10h8v8H3v-8zm10-10h8v8h-8V3zm0 10h8v8h-8v-8z"/></svg>,
@@ -1038,54 +1052,206 @@ function ClockInModal({ proj, clockInState, onClockIn, onClockOut, onClose, curr
 }
 
 function NotifyModal({ proj, onClose, globalStaff=[] }) {
-  const staffNames = globalStaff.map(s=>`${s.firstName} ${s.lastName}`.trim()).filter(Boolean);
-  const [tech, setTech] = useState(staffNames[0]||"Crew");
-  const [eta, setEta]   = useState("30");
-  const [sent, setSent] = useState(false);
-  const firstName = (proj.client||"there").split(" ")[0];
-  const msg = `Hi ${firstName}! Your Job-Dox crew is on the way. ${tech} will arrive in approx. ${eta} min. He is IICRC certified with photo ID. Questions? Reply here or call us. — Job-Dox`;
+  // ── Staff selection (full object so we have photoUrl) ──
+  const staffList = globalStaff.filter(s => s.firstName || s.lastName);
+  const [selectedStaffId, setSelectedStaffId] = useState(staffList[0]?.id || "");
+  const selectedStaff = staffList.find(s => s.id === selectedStaffId) || staffList[0] || null;
+  const techName  = selectedStaff ? `${selectedStaff.firstName||""} ${selectedStaff.lastName||""}`.trim() : "Crew";
+  const photoUrl  = selectedStaff?.photoUrl || "";
+
+  // ── ETA state: "loading" | "ready" | "denied" | "error" | "manual" ──
+  const [eta,       setEta]       = useState("30");
+  const [etaState,  setEtaState]  = useState("loading"); // drives the UI indicator
+  const [sending,   setSending]   = useState(false);
+  const [sent,      setSent]      = useState(false);
+  const [sendError, setSendError] = useState("");
+
+  const firstName = (proj.client || "there").split(" ")[0];
+  const msg = `Hi ${firstName}! Your Job-Dox crew is on the way. ${techName} will arrive in approx. ${eta} min. They are IICRC certified with photo ID. Questions? Reply here or call us. — Job-Dox`;
+
+  // ── Geolocation + Distance Matrix on mount ──
+  useEffect(() => {
+    if (!navigator.geolocation) { setEtaState("manual"); return; }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const origin = `${pos.coords.latitude},${pos.coords.longitude}`;
+          const dest   = encodeURIComponent(proj.address || "");
+          if (!dest) { setEtaState("manual"); return; }
+
+          const url = `https://maps.googleapis.com/maps/api/distancematrix/json` +
+            `?origins=${origin}&destinations=${dest}` +
+            `&departure_time=now&traffic_model=best_guess` +
+            `&key=${GMAPS_KEY}`;
+
+          const res  = await fetch(url);
+          const data = await res.json();
+          const el   = data?.rows?.[0]?.elements?.[0];
+
+          if (el?.status === "OK" && el.duration_in_traffic?.value) {
+            const mins = Math.ceil(el.duration_in_traffic.value / 60);
+            setEta(String(mins));
+            setEtaState("ready");
+          } else {
+            setEtaState("manual");
+          }
+        } catch {
+          setEtaState("manual");
+        }
+      },
+      () => setEtaState("denied"),    // user denied location
+      { timeout: 8000 }
+    );
+  }, [proj.address]);
+
+  const doSend = async () => {
+    if (!proj.clientPhone) { setSendError("No client phone number on this project."); return; }
+    setSending(true);
+    setSendError("");
+    try {
+      await sendSMS({
+        to:       proj.clientPhone,
+        body:     msg,
+        mediaUrl: photoUrl,           // empty string → ignored by Cloud Function → plain SMS
+      });
+      setSent(true);
+      setTimeout(onClose, 2500);
+    } catch (err) {
+      setSendError(err?.message || "Send failed — check your Twilio config.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // ── ETA indicator label ──
+  const etaIndicator = {
+    loading: { color:"var(--t3)",  text:"Getting your location…" },
+    ready:   { color:"var(--green)",text:"Live traffic ETA" },
+    denied:  { color:"var(--amber)",text:"Location denied — enter manually" },
+    manual:  { color:"var(--amber)",text:"Enter ETA manually" },
+    error:   { color:"var(--amber)",text:"Could not calculate — enter manually" },
+  }[etaState] || { color:"var(--t3)", text:"" };
 
   return (
-    <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div className="overlay" onClick={e => e.target===e.currentTarget && onClose()}>
       <div className="modal modal-sm anim">
         <div className="modal-hd">
-          <div><div className="modal-ttl">{sent?"Message Sent!":"Notify Customer"}</div><div style={{fontSize:11,color:"var(--t3)",marginTop:1}}>Auto-text to {proj.client}</div></div>
+          <div>
+            <div className="modal-ttl">{sent ? "Message Sent!" : "Notify Customer"}</div>
+            <div style={{fontSize:11,color:"var(--t3)",marginTop:1}}>
+              {sent ? `Delivered to ${proj.clientPhone}` : `Auto-text to ${proj.client}`}
+            </div>
+          </div>
           <button className="btn btn-ghost btn-xs" onClick={onClose}>{Ic.close}</button>
         </div>
+
         <div className="modal-body">
           {sent ? (
             <div style={{textAlign:"center",padding:"24px 0"}}>
-              <div style={{width:52,height:52,borderRadius:"50%",background:"#1a8c4e",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",color:"#fff",fontSize:22}}>{Ic.sms}</div>
-              <div style={{fontWeight:700,fontSize:15}}>Text message sent</div>
+              <div style={{width:52,height:52,borderRadius:"50%",background:"rgba(26,217,138,.15)",border:"2px solid var(--green)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",color:"var(--green)",fontSize:22}}>
+                {Ic.check}
+              </div>
+              <div style={{fontWeight:700,fontSize:15}}>Message sent{photoUrl ? " with photo" : ""}!</div>
               <div style={{fontSize:12,color:"var(--t2)",marginTop:4}}>Delivered to {proj.clientPhone}</div>
             </div>
           ) : (
             <>
+              {/* Crew member selector */}
               <div>
                 <label className="lbl">Crew Member</label>
                 <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                  <Av name={tech} color="var(--acc)" size={40}/>
-                  <select className="sel" style={{flex:1}} value={tech} onChange={e=>setTech(e.target.value)}>
-                    {staffNames.length > 0
-                      ? staffNames.map(n=><option key={n}>{n}</option>)
-                      : <option>Crew</option>}
+                  {/* Show real photo if available, else initials avatar */}
+                  {photoUrl ? (
+                    <img
+                      src={photoUrl}
+                      alt={techName}
+                      style={{width:44,height:44,borderRadius:"50%",objectFit:"cover",border:"2px solid var(--br)",flexShrink:0}}
+                      onError={e => { e.target.style.display="none"; }}
+                    />
+                  ) : (
+                    <Av name={techName} color="var(--acc)" size={44}/>
+                  )}
+                  <select className="sel" style={{flex:1}} value={selectedStaffId}
+                    onChange={e => setSelectedStaffId(e.target.value)}>
+                    {staffList.length > 0
+                      ? staffList.map(s => {
+                          const n = `${s.firstName||""} ${s.lastName||""}`.trim();
+                          return <option key={s.id} value={s.id}>{n}</option>;
+                        })
+                      : <option value="">Crew</option>}
                   </select>
                 </div>
+                {/* Photo MMS indicator */}
+                <div style={{marginTop:5,fontSize:10,color:photoUrl?"var(--green)":"var(--t3)",display:"flex",alignItems:"center",gap:4}}>
+                  {photoUrl
+                    ? <>{Ic.photo} Photo will be included as MMS</>
+                    : <>No profile photo — will send as plain SMS. Add one in Settings › Staff.</>}
+                </div>
               </div>
-              <F label="ETA (minutes)" value={eta} onChange={setEta} options={["10","15","20","30","45","60","90"]}/>
+
+              {/* ETA field with live indicator */}
+              <div>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                  <label className="lbl" style={{margin:0}}>ETA (minutes)</label>
+                  <span style={{fontSize:9,color:etaIndicator.color,fontFamily:"var(--mono)",display:"flex",alignItems:"center",gap:4}}>
+                    {etaState==="loading" && (
+                      <span style={{width:8,height:8,border:"1.5px solid var(--t3)",borderTopColor:"var(--t2)",borderRadius:"50%",display:"inline-block",animation:"jd-spin .7s linear infinite"}}/>
+                    )}
+                    {etaState==="ready" && <span style={{width:6,height:6,borderRadius:"50%",background:"var(--green)",display:"inline-block"}}/>}
+                    {etaIndicator.text}
+                  </span>
+                </div>
+                <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                  <input
+                    type="number"
+                    className="inp"
+                    value={eta}
+                    onChange={e => { setEta(e.target.value); setEtaState("manual"); }}
+                    style={{width:90,flexShrink:0}}
+                    min="1"
+                    max="999"
+                  />
+                  <div style={{display:"flex",gap:4,flexWrap:"wrap",flex:1}}>
+                    {["10","15","20","30","45","60"].map(n => (
+                      <button key={n} className={`chip${eta===n?" on":""}`}
+                        onClick={() => { setEta(n); setEtaState("manual"); }}
+                        style={{fontSize:10,padding:"2px 8px"}}>{n}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Message preview */}
               <div>
                 <div className="lbl" style={{marginBottom:7}}>Message Preview</div>
-                <div style={{background:"var(--s3)",borderRadius:10,padding:12,display:"flex",justifyContent:"flex-end"}}>
+                <div style={{background:"var(--s3)",borderRadius:10,padding:12,display:"flex",justifyContent:"flex-end",flexDirection:"column",gap:8,alignItems:"flex-end"}}>
+                  {photoUrl && (
+                    <img src={photoUrl} alt="Staff photo"
+                      style={{width:80,height:80,borderRadius:10,objectFit:"cover",border:"2px solid var(--br-hi)"}}
+                      onError={e => { e.target.style.display="none"; }}/>
+                  )}
                   <div className="sms-bubble">{msg}</div>
                 </div>
               </div>
+
+              {sendError && (
+                <div style={{fontSize:11,color:"var(--acc)",background:"var(--acc-lo)",border:"1px solid rgba(228,53,49,.2)",borderRadius:7,padding:"8px 11px"}}>
+                  {sendError}
+                </div>
+              )}
             </>
           )}
         </div>
+
         {!sent && (
           <div className="modal-ft">
-            <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-            <button className="btn btn-primary btn-lg" onClick={()=>{setSent(true);setTimeout(onClose,2000);}}>{Ic.sms} Send Now</button>
+            <button className="btn btn-ghost" onClick={onClose} disabled={sending}>Cancel</button>
+            <button className="btn btn-primary btn-lg" onClick={doSend} disabled={sending || !proj.clientPhone}>
+              {sending
+                ? <><span style={{width:12,height:12,border:"2px solid rgba(255,255,255,.3)",borderTopColor:"#fff",borderRadius:"50%",animation:"jd-spin .7s linear infinite",display:"inline-block"}}/> Sending…</>
+                : <>{Ic.sms} Send Now</>}
+            </button>
           </div>
         )}
       </div>
@@ -1093,33 +1259,79 @@ function NotifyModal({ proj, onClose, globalStaff=[] }) {
   );
 }
 
-function CommModal({ proj, onClose }) {
-  const [msg, setMsg] = useState("");
+function CommModal({ proj, onClose, currentUser }) {
+  const [msg,       setMsg]       = useState("");
+  const [sending,   setSending]   = useState(false);
+  const [sent,      setSent]      = useState(false);
+  const [sendError, setSendError] = useState("");
+  const senderName = currentUser?.name || "your Job-Dox team";
   const quick = ["On our way!","Running ~15 min late","Please call us back","Crew arriving tomorrow 8am"];
+
+  const doSend = async () => {
+    if (!msg.trim() || !proj.clientPhone) return;
+    setSending(true);
+    setSendError("");
+    try {
+      await sendSMS({ to: proj.clientPhone, body: msg.trim() });
+      setSent(true);
+      setTimeout(onClose, 2000);
+    } catch (err) {
+      setSendError(err?.message || "Send failed — check Twilio config.");
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div className="modal modal-sm anim">
         <div className="modal-hd">
-          <div><div className="modal-ttl">Quick Contact</div><div style={{fontSize:11,color:"var(--t3)",marginTop:1}}>{proj.client} · {proj.clientPhone}</div></div>
+          <div>
+            <div className="modal-ttl">{sent ? "Sent!" : "Quick Contact"}</div>
+            <div style={{fontSize:11,color:"var(--t3)",marginTop:1}}>{proj.client} · {proj.clientPhone}</div>
+          </div>
           <button className="btn btn-ghost btn-xs" onClick={onClose}>{Ic.close}</button>
         </div>
         <div className="modal-body">
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            <a href={`tel:${proj.clientPhone}`} className="btn btn-green btn-lg" style={{justifyContent:"center",textDecoration:"none"}} onClick={onClose}>{Ic.phone} Call</a>
-            <a href={`sms:${proj.clientPhone}`}  className="btn btn-blue btn-lg"  style={{justifyContent:"center",textDecoration:"none"}} onClick={onClose}>{Ic.sms} Open SMS</a>
-          </div>
-          <div>
-            <label className="lbl">Custom Message</label>
-            <textarea className="txa" value={msg} onChange={e=>setMsg(e.target.value)} placeholder={`Hi ${(proj.client||"").split(" ")[0]}, this is Tyler from Job-Dox…`} style={{minHeight:72}}/>
-          </div>
-          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-            {quick.map(q=><button key={q} className="chip" onClick={()=>setMsg(q)}>{q}</button>)}
-          </div>
+          {sent ? (
+            <div style={{textAlign:"center",padding:"20px 0"}}>
+              <div style={{width:44,height:44,borderRadius:"50%",background:"rgba(26,217,138,.12)",border:"2px solid var(--green)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px",color:"var(--green)"}}>{Ic.check}</div>
+              <div style={{fontWeight:700,fontSize:14}}>Message delivered</div>
+              <div style={{fontSize:11,color:"var(--t2)",marginTop:3}}>{proj.clientPhone}</div>
+            </div>
+          ) : (
+            <>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                <a href={`tel:${proj.clientPhone}`} className="btn btn-green btn-lg" style={{justifyContent:"center",textDecoration:"none"}} onClick={onClose}>{Ic.phone} Call</a>
+                <a href={`sms:${proj.clientPhone}`} className="btn btn-blue btn-lg"  style={{justifyContent:"center",textDecoration:"none"}} onClick={onClose}>{Ic.sms} Open SMS</a>
+              </div>
+              <div>
+                <label className="lbl">Custom Message</label>
+                <textarea className="txa" value={msg} onChange={e=>setMsg(e.target.value)}
+                  placeholder={`Hi ${(proj.client||"").split(" ")[0]}, this is ${senderName} from Job-Dox…`}
+                  style={{minHeight:72}}/>
+              </div>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                {quick.map(q=><button key={q} className="chip" onClick={()=>setMsg(q)}>{q}</button>)}
+              </div>
+              {sendError && (
+                <div style={{fontSize:11,color:"var(--acc)",background:"var(--acc-lo)",borderRadius:7,padding:"7px 10px",border:"1px solid rgba(228,53,49,.2)"}}>{sendError}</div>
+              )}
+            </>
+          )}
         </div>
-        <div className="modal-ft">
-          <button className="btn btn-ghost" onClick={onClose}>Close</button>
-          {msg && <button className="btn btn-primary" onClick={onClose}>{Ic.sms} Send SMS</button>}
-        </div>
+        {!sent && (
+          <div className="modal-ft">
+            <button className="btn btn-ghost" onClick={onClose}>Close</button>
+            {msg.trim() && (
+              <button className="btn btn-primary" onClick={doSend} disabled={sending || !proj.clientPhone}>
+                {sending
+                  ? <><span style={{width:11,height:11,border:"2px solid rgba(255,255,255,.3)",borderTopColor:"#fff",borderRadius:"50%",animation:"jd-spin .7s linear infinite",display:"inline-block"}}/> Sending…</>
+                  : <>{Ic.sms} Send SMS</>}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1474,40 +1686,270 @@ function PortfolioSidebar({ onNavigate }) {
   );
 }
 
-function MyDayPage({ onNavigate }) {
+function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[], currentMemberId="", companyId="" }) {
+  const canViewAllStaff = permissionLevel >= 5;
+
+  // ── Staff picker: default to signed-in user, L5+ can toggle ──
+  const [viewingStaffId, setViewingStaffId] = useState(currentMemberId || "__self__");
+  const [staffPickerOpen, setStaffPickerOpen] = useState(false);
+
+  const viewingStaff = useMemo(() => {
+    if (!canViewAllStaff || viewingStaffId === "__self__" || !viewingStaffId) return null;
+    return globalStaff.find(s => s.id === viewingStaffId) || null;
+  }, [viewingStaffId, globalStaff, canViewAllStaff]);
+
+  const viewingName = viewingStaff
+    ? `${viewingStaff.firstName||""} ${viewingStaff.lastName||""}`.trim()
+    : currentUser?.name || "Me";
+
+  // ── Tasks & Appointments ──
   const [allTasks, setAllTasks] = useState(MY_TASKS);
   const [selDate, setSelDate]   = useState(TODAY_ISO);
-  const [calYear,  setCalYear]  = useState(2025);
-  const [calMonth, setCalMonth] = useState(11);
-  const toggleTask = id => setAllTasks(t=>t.map(x=>x.id===id?{...x,done:!x.done}:x));
+  const [calYear,  setCalYear]  = useState(() => new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
+
+  // New task/appointment modal
+  const [addingModal, setAddingModal] = useState(false);
+  const [addType, setAddType] = useState("task"); // "task" | "appointment"
+  const [newForm, setNewForm] = useState({title:"", priority:"med", due:"", time:"", notes:"", assignedUserIds:[]});
+  const [commentTask, setCommentTask] = useState(null);
+
+  const toggleTask = id => setAllTasks(t => t.map(x => x.id===id ? {...x, done:!x.done} : x));
+
+  const createTask = () => {
+    if (!newForm.title.trim()) return;
+    const t = {
+      id: uid(),
+      title: newForm.title,
+      priority: newForm.priority,
+      date: selDate,
+      type: addType,
+      time: newForm.time || "08:00",
+      notes: newForm.notes,
+      assignedUserIds: newForm.assignedUserIds,
+      assigned: viewingName,
+      proj: "",
+      projId: null,
+      done: false,
+      commentThread: [],
+    };
+    setAllTasks(p => [...p, t]);
+    setNewForm({title:"", priority:"med", due:"", time:"", notes:"", assignedUserIds:[]});
+    setAddingModal(false);
+  };
+
+  const toggleNewAssignee = (id) => {
+    setNewForm(p => ({
+      ...p,
+      assignedUserIds: p.assignedUserIds.includes(id)
+        ? p.assignedUserIds.filter(x => x !== id)
+        : [...p.assignedUserIds, id],
+    }));
+  };
+
   const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   const DAYS   = ["Su","Mo","Tu","We","Th","Fr","Sa"];
-  const firstDay   = new Date(calYear, calMonth, 1).getDay();
-  const daysInMonth= new Date(calYear, calMonth+1, 0).getDate();
-  const taskDates  = new Set(allTasks.map(t=>t.date));
+  const firstDay    = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  const taskDates   = new Set(allTasks.map(t => t.date));
   const prevMonth = () => { if(calMonth===0){setCalYear(y=>y-1);setCalMonth(11);}else setCalMonth(m=>m-1); };
   const nextMonth = () => { if(calMonth===11){setCalYear(y=>y+1);setCalMonth(0);}else setCalMonth(m=>m+1); };
-  const dayAppts  = allTasks.filter(t=>t.date===selDate && t.type==="appointment").sort((a,b)=>a.time.localeCompare(b.time));
-  const dayTasks  = allTasks.filter(t=>t.date===selDate && t.type==="task");
-  const HOURS = Array.from({length:12}, (_,i)=>i+7);
-  const priC = {high:"var(--acc)",med:"var(--amber)",low:"var(--t3)"};
-  const apptAt = h => dayAppts.filter(a=>parseInt(a.time.split(":")[0])===h);
+
+  const dayAppts = allTasks.filter(t => t.date===selDate && t.type==="appointment").sort((a,b)=>a.time.localeCompare(b.time));
+  const dayTasks = allTasks.filter(t => t.date===selDate && t.type!=="appointment");
+  const HOURS    = Array.from({length:12}, (_,i) => i+7);
+  const priC     = {high:"var(--acc)", med:"var(--amber)", low:"var(--t3)"};
+  const apptAt   = h => dayAppts.filter(a => parseInt(a.time.split(":")[0])===h);
   const dispDate = new Date(selDate+"T12:00:00");
   const isToday  = selDate===TODAY_ISO;
+
   return (
     <>
+      {/* Add Task/Appointment Modal */}
+      {addingModal && (
+        <div className="overlay" onClick={e => e.target===e.currentTarget && setAddingModal(false)}>
+          <div className="modal modal-sm anim">
+            <div className="modal-hd">
+              <div>
+                <div className="modal-ttl">{addType==="appointment"?"New Appointment":"New Task"}</div>
+                <div style={{fontSize:11,color:"var(--t3)",marginTop:1}}>
+                  {dispDate.toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}
+                </div>
+              </div>
+              <button className="btn btn-ghost btn-xs" onClick={()=>setAddingModal(false)}>{Ic.close}</button>
+            </div>
+            <div className="modal-body">
+              {/* Type toggle */}
+              <div style={{display:"flex",gap:5}}>
+                {["task","appointment"].map(tt => (
+                  <button key={tt} className={`chip${addType===tt?" on":""}`} onClick={()=>setAddType(tt)}>
+                    {tt==="task"?"Task":"Appointment"}
+                  </button>
+                ))}
+              </div>
+
+              <div>
+                <label className="lbl">{addType==="appointment"?"Title *":"Task *"}</label>
+                <input className="inp" value={newForm.title} onChange={e=>setNewForm(p=>({...p,title:e.target.value}))} placeholder={addType==="appointment"?"e.g. Site walk-through":"e.g. Submit moisture readings"} autoFocus/>
+              </div>
+
+              <div className="g2" style={{gap:9}}>
+                <div>
+                  <label className="lbl">Priority</label>
+                  <select className="sel" value={newForm.priority} onChange={e=>setNewForm(p=>({...p,priority:e.target.value}))}>
+                    <option value="high">High</option>
+                    <option value="med">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                </div>
+                {addType==="appointment" && (
+                  <div>
+                    <label className="lbl">Time</label>
+                    <input type="time" className="inp" value={newForm.time} onChange={e=>setNewForm(p=>({...p,time:e.target.value}))}/>
+                  </div>
+                )}
+              </div>
+
+              {/* Multi-user assignment — available to L5+ */}
+              {canViewAllStaff && globalStaff.length > 0 && (
+                <div>
+                  <label className="lbl">Assign To (select multiple)</label>
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>
+                    {globalStaff.map((s,i) => {
+                      const name = `${s.firstName||""} ${s.lastName||""}`.trim() || s.email || s.id;
+                      const sel  = newForm.assignedUserIds.includes(s.id);
+                      return (
+                        <button key={s.id}
+                          onClick={() => toggleNewAssignee(s.id)}
+                          style={{
+                            display:"flex",alignItems:"center",gap:5,
+                            padding:"3px 9px",borderRadius:20,border:`1px solid ${sel?"var(--blue)":"var(--br)"}`,
+                            background:sel?"rgba(91,163,245,.12)":"transparent",
+                            color:sel?"var(--blue)":"var(--t2)",cursor:"pointer",fontSize:11,transition:"all .12s",
+                          }}>
+                          <Av name={name} color={AVCOLORS[i % AVCOLORS.length]} size={18}/>
+                          {name}
+                          {sel && <span style={{color:"var(--blue)"}}>{Ic.check}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {newForm.assignedUserIds.length > 1 && (
+                    <div style={{fontSize:10,color:"var(--t3)",marginTop:5}}>
+                      {Ic.sms} All {newForm.assignedUserIds.length} staff will be texted when this {addType} is created.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <label className="lbl">Notes</label>
+                <textarea className="txa" value={newForm.notes} onChange={e=>setNewForm(p=>({...p,notes:e.target.value}))} rows={2} placeholder="Optional details…"/>
+              </div>
+            </div>
+            <div className="modal-ft">
+              <button className="btn btn-ghost" onClick={()=>setAddingModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={createTask} disabled={!newForm.title.trim()}>
+                {addType==="appointment" ? <>{Ic.calendar} Create Appointment</> : <>{Ic.plus} Create Task</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Task Comment Modal */}
+      {commentTask && (
+        <TaskCommentModal
+          task={commentTask}
+          onClose={() => setCommentTask(null)}
+          currentUserName={viewingName}
+          globalStaff={globalStaff}
+        />
+      )}
+
       <div className="topbar">
         <div>
-          <div className="topbar-ttl">My Day</div>
+          <div className="topbar-ttl" style={{display:"flex",alignItems:"center",gap:8}}>
+            My Day
+            {/* Staff picker for L5+ */}
+            {canViewAllStaff && (
+              <div style={{position:"relative"}}>
+                <button
+                  onClick={() => setStaffPickerOpen(v => !v)}
+                  style={{
+                    display:"flex",alignItems:"center",gap:6,
+                    background:"var(--s3)",border:`1px solid ${viewingStaffId!=="__self__"?"var(--blue)":"var(--br)"}`,
+                    borderRadius:20,padding:"2px 10px 2px 6px",cursor:"pointer",
+                    color:viewingStaffId!=="__self__"?"var(--blue)":"var(--t2)",fontSize:11,transition:"all .15s",
+                  }}>
+                  <Av name={viewingName} color={viewingStaffId!=="__self__"?"var(--blue)":"var(--acc)"} size={20}/>
+                  <span>{viewingName}</span>
+                  <span style={{fontSize:9,opacity:.6}}>{Ic.chevron}</span>
+                </button>
+                {staffPickerOpen && (
+                  <div style={{
+                    position:"absolute",top:"calc(100% + 6px)",left:0,zIndex:600,
+                    background:"var(--s2)",border:"1px solid var(--br-hi)",borderRadius:10,
+                    boxShadow:"0 8px 32px rgba(0,0,0,.35)",minWidth:200,overflow:"hidden",animation:"jd-pop .15s ease",
+                  }}>
+                    <div style={{padding:"7px 10px",borderBottom:"1px solid var(--br)"}}>
+                      <div className="mono" style={{fontSize:9,color:"var(--t3)"}}>VIEW DAY FOR</div>
+                    </div>
+                    {/* Myself first */}
+                    <button onClick={()=>{setViewingStaffId("__self__");setStaffPickerOpen(false);}}
+                      style={{
+                        width:"100%",background:viewingStaffId==="__self__"?"var(--acc-lo)":"transparent",
+                        border:"none",padding:"9px 12px",display:"flex",alignItems:"center",gap:9,
+                        cursor:"pointer",borderBottom:"1px solid var(--br)",color:viewingStaffId==="__self__"?"var(--acc)":"var(--t1)",
+                        fontSize:12,fontFamily:"var(--ui)",
+                      }}>
+                      <Av name={currentUser?.name||"Me"} color="var(--acc)" size={28}/>
+                      <div style={{textAlign:"left"}}>
+                        <div style={{fontWeight:600}}>{currentUser?.name||"Me"}</div>
+                        <div style={{fontSize:10,color:"var(--t3)"}}>You · {currentUser?.position||""}</div>
+                      </div>
+                      {viewingStaffId==="__self__" && <span style={{marginLeft:"auto"}}>{Ic.check}</span>}
+                    </button>
+                    {globalStaff.filter(s => s.id !== currentMemberId).map((s,i) => {
+                      const name = `${s.firstName||""} ${s.lastName||""}`.trim() || s.email || s.id;
+                      const isSel = viewingStaffId === s.id;
+                      return (
+                        <button key={s.id}
+                          onClick={()=>{setViewingStaffId(s.id);setStaffPickerOpen(false);}}
+                          style={{
+                            width:"100%",background:isSel?"var(--acc-lo)":"transparent",
+                            border:"none",padding:"9px 12px",display:"flex",alignItems:"center",gap:9,
+                            cursor:"pointer",borderBottom:"1px solid var(--br)",color:isSel?"var(--acc)":"var(--t1)",
+                            fontSize:12,fontFamily:"var(--ui)",
+                          }}>
+                          <Av name={name} color={AVCOLORS[(i+1) % AVCOLORS.length]} size={28}/>
+                          <div style={{textAlign:"left"}}>
+                            <div style={{fontWeight:600}}>{name}</div>
+                            <div style={{fontSize:10,color:"var(--t3)"}}>{s.systemRole||s.title||"Staff"}</div>
+                          </div>
+                          {isSel && <span style={{marginLeft:"auto"}}>{Ic.check}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <div className="topbar-sub">{isToday?"TODAY · ":""}{dispDate.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"}).toUpperCase()}</div>
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          <button className="btn btn-ghost btn-xs" onClick={()=>{setAddType("appointment");setAddingModal(true);}}>{Ic.calendar} Appointment</button>
+          <button className="btn btn-primary btn-xs" onClick={()=>{setAddType("task");setAddingModal(true);}}>{Ic.plus} New Task</button>
+          <div style={{width:1,height:18,background:"var(--br)",margin:"0 2px"}}/>
           <button className="btn btn-ghost btn-xs" onClick={()=>setSelDate(TODAY_ISO)} style={isToday?{color:"var(--acc)",borderColor:"var(--acc)"}:{}}>Today</button>
           <button className="btn btn-ghost btn-xs" onClick={()=>{const d=new Date(selDate+"T12:00:00");d.setDate(d.getDate()-1);setSelDate(d.toISOString().slice(0,10));}}>{Ic.chev_l} Prev</button>
           <button className="btn btn-ghost btn-xs" onClick={()=>{const d=new Date(selDate+"T12:00:00");d.setDate(d.getDate()+1);setSelDate(d.toISOString().slice(0,10));}}>Next {Ic.chev_r}</button>
         </div>
       </div>
+
       <div className="myday-page">
+        {/* Left sidebar: mini calendar + stats */}
         <div className="myday-left">
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
             <button className="btn btn-ghost btn-xs" onClick={prevMonth} style={{padding:"3px 7px"}}>{Ic.chev_l}</button>
@@ -1531,6 +1973,7 @@ function MyDayPage({ onNavigate }) {
               );
             })}
           </div>
+
           <div style={{marginTop:16,background:"var(--s2)",borderRadius:9,padding:"10px 12px",border:"1px solid var(--br)"}}>
             <div className="mono" style={{fontSize:9,color:"var(--t3)",marginBottom:8}}>SELECTED DAY</div>
             <div style={{display:"flex",gap:12}}>
@@ -1542,18 +1985,36 @@ function MyDayPage({ onNavigate }) {
               ))}
             </div>
           </div>
+
           {dayAppts.length > 0 && (
             <div style={{marginTop:12}}>
               <div className="mono" style={{fontSize:9,color:"var(--t3)",marginBottom:6}}>APPOINTMENTS</div>
               {dayAppts.map(a=>(
-                <div key={a.id} style={{display:"flex",gap:8,padding:"6px 0",borderBottom:"1px solid var(--br)",alignItems:"center",cursor:"pointer"}} onClick={()=>onNavigate(a.projId,"overview")}>
+                <div key={a.id} style={{display:"flex",gap:8,padding:"6px 0",borderBottom:"1px solid var(--br)",alignItems:"center",cursor:"pointer"}}
+                  onClick={()=>a.projId?onNavigate(a.projId,"overview"):setCommentTask(a)}>
                   <div className="mono" style={{fontSize:10,color:"var(--blue)",flexShrink:0,width:38}}>{a.time}</div>
                   <div style={{flex:1,minWidth:0,fontSize:11,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.title}</div>
                 </div>
               ))}
             </div>
           )}
+
+          {/* Staff info panel when viewing another person */}
+          {canViewAllStaff && viewingStaff && (
+            <div style={{marginTop:12,background:"rgba(91,163,245,.07)",border:"1px solid rgba(91,163,245,.2)",borderRadius:9,padding:"10px 12px"}}>
+              <div className="mono" style={{fontSize:9,color:"var(--blue)",marginBottom:6}}>VIEWING AS</div>
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                <Av name={viewingName} color="var(--blue)" size={32}/>
+                <div>
+                  <div style={{fontSize:12,fontWeight:700,color:"var(--t1)"}}>{viewingName}</div>
+                  <div style={{fontSize:10,color:"var(--t3)"}}>{viewingStaff.systemRole||viewingStaff.title||"Staff"}</div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Main content: tasks + schedule */}
         <div className="myday-main">
           {dayTasks.length > 0 && (
             <div style={{marginBottom: dayAppts.length > 0 ? 24 : 0}}>
@@ -1566,17 +2027,32 @@ function MyDayPage({ onNavigate }) {
                     </div>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontSize:12,fontWeight:600,color:t.done?"var(--t3)":"var(--t1)",textDecoration:t.done?"line-through":"none"}}>{t.title}</div>
-                      <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{t.proj}</div>
+                      <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{t.proj||"Personal task"}</div>
+                      {/* Assignee avatars */}
+                      {(Array.isArray(t.assignedUserIds) && t.assignedUserIds.length > 1 && globalStaff.length > 0) && (
+                        <div style={{display:"flex",gap:2,marginTop:3}}>
+                          {t.assignedUserIds.slice(0,4).map((id,idx) => {
+                            const s = globalStaff.find(x=>x.id===id);
+                            return s ? <Av key={id} name={`${s.firstName||""} ${s.lastName||""}`.trim()} color={AVCOLORS[idx%AVCOLORS.length]} size={16}/> : null;
+                          })}
+                          {t.assignedUserIds.length > 4 && <span style={{fontSize:9,color:"var(--t3)",marginLeft:2}}>+{t.assignedUserIds.length-4}</span>}
+                        </div>
+                      )}
                     </div>
-                    <div style={{display:"flex",gap:5,flexShrink:0}}>
-                      <span style={{width:6,height:6,borderRadius:"50%",background:priC[t.priority],marginTop:4}}/>
-                      <button className="btn btn-ghost btn-xs" style={{padding:"2px 6px",fontSize:9}} onClick={()=>onNavigate(t.projId,"tasks")}>{Ic.goto}</button>
+                    <div style={{display:"flex",gap:4,flexShrink:0,alignItems:"center"}}>
+                      <span style={{width:6,height:6,borderRadius:"50%",background:priC[t.priority]||"var(--t3)"}}/>
+                      <button className="btn btn-ghost btn-xs" style={{padding:"2px 6px",fontSize:9}} onClick={()=>setCommentTask(t)}>
+                        {Ic.comment}
+                        {(t.commentThread||[]).length > 0 && <span className="mono" style={{fontSize:8,marginLeft:2}}>{(t.commentThread||[]).length}</span>}
+                      </button>
+                      {t.projId && <button className="btn btn-ghost btn-xs" style={{padding:"2px 6px",fontSize:9}} onClick={()=>onNavigate(t.projId,"tasks")}>{Ic.goto}</button>}
                     </div>
                   </div>
                 ))}
               </div>
             </div>
           )}
+
           {dayAppts.length > 0 ? (
             <>
               <div className="mono" style={{fontSize:9,color:"var(--t3)",marginBottom:14,letterSpacing:".08em"}}>SCHEDULE</div>
@@ -1591,17 +2067,28 @@ function MyDayPage({ onNavigate }) {
                     <div style={{flex:1,paddingBottom:4}}>
                       {appts.map(a=>(
                         <div key={a.id} className={`appt-block${a.done?" done-appt":""}`}
-                          style={{marginBottom:4,borderLeftColor:priC[a.priority]}}
-                          onClick={()=>onNavigate(a.projId,"overview")}>
+                          style={{marginBottom:4,borderLeftColor:priC[a.priority]||"var(--blue)"}}>
                           <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
-                            <div>
+                            <div style={{minWidth:0,flex:1}}>
                               <div style={{fontSize:12,fontWeight:700,color:"var(--t1)",textDecoration:a.done?"line-through":"none"}}>{a.title}</div>
-                              <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>{a.proj} · {a.time}</div>
+                              <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>{a.proj||"Personal"} · {a.time}</div>
+                              {/* Multi-assignee display */}
+                              {(Array.isArray(a.assignedUserIds) && a.assignedUserIds.length > 1 && globalStaff.length > 0) && (
+                                <div style={{display:"flex",gap:2,marginTop:3}}>
+                                  {a.assignedUserIds.slice(0,4).map((id,idx) => {
+                                    const s = globalStaff.find(x=>x.id===id);
+                                    return s ? <Av key={id} name={`${s.firstName||""} ${s.lastName||""}`.trim()} color={AVCOLORS[idx%AVCOLORS.length]} size={16}/> : null;
+                                  })}
+                                </div>
+                              )}
                             </div>
-                            <div style={{display:"flex",gap:5,alignItems:"center",flexShrink:0}}>
-                              <span style={{width:6,height:6,borderRadius:"50%",background:priC[a.priority],display:"block"}}/>
-                              <button className="btn btn-ghost btn-xs" style={{padding:"2px 6px",fontSize:9}} onClick={e=>{e.stopPropagation();toggleTask(a.id);}}>{a.done?"Undo":"Done"}</button>
-                              <button className="btn btn-blue btn-xs" style={{padding:"2px 7px",fontSize:9}} onClick={e=>{e.stopPropagation();onNavigate(a.projId,"overview");}}>{Ic.goto}</button>
+                            <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0}}>
+                              <span style={{width:6,height:6,borderRadius:"50%",background:priC[a.priority]||"var(--t3)",display:"block"}}/>
+                              <button className="btn btn-ghost btn-xs" style={{padding:"2px 6px",fontSize:9}} onClick={()=>setCommentTask(a)}>
+                                {Ic.comment}
+                              </button>
+                              <button className="btn btn-ghost btn-xs" style={{padding:"2px 6px",fontSize:9}} onClick={()=>toggleTask(a.id)}>{a.done?"Undo":"Done"}</button>
+                              {a.projId && <button className="btn btn-blue btn-xs" style={{padding:"2px 7px",fontSize:9}} onClick={()=>onNavigate(a.projId,"overview")}>{Ic.goto}</button>}
                             </div>
                           </div>
                         </div>
@@ -1616,6 +2103,10 @@ function MyDayPage({ onNavigate }) {
               <div style={{opacity:.15,fontSize:28}}>{Ic.calendar}</div>
               <div className="mono" style={{fontSize:11}}>NOTHING SCHEDULED</div>
               <div style={{fontSize:11}}>No tasks or appointments for this day.</div>
+              <div style={{display:"flex",gap:7,marginTop:8}}>
+                <button className="btn btn-ghost btn-xs" onClick={()=>{setAddType("appointment");setAddingModal(true);}}>{Ic.calendar} Add Appointment</button>
+                <button className="btn btn-primary btn-xs" onClick={()=>{setAddType("task");setAddingModal(true);}}>{Ic.plus} Add Task</button>
+              </div>
             </div>
           )}
         </div>
@@ -1660,7 +2151,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
       {showAdd    && <AddProjModal onClose={()=>setShowAdd(false)} onAdd={onAdd} customWorkTypes={customWorkTypes} customStatuses={customStatuses} customProjectTypes={customProjectTypes} offices={offices}/>}
       {clockProj  && <ClockInModal proj={clockProj} clockInState={clockInState} onClockIn={onClockIn} onClockOut={onClockOut} onClose={()=>setClock(null)} currentUser={currentUser} canViewRates={canViewRates}/>}
       {notifyProj && <NotifyModal proj={notifyProj} onClose={()=>setNotify(null)} globalStaff={globalStaff}/>}
-      {commProj   && <CommModal    proj={commProj}   onClose={()=>setComm(null)}/>}
+      {commProj   && <CommModal    proj={commProj}   onClose={()=>setComm(null)} currentUser={currentUser}/>}
 
       <div className="topbar">
         <div><div className="topbar-ttl">Projects</div><div className="topbar-sub">JOB-DOX · PORTFOLIO</div></div>
@@ -2229,35 +2720,389 @@ function DocumentsTab({ docs:docsIn, setDocs:setDocsIn }) {
   );
 }
 
-function TasksTab({ initialTasks=[] }) {
-  const [tasks,setTasks]=useState(()=> initialTasks.length ? initialTasks : TASKS_SEED);
-  const [filter,setFilter]=useState("open");
-  const [adding,setAdding]=useState(false);
-  const [exp,setExp]=useState(null);
-  const [f,setF]=useState({title:"",assigned:"",due:"",priority:"med"});
-  const toggle=id=>setTasks(t=>t.map(x=>x.id===id?{...x,status:x.status==="done"?"open":"done"}:x));
-  const add=()=>{if(!f.title)return;setTasks(t=>[...t,{id:uid(),...f,status:"open",created:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),comments:0}]);setF({title:"",assigned:"",due:"",priority:"med"});setAdding(false);};
-  const vis=tasks.filter(t=>filter==="all"||t.status===filter);
-  const priC={high:"var(--acc)",med:"var(--amber)",low:"var(--t3)"};
+/* ── TaskCommentModal: opens from both TasksTab and MyDayPage ── */
+function TaskCommentModal({ task, onClose, currentUserName="You", globalStaff=[] }) {
+  const [comments, setComments] = useState(task.commentThread || []);
+  const [text, setText] = useState("");
+  const [sent, setSent] = useState(false);
+
+  const assigneeNames = (() => {
+    if (Array.isArray(task.assignedUserIds) && task.assignedUserIds.length && globalStaff.length) {
+      return task.assignedUserIds
+        .map(id => globalStaff.find(s => s.id === id))
+        .filter(Boolean)
+        .map(s => `${s.firstName||""} ${s.lastName||""}`.trim());
+    }
+    if (task.assigned) return [task.assigned];
+    return [];
+  })();
+
+  const othersToNotify = assigneeNames.filter(n => n !== currentUserName);
+
+  const postComment = async () => {
+    if (!text.trim()) return;
+    const newComment = {
+      id: uid(),
+      author: currentUserName,
+      text: text.trim(),
+      at: new Date().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}) + " · " +
+          new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),
+    };
+    setComments(c => [...c, newComment]);
+    setText("");
+
+    // ── Send real texts to all other assignees who have a phone number ──
+    if (othersToNotify.length) {
+      const toNumbers = task.assignedUserIds
+        ? task.assignedUserIds
+            .filter(id => {
+              const s = globalStaff.find(x => x.id === id);
+              return s && `${s.firstName||""} ${s.lastName||""}`.trim() !== currentUserName;
+            })
+            .map(id => globalStaff.find(x => x.id === id)?.phone)
+            .filter(Boolean)
+        : [];
+
+      if (toNumbers.length) {
+        const body = `[Job-Dox] ${currentUserName} commented on "${task.title}"${task.proj ? ` (${task.proj})` : ""}:\n"${text.trim()}"`;
+        try {
+          await sendSMS({ to: toNumbers, body });
+          setSent(true);
+        } catch {
+          // Non-fatal — comment still posted even if SMS fails
+          setSent(true);
+        }
+      } else {
+        // No phone numbers on file — still show confirmation
+        setSent(true);
+      }
+      setTimeout(() => setSent(false), 3500);
+    }
+  };
+
+  const priC = {high:"var(--acc)", med:"var(--amber)", low:"var(--t3)", undefined:"var(--t3)"};
+
   return (
-    <div className="scroll"><div style={{maxWidth:800,margin:"0 auto"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:11}}>
-        <div style={{display:"flex",gap:5}}>{[["open","Open",tasks.filter(t=>t.status==="open").length],["done","Done",tasks.filter(t=>t.status==="done").length],["all","All",tasks.length]].map(([k,l,n])=><button key={k} className={`chip${filter===k?" on":""}`} onClick={()=>setFilter(k)}>{l} <span className="mono" style={{fontSize:8}}>{n}</span></button>)}</div>
-        <button className="btn btn-primary btn-xs" onClick={()=>setAdding(v=>!v)}>{Ic.plus} Add Task</button>
-      </div>
-      {adding && <div className="card" style={{marginBottom:10}}><div className="g2" style={{gap:9,marginBottom:9}}><F label="Task *" value={f.title} onChange={v=>setF(p=>({...p,title:v}))} placeholder="Task description…" span={2}/><F label="Assigned To" value={f.assigned} onChange={v=>setF(p=>({...p,assigned:v}))} placeholder="Team member"/><F label="Due Date" value={f.due} onChange={v=>setF(p=>({...p,due:v}))} type="date"/><F label="Priority" value={f.priority} onChange={v=>setF(p=>({...p,priority:v}))} options={["high","med","low"]}/></div><div style={{display:"flex",justifyContent:"flex-end",gap:7}}><button className="btn btn-ghost btn-xs" onClick={()=>setAdding(false)}>Cancel</button><button className="btn btn-primary btn-xs" onClick={add}>Create</button></div></div>}
-      {vis.map(t=>(
-        <div key={t.id} className="row" style={{display:"flex",alignItems:"flex-start",gap:9,cursor:"pointer"}} onClick={()=>setExp(exp===t.id?null:t.id)}>
-          <div className={`task-chk${t.status==="done"?" done":""}`} onClick={e=>{e.stopPropagation();toggle(t.id);}}>{t.status==="done"&&<span style={{color:"#fff"}}>{Ic.check}</span>}</div>
+    <div className="overlay" onClick={e => e.target===e.currentTarget && onClose()}>
+      <div className="modal anim" style={{maxWidth:520}}>
+        <div className="modal-hd">
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:12,fontWeight:600,color:t.status==="done"?"var(--t3)":"var(--t1)",textDecoration:t.status==="done"?"line-through":"none"}}>{t.title}</div>
-            <div style={{display:"flex",gap:9,marginTop:3,fontSize:10,color:"var(--t2)"}}>{t.assigned&&<span>{t.assigned}</span>}{t.due&&<span>Due {t.due}</span>}<span style={{color:"var(--t3)"}}>Created {t.created}</span></div>
-            {exp===t.id&&<div style={{marginTop:8,padding:"8px 10px",background:"var(--s3)",borderRadius:7,fontSize:11,color:"var(--t3)",fontStyle:"italic"}}>No comments yet.</div>}
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{width:8,height:8,borderRadius:"50%",background:priC[task.priority]||"var(--t3)",flexShrink:0}}/>
+              <div className="modal-ttl" style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div>
+            </div>
+            {task.proj && <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>{task.proj}</div>}
           </div>
-          <div style={{width:7,height:7,borderRadius:"50%",background:priC[t.priority],flexShrink:0,marginTop:3}}/>
+          <button className="btn btn-ghost btn-xs" onClick={onClose}>{Ic.close}</button>
         </div>
-      ))}
-    </div></div>
+        <div className="modal-body" style={{gap:10}}>
+          {/* Assignees */}
+          {assigneeNames.length > 0 && (
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+              <span className="mono" style={{fontSize:9,color:"var(--t3)"}}>ASSIGNED</span>
+              {assigneeNames.map((n,i) => (
+                <div key={i} style={{display:"flex",alignItems:"center",gap:5,background:"var(--s3)",borderRadius:20,padding:"2px 9px",border:"1px solid var(--br)"}}>
+                  <Av name={n} color={AVCOLORS[i % AVCOLORS.length]} size={18}/>
+                  <span style={{fontSize:11,color:"var(--t1)"}}>{n}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Task meta */}
+          <div style={{display:"flex",gap:10,flexWrap:"wrap",fontSize:10,color:"var(--t3)"}}>
+            {task.due && <span>Due <strong style={{color:"var(--t1)"}}>{task.due}</strong></span>}
+            {task.status && <span>Status <strong style={{color:task.status==="done"?"var(--green)":"var(--amber)"}}>{task.status}</strong></span>}
+            {task.phase && <span>Phase <strong style={{color:"var(--blue)"}}>{task.phase}</strong></span>}
+          </div>
+
+          {/* SMS sent notice */}
+          {sent && (
+            <div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(26,217,138,.1)",border:"1px solid rgba(26,217,138,.25)",borderRadius:8,padding:"8px 12px",animation:"jd-fade .2s ease"}}>
+              <span style={{color:"var(--green)"}}>{Ic.sms}</span>
+              <span style={{fontSize:11,color:"var(--green)",fontWeight:600}}>
+                Text sent to: {othersToNotify.join(", ")}
+              </span>
+            </div>
+          )}
+
+          {/* Comment thread */}
+          <div>
+            <div className="mono" style={{fontSize:9,color:"var(--t3)",marginBottom:8}}>COMMENT THREAD</div>
+            {comments.length === 0 ? (
+              <div style={{padding:"18px 0",textAlign:"center",color:"var(--t3)",fontSize:11,fontStyle:"italic"}}>No comments yet — start the conversation.</div>
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:240,overflowY:"auto"}}>
+                {comments.map(c => (
+                  <div key={c.id} style={{display:"flex",gap:9,alignItems:"flex-start"}}>
+                    <Av name={c.author} color={c.author===currentUserName?"var(--acc)":AVCOLORS[1]} size={26}/>
+                    <div style={{flex:1,background:"var(--s3)",borderRadius:8,padding:"7px 10px",border:"1px solid var(--br)"}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
+                        <span style={{fontSize:11,fontWeight:700,color:"var(--t1)"}}>{c.author}</span>
+                        <span style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)"}}>{c.at}</span>
+                      </div>
+                      <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.55}}>{c.text}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* New comment input */}
+          <div>
+            <textarea
+              className="txa"
+              value={text}
+              onChange={e => setText(e.target.value)}
+              placeholder="Write a comment…"
+              rows={3}
+              onKeyDown={e => { if (e.key==="Enter" && (e.metaKey||e.ctrlKey)) postComment(); }}
+              style={{minHeight:60}}
+            />
+            {othersToNotify.length > 0 && (
+              <div style={{fontSize:10,color:"var(--t3)",marginTop:4}}>
+                {Ic.sms} Will text: <strong style={{color:"var(--t2)"}}>{othersToNotify.join(", ")}</strong>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="modal-ft">
+          <button className="btn btn-ghost" onClick={onClose}>Close</button>
+          <button className="btn btn-primary" onClick={postComment} disabled={!text.trim()}>
+            {othersToNotify.length > 0 ? <>{Ic.comment} Post & Text {othersToNotify.length}</> : <>{Ic.comment} Post Comment</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TasksTab({ initialTasks=[], globalStaff=[] }) {
+  const [tasks, setTasks] = useState(() => initialTasks.length ? initialTasks : TASKS_SEED);
+  const [filter, setFilter] = useState("open");
+  const [adding, setAdding] = useState(false);
+  const [commentTask, setCommentTask] = useState(null);
+  const [taskType, setTaskType] = useState("task"); // "task" | "appointment"
+  const [f, setF] = useState({
+    title:"", assignedUserIds:[], due:"", priority:"med",
+    time:"", type:"task", notes:""
+  });
+
+  const toggle = id => setTasks(t => t.map(x => x.id===id ? {...x, status: x.status==="done"?"open":"done"} : x));
+
+  const add = () => {
+    if (!f.title) return;
+    const newTask = {
+      id: uid(),
+      title: f.title,
+      assignedUserIds: f.assignedUserIds,
+      // Legacy single-string assigned for backwards compat
+      assigned: f.assignedUserIds.length && globalStaff.length
+        ? globalStaff.filter(s => f.assignedUserIds.includes(s.id)).map(s=>`${s.firstName||""} ${s.lastName||""}`.trim()).join(", ")
+        : "",
+      due: f.due,
+      priority: f.priority,
+      type: taskType,
+      time: f.time,
+      notes: f.notes,
+      status: "open",
+      created: new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),
+      comments: 0,
+      commentThread: [],
+    };
+    setTasks(t => [...t, newTask]);
+    setF({title:"", assignedUserIds:[], due:"", priority:"med", time:"", type:"task", notes:""});
+    setAdding(false);
+  };
+
+  const toggleAssignee = (id) => {
+    setF(p => ({
+      ...p,
+      assignedUserIds: p.assignedUserIds.includes(id)
+        ? p.assignedUserIds.filter(x => x !== id)
+        : [...p.assignedUserIds, id],
+    }));
+  };
+
+  const vis = tasks.filter(t => filter==="all" || t.status===filter);
+  const priC = {high:"var(--acc)", med:"var(--amber)", low:"var(--t3)"};
+
+  return (
+    <div className="scroll">
+      {commentTask && (
+        <TaskCommentModal
+          task={commentTask}
+          onClose={() => {
+            // persist updated comment thread back to task
+            setCommentTask(null);
+          }}
+          globalStaff={globalStaff}
+        />
+      )}
+      <div style={{maxWidth:800, margin:"0 auto"}}>
+        <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:11}}>
+          <div style={{display:"flex",gap:5}}>
+            {[["open","Open",tasks.filter(t=>t.status==="open").length],
+              ["done","Done",tasks.filter(t=>t.status==="done").length],
+              ["all","All",tasks.length]
+            ].map(([k,l,n]) => (
+              <button key={k} className={`chip${filter===k?" on":""}`} onClick={()=>setFilter(k)}>
+                {l} <span className="mono" style={{fontSize:8}}>{n}</span>
+              </button>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:6}}>
+            <button className="btn btn-ghost btn-xs" onClick={()=>{setTaskType("appointment");setAdding(v=>!v);}}>{Ic.calendar} Appointment</button>
+            <button className="btn btn-primary btn-xs" onClick={()=>{setTaskType("task");setAdding(v=>!v);}}>{Ic.plus} Add Task</button>
+          </div>
+        </div>
+
+        {adding && (
+          <div className="card" style={{marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
+              <div className="mono" style={{fontSize:9,color:"var(--t3)"}}>{taskType==="appointment"?"NEW APPOINTMENT":"NEW TASK"}</div>
+              <div style={{display:"flex",gap:4,marginLeft:"auto"}}>
+                {["task","appointment"].map(tt => (
+                  <button key={tt} className={`chip${taskType===tt?" on":""}`} onClick={()=>setTaskType(tt)} style={{fontSize:9}}>
+                    {tt==="task"?"Task":"Appointment"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="g2" style={{gap:9,marginBottom:9}}>
+              <div style={{gridColumn:"1/-1"}}>
+                <label className="lbl">{taskType==="appointment"?"Appointment Title *":"Task *"}</label>
+                <input className="inp" value={f.title} onChange={e=>setF(p=>({...p,title:e.target.value}))} placeholder={taskType==="appointment"?"e.g. Site inspection":"Task description…"}/>
+              </div>
+              <div>
+                <label className="lbl">Due Date</label>
+                <input type="date" className="inp" value={f.due} onChange={e=>setF(p=>({...p,due:e.target.value}))}/>
+              </div>
+              {taskType==="appointment" && (
+                <div>
+                  <label className="lbl">Time</label>
+                  <input type="time" className="inp" value={f.time} onChange={e=>setF(p=>({...p,time:e.target.value}))}/>
+                </div>
+              )}
+              <div>
+                <label className="lbl">Priority</label>
+                <select className="sel" value={f.priority} onChange={e=>setF(p=>({...p,priority:e.target.value}))}>
+                  <option value="high">High</option>
+                  <option value="med">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Multi-user assignment */}
+            {globalStaff.length > 0 && (
+              <div style={{marginBottom:9}}>
+                <label className="lbl">Assign To (select multiple)</label>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>
+                  {globalStaff.map(s => {
+                    const name = `${s.firstName||""} ${s.lastName||""}`.trim() || s.email || s.id;
+                    const sel  = f.assignedUserIds.includes(s.id);
+                    return (
+                      <button key={s.id}
+                        onClick={() => toggleAssignee(s.id)}
+                        style={{
+                          display:"flex",alignItems:"center",gap:5,
+                          padding:"3px 9px",borderRadius:20,border:`1px solid ${sel?"var(--blue)":"var(--br)"}`,
+                          background:sel?"rgba(91,163,245,.12)":"transparent",
+                          color:sel?"var(--blue)":"var(--t2)",cursor:"pointer",fontSize:11,transition:"all .12s",
+                        }}>
+                        <Av name={name} color={AVCOLORS[globalStaff.indexOf(s) % AVCOLORS.length]} size={18}/>
+                        {name}
+                        {sel && <span style={{color:"var(--blue)"}}>{Ic.check}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                {f.assignedUserIds.length > 1 && (
+                  <div style={{fontSize:10,color:"var(--t3)",marginTop:5}}>
+                    {Ic.sms} All {f.assignedUserIds.length} assigned staff will be notified via text when this {taskType} is created.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {taskType==="task" && (
+              <div style={{marginBottom:9}}>
+                <label className="lbl">Notes</label>
+                <textarea className="txa" value={f.notes} onChange={e=>setF(p=>({...p,notes:e.target.value}))} rows={2} placeholder="Optional details…"/>
+              </div>
+            )}
+
+            <div style={{display:"flex",justifyContent:"flex-end",gap:7}}>
+              <button className="btn btn-ghost btn-xs" onClick={()=>setAdding(false)}>Cancel</button>
+              <button className="btn btn-primary btn-xs" onClick={add} disabled={!f.title}>
+                {taskType==="appointment"?"Create Appointment":"Create Task"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {vis.map(t => (
+          <div key={t.id} className="row" style={{display:"flex",alignItems:"flex-start",gap:9}}>
+            <div className={`task-chk${t.status==="done"?" done":""}`}
+              onClick={() => toggle(t.id)}
+              style={{marginTop:2,cursor:"pointer"}}>
+              {t.status==="done" && <span style={{color:"#fff"}}>{Ic.check}</span>}
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:6}}>
+                <div style={{fontSize:12,fontWeight:600,color:t.status==="done"?"var(--t3)":"var(--t1)",textDecoration:t.status==="done"?"line-through":"none",lineHeight:1.3}}>
+                  {t.type==="appointment" && <span style={{marginRight:5,fontSize:10,color:"var(--blue)",fontFamily:"var(--mono)"}}>APPT</span>}
+                  {t.title}
+                </div>
+                <div style={{display:"flex",gap:4,flexShrink:0}}>
+                  <span style={{width:7,height:7,borderRadius:"50%",background:priC[t.priority]||"var(--t3)",marginTop:4,flexShrink:0}}/>
+                  <button className="btn btn-ghost btn-xs" style={{padding:"1px 7px",fontSize:10}}
+                    onClick={() => setCommentTask(t)}>
+                    {Ic.comment}
+                    {(t.commentThread||[]).length > 0 && (
+                      <span className="mono" style={{fontSize:8,marginLeft:2,color:"var(--purple)"}}>{(t.commentThread||[]).length}</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:9,marginTop:3,fontSize:10,color:"var(--t2)",flexWrap:"wrap"}}>
+                {/* Multi-user assignees */}
+                {(Array.isArray(t.assignedUserIds) && t.assignedUserIds.length > 0 && globalStaff.length > 0) ? (
+                  <div style={{display:"flex",gap:3,alignItems:"center"}}>
+                    {t.assignedUserIds.slice(0,3).map((id,i) => {
+                      const s = globalStaff.find(x=>x.id===id);
+                      if (!s) return null;
+                      const nm = `${s.firstName||""} ${s.lastName||""}`.trim();
+                      return <Av key={id} name={nm} color={AVCOLORS[i%AVCOLORS.length]} size={16}/>;
+                    })}
+                    {t.assignedUserIds.length > 3 && <span style={{fontSize:9,color:"var(--t3)"}}>+{t.assignedUserIds.length-3}</span>}
+                    <span style={{marginLeft:2}}>{
+                      t.assignedUserIds.slice(0,2).map(id => {
+                        const s = globalStaff.find(x=>x.id===id);
+                        return s ? `${s.firstName||""}`.trim() : id;
+                      }).join(", ")
+                    }{t.assignedUserIds.length > 2 ? ` +${t.assignedUserIds.length-2}` : ""}</span>
+                  </div>
+                ) : t.assigned ? <span>{t.assigned}</span> : null}
+                {t.due && <span>Due {t.due}</span>}
+                {t.time && <span style={{color:"var(--blue)",fontFamily:"var(--mono)"}}>{t.time}</span>}
+                <span style={{color:"var(--t3)"}}>Created {t.created}</span>
+              </div>
+              {t.notes && <div style={{marginTop:4,fontSize:10,color:"var(--t3)",fontStyle:"italic"}}>{t.notes}</div>}
+            </div>
+          </div>
+        ))}
+
+        {vis.length === 0 && (
+          <div style={{textAlign:"center",padding:"36px 0",color:"var(--t3)"}}>
+            <div style={{opacity:.15,fontSize:24,marginBottom:8}}>{Ic.tasks}</div>
+            <div className="mono" style={{fontSize:11}}>NO {filter.toUpperCase()} TASKS</div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -2518,30 +3363,363 @@ function ScopeTab({ scopeItems: externalItems, setScopeItems: setExternal }) {
 
 
 function MessagesTab() {
-  const [filter,setFilter]=useState("all");
-  const [compose,setCompose]=useState(false);
-  const [d,setD]=useState({to:"",subject:"",body:"",type:"email"});
-  const typeC={email:"var(--blue)",call:"var(--green)",sms:"var(--amber)"};
-  const typeI={email:Ic.mail,call:Ic.phone,sms:Ic.sms};
-  const vis=filter==="all"?MSGS_SEED:MSGS_SEED.filter(m=>m.type===filter);
   return (
-    <div className="scroll"><div style={{maxWidth:800,margin:"0 auto"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:11}}>
-        <div style={{display:"flex",gap:5}}>{[["all","All"],["email","Email"],["sms","SMS"],["call","Calls"]].map(([k,l])=><button key={k} className={`chip${filter===k?" on":""}`} onClick={()=>setFilter(k)}>{l}</button>)}</div>
-        <button className="btn btn-primary btn-xs" onClick={()=>setCompose(v=>!v)}>{Ic.msg} Compose</button>
-      </div>
-      {compose && <div className="card" style={{marginBottom:11}}><div className="g3" style={{gap:9,marginBottom:9}}><F label="Type" value={d.type} onChange={v=>setD(p=>({...p,type:v}))} options={["email","sms","call"]}/><F label="To" value={d.to} onChange={v=>setD(p=>({...p,to:v}))} placeholder="Contact…" span={2}/></div>{d.type==="email"&&<div style={{marginBottom:9}}><F label="Subject" value={d.subject} onChange={v=>setD(p=>({...p,subject:v}))} placeholder="Subject"/></div>}<label className="lbl">Message</label><textarea className="txa" value={d.body} onChange={e=>setD(p=>({...p,body:e.target.value}))} style={{marginBottom:9}}/><div style={{display:"flex",justifyContent:"flex-end",gap:7}}><button className="btn btn-ghost btn-xs" onClick={()=>setCompose(false)}>Cancel</button><button className="btn btn-primary btn-xs">Send</button></div></div>}
-      {vis.map(m=>{const c=typeC[m.type]||"var(--t2)";return(
-        <div key={m.id} className="msg-row" style={{opacity:m.read?.8:1}}>
-          <div style={{width:32,height:32,borderRadius:"50%",background:c+"18",color:c,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{typeI[m.type]}</div>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><span style={{fontWeight:m.read?400:700,fontSize:12,color:"var(--t1)"}}>{m.from}</span><span style={{fontSize:10,color:"var(--t3)"}}>{m.time}</span></div>
-            <div style={{fontSize:11,color:"var(--t2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.preview}</div>
+    <div style={{padding:"32px 0",textAlign:"center",color:"var(--t3)"}}>
+      <div style={{fontSize:28,marginBottom:8,opacity:.4}}>💬</div>
+      <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:4}}>Project Messages</div>
+      <div style={{fontSize:11}}>Message history for this project will appear here.</div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   MESSAGE CENTER  —  company-wide calls, texts, emails in one place
+══════════════════════════════════════════════════════════════════ */
+function MessageCenter({ onClose, companyId, globalStaff=[], projects=[] }) {
+  const [records,   setRecords]   = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [typeFilter,setTypeFilter]= useState("all");   // all | call | sms | email
+  const [dirFilter, setDirFilter] = useState("all");   // all | inbound | outbound
+  const [staffFilter,setStaffFilter]=useState("all");  // all | staffId
+  const [projFilter, setProjFilter]=useState("all");   // all | projId
+  const [search,    setSearch]    = useState("");
+  const [playing,   setPlaying]   = useState(null);
+  const audioRef = useRef(null);
+
+  // ── Load all calls + SMS logs from Firestore ──
+  useEffect(() => {
+    if (!companyId) return;
+    setLoading(true);
+
+    // Stream calls
+    const callQ = query(
+      collection(db, `companies/${companyId}/calls`),
+      orderBy("createdAt","desc")
+    );
+    const unsubCalls = onSnapshot(callQ, snap => {
+      const calls = snap.docs.map(d => {
+        const r = { id: d.id, ...d.data() };
+        return {
+          _id:       r.id,
+          type:      "call",
+          direction: r.type || "outbound",
+          contact:   r.clientName || r.clientPhone || "Unknown",
+          phone:     r.clientPhone || "",
+          staffName: r.staffName  || "",
+          staffId:   r.staffId    || "",
+          projectId: r.projectId  || null,
+          status:    r.status     || "completed",
+          duration:  r.duration   || 0,
+          recordingUrl: r.recordingUrl || null,
+          createdAt: r.createdAt,
+          preview:   r.status === "completed"
+            ? `${r.type==="inbound"?"Inbound":"Outbound"} call · ${fmtDurMC(r.duration)}`
+            : (r.status||"").charAt(0).toUpperCase()+(r.status||"").slice(1),
+        };
+      });
+      setRecords(prev => {
+        const nonCalls = prev.filter(r => r.type !== "call");
+        return [...calls, ...nonCalls].sort(sortByDate);
+      });
+      setLoading(false);
+    }, () => setLoading(false));
+
+    // Stream SMS logs
+    const smsQ = query(
+      collection(db, `companies/${companyId}/smsLogs`),
+      orderBy("createdAt","desc")
+    );
+    const unsubSMS = onSnapshot(smsQ, snap => {
+      const msgs = snap.docs.map(d => {
+        const r = { id: d.id, ...d.data() };
+        return {
+          _id:       r.id,
+          type:      "sms",
+          direction: r.direction || "outbound",
+          contact:   r.contactName || r.to || r.from || "Unknown",
+          phone:     r.direction==="inbound" ? (r.from||"") : (r.to||""),
+          staffName: r.staffName  || "",
+          staffId:   r.staffId    || "",
+          projectId: r.projectId  || null,
+          status:    "delivered",
+          createdAt: r.createdAt,
+          preview:   r.body || "",
+        };
+      });
+      setRecords(prev => {
+        const nonSMS = prev.filter(r => r.type !== "sms");
+        return [...nonSMS, ...msgs].sort(sortByDate);
+      });
+    }, () => {});
+
+    return () => { unsubCalls(); unsubSMS(); };
+  }, [companyId]);
+
+  function fmtDurMC(s) {
+    if (!s) return "--";
+    const m = Math.floor(s/60), sec = s%60;
+    return `${m}:${String(sec).padStart(2,"0")}`;
+  }
+  function sortByDate(a,b) {
+    const ta = a.createdAt?.seconds||0, tb = b.createdAt?.seconds||0;
+    return tb - ta;
+  }
+  function fmtTs(ts) {
+    if (!ts) return "";
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    const now = new Date();
+    const diff = now - d;
+    if (diff < 86400000) return d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+    if (diff < 604800000) return d.toLocaleDateString("en-US",{weekday:"short"}) + " " +
+      d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+    return d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+  }
+
+  const togglePlay = url => {
+    if (playing === url) { audioRef.current?.pause(); setPlaying(null); }
+    else setPlaying(url);
+  };
+  useEffect(() => {
+    if (playing && audioRef.current) { audioRef.current.src = playing; audioRef.current.play().catch(()=>{}); }
+  }, [playing]);
+
+  // ── Filter pipeline ──
+  const visible = records.filter(r => {
+    if (typeFilter !== "all"  && r.type      !== typeFilter)  return false;
+    if (dirFilter  !== "all"  && r.direction !== dirFilter)   return false;
+    if (staffFilter !== "all" && r.staffId   !== staffFilter) return false;
+    if (projFilter  !== "all" && r.projectId !== projFilter)  return false;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      if (!r.contact.toLowerCase().includes(q) &&
+          !r.phone.toLowerCase().includes(q) &&
+          !r.preview.toLowerCase().includes(q) &&
+          !(r.staffName||"").toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  const typeColor = { call:"var(--green)", sms:"var(--blue)", email:"var(--purple)" };
+  const typeIcon  = { call:Ic.phone, sms:Ic.sms, email:Ic.mail };
+  const dirColor  = { inbound:"var(--blue)", outbound:"var(--green)" };
+  const dirIcon   = { inbound:Ic.call_in, outbound:Ic.call_out };
+  const statusColor = {
+    completed:"var(--green)", delivered:"var(--green)",
+    "no-answer":"var(--amber)", busy:"var(--amber)", failed:"var(--acc)",
+    connecting:"var(--blue)", ringing:"var(--blue)",
+  };
+
+  // Unique projects and staff that appear in records (for filter dropdowns)
+  const seenProjIds  = [...new Set(records.map(r=>r.projectId).filter(Boolean))];
+  const seenStaffIds = [...new Set(records.map(r=>r.staffId).filter(Boolean))];
+  const projOptions  = projects.filter(p => seenProjIds.includes(p.id));
+  const staffOptions = globalStaff.filter(s => seenStaffIds.includes(s.id));
+
+  // Summary counts
+  const counts = { call:0, sms:0, email:0 };
+  records.forEach(r => { if (counts[r.type]!==undefined) counts[r.type]++; });
+
+  return (
+    <div className="overlay" style={{zIndex:400}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <audio ref={audioRef} onEnded={()=>setPlaying(null)} style={{display:"none"}}/>
+      <div style={{
+        position:"fixed",inset:0,background:"var(--bg)",display:"flex",flexDirection:"column",
+        zIndex:401,
+      }}>
+        {/* ── Top bar ── */}
+        <div style={{
+          padding:"14px 20px",borderBottom:"1px solid var(--br)",
+          display:"flex",alignItems:"center",gap:14,flexShrink:0,
+          background:"var(--s1)",
+        }}>
+          <button className="btn btn-ghost btn-xs" onClick={onClose} style={{gap:5}}>
+            {Ic.back} Back
+          </button>
+          <div style={{flex:1}}>
+            <div style={{fontSize:15,fontWeight:800,color:"var(--t1)"}}>Message Center</div>
+            <div className="mono" style={{fontSize:9,color:"var(--t3)",marginTop:1}}>COMPANY-WIDE COMMUNICATION LOG</div>
           </div>
-          {!m.read && <div style={{width:7,height:7,borderRadius:"50%",background:"var(--acc)",flexShrink:0,marginTop:3}}/>}
+          {/* Summary pills */}
+          <div style={{display:"flex",gap:6}}>
+            {[["call","Calls",counts.call],["sms","Texts",counts.sms],["email","Emails",counts.email]].map(([k,l,n])=>(
+              <div key={k} style={{
+                padding:"4px 10px",borderRadius:20,fontSize:10,fontWeight:700,
+                background:`color-mix(in srgb, ${typeColor[k]} 10%, transparent)`,
+                color:typeColor[k],border:`1px solid color-mix(in srgb, ${typeColor[k]} 25%, transparent)`,
+                fontFamily:"var(--mono)",
+              }}>{n} {l}</div>
+            ))}
+          </div>
         </div>
-      );})}
-    </div></div>
+
+        {/* ── Filter bar ── */}
+        <div style={{
+          padding:"10px 20px",borderBottom:"1px solid var(--br)",
+          display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",flexShrink:0,
+          background:"var(--s1)",
+        }}>
+          {/* Search */}
+          <div style={{position:"relative",flex:"0 0 200px"}}>
+            <span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",color:"var(--t3)",pointerEvents:"none"}}>{Ic.search}</span>
+            <input className="inp" placeholder="Search contacts, messages…" value={search}
+              onChange={e=>setSearch(e.target.value)}
+              style={{paddingLeft:28,fontSize:11,height:30}}/>
+          </div>
+
+          {/* Type filter */}
+          <div style={{display:"flex",gap:3}}>
+            {[["all","All"],["call","Calls"],["sms","Texts"],["email","Emails"]].map(([k,l])=>(
+              <button key={k} className={`chip${typeFilter===k?" on":""}`}
+                onClick={()=>setTypeFilter(k)} style={{fontSize:10,padding:"3px 10px"}}>{l}</button>
+            ))}
+          </div>
+
+          {/* Direction filter */}
+          <div style={{display:"flex",gap:3}}>
+            {[["all","All Directions"],["inbound","Inbound"],["outbound","Outbound"]].map(([k,l])=>(
+              <button key={k} className={`chip${dirFilter===k?" on":""}`}
+                onClick={()=>setDirFilter(k)} style={{fontSize:10,padding:"3px 10px"}}>{l}</button>
+            ))}
+          </div>
+
+          {/* Staff filter */}
+          {staffOptions.length > 0 && (
+            <select className="sel" value={staffFilter} onChange={e=>setStaffFilter(e.target.value)}
+              style={{fontSize:10,height:28,padding:"0 8px"}}>
+              <option value="all">All Staff</option>
+              {staffOptions.map(s=>(
+                <option key={s.id} value={s.id}>
+                  {s.firstName} {s.lastName}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {/* Project filter */}
+          {projOptions.length > 0 && (
+            <select className="sel" value={projFilter} onChange={e=>setProjFilter(e.target.value)}
+              style={{fontSize:10,height:28,padding:"0 8px"}}>
+              <option value="all">All Projects</option>
+              {projOptions.map(p=>(
+                <option key={p.id} value={p.id}>{p.name||p.address||p.id}</option>
+              ))}
+            </select>
+          )}
+
+          <div style={{marginLeft:"auto",fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>
+            {visible.length} of {records.length}
+          </div>
+        </div>
+
+        {/* ── Record list ── */}
+        <div style={{flex:1,overflowY:"auto",padding:"10px 20px"}}>
+          {loading ? (
+            <div style={{padding:"40px 0",textAlign:"center",color:"var(--t3)",fontSize:12}}>
+              <span style={{display:"inline-block",width:16,height:16,border:"2px solid var(--br)",borderTopColor:"var(--acc)",borderRadius:"50%",animation:"jd-spin .7s linear infinite",marginRight:8,verticalAlign:"middle"}}/>
+              Loading communications…
+            </div>
+          ) : visible.length === 0 ? (
+            <div style={{padding:"48px 0",textAlign:"center",color:"var(--t3)"}}>
+              <div style={{fontSize:32,marginBottom:10,opacity:.3}}>📭</div>
+              <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:4}}>No records found</div>
+              <div style={{fontSize:11}}>
+                {records.length === 0
+                  ? "Communications will appear here as calls and texts are made."
+                  : "Try adjusting your filters."}
+              </div>
+            </div>
+          ) : (
+            <div style={{display:"flex",flexDirection:"column",gap:1}}>
+              {visible.map(r => {
+                const proj = projects.find(p=>p.id===r.projectId);
+                const tC   = typeColor[r.type]  || "var(--t3)";
+                const dC   = dirColor[r.direction] || "var(--t3)";
+                const sC   = statusColor[r.status] || "var(--t3)";
+                return (
+                  <div key={r._id} style={{
+                    display:"flex",alignItems:"center",gap:12,
+                    padding:"10px 12px",borderRadius:8,
+                    background:"var(--s1)",border:"1px solid var(--br)",
+                    marginBottom:4,
+                  }}>
+                    {/* Type + direction icon */}
+                    <div style={{
+                      width:38,height:38,borderRadius:10,flexShrink:0,
+                      display:"flex",alignItems:"center",justifyContent:"center",
+                      background:`color-mix(in srgb, ${tC} 10%, transparent)`,
+                      color: tC,
+                    }}>
+                      {r.type === "call"
+                        ? (r.direction === "inbound" ? Ic.call_in : Ic.call_out)
+                        : typeIcon[r.type]}
+                    </div>
+
+                    {/* Main info */}
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:2}}>
+                        <span style={{fontWeight:600,fontSize:13,color:"var(--t1)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:200}}>
+                          {r.contact}
+                        </span>
+                        {r.phone && (
+                          <span style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>{r.phone}</span>
+                        )}
+                        <span style={{
+                          fontSize:9,fontWeight:700,fontFamily:"var(--mono)",
+                          padding:"1px 6px",borderRadius:4,
+                          color:sC,background:`color-mix(in srgb, ${sC} 12%, transparent)`,
+                        }}>{(r.status||"").toUpperCase()}</span>
+                      </div>
+                      <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+                        {r.staffName && (
+                          <span style={{fontSize:10,color:"var(--t2)",display:"flex",alignItems:"center",gap:4}}>
+                            <Av name={r.staffName} size={14} color="var(--acc)"/> {r.staffName}
+                          </span>
+                        )}
+                        {proj && (
+                          <span style={{fontSize:10,color:"var(--blue)",display:"flex",alignItems:"center",gap:3}}>
+                            {Ic.folder} {proj.name||proj.address||"Project"}
+                          </span>
+                        )}
+                        <span style={{fontSize:10,color:"var(--t3)"}}>{fmtTs(r.createdAt)}</span>
+                        {r.type==="call" && r.duration>0 && (
+                          <span style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>
+                            {fmtDurMC(r.duration)}
+                          </span>
+                        )}
+                        {r.type!=="call" && r.preview && (
+                          <span style={{fontSize:10,color:"var(--t3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:300}}>
+                            {r.preview}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Direction badge */}
+                    <div style={{
+                      fontSize:9,fontWeight:700,fontFamily:"var(--mono)",
+                      padding:"2px 7px",borderRadius:4,flexShrink:0,
+                      color:dC,background:`color-mix(in srgb, ${dC} 10%, transparent)`,
+                    }}>{(r.direction||"").toUpperCase()}</div>
+
+                    {/* Recording playback for calls */}
+                    {r.type==="call" && r.recordingUrl && (
+                      <button className="btn btn-ghost btn-xs" onClick={()=>togglePlay(r.recordingUrl)}
+                        style={{gap:4,fontSize:11,flexShrink:0}}>
+                        {playing===r.recordingUrl ? Ic.pause : Ic.play}
+                        {playing===r.recordingUrl ? "Pause" : "Play"}
+                      </button>
+                    )}
+                    {r.type==="call" && !r.recordingUrl && r.status==="completed" && (
+                      <span style={{fontSize:9,color:"var(--t3)",fontStyle:"italic",flexShrink:0}}>Processing…</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -4688,12 +5866,13 @@ const PROJ_TABS = [
   {key:"shifts",      label:"Shift Reports",  icon:Ic.clock   },
   {key:"scope",       label:"Scope/Invoice",  icon:Ic.scope   },
   {key:"messages",       label:"Messages",       icon:Ic.msg         },
+  {key:"calls",          label:"Calls",          icon:Ic.phone       },
   {key:"project-report", label:"Project Report", icon:Ic.proj_report },
 ];
 
 
 
-function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists }) {
+function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists, companyId="", phoneSettings={} }) {
   const [tab,setTab]           = useState(initialTab||"overview");
   const [notifyModal,setNotify]= useState(false);
   const [commModal,setComm]    = useState(false);
@@ -4730,7 +5909,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
     <>
       {clockModal  && <ClockInModal proj={proj} clockInState={clockInState} onClockIn={onClockIn} onClockOut={onClockOut} onClose={()=>setClock(false)} currentUser={currentUser} canViewRates={canViewRates}/>}
       {notifyModal && <NotifyModal proj={proj} onClose={()=>setNotify(false)} globalStaff={globalStaff}/>}
-      {commModal   && <CommModal    proj={proj} onClose={()=>setComm(false)}/>}
+      {commModal   && <CommModal    proj={proj} onClose={()=>setComm(false)} currentUser={currentUser}/>}
       <div className="topbar">
         <div style={{display:"flex",alignItems:"center",gap:11}}>
           <button className="back-btn" onClick={onBack}>{Ic.back} Projects</button>
@@ -4784,11 +5963,12 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       {tab==="contacts"       && <ContactsTab/>}
       {tab==="media"          && <MediaTab       folders={mediaFolders} setFolders={setMediaFolders} uploads={mediaUploads} setUploads={setMediaUploads}/>}
       {tab==="documents"      && <DocumentsTab   docs={projDocs} setDocs={setProjDocs}/>}
-      {tab==="tasks"          && <TasksTab initialTasks={proj.templateTasks||[]}/>}
+      {tab==="tasks"          && <TasksTab initialTasks={proj.templateTasks||[]} globalStaff={globalStaff}/>}
       {tab==="budget"         && <BudgetTab proj={proj} laborCost={laborCost}/>}
       {tab==="shifts"         && <ShiftsTab projId={proj.id} externalShifts={myShifts} canViewRates={canViewRates}/>}
       {tab==="scope"          && <ScopeTab scopeItems={scopeItems} setScopeItems={setScopeItems}/>}
       {tab==="messages"       && <MessagesTab/>}
+      {tab==="calls"          && <CallLogTab proj={proj} companyId={companyId} globalStaff={globalStaff} currentUser={currentUser} phoneSettings={phoneSettings}/>}
       {tab==="project-report" && <ProjectReportTab proj={proj} dailyNotes={dailyNotes} mediaFolders={mediaFolders} mediaUploads={mediaUploads} docs={projDocs}/>}
     </>
   );
@@ -4799,9 +5979,11 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
 
 
 
-function AdvToolsPanel({ onClose, priceLists, setPriceLists }) {
-  const [showPLManager, setShowPLManager] = useState(false);
+function AdvToolsPanel({ onClose, priceLists, setPriceLists, companyId, globalStaff=[], projects=[] }) {
+  const [showPLManager,    setShowPLManager]    = useState(false);
+  const [showMsgCenter,    setShowMsgCenter]    = useState(false);
   const TOOLS = [
+    { icon:Ic.msg,      label:"Message Center",    desc:"Company-wide calls, texts & emails", action:()=>setShowMsgCenter(true) },
     { icon:Ic.mindflow, label:"CortexAI",           desc:"AI-powered workflow generation", link:"mindflow.html" },
     { icon:Ic.pricetag, label:"Price Lists",         desc:`${priceLists.length} lists · Manage equipment & material pricing`, action:()=>setShowPLManager(true) },
     { icon:Ic.attr,     label:"Attribute Templates", desc:"Configure custom project fields" },
@@ -4814,6 +5996,14 @@ function AdvToolsPanel({ onClose, priceLists, setPriceLists }) {
           priceLists={priceLists}
           setPriceLists={setPriceLists}
           onClose={()=>setShowPLManager(false)}
+        />
+      )}
+      {showMsgCenter && (
+        <MessageCenter
+          onClose={()=>setShowMsgCenter(false)}
+          companyId={companyId}
+          globalStaff={globalStaff}
+          projects={projects}
         />
       )}
       <div style={{position:"fixed",inset:0,zIndex:300}} onClick={e=>e.target===e.currentTarget&&onClose()}>
@@ -5174,6 +6364,411 @@ function GeneralSettingsTab() {
   );
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   CALL LOG TAB  — shows all calls linked to a project, with playback
+══════════════════════════════════════════════════════════════════ */
+function CallLogTab({ proj, companyId, globalStaff=[], currentUser, phoneSettings={} }) {
+  const [calls,    setCalls]    = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [calling,  setCalling]  = useState(false);
+  const [callErr,  setCallErr]  = useState("");
+  const [playing,  setPlaying]  = useState(null);   // recordingUrl currently playing
+  const audioRef   = useRef(null);
+
+  // ── Stream calls for this project ──
+  useEffect(() => {
+    if (!companyId) return;
+    setLoading(true);
+    const q = query(
+      collection(db, `companies/${companyId}/calls`),
+      where("projectId", "==", proj.id),
+      orderBy("createdAt", "desc")
+    );
+    const unsub = onSnapshot(q, snap => {
+      setCalls(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    }, () => setLoading(false));
+    return unsub;
+  }, [companyId, proj.id]);
+
+  const fmtDur = s => {
+    if (!s) return "--";
+    const m = Math.floor(s / 60), sec = s % 60;
+    return `${m}:${String(sec).padStart(2,"0")}`;
+  };
+  const fmtTs = ts => {
+    if (!ts) return "";
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toLocaleDateString("en-US",{month:"short",day:"numeric"}) + " " +
+           d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+  };
+
+  // ── Outbound call: staff clicks to call client ──
+  const doCall = async () => {
+    const staffRecord = globalStaff.find(s =>
+      `${s.firstName||""} ${s.lastName||""}`.trim() === currentUser?.name
+    );
+    if (!staffRecord?.phone) { setCallErr("Your staff profile has no phone number. Add it in Settings → Staff."); return; }
+    if (!proj.clientPhone)    { setCallErr("This project has no client phone number."); return; }
+    if (!phoneSettings.twilioNumber) { setCallErr("No Twilio number configured. Set it in Settings → Phone & Calls."); return; }
+
+    setCalling(true); setCallErr("");
+    try {
+      await initiateCall({
+        staffPhone:    staffRecord.phone,
+        clientPhone:   proj.clientPhone,
+        clientName:    proj.client || proj.clientPhone,
+        staffName:     currentUser?.name || "Staff",
+        companyId,
+        projectId:     proj.id,
+        twilioNumber:  phoneSettings.twilioNumber,
+      });
+    } catch (e) {
+      setCallErr(e?.message || "Call failed.");
+    } finally {
+      setCalling(false);
+    }
+  };
+
+  const togglePlay = (url) => {
+    if (playing === url) {
+      audioRef.current?.pause();
+      setPlaying(null);
+    } else {
+      setPlaying(url);
+    }
+  };
+
+  useEffect(() => {
+    if (playing && audioRef.current) {
+      audioRef.current.src = playing;
+      audioRef.current.play().catch(() => {});
+    }
+  }, [playing]);
+
+  const statusColor = { completed:"var(--green)", "no-answer":"var(--amber)", busy:"var(--amber)", failed:"var(--acc)", connecting:"var(--blue)", ringing:"var(--blue)" };
+
+  return (
+    <div>
+      {/* Hidden audio element for recording playback */}
+      <audio ref={audioRef} onEnded={() => setPlaying(null)} style={{display:"none"}}/>
+
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+        <div>
+          <div style={{fontSize:14,fontWeight:700,color:"var(--t1)"}}>Call Log</div>
+          <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>All calls linked to this project</div>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          {callErr && <span style={{fontSize:11,color:"var(--acc)",maxWidth:220}}>{callErr}</span>}
+          <button className="btn btn-green" onClick={doCall} disabled={calling}
+            style={{gap:6,fontSize:12}}>
+            {calling
+              ? <><span style={{width:11,height:11,border:"2px solid rgba(255,255,255,.3)",borderTopColor:"#fff",borderRadius:"50%",animation:"jd-spin .7s linear infinite",display:"inline-block"}}/> Calling…</>
+              : <>{Ic.call_out} Call {proj.client||"Client"}</>}
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{padding:"32px 0",textAlign:"center",color:"var(--t3)",fontSize:12}}>Loading calls…</div>
+      ) : calls.length === 0 ? (
+        <div className="card" style={{padding:28,textAlign:"center",color:"var(--t3)"}}>
+          <div style={{fontSize:28,marginBottom:8,opacity:.4}}>📞</div>
+          <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:4}}>No calls yet</div>
+          <div style={{fontSize:11}}>Use the button above to call {proj.client||"the client"} from this project.</div>
+        </div>
+      ) : (
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {calls.map(call => (
+            <div key={call.id} className="card" style={{padding:"12px 14px",display:"flex",alignItems:"center",gap:12}}>
+              {/* Direction icon */}
+              <div style={{
+                width:34,height:34,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",
+                background: call.type==="inbound" ? "rgba(91,163,245,.1)" : "rgba(26,217,138,.1)",
+                color:      call.type==="inbound" ? "var(--blue)" : "var(--green)",
+              }}>
+                {call.type === "inbound" ? Ic.call_in : Ic.call_out}
+              </div>
+
+              {/* Call info */}
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <span style={{fontWeight:600,fontSize:13,color:"var(--t1)"}}>
+                    {call.type === "inbound" ? (call.clientName||call.clientPhone) : (call.clientName||call.clientPhone)}
+                  </span>
+                  <span style={{
+                    fontSize:9,fontWeight:700,fontFamily:"var(--mono)",letterSpacing:".5px",
+                    padding:"2px 6px",borderRadius:4,
+                    color: statusColor[call.status] || "var(--t3)",
+                    background: `color-mix(in srgb, ${statusColor[call.status]||"var(--t3)"} 12%, transparent)`,
+                  }}>{(call.status||"").toUpperCase()}</span>
+                  {call.type === "inbound" && call.callGroupName && (
+                    <span style={{fontSize:10,color:"var(--t3)"}}>→ {call.callGroupName}</span>
+                  )}
+                </div>
+                <div style={{fontSize:11,color:"var(--t3)",marginTop:2,display:"flex",gap:10,flexWrap:"wrap"}}>
+                  {call.staffName && <span>{call.staffName}</span>}
+                  <span>{fmtTs(call.createdAt)}</span>
+                  {call.duration > 0 && <span>{fmtDur(call.duration)}</span>}
+                </div>
+              </div>
+
+              {/* Recording playback */}
+              {call.recordingUrl ? (
+                <button className="btn btn-ghost btn-xs" onClick={() => togglePlay(call.recordingUrl)}
+                  style={{gap:5,fontSize:11,flexShrink:0}}>
+                  {playing === call.recordingUrl ? Ic.pause : Ic.play}
+                  {playing === call.recordingUrl ? "Pause" : "Play"}
+                </button>
+              ) : (
+                call.status === "completed" && (
+                  <span style={{fontSize:10,color:"var(--t3)",fontStyle:"italic"}}>Processing…</span>
+                )
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   PHONE SETTINGS TAB  — disclosure message + call groups
+══════════════════════════════════════════════════════════════════ */
+function PhoneSettingsTab({ companyId, globalStaff=[], permLevel=1 }) {
+  const isAdmin = permLevel >= 8;
+
+  // ── Load existing phone settings from Firestore ──
+  const [settings,  setSettings]  = useState(null);  // null = loading
+  const [saving,    setSaving]    = useState(false);
+  const [saved,     setSaved]     = useState(false);
+  const [saveErr,   setSaveErr]   = useState("");
+
+  // Form state
+  const [twilioNum,     setTwilioNum]     = useState("");
+  const [disclosure,    setDisclosure]    = useState("Thank you for calling. This call may be recorded for quality and training purposes.");
+  const [callGroups,    setCallGroups]    = useState([]);
+  const [activeGroupId, setActiveGroupId] = useState(null);
+
+  // New group form
+  const [addingGroup,   setAddingGroup]   = useState(false);
+  const [groupName,     setGroupName]     = useState("");
+  const [groupMembers,  setGroupMembers]  = useState([]);
+  const [editGroupId,   setEditGroupId]   = useState(null);
+
+  useEffect(() => {
+    if (!companyId) return;
+    getDoc(doc(db, `companies/${companyId}/settings/phone`)).then(snap => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setTwilioNum(d.twilioNumber || "");
+        setDisclosure(d.disclosureMessage || disclosure);
+        setCallGroups(d.callGroups || []);
+        setActiveGroupId(d.activeCallGroupId || null);
+      }
+      setSettings(snap.exists() ? snap.data() : {});
+    }).catch(() => setSettings({}));
+  }, [companyId]);
+
+  const doSave = async () => {
+    if (!companyId) return;
+    setSaving(true); setSaveErr(""); setSaved(false);
+    try {
+      await savePhoneSettings({ companyId, twilioNumber: twilioNum, disclosureMessage: disclosure, callGroups, activeCallGroupId: activeGroupId });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (e) {
+      setSaveErr(e?.message || "Save failed.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openAddGroup = () => { setGroupName(""); setGroupMembers([]); setEditGroupId(null); setAddingGroup(true); };
+  const openEditGroup = g => { setGroupName(g.name); setGroupMembers(g.memberIds||[]); setEditGroupId(g.id); setAddingGroup(true); };
+  const saveGroup = () => {
+    if (!groupName.trim()) return;
+    const newGroup = { id: editGroupId || `grp-${Date.now()}`, name: groupName.trim(), memberIds: groupMembers };
+    setCallGroups(prev => editGroupId ? prev.map(g => g.id === editGroupId ? newGroup : g) : [...prev, newGroup]);
+    if (!activeGroupId && !editGroupId) setActiveGroupId(newGroup.id);
+    setAddingGroup(false);
+  };
+  const deleteGroup = id => {
+    setCallGroups(prev => prev.filter(g => g.id !== id));
+    if (activeGroupId === id) setActiveGroupId(null);
+  };
+  const toggleMember = id => setGroupMembers(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]);
+
+  const staffList = globalStaff.filter(s => s.firstName || s.lastName);
+
+  if (settings === null) return <div style={{padding:"32px 0",textAlign:"center",color:"var(--t3)",fontSize:12}}>Loading…</div>;
+  if (!isAdmin) return (
+    <div className="card" style={{padding:28,textAlign:"center",color:"var(--t3)"}}>
+      <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>Access Restricted</div>
+      <div style={{fontSize:11}}>Level 8 or higher required to configure Phone & Calls.</div>
+    </div>
+  );
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:20}}>
+      {/* ── Twilio number ── */}
+      <div className="card" style={{padding:20}}>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",marginBottom:4}}>Twilio Phone Number</div>
+        <div style={{fontSize:11,color:"var(--t3)",marginBottom:12}}>
+          Your company's dedicated Twilio number. Customers call this number; outbound calls show this as the caller ID.
+          Get this from your Twilio dashboard → Phone Numbers.
+        </div>
+        <input className="inp" placeholder="+19185551234" value={twilioNum}
+          onChange={e => setTwilioNum(e.target.value)}
+          style={{maxWidth:240,fontFamily:"var(--mono)",fontSize:13}}/>
+        <div style={{fontSize:10,color:"var(--t3)",marginTop:6}}>
+          After saving, configure your Twilio number's inbound webhook to:<br/>
+          <code style={{fontFamily:"var(--mono)",color:"var(--blue)",fontSize:10}}>
+            https://[region]-[project].cloudfunctions.net/handleInboundCall
+          </code>
+        </div>
+      </div>
+
+      {/* ── Recording disclosure ── */}
+      <div className="card" style={{padding:20}}>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",marginBottom:4}}>Call Recording Disclosure</div>
+        <div style={{fontSize:11,color:"var(--t3)",marginBottom:12}}>
+          This message is read aloud to the caller before connecting. Required for recording compliance.
+          You're in a one-party consent state, but this keeps you protected and professional.
+        </div>
+        <textarea className="txa" value={disclosure} onChange={e => setDisclosure(e.target.value)}
+          style={{minHeight:64,fontSize:13}}/>
+        <div style={{fontSize:10,color:"var(--t3)",marginTop:5}}>
+          Twilio reads this with Alice (a natural-sounding voice). Keep it under 25 words for best results.
+        </div>
+      </div>
+
+      {/* ── Call groups ── */}
+      <div className="card" style={{padding:20}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>Call Groups</div>
+            <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>
+              When someone calls your number, everyone in the active group is rung simultaneously.
+            </div>
+          </div>
+          <button className="btn btn-ghost btn-xs" onClick={openAddGroup} style={{gap:5}}>
+            {Ic.plus} Add Group
+          </button>
+        </div>
+
+        {/* Group list */}
+        {callGroups.length === 0 && !addingGroup && (
+          <div style={{padding:"16px 0",textAlign:"center",color:"var(--t3)",fontSize:11}}>
+            No call groups yet. Add one to enable simultaneous ringing.
+          </div>
+        )}
+
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:12}}>
+          {callGroups.map(g => {
+            const members = staffList.filter(s => g.memberIds?.includes(s.id));
+            const isActive = activeGroupId === g.id;
+            return (
+              <div key={g.id} style={{
+                border:`1px solid ${isActive?"var(--acc)":"var(--br)"}`,
+                borderRadius:8,padding:"10px 13px",
+                background: isActive ? "rgba(228,53,49,.04)" : "var(--s2)",
+                display:"flex",alignItems:"center",gap:10,
+              }}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:13,fontWeight:600,color:"var(--t1)"}}>{g.name}</span>
+                    {isActive && <span style={{fontSize:9,fontFamily:"var(--mono)",background:"var(--acc)",color:"#fff",padding:"1px 6px",borderRadius:4}}>ACTIVE</span>}
+                  </div>
+                  <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:5}}>
+                    {members.length === 0
+                      ? <span style={{fontSize:10,color:"var(--t3)"}}>No members</span>
+                      : members.map(s => (
+                          <span key={s.id} style={{
+                            fontSize:10,background:"var(--s3)",border:"1px solid var(--br)",
+                            borderRadius:12,padding:"2px 8px",color:"var(--t2)",display:"flex",alignItems:"center",gap:4,
+                          }}>
+                            <Av name={`${s.firstName||""} ${s.lastName||""}`.trim()} size={14} color={s.color||"var(--acc)"}/>
+                            {s.firstName} {s.lastName}
+                          </span>
+                        ))}
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:6,flexShrink:0}}>
+                  {!isActive && (
+                    <button className="btn btn-ghost btn-xs" onClick={() => setActiveGroupId(g.id)} style={{fontSize:10}}>
+                      Set Active
+                    </button>
+                  )}
+                  <button className="btn btn-ghost btn-xs" onClick={() => openEditGroup(g)} style={{fontSize:11}}>{Ic.tools}</button>
+                  <button className="btn btn-ghost btn-xs" onClick={() => deleteGroup(g.id)} style={{color:"var(--acc)",fontSize:11}}>{Ic.trash}</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Inline add/edit group form */}
+        {addingGroup && (
+          <div style={{marginTop:12,border:"1px solid var(--br)",borderRadius:8,padding:14,background:"var(--s2)"}}>
+            <div style={{fontSize:12,fontWeight:600,color:"var(--t1)",marginBottom:10}}>
+              {editGroupId ? "Edit Group" : "New Call Group"}
+            </div>
+            <input className="inp" placeholder="Group name (e.g. After-Hours Team)"
+              value={groupName} onChange={e => setGroupName(e.target.value)}
+              style={{marginBottom:10}}/>
+            <div style={{fontSize:11,color:"var(--t2)",marginBottom:8,fontWeight:600}}>Members (all will ring simultaneously)</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:6,marginBottom:12}}>
+              {staffList.map(s => {
+                const name = `${s.firstName||""} ${s.lastName||""}`.trim();
+                const on   = groupMembers.includes(s.id);
+                return (
+                  <div key={s.id} onClick={() => toggleMember(s.id)} style={{
+                    display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:7,
+                    border:`1px solid ${on?"var(--acc)":"var(--br)"}`,
+                    background: on ? "rgba(228,53,49,.06)" : "var(--s3)",
+                    cursor:"pointer",userSelect:"none",
+                  }}>
+                    <Av name={name} size={24} color={s.color||"var(--acc)"}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:12,fontWeight:600,color:on?"var(--acc)":"var(--t1)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{name}</div>
+                      {s.phone
+                        ? <div style={{fontSize:9,fontFamily:"var(--mono)",color:"var(--t3)"}}>{s.phone}</div>
+                        : <div style={{fontSize:9,color:"var(--acc)",fontStyle:"italic"}}>no phone</div>}
+                    </div>
+                    {on && <span style={{color:"var(--acc)",flexShrink:0}}>{Ic.check}</span>}
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{display:"flex",gap:8"}}>
+              <button className="btn btn-ghost btn-xs" onClick={() => setAddingGroup(false)}>Cancel</button>
+              <button className="btn btn-primary btn-xs" onClick={saveGroup} disabled={!groupName.trim()}>
+                {editGroupId ? "Save Changes" : "Add Group"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Save bar ── */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:10}}>
+        {saved   && <span style={{fontSize:11,color:"var(--green)"}}>✓ Saved</span>}
+        {saveErr && <span style={{fontSize:11,color:"var(--acc)"}}>{saveErr}</span>}
+        <button className="btn btn-primary" onClick={doSave} disabled={saving} style={{gap:6}}>
+          {saving
+            ? <><span style={{width:11,height:11,border:"2px solid rgba(255,255,255,.3)",borderTopColor:"#fff",borderRadius:"50%",animation:"jd-spin .7s linear infinite",display:"inline-block"}}/> Saving…</>
+            : "Save Phone Settings"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
 function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission=1, currentMemberId, currentMemberName, onPermissionChange, offices=[] }) {
   const [tab,      setTab]      = useState("staff");
   const [editId,   setEditId]   = useState(null);
@@ -5340,7 +6935,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     </div>
   );
 
-  const TABS = [["staff","Staff"],["offices","Offices"],["cortex","CortexAI"],["general","General"],["roadmap","Roadmap"]];
+  const TABS = [["staff","Staff"],["offices","Offices"],["phone","Phone & Calls"],["cortex","CortexAI"],["general","General"],["roadmap","Roadmap"]];
 
   return (
     <div className="scroll" style={{flex:1,overflow:"auto"}}>
@@ -5926,6 +7521,9 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
         )}
 
         {/* ── CORTEXAI TAB ── */}
+        {tab==="phone" && (
+          <PhoneSettingsTab companyId={companyId} globalStaff={globalStaff} permLevel={permLevel}/>
+        )}
         {tab==="cortex" && (
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
             <div className="card">
@@ -5993,6 +7591,7 @@ export default function JobDoxPortal() {
   const [customWorkTypes,  setCustomWorkTypes] = useState(loadCWT);
   const [customStatuses,   setCustomStatuses]  = useState(loadCST);
   const [customProjectTypes,setCustomProjectTypes] = useState(loadCPT);
+  const [phoneSettings,     setPhoneSettings]      = useState({});  // loaded from Firestore on companyId resolve
   const attrDefs = DEFAULT_ATTR_DEFS;
 
   // Re-sync if another tab updates localStorage config
@@ -6125,6 +7724,11 @@ export default function JobDoxPortal() {
         syncStaffToLS(JSON.parse(localStorage.getItem("jd_staff") || "[]"), list);
       });
 
+      // ── Load phone settings (one-time, not a stream — changes rarely) ──
+      getDoc(doc(db, `companies/${cid}/settings/phone`)).then(snap => {
+        if (snap.exists()) setPhoneSettings(snap.data());
+      }).catch(() => {});
+
       // ── Stream pending invites (admin only, but harmless to load) ──
       unsubInvites = fsListenInvites(cid, list => setPendingInvites(list));
     }
@@ -6248,7 +7852,7 @@ export default function JobDoxPortal() {
 
   return (
     <div className={`jdp${isLight?" lt":""}`}>
-      {showTools && <AdvToolsPanel onClose={()=>setShowTools(false)} priceLists={priceLists} setPriceLists={setPriceLists}/>}
+      {showTools && <AdvToolsPanel onClose={()=>setShowTools(false)} priceLists={priceLists} setPriceLists={setPriceLists} companyId={companyId} globalStaff={globalStaff} projects={projects}/>}
       <nav className="rail">
         <div className="rail-logo">JD</div>
         <button className={`rail-btn${page==="portfolio"&&!selected?" active":""}`} data-tip="Projects"
@@ -6355,7 +7959,14 @@ export default function JobDoxPortal() {
             />
           </>
         ) : page==="myday" ? (
-          <MyDayPage onNavigate={handleNavigate}/>
+          <MyDayPage
+            onNavigate={handleNavigate}
+            currentUser={currentUser}
+            permissionLevel={permission}
+            globalStaff={globalStaff}
+            currentMemberId={currentMember?.id||""}
+            companyId={companyId}
+          />
         ) : selected ? (
           <ProjectDetail
             proj={selected}
@@ -6375,6 +7986,8 @@ export default function JobDoxPortal() {
             globalStaff={globalStaff}
             priceLists={priceLists}
             setPriceLists={setPriceLists}
+            companyId={companyId}
+            phoneSettings={phoneSettings}
           />
         ) : (
           <PortfolioPage
