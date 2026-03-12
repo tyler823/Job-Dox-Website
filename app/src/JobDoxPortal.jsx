@@ -5457,7 +5457,20 @@ export default function JobDoxPortal() {
     function getMember() {
       if (!window.$memberstackDom) { setTimeout(getMember, 250); return; }
       window.$memberstackDom.getCurrentMember().then(({ data: member }) => {
-        if (member) initMember(member);
+        if (member) {
+          initMember(member);
+        } else {
+          // Not logged in — send back to landing page
+          window.location.href = "https://job-dox.ai";
+        }
+      });
+      // Watch for auth changes — handles concurrent login kicks and manual logouts
+      window.$memberstackDom.onAuthChange((member) => {
+        if (!member) {
+          localStorage.clear();
+          sessionStorage.clear();
+          window.location.href = "https://job-dox.ai";
+        }
       });
     }
     getMember();
@@ -5589,12 +5602,13 @@ export default function JobDoxPortal() {
         </button>
         <button className="rail-btn" data-tip="Sign Out" onClick={async()=>{
           try {
-            if (window.$memberstackDom?.logout) await window.$memberstackDom.logout();
-          } catch(e) {}
-          // Clear all local state and redirect regardless
-          localStorage.clear();
-          sessionStorage.clear();
-          window.location.href = "https://job-dox.ai";
+            await window.$memberstackDom.logout();
+          } catch(e) {
+            // If logout fails, force it manually
+            localStorage.clear();
+            sessionStorage.clear();
+            window.location.href = "https://job-dox.ai";
+          }
         }} style={{color:"var(--t3)"}}>
           {Ic.logout}
         </button>
