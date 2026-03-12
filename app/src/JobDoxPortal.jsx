@@ -5412,23 +5412,28 @@ export default function JobDoxPortal() {
       // ── Load this user's permission from their staff record ──
       try {
         const staffRecord = await fsGetStaff(cid, member.id);
-        if (staffRecord) {
-          setPermission(staffRecord.permission || "staff");
-        } else if (cid === member.id) {
-          // Account owner — ensure they exist in staff as admin
-          await fsSetStaff(cid, member.id, {
-            firstName: member.customFields?.firstName || "",
-            lastName:  member.customFields?.lastName  || "",
-            email,
-            phone:      member.customFields?.phone || "",
-            systemRole: "Project Manager",
-            title:      "Account Owner",
-            photoUrl:   "",
-            permission: "admin",
-            status:     "active",
-            joinedAt:   new Date().toISOString(),
-          });
+        const isOwner = cid === member.id;
+
+        if (isOwner) {
+          // Account owner is ALWAYS admin — create or force-correct the record
+          const needsWrite = !staffRecord || staffRecord.permission !== "admin";
+          if (needsWrite) {
+            await fsSetStaff(cid, member.id, {
+              firstName:  member.customFields?.firstName || "",
+              lastName:   member.customFields?.lastName  || "",
+              email,
+              phone:      member.customFields?.phone || "",
+              systemRole: staffRecord?.systemRole || "Project Manager",
+              title:      "Account Owner",
+              photoUrl:   staffRecord?.photoUrl || "",
+              permission: "admin",
+              status:     "active",
+              joinedAt:   staffRecord?.joinedAt || new Date().toISOString(),
+            });
+          }
           setPermission("admin");
+        } else if (staffRecord) {
+          setPermission(staffRecord.permission || "staff");
         }
       } catch(e) { console.warn("Staff record load failed:", e); }
 
