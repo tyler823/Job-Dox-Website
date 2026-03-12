@@ -944,16 +944,17 @@ document.querySelectorAll('.roi-charts').forEach(el=>{el.querySelectorAll('.ann-
         e.preventDefault();
         var plan  = el.getAttribute('data-ms-plan');
         var price = el.getAttribute('data-ms-price');
-        var opts  = {};
-        if (plan)  opts.planId  = plan;
-        if (price) opts.priceId = price;
-        window.$memberstackDom.openModal('signup', opts);
+        var opts = { signup: {} };
+        if (plan || price) {
+          opts.signup.plans = [{ planId: plan, priceId: price }];
+        }
+        window.$memberstackDom.openModal('SIGNUP', opts);
       });
     });
     document.querySelectorAll('[data-ms-action="login"]').forEach(function(el) {
       el.addEventListener('click', function(e) {
         e.preventDefault();
-        window.$memberstackDom.openModal('login');
+        window.$memberstackDom.openModal('LOGIN');
       });
     });
 
