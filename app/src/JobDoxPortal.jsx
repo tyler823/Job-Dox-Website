@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
          doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where } from "firebase/firestore";
@@ -1046,7 +1046,7 @@ function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], c
   const s = (k,v) => setF(p=>({...p,[k]:v}));
 
   // Load saved workflow templates once
-  const savedTemplates = React.useMemo(() => loadWorkflowTemplates(), []);
+  const savedTemplates = useMemo(() => loadWorkflowTemplates(), []);
 
   // Work type toggles — pull from company config
   const WT_OPTIONS = customWorkTypes.length ? customWorkTypes.map(w=>w.name) : Object.keys(WT_META);
