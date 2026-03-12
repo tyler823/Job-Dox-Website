@@ -31,7 +31,7 @@ const initiateCall      = data => callFn("initiate-call",       data);
 const savePhoneSettings = data => callFn("save-phone-settings", data);
 
 /* ── Google Maps key — restrict this to your domain in Google Cloud Console ── */
-const GMAPS_KEY = "YOUR_GOOGLE_MAPS_API_KEY"; // ← replace with real key
+const GMAPS_KEY = "AIzaSyB63wo4pFCRReosTWPlkZ6eETg7zdPaQpM"; // ← replace with real key
 
 /* ══════════════════════════════════════════════════════════════════
    MEMBERSTACK CONFIG
@@ -6813,7 +6813,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
   const [inviteForm, setInviteForm] = useState({ email:"", permission:3 });
 
   // ── Offices local state (mirrors Firestore via prop) ──
-  const officeBlank = { name:"", street:"", city:"", state:"", zip:"", color:"#22d3ee", lat:null, lng:null };
+  const officeBlank = { name:"", street:"", street2:"", city:"", state:"", zip:"", color:"#22d3ee", lat:null, lng:null };
   const [officeForm, setOfficeForm] = useState(officeBlank);
   const [officeEditId, setOfficeEditId] = useState(null);
   const [showOfficeForm, setShowOfficeForm] = useState(false);
@@ -6915,24 +6915,33 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     setOfficeGeoStatus(null);
   };
   const openEditOffice = o => {
-    setOfficeForm({ name:o.name||"", street:o.street||"", city:o.city||"", state:o.state||"", zip:o.zip||"", color:o.color||"#22d3ee", lat:o.lat||null, lng:o.lng||null });
+    setOfficeForm({ name:o.name||"", street:o.street||"", street2:o.street2||"", city:o.city||"", state:o.state||"", zip:o.zip||"", color:o.color||"#22d3ee", lat:o.lat||null, lng:o.lng||null });
     setOfficeEditId(o.id);
     setShowOfficeForm(true);
     setOfficeError("");
     setOfficeGeoStatus(o.lat ? "ok" : null);
   };
   const geocodeOffice = async () => {
-    const q = [officeForm.street, officeForm.city, officeForm.state, officeForm.zip].filter(Boolean).join(", ");
+    const parts = [officeForm.street, officeForm.street2, officeForm.city, officeForm.state, officeForm.zip].filter(Boolean);
+    const q = parts.join(", ");
     if (!q) { setOfficeError("Enter at least a city and state to geocode."); return; }
     setOfficeGeoStatus("pending");
     setOfficeError("");
-    const result = await geocodeAddress(q);
-    if (result) {
-      setOfficeForm(f => ({ ...f, lat: result.lat, lng: result.lng }));
-      setOfficeGeoStatus("ok");
-    } else {
+    try {
+      // Use Google Maps Geocoding API for reliable US address resolution
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(q)}&key=${GMAPS_KEY}`;
+      const res  = await fetch(url);
+      const data = await res.json();
+      if (data.status === "OK" && data.results?.[0]) {
+        const loc = data.results[0].geometry.location;
+        setOfficeForm(f => ({ ...f, lat: loc.lat, lng: loc.lng }));
+        setOfficeGeoStatus("ok");
+      } else {
+        throw new Error(data.status);
+      }
+    } catch {
       setOfficeGeoStatus("fail");
-      setOfficeError("Address not found — try including the full street address and ZIP code, or enter coordinates manually.");
+      setOfficeError("Address not found — check the street address and ZIP, or enter coordinates manually.");
     }
   };
   const saveOffice = async () => {
@@ -7395,6 +7404,11 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                     <input className="inp" value={officeForm.street} onChange={e=>setOfficeForm(f=>({...f,street:e.target.value}))}
                       placeholder="1234 Commerce Dr"/>
                   </div>
+                  <div style={{gridColumn:"1/-1"}}>
+                    <label className="lbl">Address Line 2 <span style={{color:"var(--t3)",fontWeight:400,textTransform:"none",letterSpacing:0}}>(Building, Suite, Unit, etc.)</span></label>
+                    <input className="inp" value={officeForm.street2||""} onChange={e=>setOfficeForm(f=>({...f,street2:e.target.value}))}
+                      placeholder="Building 2, Suite 100"/>
+                  </div>
                   <div>
                     <label className="lbl">City</label>
                     <input className="inp" value={officeForm.city} onChange={e=>setOfficeForm(f=>({...f,city:e.target.value}))}
@@ -7409,7 +7423,8 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                     <div>
                       <label className="lbl">ZIP</label>
                       <input className="inp" value={officeForm.zip} onChange={e=>setOfficeForm(f=>({...f,zip:e.target.value}))}
-                        placeholder="73102"/>
+                        placeholder="73102"
+                        onBlur={()=>{ if(officeForm.street && officeForm.city && officeForm.zip) geocodeOffice(); }}/>
                     </div>
                   </div>
                 </div>
