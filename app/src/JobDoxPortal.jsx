@@ -372,6 +372,7 @@ const Ic = {
   proj_report:<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>,
   ic_grid: <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3V3zm0 10h8v8H3v-8zm10-10h8v8h-8V3zm0 10h8v8h-8v-8z"/></svg>,
   stopwatch:<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M15.07 1.58l-1.06 1.95C13.43 3.2 12.73 3 12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-2.87-1.35-5.43-3.44-7.07l1.05-1.93-1.54-.42zM12 19c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm.5-11h-1.5v5.25l4.5 2.67.75-1.23-3.75-2.23V8z"/></svg>,
+  logout:  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>,
 };
 
 const STATUS_C = {"In Progress":"var(--blue)","New Lead":"var(--t2)","Scoping":"var(--amber)","On Hold":"var(--acc)","Completed":"var(--green)","Pending Approval":"var(--purple)"};
@@ -5585,6 +5586,9 @@ export default function JobDoxPortal() {
         </button>
         <button className="rail-btn" data-tip={isLight?"Dark mode":"Light mode"} onClick={toggleTheme} style={{color:isLight?"var(--t2)":"#f5c518"}}>
           {isLight ? Ic.sun : Ic.moon}
+        </button>
+        <button className="rail-btn" data-tip="Sign Out" onClick={()=>window.$memberstackDom?.logout()} style={{color:"var(--t3)"}}>
+          {Ic.logout}
         </button>
       </nav>
 
