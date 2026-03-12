@@ -404,6 +404,15 @@ const WT_PHASE_C = {
 const LS_CWT_KEY  = "jd_company_worktypes";
 const LS_CST_KEY  = "jd_company_statuses";
 const LS_CPT_KEY  = "jd_company_project_types";
+const LS_CO_KEY   = "jd_company_info";
+
+const DEFAULT_CO_INFO = { name:"", address:"", city:"", state:"", zip:"", phone:"", email:"", website:"", logo:"" };
+function loadCoInfo() {
+  try { return JSON.parse(localStorage.getItem(LS_CO_KEY)) || DEFAULT_CO_INFO; } catch { return DEFAULT_CO_INFO; }
+}
+function saveCoInfo(info) {
+  localStorage.setItem(LS_CO_KEY, JSON.stringify(info));
+}
 
 const DEFAULT_WORK_TYPES = [
   { id:"wt-1", name:"Water Mitigation", color:"#3b82f6", hasWorkflow:true  },
@@ -4632,11 +4641,19 @@ function ColorPicker({ value, onChange }) {
 }
 
 function GeneralSettingsTab() {
-  const [sec, setSec]         = useState("worktypes");
+  const [sec, setSec]         = useState("company");
+  const [coInfo, setCoInfo]   = useState(loadCoInfo);
+  const [coSaved, setCoSaved] = useState(false);
   const [workTypes, setWT]    = useState(loadCWT);
   const [statuses,  setST]    = useState(loadCST);
   const [projTypes, setPT]    = useState(loadCPT);
   const [editId,    setEditId]= useState(null);
+
+  const saveCompany = () => {
+    saveCoInfo(coInfo);
+    setCoSaved(true);
+    setTimeout(() => setCoSaved(false), 2000);
+  };
   const [draft,     setDraft] = useState({});
   const [newMode,   setNewMode]= useState(false);
 
@@ -4697,6 +4714,7 @@ function GeneralSettingsTab() {
   const deletePT = (id) => savePT(projTypes.filter(p=>p.id!==id));
 
   const SECTIONS = [
+    {id:"company",    label:"Company Info"},
     {id:"worktypes",  label:"Work Types"},
     {id:"statuses",   label:"Statuses"},
     {id:"projtypes",  label:"Project Types"},
@@ -4724,6 +4742,35 @@ function GeneralSettingsTab() {
           </button>
         ))}
       </div>
+
+      {/* ── COMPANY INFO ── */}
+      {sec==="company" && (
+        <div className="card" style={{padding:20}}>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",marginBottom:4}}>Company Information</div>
+          <div style={{fontSize:11,color:"var(--t3)",marginBottom:16}}>Used in documents, reports, and AI templates as <code style={{fontFamily:"var(--mono)",fontSize:10}}>{"{{company.*}}"}</code> tokens.</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            {[
+              ["Company Name","name","full"],
+              ["Phone","phone",""],
+              ["Email","email",""],
+              ["Website","website",""],
+              ["Address","address",""],
+              ["City","city",""],
+              ["State","state",""],
+              ["ZIP","zip",""],
+            ].map(([label, key, span]) => (
+              <div key={key} style={{gridColumn: span==="full"?"1/-1":"auto"}}>
+                <div style={{fontSize:11,color:"var(--t3)",marginBottom:3}}>{label}</div>
+                <input className="inp" value={coInfo[key]||""} onChange={e=>setCoInfo(c=>({...c,[key]:e.target.value}))}
+                  style={{width:"100%",fontSize:13}}/>
+              </div>
+            ))}
+          </div>
+          <button className="btn btn-p btn-sm" style={{marginTop:16}} onClick={saveCompany}>
+            {coSaved ? "✓ Saved" : "Save Company Info"}
+          </button>
+        </div>
+      )}
 
       {/* ── WORK TYPES ── */}
       {sec==="worktypes" && (
@@ -5431,6 +5478,11 @@ export default function JobDoxPortal() {
               status:     "active",
               joinedAt:   staffRecord?.joinedAt || new Date().toISOString(),
             });
+          }
+          // Pre-populate company info from Memberstack if not already saved
+          const existingCo = loadCoInfo();
+          if (!existingCo.name && member.customFields?.["company-name"]) {
+            saveCoInfo({ ...existingCo, name: member.customFields["company-name"] });
           }
           setPermission("admin");
         } else if (staffRecord) {
