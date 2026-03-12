@@ -395,12 +395,116 @@ const WT_PHASE_C = {
   testing:   {bg:"rgba(34,211,238,.1)",   border:"rgba(34,211,238,.25)", text:"var(--teal)",   dot:"var(--teal)"},
 };
 
-function WorkTypePills({ worktypes }) {
+/* ══════════════════════════════════════════════
+   COMPANY CONFIG — localStorage-backed
+   Keys: jd_company_worktypes, jd_company_statuses, jd_company_project_types
+══════════════════════════════════════════════ */
+const LS_CWT_KEY  = "jd_company_worktypes";
+const LS_CST_KEY  = "jd_company_statuses";
+const LS_CPT_KEY  = "jd_company_project_types";
+
+const DEFAULT_WORK_TYPES = [
+  { id:"wt-1", name:"Water Mitigation", color:"#3b82f6", hasWorkflow:true  },
+  { id:"wt-2", name:"Fire & Smoke",     color:"#f97316", hasWorkflow:false },
+  { id:"wt-3", name:"Mold Remediation", color:"#10b981", hasWorkflow:false },
+  { id:"wt-4", name:"Storm Damage",     color:"#8b5cf6", hasWorkflow:false },
+  { id:"wt-5", name:"Reconstruction",   color:"#6b7280", hasWorkflow:false },
+  { id:"wt-6", name:"Demo",             color:"#f43f5e", hasWorkflow:false },
+  { id:"wt-7", name:"Contents",         color:"#ec4899", hasWorkflow:false },
+];
+
+const DEFAULT_STATUSES = [
+  { id:"st-1", name:"New Lead",         color:"#8b95b0", triggerTask:"" },
+  { id:"st-2", name:"Scoping",          color:"#e89c18", triggerTask:"" },
+  { id:"st-3", name:"In Progress",      color:"#5ba3f5", triggerTask:"contract signed" },
+  { id:"st-4", name:"Pending Approval", color:"#a78bfa", triggerTask:"scope approved" },
+  { id:"st-5", name:"On Hold",          color:"#e43531", triggerTask:"" },
+  { id:"st-6", name:"Completed",        color:"#1ad98a", triggerTask:"certificate of completion" },
+];
+
+const DEFAULT_PROJECT_TYPES = [
+  { id:"pt-1", name:"Water Damage",    color:"#3b82f6" },
+  { id:"pt-2", name:"Fire & Smoke",    color:"#f97316" },
+  { id:"pt-3", name:"Storm Damage",    color:"#8b5cf6" },
+  { id:"pt-4", name:"Mold Remediation",color:"#10b981" },
+  { id:"pt-5", name:"Reconstruction",  color:"#6b7280" },
+  { id:"pt-6", name:"Contents",        color:"#ec4899" },
+  { id:"pt-7", name:"Demo",            color:"#f43f5e" },
+];
+
+function loadCWT()  { try { return JSON.parse(localStorage.getItem(LS_CWT_KEY)) || DEFAULT_WORK_TYPES; }  catch { return DEFAULT_WORK_TYPES; } }
+function loadCST()  { try { return JSON.parse(localStorage.getItem(LS_CST_KEY)) || DEFAULT_STATUSES; }    catch { return DEFAULT_STATUSES; } }
+function loadCPT()  { try { return JSON.parse(localStorage.getItem(LS_CPT_KEY)) || DEFAULT_PROJECT_TYPES; } catch { return DEFAULT_PROJECT_TYPES; } }
+function saveCWT(v) { try { localStorage.setItem(LS_CWT_KEY, JSON.stringify(v)); } catch {} }
+function saveCST(v) { try { localStorage.setItem(LS_CST_KEY, JSON.stringify(v)); } catch {} }
+function saveCPT(v) { try { localStorage.setItem(LS_CPT_KEY, JSON.stringify(v)); } catch {} }
+
+// Merge WT_META icons into a custom work type
+function getWTMeta(name, customWorkTypes=[]) {
+  if (WT_META[name]) return WT_META[name];
+  const cwt = customWorkTypes.find(w => w.name === name);
+  if (cwt) return { color: cwt.color, icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg> };
+  return { color:"var(--t3)", icon: null };
+}
+
+// Status trigger checker — called when a task title is completed
+function checkStatusTrigger(taskTitle, currentStatus, customStatuses=[]) {
+  const lc = taskTitle.toLowerCase();
+  for (const st of customStatuses) {
+    if (!st.triggerTask) continue;
+    if (lc.includes(st.triggerTask.toLowerCase())) return st.name;
+  }
+  return null;
+}
+
+// Sync all company config to localStorage so mindflow can read it
+function syncCompanyConfigToLS(workTypes, statuses, projectTypes) {
+  saveCWT(workTypes);
+  saveCST(statuses);
+  saveCPT(projectTypes);
+  // Also write combined summary for mindflow
+  try {
+    localStorage.setItem("jd_company_config", JSON.stringify({
+      workTypes: workTypes.map(w => ({ id:w.id, name:w.name, color:w.color, hasWorkflow:w.hasWorkflow })),
+      statuses:  statuses.map(s  => ({ id:s.id, name:s.name, color:s.color, triggerTask:s.triggerTask })),
+      projectTypes: projectTypes.map(p => ({ id:p.id, name:p.name, color:p.color })),
+    }));
+  } catch {}
+}
+
+/* ══════════════════════════════════════════════
+   WORKFLOW TEMPLATES — saved from CortexAI
+   Key: jd_workflow_templates  →  { [workTypeName]: templateObject }
+══════════════════════════════════════════════ */
+const LS_WF_TEMPLATES_KEY = "jd_workflow_templates";
+
+function loadWorkflowTemplates() {
+  try { return JSON.parse(localStorage.getItem(LS_WF_TEMPLATES_KEY)) || {}; }
+  catch { return {}; }
+}
+
+function saveWorkflowTemplate(workType, templateObj) {
+  try {
+    const all = loadWorkflowTemplates();
+    all[workType] = { ...templateObj, savedAt: new Date().toISOString() };
+    localStorage.setItem(LS_WF_TEMPLATES_KEY, JSON.stringify(all));
+  } catch {}
+}
+
+function deleteWorkflowTemplate(workType) {
+  try {
+    const all = loadWorkflowTemplates();
+    delete all[workType];
+    localStorage.setItem(LS_WF_TEMPLATES_KEY, JSON.stringify(all));
+  } catch {}
+}
+
+function WorkTypePills({ worktypes, customWorkTypes=[] }) {
   if (!worktypes?.length) return null;
   return (
     <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:8}}>
       {worktypes.map((wt,i)=>{
-        const meta  = WT_META[wt.type] || {color:"var(--t3)", icon:null};
+        const meta  = getWTMeta(wt.type, customWorkTypes);
         const phase = WT_PHASE_C[wt.status] || WT_PHASE_C.pending;
         return (
           <div key={i} style={{display:"flex",alignItems:"center",gap:6,background:phase.bg,border:`1px solid ${phase.border}`,borderRadius:7,padding:"4px 8px",borderLeft:`3px solid ${meta.color}`}}>
@@ -471,12 +575,14 @@ function Av({ name, color, size=34 }) {
   const init = (name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
   return <div style={{width:size,height:size,borderRadius:"50%",background:color||"var(--s4)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.34,fontWeight:700,flexShrink:0,letterSpacing:"-0.5px"}}>{init}</div>;
 }
-function Badge({ status }) {
-  const c = STATUS_C[status]||"var(--t2)";
+function Badge({ status, customStatuses=[] }) {
+  const cst = customStatuses.find(s=>s.name===status);
+  const c = cst?.color || STATUS_C[status]||"var(--t2)";
   return <span className="badge" style={{background:c+"18",color:c}}><span className="dot" style={{background:c}}/>{status}</span>;
 }
-function TypeTag({ type }) {
-  const c = TYPE_C[type]||"var(--t2)";
+function TypeTag({ type, customProjectTypes=[] }) {
+  const cpt = customProjectTypes.find(t=>t.name===type);
+  const c = cpt?.color || TYPE_C[type]||"var(--t2)";
   return <span style={{borderRadius:20,padding:"2px 8px",fontSize:10,background:c+"18",color:c,fontWeight:600}}>{type}</span>;
 }
 function F({ label, value, onChange, type="text", placeholder, options, span, rows }) {
@@ -817,12 +923,15 @@ function CommModal({ proj, onClose }) {
   );
 }
 
-function AddProjModal({ onClose, onAdd }) {
+function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], customProjectTypes=[] }) {
   const [f, setF] = useState({name:"",type:"",address:"",city:"",state:"OK",zip:"",clientName:"",clientPhone:"",clientEmail:"",carrier:"",claim:"",adjuster:"",dateOfLoss:"",notes:""});
   const s = (k,v) => setF(p=>({...p,[k]:v}));
 
-  // Work type toggles — each can be independently enabled with a phase/status
-  const WT_OPTIONS = Object.keys(WT_META);
+  // Load saved workflow templates once
+  const savedTemplates = React.useMemo(() => loadWorkflowTemplates(), []);
+
+  // Work type toggles — pull from company config
+  const WT_OPTIONS = customWorkTypes.length ? customWorkTypes.map(w=>w.name) : Object.keys(WT_META);
   const [selectedWTs, setSelectedWTs] = useState([]);
   const toggleWT = (type) => {
     setSelectedWTs(prev => {
@@ -833,19 +942,51 @@ function AddProjModal({ onClose, onAdd }) {
   };
   const isWTOn = (type) => !!selectedWTs.find(w => w.type === type);
 
+  // Count how many selected WTs have saved templates
+  const templatesAvailable = selectedWTs.filter(w => savedTemplates[w.type]).length;
+
+  const projTypeNames = customProjectTypes.length ? customProjectTypes.map(t=>t.name) : ["Water Damage","Fire & Smoke","Mold Remediation","Storm Damage","Reconstruction","Other"];
+  const statusNames   = customStatuses.length     ? customStatuses.map(s=>s.name)     : ["New Lead","Scoping","In Progress"];
+
   const submit = () => {
-    if (!f.name||!f.type) return;
+    if (!f.name || !f.type) return;
+    // Build tasks from saved templates for each selected work type
+    const templateTasks = [];
+    selectedWTs.forEach(wt => {
+      const tpl = savedTemplates[wt.type];
+      if (!tpl) return;
+      tpl.phases.forEach(ph => {
+        ph.tasks.forEach(t => {
+          templateTasks.push({
+            id: uid(),
+            title: t.title,
+            assigned: t.assignedTo || "",
+            priority: t.priority === "Critical" ? "high" : t.priority === "High" ? "med" : "low",
+            status: "open",
+            phase: ph.name,
+            workType: wt.type,
+            checklist: t.checklist || [],
+            statusTrigger: t.statusTrigger || null,
+            created: new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),
+            due: "",
+            comments: 0,
+            fromTemplate: tpl.name,
+          });
+        });
+      });
+    });
     onAdd({
       ...f,
-      id:`JD-2025-${String(uid()).padStart(3,"0")}`,
-      status:"New Lead",
-      client:f.clientName,
-      clientPhone:f.clientPhone,
-      clientEmail:f.clientEmail,
-      address:`${f.address}, ${f.city}, ${f.state} ${f.zip}`.trim(),
-      created:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),
-      budget:0, spent:0, tasks:0, tasksOpen:0,
+      id: `JD-${new Date().getFullYear()}-${String(uid()).padStart(3,"0")}`,
+      status: f.status || "New Lead",
+      client: f.clientName,
+      clientPhone: f.clientPhone,
+      clientEmail: f.clientEmail,
+      address: `${f.address}, ${f.city}, ${f.state} ${f.zip}`.trim(),
+      created: new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),
+      budget:0, spent:0, tasks: templateTasks.length, tasksOpen: templateTasks.length,
       worktypes: selectedWTs,
+      templateTasks,
     });
     onClose();
   };
@@ -858,9 +999,9 @@ function AddProjModal({ onClose, onAdd }) {
           <div><div className="sec" style={{marginBottom:7}}>Project</div>
             <F label="Project Name *" value={f.name} onChange={v=>s("name",v)} placeholder="e.g. Henderson Residence" span={2}/>
             <div className="g3" style={{marginTop:10}}>
-              <F label="Loss Type *" value={f.type} onChange={v=>s("type",v)} options={["Water Damage","Fire & Smoke","Mold Remediation","Storm Damage","Reconstruction","Other"]}/>
+              <F label="Loss Type *" value={f.type} onChange={v=>s("type",v)} options={projTypeNames}/>
               <F label="Date of Loss" value={f.dateOfLoss} onChange={v=>s("dateOfLoss",v)} type="date"/>
-              <F label="Initial Status" value={f.status||"New Lead"} onChange={v=>s("status",v)} options={["New Lead","Scoping","In Progress"]}/>
+              <F label="Initial Status" value={f.status||"New Lead"} onChange={v=>s("status",v)} options={statusNames}/>
             </div>
           </div>
 
@@ -872,24 +1013,33 @@ function AddProjModal({ onClose, onAdd }) {
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:7}}>
               {WT_OPTIONS.map(type => {
-                const meta = WT_META[type];
+                const meta = getWTMeta(type, customWorkTypes);
                 const on   = isWTOn(type);
+                const cwt  = customWorkTypes.find(w=>w.name===type);
+                const hasTpl = !!savedTemplates[type];
                 return (
                   <button key={type} onClick={()=>toggleWT(type)}
                     style={{display:"flex",alignItems:"center",gap:7,padding:"8px 11px",borderRadius:9,
                       border:`1.5px solid ${on ? meta.color : "var(--br)"}`,
                       background: on ? `${meta.color}14` : "var(--s2)",
-                      cursor:"pointer",transition:"all .15s",textAlign:"left"}}>
+                      cursor:"pointer",transition:"all .15s",textAlign:"left",flexWrap:"wrap"}}>
                     <span style={{color: on ? meta.color : "var(--t3)", display:"flex",alignItems:"center",flexShrink:0,fontSize:14}}>{meta.icon}</span>
                     <span style={{fontSize:11,fontWeight: on ? 700 : 400, color: on ? meta.color : "var(--t2)", flex:1, lineHeight:1.3}}>{type}</span>
-                    {on && <span style={{width:6,height:6,borderRadius:"50%",background:meta.color,flexShrink:0}}/>}
+                    {hasTpl
+                      ? <span style={{fontSize:8,color:"var(--green)",fontFamily:"var(--mono)",flexShrink:0}}>TEMPLATE</span>
+                      : <span style={{fontSize:8,color:"var(--amber)",fontFamily:"var(--mono)",flexShrink:0}}>NO WF</span>}
                   </button>
                 );
               })}
             </div>
             {selectedWTs.length > 0 && (
-              <div style={{marginTop:8,fontSize:11,color:"var(--t3)"}}>
-                <span style={{color:"var(--green)",fontWeight:700}}>{selectedWTs.length}</span> work type{selectedWTs.length!==1?"s":""} enabled — phases can be set in Overview after creation.
+              <div style={{marginTop:8,padding:"7px 10px",borderRadius:7,fontSize:11,
+                background: templatesAvailable > 0 ? "rgba(26,217,138,.07)" : "rgba(232,156,24,.07)",
+                border: `1px solid ${templatesAvailable > 0 ? "rgba(26,217,138,.2)" : "rgba(232,156,24,.2)"}`,
+                color: templatesAvailable > 0 ? "var(--green)" : "var(--amber)"}}>
+                {templatesAvailable > 0
+                  ? <><span style={{fontFamily:"var(--mono)",fontWeight:700}}>{templatesAvailable} TEMPLATE{templatesAvailable!==1?"S":""} READY</span> — tasks will be auto-loaded from your saved CortexAI workflows on project creation.</>
+                  : <><span style={{fontFamily:"var(--mono)",fontWeight:700}}>NO TEMPLATES YET</span> — build workflows in CortexAI and save them as templates to auto-populate tasks.</>}
               </div>
             )}
           </div>
@@ -1171,7 +1321,7 @@ function MyDayPage({ onNavigate }) {
   );
 }
 
-function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, globalStaff=[] }) {
+function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[] }) {
   const [search, setSearch]   = useState("");
   const [fType, setFType]     = useState("All");
   const [fStatus, setFStatus] = useState("All");
@@ -1180,7 +1330,11 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
   const [notifyProj, setNotify]= useState(null);
   const [commProj, setComm]   = useState(null);
   const [viewMode, setViewMode]= useState("card");
-  const types = ["All",...new Set(projects.map(p=>p.type))];
+
+  // Dynamic filter options from company config
+  const statusFilterOpts = ["All", ...(customStatuses.length ? customStatuses.map(s=>s.name) : Object.keys(STATUS_C))];
+  const typeFilterOpts   = ["All", ...(customProjectTypes.length ? customProjectTypes.map(t=>t.name) : Object.keys(TYPE_C))];
+
   const filtered = projects.filter(p => {
     const q = search.toLowerCase();
     return (!q || [p.name,p.address,p.client||""].join(" ").toLowerCase().includes(q))
@@ -1191,7 +1345,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
 
   return (
     <>
-      {showAdd    && <AddProjModal onClose={()=>setShowAdd(false)} onAdd={p=>{onAdd(p);setShowAdd(false);}}/>}
+      {showAdd    && <AddProjModal onClose={()=>setShowAdd(false)} onAdd={p=>{onAdd(p);setShowAdd(false);}} customWorkTypes={customWorkTypes} customStatuses={customStatuses} customProjectTypes={customProjectTypes}/>}
       {clockProj  && <ClockInModal proj={clockProj} clockInState={clockInState} onClockIn={onClockIn} onClockOut={onClockOut} onClose={()=>setClock(null)} currentUser={currentUser} canViewRates={canViewRates}/>}
       {notifyProj && <NotifyModal proj={notifyProj} onClose={()=>setNotify(null)} globalStaff={globalStaff}/>}
       {commProj   && <CommModal    proj={commProj}   onClose={()=>setComm(null)}/>}
@@ -1219,15 +1373,22 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
         <div className="port-projects">
           <div style={{display:"flex",gap:5,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
             <span className="mono" style={{fontSize:9,color:"var(--t3)"}}>TYPE</span>
-            {types.map(t=><button key={t} className={`chip${fType===t?" on":""}`} onClick={()=>setFType(t)}>{t}</button>)}
+            {typeFilterOpts.map(t=><button key={t} className={`chip${fType===t?" on":""}`} onClick={()=>setFType(t)}>{t}</button>)}
             <span style={{width:1,height:15,background:"var(--br)",margin:"0 3px"}}/>
-            {["All","In Progress","Scoping","Pending Approval"].map(s=><button key={s} className={`chip${fStatus===s?" on":""}`} onClick={()=>setFStatus(s)}>{s}</button>)}
+            <span className="mono" style={{fontSize:9,color:"var(--t3)"}}>STATUS</span>
+            {statusFilterOpts.map(s=>{
+              const stConf = customStatuses.find(c=>c.name===s);
+              return <button key={s} className={`chip${fStatus===s?" on":""}`} onClick={()=>setFStatus(s)}
+                style={fStatus===s && stConf ? {borderColor:stConf.color,color:stConf.color,background:`${stConf.color}18`} : {}}>{s}</button>;
+            })}
           </div>
 
           {viewMode === "card" && (
             <div className="proj-grid">
               {filtered.map(proj => {
-                const tc = TYPE_C[proj.type]||"var(--t3)";
+                const ptConf = customProjectTypes.find(t=>t.name===proj.type);
+                const tc = ptConf?.color || TYPE_C[proj.type]||"var(--t3)";
+                const stConf2 = customStatuses.find(s=>s.name===proj.status);
                 const sp = pct(proj.spent, proj.budget);
                 const isClocked = clockInState?.projId === proj.id;
                 return (
@@ -1242,10 +1403,10 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                           </div>
                           <div className="mono" style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{proj.id}</div>
                         </div>
-                        <Badge status={proj.status}/>
+                        <Badge status={proj.status} customStatuses={customStatuses}/>
                       </div>
                       <div style={{fontSize:11,color:"var(--t2)",marginBottom:8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.address}</div>
-                      <WorkTypePills worktypes={proj.worktypes}/>
+                      <WorkTypePills worktypes={proj.worktypes} customWorkTypes={customWorkTypes}/>
                       {proj.budget > 0 && (
                         <div style={{marginBottom:7}}>
                           <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--t3)",marginBottom:2}}><span>Budget</span><span className="mono">{sp}%</span></div>
@@ -1746,8 +1907,8 @@ function DocumentsTab({ docs:docsIn, setDocs:setDocsIn }) {
   );
 }
 
-function TasksTab() {
-  const [tasks,setTasks]=useState(TASKS_SEED);
+function TasksTab({ initialTasks=[] }) {
+  const [tasks,setTasks]=useState(()=> initialTasks.length ? initialTasks : TASKS_SEED);
   const [filter,setFilter]=useState("open");
   const [adding,setAdding]=useState(false);
   const [exp,setExp]=useState(null);
@@ -4295,7 +4456,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       {tab==="contacts"       && <ContactsTab/>}
       {tab==="media"          && <MediaTab       folders={mediaFolders} setFolders={setMediaFolders} uploads={mediaUploads} setUploads={setMediaUploads}/>}
       {tab==="documents"      && <DocumentsTab   docs={projDocs} setDocs={setProjDocs}/>}
-      {tab==="tasks"          && <TasksTab/>}
+      {tab==="tasks"          && <TasksTab initialTasks={proj.templateTasks||[]}/>}
       {tab==="budget"         && <BudgetTab proj={proj} laborCost={laborCost}/>}
       {tab==="shifts"         && <ShiftsTab projId={proj.id} externalShifts={myShifts} canViewRates={canViewRates}/>}
       {tab==="scope"          && <ScopeTab scopeItems={scopeItems} setScopeItems={setScopeItems}/>}
@@ -4368,6 +4529,283 @@ function syncWorktypesToLS(projId, worktypes) {
     existing[projId] = worktypes;
     localStorage.setItem("jd_cortex_worktypes", JSON.stringify(existing));
   } catch(_) {}
+}
+
+/* ── COLOR PALETTE for pickers ── */
+const COLOR_SWATCHES = ["#e43531","#f97316","#e89c18","#10b981","#1ad98a","#3b82f6","#5ba3f5","#8b5cf6","#a78bfa","#ec4899","#f472b6","#22d3ee","#6b7280","#8b95b0"];
+
+function ColorPicker({ value, onChange }) {
+  return (
+    <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:6}}>
+      {COLOR_SWATCHES.map(c=>(
+        <button key={c} onClick={()=>onChange(c)} style={{width:18,height:18,borderRadius:"50%",background:c,border:value===c?"2px solid var(--t1)":"2px solid transparent",cursor:"pointer",flexShrink:0,outline:"none"}}/>
+      ))}
+      <input type="color" value={value} onChange={e=>onChange(e.target.value)}
+        style={{width:18,height:18,border:"none",background:"none",cursor:"pointer",padding:0}}
+        title="Custom color"/>
+    </div>
+  );
+}
+
+function GeneralSettingsTab() {
+  const [sec, setSec]         = useState("worktypes");
+  const [workTypes, setWT]    = useState(loadCWT);
+  const [statuses,  setST]    = useState(loadCST);
+  const [projTypes, setPT]    = useState(loadCPT);
+  const [editId,    setEditId]= useState(null);
+  const [draft,     setDraft] = useState({});
+  const [newMode,   setNewMode]= useState(false);
+
+  const save = (wt, st, pt) => {
+    syncCompanyConfigToLS(wt, st, pt);
+  };
+
+  /* ── WORK TYPES ── */
+  const saveWT = (list) => { setWT(list); save(list, statuses, projTypes); };
+  const addWT  = () => {
+    const n = { id:`wt-${Date.now()}`, name:"New Work Type", color:"#5ba3f5", hasWorkflow:false };
+    const list = [...workTypes, n];
+    saveWT(list);
+    setEditId(n.id);
+    setDraft({name:n.name, color:n.color, hasWorkflow:false});
+    setNewMode(true);
+  };
+  const commitWT = (id) => {
+    if (!draft.name?.trim()) return;
+    saveWT(workTypes.map(w => w.id===id ? {...w,...draft} : w));
+    setEditId(null); setDraft({}); setNewMode(false);
+  };
+  const deleteWT = (id) => saveWT(workTypes.filter(w=>w.id!==id));
+  const toggleHasWorkflow = (id) => saveWT(workTypes.map(w=>w.id===id?{...w,hasWorkflow:!w.hasWorkflow}:w));
+
+  /* ── STATUSES ── */
+  const saveST = (list) => { setST(list); save(workTypes, list, projTypes); };
+  const addST  = () => {
+    const n = { id:`st-${Date.now()}`, name:"New Status", color:"#5ba3f5", triggerTask:"" };
+    const list = [...statuses, n];
+    saveST(list);
+    setEditId(n.id);
+    setDraft({name:n.name, color:n.color, triggerTask:""});
+    setNewMode(true);
+  };
+  const commitST = (id) => {
+    if (!draft.name?.trim()) return;
+    saveST(statuses.map(s => s.id===id ? {...s,...draft} : s));
+    setEditId(null); setDraft({}); setNewMode(false);
+  };
+  const deleteST = (id) => saveST(statuses.filter(s=>s.id!==id));
+
+  /* ── PROJECT TYPES ── */
+  const savePT = (list) => { setPT(list); save(workTypes, statuses, list); };
+  const addPT  = () => {
+    const n = { id:`pt-${Date.now()}`, name:"New Project Type", color:"#5ba3f5" };
+    const list = [...projTypes, n];
+    savePT(list);
+    setEditId(n.id);
+    setDraft({name:n.name, color:n.color});
+    setNewMode(true);
+  };
+  const commitPT = (id) => {
+    if (!draft.name?.trim()) return;
+    savePT(projTypes.map(p => p.id===id ? {...p,...draft} : p));
+    setEditId(null); setDraft({}); setNewMode(false);
+  };
+  const deletePT = (id) => savePT(projTypes.filter(p=>p.id!==id));
+
+  const SECTIONS = [
+    {id:"worktypes",  label:"Work Types"},
+    {id:"statuses",   label:"Statuses"},
+    {id:"projtypes",  label:"Project Types"},
+  ];
+
+  const cancelEdit = () => {
+    if (newMode) {
+      // Remove the unsaved new item
+      if (sec==="worktypes") saveWT(workTypes.filter(w=>w.id!==editId));
+      else if (sec==="statuses") saveST(statuses.filter(s=>s.id!==editId));
+      else if (sec==="projtypes") savePT(projTypes.filter(p=>p.id!==editId));
+    }
+    setEditId(null); setDraft({}); setNewMode(false);
+  };
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      {/* Section tabs */}
+      <div style={{display:"flex",gap:4,borderBottom:"1px solid var(--br)",paddingBottom:0}}>
+        {SECTIONS.map(s=>(
+          <button key={s.id} onClick={()=>{setSec(s.id);setEditId(null);setDraft({});setNewMode(false);}}
+            style={{padding:"8px 14px",background:"none",border:"none",borderBottom:`2px solid ${sec===s.id?"var(--blue)":"transparent"}`,
+              fontSize:12,fontWeight:sec===s.id?700:500,color:sec===s.id?"var(--t1)":"var(--t2)",cursor:"pointer",transition:"all .12s",fontFamily:"var(--font)"}}>
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── WORK TYPES ── */}
+      {sec==="worktypes" && (
+        <div className="card" style={{padding:18}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+            <div>
+              <div style={{fontSize:13,fontWeight:700}}>Work Types</div>
+              <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>Define the service lines your company performs. Mark which have built-out workflows in CortexAI.</div>
+            </div>
+            <button className="btn btn-primary btn-xs" onClick={addWT}>{Ic.plus} Add Work Type</button>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {workTypes.map(wt=>(
+              <div key={wt.id} style={{borderRadius:9,border:`1.5px solid ${editId===wt.id?"var(--blue)":"var(--br)"}`,background:editId===wt.id?"var(--s3)":"var(--s2)",overflow:"hidden"}}>
+                {editId===wt.id ? (
+                  <div style={{padding:"12px 14px",display:"flex",flexDirection:"column",gap:10}}>
+                    <div style={{display:"flex",gap:10}}>
+                      <div style={{flex:1}}>
+                        <div className="lbl">Name</div>
+                        <input className="inp" value={draft.name||""} onChange={e=>setDraft(p=>({...p,name:e.target.value}))} autoFocus/>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="lbl">Color</div>
+                      <ColorPicker value={draft.color||"#5ba3f5"} onChange={c=>setDraft(p=>({...p,color:c}))}/>
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <button onClick={()=>setDraft(p=>({...p,hasWorkflow:!p.hasWorkflow}))}
+                        style={{width:32,height:17,borderRadius:9,border:"none",cursor:"pointer",
+                          background:draft.hasWorkflow?"var(--green)":"var(--s4)",transition:"background .2s",position:"relative",padding:0}}>
+                        <span style={{position:"absolute",top:1.5,left:draft.hasWorkflow?16:2,width:14,height:14,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
+                      </button>
+                      <span style={{fontSize:11,color:draft.hasWorkflow?"var(--green)":"var(--t2)"}}>
+                        {draft.hasWorkflow ? "Workflow built in CortexAI" : "No workflow yet — mark when ready"}
+                      </span>
+                    </div>
+                    <div style={{display:"flex",gap:7}}>
+                      <button className="btn btn-primary btn-xs" onClick={()=>commitWT(wt.id)}>Save</button>
+                      <button className="btn btn-ghost btn-xs" onClick={cancelEdit}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{width:10,height:10,borderRadius:"50%",background:wt.color,flexShrink:0}}/>
+                    <div style={{flex:1}}>
+                      <span style={{fontSize:12,fontWeight:600,color:"var(--t1)"}}>{wt.name}</span>
+                      {!wt.hasWorkflow && <span style={{marginLeft:8,fontSize:9,color:"var(--amber)",fontFamily:"var(--mono)",background:"rgba(232,156,24,.12)",padding:"1px 6px",borderRadius:4}}>NO WORKFLOW</span>}
+                      {wt.hasWorkflow  && <span style={{marginLeft:8,fontSize:9,color:"var(--green)",fontFamily:"var(--mono)",background:"rgba(26,217,138,.12)",padding:"1px 6px",borderRadius:4}}>WORKFLOW READY</span>}
+                    </div>
+                    <button className="btn btn-ghost btn-xs" style={{padding:"2px 8px"}} onClick={()=>{setEditId(wt.id);setDraft({name:wt.name,color:wt.color,hasWorkflow:wt.hasWorkflow});setNewMode(false);}}>Edit</button>
+                    <button className="btn btn-ghost btn-xs" style={{padding:"2px 8px",color:"var(--acc)"}} onClick={()=>deleteWT(wt.id)}>{Ic.close}</button>
+                  </div>
+                )}
+              </div>
+            ))}
+            {workTypes.length===0 && <div style={{padding:"20px",textAlign:"center",color:"var(--t3)",fontSize:12}}>No work types yet. Add one to get started.</div>}
+          </div>
+          <div style={{marginTop:12,padding:"8px 11px",background:"rgba(91,163,245,.07)",border:"1px solid rgba(91,163,245,.2)",borderRadius:7,fontSize:10,color:"var(--blue)"}}>
+            Work types sync to <strong>CortexAI</strong> automatically. Types marked <strong>NO WORKFLOW</strong> will be flagged in mindflow so you know to build one.
+          </div>
+        </div>
+      )}
+
+      {/* ── STATUSES ── */}
+      {sec==="statuses" && (
+        <div className="card" style={{padding:18}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+            <div>
+              <div style={{fontSize:13,fontWeight:700}}>Project Statuses</div>
+              <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>Define your project lifecycle stages. Set trigger keywords to auto-advance status when matching tasks are completed.</div>
+            </div>
+            <button className="btn btn-primary btn-xs" onClick={addST}>{Ic.plus} Add Status</button>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {statuses.map(st=>(
+              <div key={st.id} style={{borderRadius:9,border:`1.5px solid ${editId===st.id?"var(--blue)":"var(--br)"}`,background:editId===st.id?"var(--s3)":"var(--s2)",overflow:"hidden"}}>
+                {editId===st.id ? (
+                  <div style={{padding:"12px 14px",display:"flex",flexDirection:"column",gap:10}}>
+                    <div style={{display:"flex",gap:10}}>
+                      <div style={{flex:1}}>
+                        <div className="lbl">Status Name</div>
+                        <input className="inp" value={draft.name||""} onChange={e=>setDraft(p=>({...p,name:e.target.value}))} autoFocus/>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="lbl">Color</div>
+                      <ColorPicker value={draft.color||"#5ba3f5"} onChange={c=>setDraft(p=>({...p,color:c}))}/>
+                    </div>
+                    <div>
+                      <div className="lbl">Auto-Trigger Keyword</div>
+                      <input className="inp" value={draft.triggerTask||""} onChange={e=>setDraft(p=>({...p,triggerTask:e.target.value}))}
+                        placeholder='e.g. "contract signed" — auto-moves to this status when task with this keyword is completed'/>
+                      <div style={{fontSize:10,color:"var(--t3)",marginTop:4,lineHeight:1.5}}>
+                        When a task title contains this text and is marked complete, the project automatically moves to <strong style={{color:"var(--t1)"}}>{draft.name||"this status"}</strong>.
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:7}}>
+                      <button className="btn btn-primary btn-xs" onClick={()=>commitST(st.id)}>Save</button>
+                      <button className="btn btn-ghost btn-xs" onClick={cancelEdit}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{width:10,height:10,borderRadius:"50%",background:st.color,flexShrink:0}}/>
+                    <div style={{flex:1}}>
+                      <span style={{fontSize:12,fontWeight:600,color:"var(--t1)"}}>{st.name}</span>
+                      {st.triggerTask && <span style={{marginLeft:8,fontSize:9,color:"var(--purple)",fontFamily:"var(--mono)",background:"rgba(167,139,250,.12)",padding:"1px 6px",borderRadius:4}}>TRIGGER: "{st.triggerTask}"</span>}
+                    </div>
+                    <button className="btn btn-ghost btn-xs" style={{padding:"2px 8px"}} onClick={()=>{setEditId(st.id);setDraft({name:st.name,color:st.color,triggerTask:st.triggerTask||""});setNewMode(false);}}>Edit</button>
+                    <button className="btn btn-ghost btn-xs" style={{padding:"2px 8px",color:"var(--acc)"}} onClick={()=>deleteST(st.id)}>{Ic.close}</button>
+                  </div>
+                )}
+              </div>
+            ))}
+            {statuses.length===0 && <div style={{padding:"20px",textAlign:"center",color:"var(--t3)",fontSize:12}}>No statuses yet.</div>}
+          </div>
+          <div style={{marginTop:12,padding:"8px 11px",background:"rgba(167,139,250,.07)",border:"1px solid rgba(167,139,250,.2)",borderRadius:7,fontSize:10,color:"var(--purple)"}}>
+            <strong>How triggers work:</strong> When a task containing your keyword is marked complete in any project, Job-Dox checks if the project should advance to this status. Example: completing "Contract Signed" moves the project from "New Lead" to "In Progress".
+          </div>
+        </div>
+      )}
+
+      {/* ── PROJECT TYPES ── */}
+      {sec==="projtypes" && (
+        <div className="card" style={{padding:18}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+            <div>
+              <div style={{fontSize:13,fontWeight:700}}>Project Types</div>
+              <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>The loss/job types that appear in the New Project dropdown and portfolio filters.</div>
+            </div>
+            <button className="btn btn-primary btn-xs" onClick={addPT}>{Ic.plus} Add Type</button>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {projTypes.map(pt=>(
+              <div key={pt.id} style={{borderRadius:9,border:`1.5px solid ${editId===pt.id?"var(--blue)":"var(--br)"}`,background:editId===pt.id?"var(--s3)":"var(--s2)",overflow:"hidden"}}>
+                {editId===pt.id ? (
+                  <div style={{padding:"12px 14px",display:"flex",flexDirection:"column",gap:10}}>
+                    <div style={{flex:1}}>
+                      <div className="lbl">Type Name</div>
+                      <input className="inp" value={draft.name||""} onChange={e=>setDraft(p=>({...p,name:e.target.value}))} autoFocus/>
+                    </div>
+                    <div>
+                      <div className="lbl">Color</div>
+                      <ColorPicker value={draft.color||"#5ba3f5"} onChange={c=>setDraft(p=>({...p,color:c}))}/>
+                    </div>
+                    <div style={{display:"flex",gap:7}}>
+                      <button className="btn btn-primary btn-xs" onClick={()=>commitPT(pt.id)}>Save</button>
+                      <button className="btn btn-ghost btn-xs" onClick={cancelEdit}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{width:10,height:10,borderRadius:"50%",background:pt.color,flexShrink:0}}/>
+                    <div style={{flex:1,fontSize:12,fontWeight:600,color:"var(--t1)"}}>{pt.name}</div>
+                    <button className="btn btn-ghost btn-xs" style={{padding:"2px 8px"}} onClick={()=>{setEditId(pt.id);setDraft({name:pt.name,color:pt.color});setNewMode(false);}}>Edit</button>
+                    <button className="btn btn-ghost btn-xs" style={{padding:"2px 8px",color:"var(--acc)"}} onClick={()=>deletePT(pt.id)}>{Ic.close}</button>
+                  </div>
+                )}
+              </div>
+            ))}
+            {projTypes.length===0 && <div style={{padding:"20px",textAlign:"center",color:"var(--t3)",fontSize:12}}>No project types yet.</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function SettingsPage({ globalStaff, setGlobalStaff }) {
@@ -4632,10 +5070,7 @@ function SettingsPage({ globalStaff, setGlobalStaff }) {
         )}
 
         {tab==="general" && (
-          <div className="card" style={{padding:28,textAlign:"center",color:"var(--t3)"}}>
-            <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>General Settings</div>
-            <div style={{fontSize:11}}>Company name, timezone, branding, and notification preferences — coming soon.</div>
-          </div>
+          <GeneralSettingsTab/>
         )}
         {tab==="roadmap" && (
           <div className="card" style={{padding:28,textAlign:"center",color:"var(--t3)"}}>
@@ -4659,10 +5094,24 @@ export default function JobDoxPortal() {
   const [clockInState,  setClockInState] = useState(null);
   const [projectShifts, setProjectShifts]= useState({});
   const [permission,    setPermission]   = useState("admin");
-  const [globalStaff,   setGlobalStaff]  = useState([]);
-  const [companyId,     setCompanyId]    = useState(null);
-  const [priceLists,    setPriceLists]   = useState(INITIAL_PRICE_LISTS);
+  const [globalStaff,      setGlobalStaff]     = useState([]);
+  const [companyId,        setCompanyId]       = useState(null);
+  const [priceLists,       setPriceLists]      = useState(INITIAL_PRICE_LISTS);
+  const [customWorkTypes,  setCustomWorkTypes] = useState(loadCWT);
+  const [customStatuses,   setCustomStatuses]  = useState(loadCST);
+  const [customProjectTypes,setCustomProjectTypes] = useState(loadCPT);
   const attrDefs = DEFAULT_ATTR_DEFS;
+
+  // Re-sync if another tab updates localStorage config
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === LS_CWT_KEY) setCustomWorkTypes(loadCWT());
+      if (e.key === LS_CST_KEY) setCustomStatuses(loadCST());
+      if (e.key === LS_CPT_KEY) setCustomProjectTypes(loadCPT());
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   const permCycle  = ["admin","manager","staff"];
   const cyclePerms = () => setPermission(p => permCycle[(permCycle.indexOf(p)+1) % permCycle.length]);
@@ -4878,6 +5327,9 @@ export default function JobDoxPortal() {
             currentUser={currentUser}
             canViewRates={canViewRates}
             globalStaff={globalStaff}
+            customWorkTypes={customWorkTypes}
+            customStatuses={customStatuses}
+            customProjectTypes={customProjectTypes}
           />
         )}
       </div>
