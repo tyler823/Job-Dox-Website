@@ -10,6 +10,7 @@
   from   = "/app/*"
   to     = "/app/dist/index.html"
   status = 200
+
 [[redirects]]
   from   = "/portal/*"
   to     = "/app/dist/index.html"
@@ -27,3 +28,6 @@
   [headers.values]
     Access-Control-Allow-Origin = "https://job-dox.ai"
     Cache-Control               = "no-store"
+
+[[plugins]]
+  package = "@netlify/plugin-functions-install-core"
