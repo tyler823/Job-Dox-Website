@@ -3,12 +3,12 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from "firebase/firestore";
 
 const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyAFwSEDPqKgAUbwbh_2KZNwLDdGCZEiq3E",
-  authDomain:        "cortex-717c6.firebaseapp.com",
-  projectId:         "cortex-717c6",
-  storageBucket:     "cortex-717c6.firebasestorage.app",
-  messagingSenderId: "496631882511",
-  appId:             "1:496631882511:web:3f7be61bcbb83a6ab4d47a",
+  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
 const _fbApp = initializeApp(FIREBASE_CONFIG);
 const db = getFirestore(_fbApp);
