@@ -6,7 +6,7 @@
    - Links to company inventory list
 ══════════════════════════════════════════════════════════════════ */
 import { useState, useCallback, useMemo } from "react";
-import { dduid, DDIc, EQUIP_TYPES, getET, fmt$c, compareS500 } from "./DryDoxConstants.js";
+import { dduid, DDIc, EQUIP_TYPES, getET, fmt$c, compareS500 } from "./DryDoxConstants.jsx";
 
 // ── Equipment Inventory Sidebar (drag source) ──
 function EquipmentInventory({ inventory, onDeploy }) {

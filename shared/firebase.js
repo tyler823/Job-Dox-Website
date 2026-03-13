@@ -292,6 +292,24 @@ export const deleteStaffMember = (companyId, memberId) =>
   deleteDoc(doc(db, "companies", companyId, "staff", memberId));
 
 // ════════════════════════════════════════════════════════════════
+//  PAYROLL RATES  (company-level)
+//  /companies/{companyId}/payrollRates
+//  Stores pay rates and billing rates per position.
+// ════════════════════════════════════════════════════════════════
+
+export const getPayrollRates = async (companyId) => {
+  const snap = await getDoc(doc(db, "companies", companyId, "settings", "payrollRates"));
+  return snap.exists() ? snap.data().rates || [] : [];
+};
+
+export const savePayrollRates = (companyId, rates) =>
+  setDoc(
+    doc(db, "companies", companyId, "settings", "payrollRates"),
+    { rates, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+
+// ════════════════════════════════════════════════════════════════
 //  CORTEX COINS — AI Usage Tracking
 //  /companies/{companyId}/billing/cortexCoins
 //  Managed server-side by netlify/functions/cortex-coins.js

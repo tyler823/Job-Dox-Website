@@ -6,7 +6,7 @@
    - Supports multiple floors, rooms, suites
 ══════════════════════════════════════════════════════════════════ */
 import { useState, useRef, useEffect, useCallback } from "react";
-import { dduid, DDIc, MATERIAL_CLASSES, WATER_CATEGORIES } from "./DryDoxConstants.js";
+import { dduid, DDIc, MATERIAL_CLASSES, WATER_CATEGORIES } from "./DryDoxConstants.jsx";
 
 // ── LiDAR / AR Session Manager ──
 // Uses WebXR Device API with depth-sensing for LiDAR-equipped devices
