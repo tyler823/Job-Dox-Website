@@ -527,13 +527,63 @@ function InvoicePreviewModal({ inv, onClose }) {
   };
   const sc = STATUS_COLORS[inv.status] || STATUS_COLORS.unpaid;
 
+  const isComplex = inv.invoiceMode === "complex";
+  const hasRooms  = inv.hasRooms && isComplex;
+
+  // Room groupings
+  const roomGroups = useMemo(() => {
+    if (!hasRooms) return null;
+    const groups = {};
+    (inv.lineItems||[]).forEach(li => {
+      const room = li.room || "General";
+      if (!groups[room]) groups[room] = [];
+      groups[room].push(li);
+    });
+    return groups;
+  }, [inv, hasRooms]);
+
   const lineTotal = (inv.lineItems||[]).reduce((s,i)=>s+(i.qty||0)*(i.price||0),0);
+
+  const TotalsBlock = () => (
+    <div style={{display:"flex",justifyContent:"flex-end",marginBottom:20}}>
+      <div style={{minWidth:260,background:"var(--s3)",borderRadius:9,border:"1px solid var(--br)",padding:"12px 16px"}}>
+        {[
+          ["Subtotal",                     lineTotal,          "var(--t2)", false],
+          ...(adj.overhead>0 ? [[`Overhead / Profit (${adj.overhead}%)`, inv.overheadAmt||0, "var(--amber)", false]] : []),
+          ...((adj.surcharges||[]).map(sc=>[`${sc.label} (${sc.pct}%)`, lineTotal*(sc.pct/100), "var(--amber)", false])),
+          ...(adj.discount>0 ? [[`Discount`,  -(inv.discountAmt||0), "var(--acc)", false]] : []),
+          ...(adj.taxRate>0  ? [[`${adj.taxName||"Tax"} (${adj.taxRate}%)`, inv.taxAmt||0, "var(--t2)", false]] : []),
+        ].map(([l,v,c])=>(
+          <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid var(--br)"}}>
+            <span style={{fontSize:10,color:c}}>{l}</span>
+            <span className="mono" style={{fontSize:11,color:c,fontWeight:600}}>{v<0?"-":""}{fmt(Math.abs(v))}</span>
+          </div>
+        ))}
+        <div style={{display:"flex",justifyContent:"space-between",padding:"9px 0 2px",marginTop:4}}>
+          <span style={{fontSize:13,fontWeight:800,color:"var(--t1)"}}>TOTAL DUE</span>
+          <span className="mono" style={{fontSize:18,fontWeight:800,color:"var(--green)"}}>{fmt(inv.total||0)}</span>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()} style={{alignItems:"flex-start",paddingTop:32,overflowY:"auto"}}>
       <div className="modal anim modal-lg" style={{maxWidth:720,width:"100%"}}>
         <div className="modal-hd" style={{position:"sticky",top:0,zIndex:10,background:"var(--s2)"}}>
-          <div className="modal-ttl">{inv.number || "Invoice"}</div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div className="modal-ttl">{inv.number || "Invoice"}</div>
+            {isComplex && (
+              <span style={{fontSize:9,background:"rgba(139,92,246,.15)",color:"var(--purple)",borderRadius:3,padding:"1px 6px",fontFamily:"var(--mono)"}}>
+                COMPLEX{hasRooms?" · BY ROOM":""}
+              </span>
+            )}
+            {!isComplex && (
+              <span style={{fontSize:9,background:"rgba(91,163,245,.15)",color:"var(--blue)",borderRadius:3,padding:"1px 6px",fontFamily:"var(--mono)"}}>
+                SIMPLE
+              </span>
+            )}
+          </div>
           <div style={{display:"flex",gap:7,alignItems:"center"}}>
             <span style={{fontSize:9,fontWeight:700,fontFamily:"var(--mono)",color:sc.color,
               background:`${sc.color}18`,border:`1px solid ${sc.color}40`,borderRadius:4,padding:"2px 8px"}}>
@@ -565,6 +615,12 @@ function InvoicePreviewModal({ inv, onClose }) {
                 <div><span style={{color:"var(--t2)",fontWeight:600}}>Date:</span> {fmtDate(inv.date)}</div>
                 <div><span style={{color:"var(--t2)",fontWeight:600}}>Due:</span> {fmtDate(inv.dueDate)}</div>
               </div>
+              {inv.budgetCatName && (
+                <div style={{marginTop:6,fontSize:9,background:"rgba(91,163,245,.1)",color:"var(--blue)",
+                  borderRadius:5,padding:"2px 8px",display:"inline-block",fontFamily:"var(--mono)"}}>
+                  Budget: {inv.budgetCatName}
+                </div>
+              )}
             </div>
           </div>
 
@@ -582,54 +638,87 @@ function InvoicePreviewModal({ inv, onClose }) {
             </div>
           </div>
 
-          {/* Line items table */}
-          <div style={{marginBottom:20}}>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 60px 60px 80px 80px",gap:0,
-              background:"var(--s3)",borderRadius:"7px 7px 0 0",padding:"7px 10px",
-              borderBottom:"2px solid var(--br-hi)"}}>
-              {["Description","Unit","Qty","Unit Price","Total"].map((h,i)=>(
-                <div key={h} className="mono" style={{fontSize:9,color:"var(--t3)",textAlign:i>1?"right":"left"}}>{h}</div>
-              ))}
-            </div>
-            {(inv.lineItems||[]).map((it,i)=>(
-              <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 60px 60px 80px 80px",gap:0,
-                padding:"7px 10px",borderBottom:"1px solid var(--br)",
-                background:i%2===0?"transparent":"rgba(255,255,255,.015)"}}>
-                <div style={{fontSize:11,color:"var(--t1)"}}>{it.desc}</div>
-                <div className="mono" style={{fontSize:10,color:"var(--t3)",textAlign:"center"}}>{it.unit}</div>
-                <div className="mono" style={{fontSize:10,color:"var(--t2)",textAlign:"right"}}>{it.qty}</div>
-                <div className="mono" style={{fontSize:10,color:"var(--t2)",textAlign:"right"}}>{fmt(it.price)}</div>
-                <div className="mono" style={{fontSize:11,fontWeight:700,color:"var(--t1)",textAlign:"right"}}>{fmt((it.qty||0)*(it.price||0))}</div>
+          {/* ── SIMPLE mode: just show total due ── */}
+          {!isComplex && (
+            <>
+              <div style={{padding:"28px 20px",background:"var(--s3)",borderRadius:12,border:"1px solid var(--br)",
+                textAlign:"center",marginBottom:20}}>
+                <div className="mono" style={{fontSize:10,color:"var(--t3)",letterSpacing:1,marginBottom:8}}>TOTAL AMOUNT DUE</div>
+                <div className="mono" style={{fontSize:36,fontWeight:800,color:"var(--green)"}}>{fmt(inv.total||0)}</div>
+                <div style={{fontSize:11,color:"var(--t3)",marginTop:8}}>
+                  Due by {fmtDate(inv.dueDate)}
+                </div>
               </div>
-            ))}
-            {(inv.lineItems||[]).length === 0 && (
-              <div style={{padding:"16px 10px",fontSize:11,color:"var(--t3)",textAlign:"center",border:"1px solid var(--br)",borderTop:"none"}}>
-                No line items
-              </div>
-            )}
-          </div>
+              {inv.summary && (
+                <div style={{padding:"10px 14px",background:"var(--s3)",borderRadius:9,border:"1px solid var(--br)",marginBottom:20}}>
+                  <div className="mono" style={{fontSize:9,color:"var(--t3)",marginBottom:4}}>SCOPE SUMMARY</div>
+                  <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.7}}>{inv.summary}</div>
+                </div>
+              )}
+            </>
+          )}
 
-          {/* Totals block */}
-          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:20}}>
-            <div style={{minWidth:260,background:"var(--s3)",borderRadius:9,border:"1px solid var(--br)",padding:"12px 16px"}}>
-              {[
-                ["Subtotal",                     lineTotal,          "var(--t2)", false],
-                ...(adj.overhead>0 ? [[`Overhead / Profit (${adj.overhead}%)`, inv.overheadAmt||0, "var(--amber)", false]] : []),
-                ...((adj.surcharges||[]).map(sc=>[`${sc.label} (${sc.pct}%)`, lineTotal*(sc.pct/100), "var(--amber)", false])),
-                ...(adj.discount>0 ? [[`Discount`,  -(inv.discountAmt||0), "var(--acc)", false]] : []),
-                ...(adj.taxRate>0  ? [[`${adj.taxName||"Tax"} (${adj.taxRate}%)`, inv.taxAmt||0, "var(--t2)", false]] : []),
-              ].map(([l,v,c])=>(
-                <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid var(--br)"}}>
-                  <span style={{fontSize:10,color:c}}>{l}</span>
-                  <span className="mono" style={{fontSize:11,color:c,fontWeight:600}}>{v<0?"-":""}{fmt(Math.abs(v))}</span>
+          {/* ── COMPLEX mode: flat line items ── */}
+          {isComplex && !hasRooms && (
+            <div style={{marginBottom:20}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 60px 60px 80px 80px",gap:0,
+                background:"var(--s3)",borderRadius:"7px 7px 0 0",padding:"7px 10px",
+                borderBottom:"2px solid var(--br-hi)"}}>
+                {["Description","Unit","Qty","Unit Price","Total"].map((h,i)=>(
+                  <div key={h} className="mono" style={{fontSize:9,color:"var(--t3)",textAlign:i>1?"right":"left"}}>{h}</div>
+                ))}
+              </div>
+              {(inv.lineItems||[]).map((it,i)=>(
+                <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 60px 60px 80px 80px",gap:0,
+                  padding:"7px 10px",borderBottom:"1px solid var(--br)",
+                  background:i%2===0?"transparent":"rgba(255,255,255,.015)"}}>
+                  <div style={{fontSize:11,color:"var(--t1)"}}>{it.desc}</div>
+                  <div className="mono" style={{fontSize:10,color:"var(--t3)",textAlign:"center"}}>{it.unit}</div>
+                  <div className="mono" style={{fontSize:10,color:"var(--t2)",textAlign:"right"}}>{it.qty}</div>
+                  <div className="mono" style={{fontSize:10,color:"var(--t2)",textAlign:"right"}}>{fmt(it.price)}</div>
+                  <div className="mono" style={{fontSize:11,fontWeight:700,color:"var(--t1)",textAlign:"right"}}>{fmt((it.qty||0)*(it.price||0))}</div>
                 </div>
               ))}
-              <div style={{display:"flex",justifyContent:"space-between",padding:"9px 0 2px",marginTop:4}}>
-                <span style={{fontSize:13,fontWeight:800,color:"var(--t1)"}}>TOTAL DUE</span>
-                <span className="mono" style={{fontSize:18,fontWeight:800,color:"var(--green)"}}>{fmt(inv.total||0)}</span>
-              </div>
+              {(inv.lineItems||[]).length===0 && (
+                <div style={{padding:"16px 10px",fontSize:11,color:"var(--t3)",textAlign:"center",border:"1px solid var(--br)",borderTop:"none"}}>No line items</div>
+              )}
             </div>
-          </div>
+          )}
+
+          {/* ── COMPLEX + ROOMS mode: grouped by room ── */}
+          {isComplex && hasRooms && (
+            <div style={{marginBottom:20}}>
+              {Object.entries(roomGroups||{}).map(([room,items])=>(
+                <div key={room} style={{marginBottom:14,borderRadius:9,border:"1px solid var(--br)",overflow:"hidden"}}>
+                  <div style={{background:"rgba(91,163,245,.08)",padding:"7px 11px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid var(--br)"}}>
+                    <span style={{fontWeight:700,fontSize:12,color:"var(--blue)"}}>🏠 {room}</span>
+                    <span className="mono" style={{fontSize:10,color:"var(--t2)",fontWeight:700}}>
+                      {fmt(items.reduce((s,li)=>s+li.qty*li.price,0))}
+                    </span>
+                  </div>
+                  <div style={{background:"var(--s3)",padding:"3px 11px 3px",display:"grid",gridTemplateColumns:"1fr 60px 60px 80px 80px",gap:0,borderBottom:"1px solid var(--br)"}}>
+                    {["Description","Unit","Qty","Unit Price","Total"].map((h,i)=>(
+                      <div key={h} className="mono" style={{fontSize:8,color:"var(--t3)",textAlign:i>1?"right":"left",padding:"3px 0"}}>{h}</div>
+                    ))}
+                  </div>
+                  {items.map((it,i)=>(
+                    <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 60px 60px 80px 80px",gap:0,
+                      padding:"6px 11px",borderBottom:i<items.length-1?"1px solid var(--br)":"none",
+                      background:i%2===0?"transparent":"rgba(255,255,255,.015)"}}>
+                      <div style={{fontSize:11,color:"var(--t1)"}}>{it.desc}</div>
+                      <div className="mono" style={{fontSize:10,color:"var(--t3)",textAlign:"center"}}>{it.unit}</div>
+                      <div className="mono" style={{fontSize:10,color:"var(--t2)",textAlign:"right"}}>{it.qty}</div>
+                      <div className="mono" style={{fontSize:10,color:"var(--t2)",textAlign:"right"}}>{fmt(it.price)}</div>
+                      <div className="mono" style={{fontSize:11,fontWeight:700,color:"var(--t1)",textAlign:"right"}}>{fmt((it.qty||0)*(it.price||0))}</div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Totals block (always shown for complex) */}
+          {isComplex && <TotalsBlock/>}
 
           {/* Terms */}
           {inv.terms && (
