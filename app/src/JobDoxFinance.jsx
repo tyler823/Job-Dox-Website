@@ -61,7 +61,6 @@ function lsMarkVendorBillPaid(id, paid) {
 
 /* ── Vendor registry read (shared key with portal jd_vendors) ── */
 function lsLoadVendors() { try { return JSON.parse(localStorage.getItem("jd_vendors")) || []; } catch { return []; } }
-}
 
 /* ── Budget Templates (global, mirrors Settings → Budget Categories) ── */
 const LS_BUDGET_TEMPLATES = "jd_budget_templates";
