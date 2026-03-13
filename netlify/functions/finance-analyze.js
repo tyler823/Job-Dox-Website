@@ -4,6 +4,29 @@
  * Reads ANTHROPIC_API_KEY from Netlify environment variables.
  */
 
+const { getDb } = require("./_firebase");
+
+/** Check & deduct a Cortex Coin for this company. */
+async function deductCortexCoin(companyId, feature, userId) {
+  if (!companyId) return { allowed: true, coinData: null };
+  try {
+    const baseUrl = process.env.URL || process.env.SITE_URL || 'https://job-dox.ai';
+    const res = await fetch(`${baseUrl}/.netlify/functions/cortex-coins`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companyId, action: 'deduct', feature, userId }),
+    });
+    const data = await res.json();
+    if (res.status === 403 || data.error === 'insufficient_coins') {
+      return { allowed: false, message: data.message, coinData: data };
+    }
+    return { allowed: true, coinData: data };
+  } catch (err) {
+    console.warn('[finance-analyze] Cortex Coins check failed, allowing call:', err.message);
+    return { allowed: true, coinData: null };
+  }
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 204, headers: corsHeaders(), body: "" };
@@ -16,9 +39,19 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || "{}"); }
   catch { return respond(400, { error: "Invalid JSON body" }); }
 
-  const { prompt, mode = "job" } = body;
+  const { prompt, mode = "job", companyId, userId } = body;
   if (!prompt || typeof prompt !== "string") {
     return respond(400, { error: "Missing required field: prompt" });
+  }
+
+  // ── Cortex Coins gate ──
+  const coinCheck = await deductCortexCoin(companyId, 'finance-analyze', userId);
+  if (!coinCheck.allowed) {
+    return respond(403, {
+      error: 'cortex_coins_exhausted',
+      message: coinCheck.message,
+      coinData: coinCheck.coinData,
+    });
   }
 
   const systemPrompt = mode === "portfolio"
@@ -54,7 +87,7 @@ Format using **bold** for section headers and - for bullets.`;
     }
 
     const text = json.content?.find(b => b.type === "text")?.text || "";
-    return respond(200, { text, mode });
+    return respond(200, { text, mode, cortexCoins: coinCheck.coinData });
 
   } catch (err) {
     console.error("[finance-analyze] error:", err);

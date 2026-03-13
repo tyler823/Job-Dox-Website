@@ -5335,7 +5335,7 @@ function InvoicePreviewPortalModal({ inv, onClose }) {
   );
 }
 
-function MessagesTab({ proj, contacts=[], dailyNotes=[], currentUser=null }) {
+function MessagesTab({ proj, contacts=[], dailyNotes=[], currentUser=null, companyId="" }) {
   const [msgs, setMsgs] = useState(() => loadProjMsgs(proj?.id||""));
   const [refresh, setRefresh] = useState(0);
   const [aiMsg, setAiMsg] = useState(null);   // message selected for AI response
@@ -5408,6 +5408,7 @@ function MessagesTab({ proj, contacts=[], dailyNotes=[], currentUser=null }) {
           companyInfo={co}
           currentUser={currentUser}
           threadMessages={msgs}
+          companyId={companyId}
           onClose={()=>setAiMsg(null)}
           onInsertDraft={(text)=>{
             // Copy to clipboard as fallback since there's no active composer
@@ -7900,7 +7901,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       {tab==="finance"        && <FinancialTab proj={proj} companyId={companyId} laborCost={laborCost} invoices={loadProjInvoices(proj.id)} onInvoiceVoid={id=>{const all=loadAllInvoices().map(i=>i.id===id?{...i,status:"void"}:i);saveAllInvoices(all);}}/>}
       {tab==="shifts"         && <ShiftsTab projId={proj.id} externalShifts={myShifts} canViewRates={canViewRates}/>}
       {tab==="scope"          && <ScopeTab proj={proj} scopeItems={scopeItems} setScopeItems={setScopeItems} contacts={contacts} onDocGenerated={()=>{ setDocRefreshKey(k=>k+1); }}/>}
-      {tab==="messages"       && <MessagesTab proj={proj} contacts={contacts} dailyNotes={dailyNotes} currentUser={currentUser}/>}
+      {tab==="messages"       && <MessagesTab proj={proj} contacts={contacts} dailyNotes={dailyNotes} currentUser={currentUser} companyId={companyId}/>}
       {tab==="calls"          && <CallLogTab proj={proj} companyId={companyId} globalStaff={globalStaff} currentUser={currentUser} phoneSettings={phoneSettings}/>}
       {tab==="project-report" && <ProjectReportTab proj={proj} dailyNotes={dailyNotes} mediaFolders={mediaFolders} mediaUploads={mediaUploads} docs={projDocs}/>}
     </>
@@ -8003,6 +8004,193 @@ function ColorPicker({ value, onChange }) {
       <input type="color" value={value} onChange={e=>onChange(e.target.value)}
         style={{width:18,height:18,border:"none",background:"none",cursor:"pointer",padding:0}}
         title="Custom color"/>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   CORTEX COINS TAB — AI Usage Tracker
+   Shows balance, usage ring, cycle info, and recent usage log.
+══════════════════════════════════════════════════════════════════ */
+function CortexCoinsTab({ companyId }) {
+  const [data, setData]       = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState("");
+
+  const fetchStatus = useCallback(async () => {
+    if (!companyId) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/.netlify/functions/cortex-coins", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, action: "status" }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load");
+      setData(json);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId]);
+
+  useEffect(() => { fetchStatus(); }, [fetchStatus]);
+
+  if (loading) {
+    return (
+      <div className="card" style={{padding:40,textAlign:"center"}}>
+        <div style={{width:20,height:20,border:"2px solid var(--br)",borderTopColor:"var(--acc)",
+          borderRadius:"50%",animation:"jd-spin .7s linear infinite",margin:"0 auto 12px"}}/>
+        <div style={{fontSize:12,color:"var(--t3)"}}>Loading Cortex Coins...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="card" style={{padding:28,textAlign:"center"}}>
+        <div style={{fontSize:13,fontWeight:600,color:"var(--acc)",marginBottom:6}}>Error loading Cortex Coins</div>
+        <div style={{fontSize:11,color:"var(--t3)",marginBottom:12}}>{error}</div>
+        <button className="btn btn-ghost btn-sm" onClick={fetchStatus}>Retry</button>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const pct = data.usagePercent || 0;
+  const remaining = data.remaining || 0;
+  const total = data.totalAvailable || 0;
+  const used = data.used || 0;
+  const rollover = data.rolloverCoins || 0;
+  const resetDate = data.cycleResetDate || "—";
+  const cycleStart = data.cycleStart ? new Date(data.cycleStart).toLocaleDateString() : "—";
+
+  // Ring chart SVG values
+  const radius = 58;
+  const circumference = 2 * Math.PI * radius;
+  const usedStroke = (pct / 100) * circumference;
+  const ringColor = pct >= 90 ? "var(--acc)" : pct >= 80 ? "var(--amber)" : "var(--green)";
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      {/* ── Alert banner if ≥ 80% ── */}
+      {pct >= 80 && (
+        <div style={{
+          background: pct >= 100 ? "rgba(228,53,49,.12)" : "rgba(232,156,24,.12)",
+          border: `1px solid ${pct >= 100 ? "rgba(228,53,49,.3)" : "rgba(232,156,24,.3)"}`,
+          borderRadius: 10, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12,
+        }}>
+          <div style={{fontSize:20,flexShrink:0}}>{pct >= 100 ? "\u26A0" : "\u26A0"}</div>
+          <div>
+            <div style={{fontSize:13,fontWeight:700,color: pct >= 100 ? "var(--acc)" : "var(--amber)"}}>
+              {pct >= 100
+                ? "Cortex Coins Exhausted"
+                : `You've used ${pct}% of your Cortex Coins for this billing cycle.`}
+            </div>
+            <div style={{fontSize:11,color:"var(--t2)",marginTop:2}}>
+              Cycle resets on <strong style={{color:"var(--t1)"}}>{resetDate}</strong>.
+              {pct >= 100 && " AI features are paused until your next cycle begins."}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Main balance card ── */}
+      <div className="card" style={{padding:0,overflow:"hidden"}}>
+        <div style={{padding:"22px 24px",display:"flex",alignItems:"center",gap:28,flexWrap:"wrap"}}>
+          {/* Usage ring */}
+          <div style={{position:"relative",width:140,height:140,flexShrink:0}}>
+            <svg width="140" height="140" viewBox="0 0 140 140" style={{transform:"rotate(-90deg)"}}>
+              <circle cx="70" cy="70" r={radius} fill="none" stroke="var(--br)" strokeWidth="10"/>
+              <circle cx="70" cy="70" r={radius} fill="none" stroke={ringColor} strokeWidth="10"
+                strokeDasharray={circumference} strokeDashoffset={circumference - usedStroke}
+                strokeLinecap="round" style={{transition:"stroke-dashoffset .6s ease, stroke .3s"}}/>
+            </svg>
+            <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",
+              alignItems:"center",justifyContent:"center"}}>
+              <div style={{fontSize:28,fontWeight:800,color:"var(--t1)",lineHeight:1}}>{remaining}</div>
+              <div style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",letterSpacing:".06em",
+                textTransform:"uppercase",marginTop:3}}>Coins Left</div>
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div style={{flex:1,minWidth:200}}>
+            <div style={{fontSize:16,fontWeight:800,color:"var(--t1)",marginBottom:2}}>Cortex Coins</div>
+            <div style={{fontSize:11,color:"var(--t3)",marginBottom:16}}>
+              AI usage credits for your workspace
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              {[
+                ["Used This Cycle",  used,      "var(--t1)"],
+                ["Total Available",  total,     "var(--blue)"],
+                ["Base Allowance",   data.baseAllowance || 300, "var(--teal)"],
+                ["Rollover Bonus",   rollover,  "var(--purple)"],
+              ].map(([label, val, color]) => (
+                <div key={label} style={{background:"var(--s2)",borderRadius:8,padding:"10px 12px",
+                  border:"1px solid var(--br)"}}>
+                  <div style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",letterSpacing:".05em",
+                    textTransform:"uppercase",marginBottom:3}}>{label}</div>
+                  <div style={{fontSize:20,fontWeight:800,color}}>{val}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Cycle info footer */}
+        <div style={{padding:"12px 24px",background:"var(--s2)",borderTop:"1px solid var(--br)",
+          display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+          <div style={{fontSize:11,color:"var(--t3)"}}>
+            Cycle started <strong style={{color:"var(--t2)"}}>{cycleStart}</strong>
+          </div>
+          <div style={{fontSize:11,color:"var(--t3)"}}>
+            Resets on <strong style={{color:"var(--t1)"}}>{resetDate}</strong>
+          </div>
+          <button className="btn btn-ghost btn-xs" onClick={fetchStatus} style={{gap:4,fontSize:10}}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* ── How it works card ── */}
+      <div className="card" style={{padding:20}}>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",marginBottom:8}}>How Cortex Coins Work</div>
+        <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.9}}>
+          <strong style={{color:"var(--t1)"}}>1.</strong> Each workspace receives <strong style={{color:"var(--blue)"}}>300 Cortex Coins</strong> per 28-day billing cycle.<br/>
+          <strong style={{color:"var(--t1)"}}>2.</strong> Every AI-powered action (Adjuster Response Bot, CortexAI Workflows, Financial Analysis) costs <strong style={{color:"var(--t1)"}}>1 coin</strong>.<br/>
+          <strong style={{color:"var(--t1)"}}>3.</strong> Unused coins <strong style={{color:"var(--purple)"}}>roll over</strong> to your next cycle automatically.<br/>
+          <strong style={{color:"var(--t1)"}}>4.</strong> You'll be notified when you reach <strong style={{color:"var(--amber)"}}>80%</strong> usage so you can plan accordingly.<br/>
+          <strong style={{color:"var(--t1)"}}>5.</strong> When coins are exhausted, AI features pause until the next cycle begins.
+        </div>
+      </div>
+
+      {/* ── Usage breakdown card ── */}
+      <div className="card" style={{padding:20}}>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",marginBottom:4}}>Usage Breakdown</div>
+        <div style={{fontSize:11,color:"var(--t3)",marginBottom:14}}>Coins consumed by feature this cycle</div>
+        <UsageBar label="Adjuster Response Bot" feature="adjuster-response" total={total} used={used} color="var(--blue)" pct={pct}/>
+        <UsageBar label="CortexAI Workflows" feature="cortex-generate" total={total} used={used} color="var(--purple)" pct={pct}/>
+        <UsageBar label="Financial Analysis" feature="finance-analyze" total={total} used={used} color="var(--teal)" pct={pct}/>
+        <div style={{marginTop:12,fontSize:10,color:"var(--t3)",fontStyle:"italic"}}>
+          Detailed per-feature breakdown is available in your usage logs.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UsageBar({ label, color }) {
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+      <div style={{width:8,height:8,borderRadius:"50%",background:color,flexShrink:0}}/>
+      <div style={{flex:1,fontSize:12,color:"var(--t2)"}}>{label}</div>
+      <div style={{width:6,height:6,borderRadius:"50%",background:"var(--green)",flexShrink:0}} title="Active"/>
     </div>
   );
 }
@@ -9816,7 +10004,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     </div>
   );
 
-  const TABS = [["staff","Staff"],["vendors","Vendors"],["offices","Offices"],["phone","Phone & Calls"],["cortex","CortexAI"],["general","General"],["roadmap","Roadmap"]];
+  const TABS = [["staff","Staff"],["vendors","Vendors"],["offices","Offices"],["phone","Phone & Calls"],["cortex","CortexAI"],["coins","Cortex Coins"],["general","General"],["roadmap","Roadmap"]];
 
   return (
     <div className="scroll" style={{flex:1,overflow:"auto"}}>
@@ -10442,6 +10630,10 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
           </div>
         )}
 
+        {tab==="coins" && (
+          <CortexCoinsTab companyId={companyId} />
+        )}
+
         {tab==="general" && (permLevel >= 8 ? (
           <GeneralSettingsTab/>
         ) : (
@@ -10482,6 +10674,8 @@ export default function JobDoxPortal() {
   const [customStatuses,   setCustomStatuses]  = useState(loadCST);
   const [customProjectTypes,setCustomProjectTypes] = useState(loadCPT);
   const [phoneSettings,     setPhoneSettings]      = useState({});  // loaded from Firestore on companyId resolve
+  const [cortexAlert,        setCortexAlert]        = useState(null);  // Cortex Coins usage alert
+  const [cortexAlertDismissed, setCortexAlertDismissed] = useState(false);
   const attrDefs = DEFAULT_ATTR_DEFS;
 
   // Re-sync if another tab updates localStorage config
@@ -10617,6 +10811,18 @@ export default function JobDoxPortal() {
       // ── Load phone settings (one-time, not a stream — changes rarely) ──
       getDoc(doc(db, `companies/${cid}/settings/phone`)).then(snap => {
         if (snap.exists()) setPhoneSettings(snap.data());
+      }).catch(() => {});
+
+      // ── Load Cortex Coins status for usage alert ──
+      fetch("/.netlify/functions/cortex-coins", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: cid, action: "status" }),
+      }).then(r => r.json()).then(coins => {
+        if (coins.usagePercent >= 80) {
+          setCortexAlert(coins);
+          setCortexAlertDismissed(false);
+        }
       }).catch(() => {});
 
       // ── Stream pending invites (admin only, but harmless to load) ──
@@ -10842,6 +11048,31 @@ export default function JobDoxPortal() {
       </nav>
 
       <div className="jdp-main">
+        {/* ── Cortex Coins Usage Alert Banner ── */}
+        {cortexAlert && !cortexAlertDismissed && cortexAlert.usagePercent >= 80 && (
+          <div style={{
+            background: cortexAlert.exhausted ? "rgba(228,53,49,.10)" : "rgba(232,156,24,.10)",
+            borderBottom: `1px solid ${cortexAlert.exhausted ? "rgba(228,53,49,.25)" : "rgba(232,156,24,.25)"}`,
+            padding: "8px 18px",
+            display: "flex", alignItems: "center", gap: 10, flexShrink: 0,
+            fontSize: 12, color: cortexAlert.exhausted ? "var(--acc)" : "var(--amber)",
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{flexShrink:0}}>
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            </svg>
+            <span style={{flex:1}}>
+              {cortexAlert.exhausted
+                ? <>Your Cortex Coins are exhausted for this billing cycle. AI features are paused until cycle resets on <strong>{cortexAlert.cycleResetDate}</strong>.</>
+                : <>You've used <strong>{cortexAlert.usagePercent}%</strong> of your Cortex Coins for this billing cycle. Cycle resets on <strong>{cortexAlert.cycleResetDate}</strong>.</>
+              }
+            </span>
+            <button onClick={() => setCortexAlertDismissed(true)}
+              style={{background:"none",border:"none",color:"inherit",cursor:"pointer",fontSize:14,padding:"2px 4px",flexShrink:0,opacity:.7}}>
+              ✕
+            </button>
+          </div>
+        )}
+
         {page==="settings" ? (
           <>
             <div className="topbar">

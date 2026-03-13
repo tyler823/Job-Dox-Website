@@ -10,7 +10,30 @@
  *   ANTHROPIC_API_KEY = sk-ant-...
  */
 
+const { getDb } = require("./_firebase");
+
 const ALLOWED_ORIGIN = process.env.SITE_URL || 'https://job-dox.ai';
+
+/** Check & deduct a Cortex Coin for this company. */
+async function deductCortexCoin(companyId, feature, userId) {
+  if (!companyId) return { allowed: true, coinData: null };
+  try {
+    const baseUrl = process.env.URL || process.env.SITE_URL || 'https://job-dox.ai';
+    const res = await fetch(`${baseUrl}/.netlify/functions/cortex-coins`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companyId, action: 'deduct', feature, userId }),
+    });
+    const data = await res.json();
+    if (res.status === 403 || data.error === 'insufficient_coins') {
+      return { allowed: false, message: data.message, coinData: data };
+    }
+    return { allowed: true, coinData: data };
+  } catch (err) {
+    console.warn('[cortex-generate] Cortex Coins check failed, allowing call:', err.message);
+    return { allowed: true, coinData: null };
+  }
+}
 
 exports.handler = async (event) => {
   // ── CORS ──
@@ -37,10 +60,24 @@ exports.handler = async (event) => {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
   }
 
-  const { workType, notes, roles = [], statuses = [], statusTriggers = [] } = context;
+  const { workType, notes, roles = [], statuses = [], statusTriggers = [], companyId, userId } = context;
 
   if (!workType || typeof workType !== 'string' || workType.length > 100) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'workType is required' }) };
+  }
+
+  // ── Cortex Coins gate ──
+  const coinCheck = await deductCortexCoin(companyId, 'cortex-generate', userId);
+  if (!coinCheck.allowed) {
+    return {
+      statusCode: 403,
+      headers,
+      body: JSON.stringify({
+        error: 'cortex_coins_exhausted',
+        message: coinCheck.message,
+        coinData: coinCheck.coinData,
+      }),
+    };
   }
 
   // ── Guard: API key must exist ──
