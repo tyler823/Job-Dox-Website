@@ -5,6 +5,7 @@ import { ReportsDashboard } from "./JobDoxReports.jsx";
 import ContentsDox from "./ContentsDox.jsx";
 import DryDoxModule from "./DryDox.jsx";
 import AdjusterResponseModal from "./AdjusterResponseBot.jsx";
+import html2canvas from "html2canvas";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
          doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where } from "firebase/firestore";
@@ -240,6 +241,13 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
 .rail-btn.clocked-in::after{content:'';position:absolute;top:7px;right:7px;width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);}
 .clocked-banner{background:rgba(26,217,138,.12);border-top:1px solid rgba(26,217,138,.25);padding:5px 11px;display:flex;align-items:center;gap:6px;font-size:10px;color:var(--green);font-weight:700;}
 
+.help-popup{position:fixed;left:62px;background:var(--s2);border:1px solid var(--br);border-radius:10px;min-width:220px;z-index:1000;box-shadow:0 8px 32px rgba(0,0,0,.35);overflow:hidden;animation:helpIn .15s ease;}
+@keyframes helpIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:translateX(0)}}
+.help-popup-item{display:flex;align-items:center;gap:10px;width:100%;border:none;background:transparent;color:var(--t1);font-size:13px;font-weight:500;padding:11px 16px;cursor:pointer;transition:background .12s;text-align:left;font-family:inherit;}
+.help-popup-item:hover{background:var(--br-hi);}
+.help-popup-item svg{flex-shrink:0;color:var(--t2);}
+.help-popup-item+.help-popup-item{border-top:1px solid var(--br);}
+
 .proj-list{display:flex;flex-direction:column;gap:5px;}
 .proj-list-row{background:var(--s2);border:1px solid var(--br);border-radius:10px;display:flex;align-items:center;overflow:hidden;transition:all .15s;}
 .proj-list-row:hover{border-color:var(--br-hi);box-shadow:0 3px 12px rgba(0,0,0,.12);}
@@ -413,6 +421,7 @@ const Ic = {
   ic_grid: <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3V3zm0 10h8v8H3v-8zm10-10h8v8h-8V3zm0 10h8v8h-8v-8z"/></svg>,
   stopwatch:<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M15.07 1.58l-1.06 1.95C13.43 3.2 12.73 3 12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-2.87-1.35-5.43-3.44-7.07l1.05-1.93-1.54-.42zM12 19c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm.5-11h-1.5v5.25l4.5 2.67.75-1.23-3.75-2.23V8z"/></svg>,
   logout:  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>,
+  help:    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/></svg>,
 };
 
 const STATUS_C = {"In Progress":"var(--blue)","New Lead":"var(--t2)","Scoping":"var(--amber)","On Hold":"var(--acc)","Completed":"var(--green)","Pending Approval":"var(--purple)"};
@@ -10958,6 +10967,8 @@ export default function JobDoxPortal() {
   const [page,          setPage]         = useState("portfolio");
   const [isLight,       setIsLight]      = useState(() => localStorage.getItem("jd-theme") === "light");
   const [showTools,     setShowTools]    = useState(false);
+  const [showHelpMenu,  setShowHelpMenu] = useState(false);
+  const helpBtnRef = useRef(null);
   const [clockInState,  setClockInState] = useState(null);
   const [projectShifts, setProjectShifts]= useState({});
   const [permission,    setPermission]   = useState(1); // numeric 1-10, loaded from Firestore
@@ -11304,6 +11315,48 @@ export default function JobDoxPortal() {
         <button className="rail-btn" data-tip={isLight?"Dark mode":"Light mode"} onClick={toggleTheme} style={{color:isLight?"var(--t2)":"#f5c518"}}>
           {isLight ? Ic.sun : Ic.moon}
         </button>
+        <button ref={helpBtnRef} className={`rail-btn${showHelpMenu?" active":""}`} data-tip="Help" onClick={()=>setShowHelpMenu(v=>!v)}>
+          {Ic.help}
+        </button>
+        {showHelpMenu && (() => {
+          const rect = helpBtnRef.current?.getBoundingClientRect();
+          const top = rect ? Math.min(rect.top, window.innerHeight - 120) : 0;
+          return <>
+            <div style={{position:"fixed",inset:0,zIndex:999}} onClick={()=>setShowHelpMenu(false)}/>
+            <div className="help-popup" style={{top}}>
+              <button className="help-popup-item" onClick={async()=>{
+                setShowHelpMenu(false);
+                try {
+                  const canvas = await html2canvas(document.body, {useCORS:true, scale:1});
+                  canvas.toBlob(blob=>{
+                    if(blob){
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `jobdox-screenshot-${Date.now()}.png`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }
+                  },"image/png");
+                } catch(e){ /* screenshot best-effort */ }
+                const uName = currentUser.name || "User";
+                const cName = loadCoInfo().name || "Company";
+                const subject = encodeURIComponent(`Support Request from ${uName} with ${cName}`);
+                window.location.href = `mailto:info@job-dox.com?subject=${subject}`;
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                Contact Us
+              </button>
+              <button className="help-popup-item" onClick={()=>{
+                setShowHelpMenu(false);
+                window.open("https://job-dox.ai/university","_blank","noopener");
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.91V17h2V9L12 3z"/></svg>
+                Job-Dox University
+              </button>
+            </div>
+          </>;
+        })()}
         <button className="rail-btn" data-tip="Sign Out" onClick={async()=>{
           try {
             await window.$memberstackDom.logout();
