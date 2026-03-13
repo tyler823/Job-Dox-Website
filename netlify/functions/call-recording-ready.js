@@ -6,6 +6,10 @@
  * once the .mp3 recording has been processed and is ready to play.
  * Saves the recording URL to the Firestore call log doc so the
  * portal's Call Log and Message Center can show a Play button.
+ *
+ * If Call Transcriber is enabled for the company, fires off an async
+ * transcription request to call-transcribe.js.
+ *
  * Not called directly by the portal — only by Twilio.
  *
  * Env vars required: FIREBASE_SERVICE_ACCOUNT
@@ -45,6 +49,22 @@ exports.handler = async (event) => {
         recordingDuration: parseInt(recordingDuration, 10),
         recordingReadyAt:  admin.firestore.FieldValue.serverTimestamp(),
       });
+
+      // ── Trigger Call Transcriber (fire-and-forget) ──
+      // Check if company has transcription enabled before calling
+      const phoneSnap = await db.doc(`companies/${companyId}/settings/phone`).get().catch(() => null);
+      const phoneSettings = phoneSnap?.exists ? phoneSnap.data() : {};
+
+      if (phoneSettings.callTranscriberEnabled) {
+        const baseUrl = (process.env.URL || process.env.SITE_URL || "https://job-dox.ai").replace(/\/$/, "");
+        fetch(`${baseUrl}/.netlify/functions/call-transcribe`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ companyId, callDocId, recordingUrl: url }),
+        }).catch(err => {
+          console.warn("call-transcribe trigger failed (non-blocking):", err.message);
+        });
+      }
     } catch (err) {
       console.error("call-recording-ready update failed:", err.message);
     }

@@ -37,7 +37,12 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || "{}"); }
   catch { return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid JSON body" }) }; }
 
-  const { companyId, twilioNumber, disclosureMessage, callGroups, activeCallGroupId } = body;
+  const {
+    companyId, twilioNumber, disclosureMessage, callGroups, activeCallGroupId,
+    // Call Transcriber settings
+    callTranscriberEnabled, transcriberAutoCreateProject,
+    transcriberKeywords, transcriberWorkTypes, transcriberProjectTypes,
+  } = body;
 
   if (!companyId) return {
     statusCode: 400, headers,
@@ -51,6 +56,13 @@ exports.handler = async (event) => {
   if (disclosureMessage  !== undefined) payload.disclosureMessage  = disclosureMessage;
   if (callGroups         !== undefined) payload.callGroups         = callGroups;
   if (activeCallGroupId  !== undefined) payload.activeCallGroupId  = activeCallGroupId;
+
+  // Call Transcriber fields
+  if (callTranscriberEnabled       !== undefined) payload.callTranscriberEnabled       = callTranscriberEnabled;
+  if (transcriberAutoCreateProject !== undefined) payload.transcriberAutoCreateProject = transcriberAutoCreateProject;
+  if (transcriberKeywords          !== undefined) payload.transcriberKeywords          = transcriberKeywords;
+  if (transcriberWorkTypes         !== undefined) payload.transcriberWorkTypes         = transcriberWorkTypes;
+  if (transcriberProjectTypes      !== undefined) payload.transcriberProjectTypes      = transcriberProjectTypes;
 
   try {
     await db.doc(`companies/${companyId}/settings/phone`).set(payload, { merge: true });

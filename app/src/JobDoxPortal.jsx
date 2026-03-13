@@ -8755,6 +8755,7 @@ function CallLogTab({ proj, companyId, globalStaff=[], currentUser, phoneSetting
   const [calling,  setCalling]  = useState(false);
   const [callErr,  setCallErr]  = useState("");
   const [playing,  setPlaying]  = useState(null);   // recordingUrl currently playing
+  const [expandedTranscript, setExpandedTranscript] = useState(null); // callId with transcript open
   const audioRef   = useRef(null);
 
   // ── Stream calls for this project ──
@@ -8862,8 +8863,14 @@ function CallLogTab({ proj, companyId, globalStaff=[], currentUser, phoneSetting
         </div>
       ) : (
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          {calls.map(call => (
-            <div key={call.id} className="card" style={{padding:"12px 14px",display:"flex",alignItems:"center",gap:12}}>
+          {calls.map(call => {
+            const hasTranscript = !!call.transcript;
+            const isExpanded = expandedTranscript === call.id;
+            const ext = call.transcriptExtracted || {};
+            const kws = ext.detectedKeywords || [];
+            return (
+            <div key={call.id} className="card" style={{padding:0,overflow:"hidden"}}>
+              <div style={{padding:"12px 14px",display:"flex",alignItems:"center",gap:12}}>
               {/* Direction icon */}
               <div style={{
                 width:34,height:34,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",
@@ -8888,28 +8895,142 @@ function CallLogTab({ proj, companyId, globalStaff=[], currentUser, phoneSetting
                   {call.type === "inbound" && call.callGroupName && (
                     <span style={{fontSize:10,color:"var(--t3)"}}>→ {call.callGroupName}</span>
                   )}
+                  {hasTranscript && (
+                    <span style={{fontSize:9,fontWeight:600,fontFamily:"var(--mono)",padding:"2px 6px",borderRadius:4,
+                      background:"rgba(34,211,238,.1)",color:"var(--teal)"}}>TRANSCRIBED</span>
+                  )}
+                  {call.autoCreatedProject && (
+                    <span style={{fontSize:9,fontWeight:600,fontFamily:"var(--mono)",padding:"2px 6px",borderRadius:4,
+                      background:"rgba(26,217,138,.1)",color:"var(--green)"}}>AUTO-PROJECT</span>
+                  )}
+                  {call.autoLinkedToExisting && (
+                    <span style={{fontSize:9,fontWeight:600,fontFamily:"var(--mono)",padding:"2px 6px",borderRadius:4,
+                      background:"rgba(232,156,24,.1)",color:"var(--amber)"}}>LINKED</span>
+                  )}
                 </div>
                 <div style={{fontSize:11,color:"var(--t3)",marginTop:2,display:"flex",gap:10,flexWrap:"wrap"}}>
                   {call.staffName && <span>{call.staffName}</span>}
                   <span>{fmtTs(call.createdAt)}</span>
                   {call.duration > 0 && <span>{fmtDur(call.duration)}</span>}
                 </div>
+                {hasTranscript && call.transcriptSummary && (
+                  <div style={{fontSize:11,color:"var(--t2)",marginTop:4,fontStyle:"italic",
+                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:isExpanded?"normal":"nowrap"}}>
+                    {call.transcriptSummary}
+                  </div>
+                )}
               </div>
 
-              {/* Recording playback */}
-              {call.recordingUrl ? (
-                <button className="btn btn-ghost btn-xs" onClick={() => togglePlay(call.recordingUrl)}
-                  style={{gap:5,fontSize:11,flexShrink:0}}>
-                  {playing === call.recordingUrl ? Ic.pause : Ic.play}
-                  {playing === call.recordingUrl ? "Pause" : "Play"}
-                </button>
-              ) : (
-                call.status === "completed" && (
-                  <span style={{fontSize:10,color:"var(--t3)",fontStyle:"italic"}}>Processing…</span>
-                )
+              {/* Action buttons */}
+              <div style={{display:"flex",gap:6,flexShrink:0,alignItems:"center"}}>
+                {hasTranscript && (
+                  <button className="btn btn-ghost btn-xs" onClick={() => setExpandedTranscript(isExpanded ? null : call.id)}
+                    style={{gap:4,fontSize:11}}>
+                    {isExpanded ? "Hide" : "Transcript"}
+                  </button>
+                )}
+                {call.recordingUrl ? (
+                  <button className="btn btn-ghost btn-xs" onClick={() => togglePlay(call.recordingUrl)}
+                    style={{gap:5,fontSize:11}}>
+                    {playing === call.recordingUrl ? Ic.pause : Ic.play}
+                    {playing === call.recordingUrl ? "Pause" : "Play"}
+                  </button>
+                ) : (
+                  call.status === "completed" && (
+                    <span style={{fontSize:10,color:"var(--t3)",fontStyle:"italic"}}>Processing…</span>
+                  )
+                )}
+              </div>
+              </div>
+
+              {/* Expanded transcript panel */}
+              {isExpanded && hasTranscript && (
+                <div style={{borderTop:"1px solid var(--br)",padding:"14px 16px",background:"var(--s2)"}}>
+                  {/* Extracted details */}
+                  {(ext.customerName || ext.customerPhone || ext.eventType || ext.projectAddress) && (
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:8,marginBottom:12}}>
+                      {ext.customerName && (
+                        <div style={{fontSize:11}}>
+                          <span style={{fontWeight:600,color:"var(--t2)"}}>Customer: </span>
+                          <span style={{color:"var(--t1)"}}>{ext.customerName}</span>
+                        </div>
+                      )}
+                      {ext.customerPhone && (
+                        <div style={{fontSize:11}}>
+                          <span style={{fontWeight:600,color:"var(--t2)"}}>Phone: </span>
+                          <span style={{color:"var(--t1)",fontFamily:"var(--mono)"}}>{ext.customerPhone}</span>
+                        </div>
+                      )}
+                      {ext.eventType && (
+                        <div style={{fontSize:11}}>
+                          <span style={{fontWeight:600,color:"var(--t2)"}}>Event Type: </span>
+                          <span style={{color:"var(--t1)"}}>{ext.eventType}</span>
+                        </div>
+                      )}
+                      {ext.projectAddress && (
+                        <div style={{fontSize:11}}>
+                          <span style={{fontWeight:600,color:"var(--t2)"}}>Address: </span>
+                          <span style={{color:"var(--t1)"}}>{ext.projectAddress}{ext.projectCity ? `, ${ext.projectCity}` : ""}{ext.projectState ? ` ${ext.projectState}` : ""}{ext.projectZip ? ` ${ext.projectZip}` : ""}</span>
+                        </div>
+                      )}
+                      {ext.insuranceCarrier && (
+                        <div style={{fontSize:11}}>
+                          <span style={{fontWeight:600,color:"var(--t2)"}}>Insurance: </span>
+                          <span style={{color:"var(--t1)"}}>{ext.insuranceCarrier}</span>
+                        </div>
+                      )}
+                      {ext.insuranceClaim && (
+                        <div style={{fontSize:11}}>
+                          <span style={{fontWeight:600,color:"var(--t2)"}}>Claim #: </span>
+                          <span style={{color:"var(--t1)",fontFamily:"var(--mono)"}}>{ext.insuranceClaim}</span>
+                        </div>
+                      )}
+                      {ext.confidence && (
+                        <div style={{fontSize:11}}>
+                          <span style={{fontWeight:600,color:"var(--t2)"}}>Confidence: </span>
+                          <span style={{
+                            fontWeight:600,fontSize:10,padding:"1px 6px",borderRadius:4,
+                            color: ext.confidence==="high"?"var(--green)":ext.confidence==="medium"?"var(--amber)":"var(--acc)",
+                            background: ext.confidence==="high"?"rgba(26,217,138,.1)":ext.confidence==="medium"?"rgba(232,156,24,.1)":"rgba(228,53,49,.1)",
+                          }}>{ext.confidence.toUpperCase()}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Detected keywords */}
+                  {kws.length > 0 && (
+                    <div style={{marginBottom:12}}>
+                      <div style={{fontSize:10,fontWeight:600,color:"var(--t2)",marginBottom:4}}>Detected Keywords</div>
+                      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                        {kws.map((kw, i) => (
+                          <span key={i} style={{fontSize:10,background:"rgba(228,53,49,.1)",border:"1px solid rgba(228,53,49,.2)",
+                            color:"var(--acc)",borderRadius:10,padding:"2px 8px",fontWeight:600}}>{kw}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Full transcript */}
+                  <div>
+                    <div style={{fontSize:10,fontWeight:600,color:"var(--t2)",marginBottom:4}}>Full Transcript</div>
+                    <div style={{fontSize:11,color:"var(--t1)",lineHeight:1.7,whiteSpace:"pre-wrap",
+                      maxHeight:300,overflow:"auto",padding:"8px 10px",background:"var(--s3)",
+                      borderRadius:6,border:"1px solid var(--br)"}}>
+                      {call.transcript}
+                    </div>
+                  </div>
+
+                  {ext.notes && (
+                    <div style={{marginTop:8,fontSize:11,color:"var(--t3)",fontStyle:"italic"}}>
+                      {ext.notes}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -8941,6 +9062,12 @@ function PhoneSettingsTab({ companyId, globalStaff=[], permLevel=1 }) {
   const [groupMembers,  setGroupMembers]  = useState([]);
   const [editGroupId,   setEditGroupId]   = useState(null);
 
+  // Call Transcriber settings
+  const [transcriberEnabled,     setTranscriberEnabled]     = useState(false);
+  const [transcriberAutoCreate,  setTranscriberAutoCreate]  = useState(false);
+  const [transcriberKeywords,    setTranscriberKeywords]    = useState([]);
+  const [newKeyword,             setNewKeyword]             = useState("");
+
   useEffect(() => {
     if (!companyId) return;
     getDoc(doc(db, `companies/${companyId}/settings/phone`)).then(snap => {
@@ -8950,6 +9077,10 @@ function PhoneSettingsTab({ companyId, globalStaff=[], permLevel=1 }) {
         setDisclosure(d.disclosureMessage || disclosure);
         setCallGroups(d.callGroups || []);
         setActiveGroupId(d.activeCallGroupId || null);
+        // Call Transcriber
+        setTranscriberEnabled(d.callTranscriberEnabled || false);
+        setTranscriberAutoCreate(d.transcriberAutoCreateProject || false);
+        setTranscriberKeywords(d.transcriberKeywords || []);
       }
       setSettings(snap.exists() ? snap.data() : {});
     }).catch(() => setSettings({}));
@@ -8959,7 +9090,12 @@ function PhoneSettingsTab({ companyId, globalStaff=[], permLevel=1 }) {
     if (!companyId) return;
     setSaving(true); setSaveErr(""); setSaved(false);
     try {
-      await savePhoneSettings({ companyId, twilioNumber: twilioNum, disclosureMessage: disclosure, callGroups, activeCallGroupId: activeGroupId });
+      await savePhoneSettings({
+        companyId, twilioNumber: twilioNum, disclosureMessage: disclosure, callGroups, activeCallGroupId: activeGroupId,
+        callTranscriberEnabled: transcriberEnabled,
+        transcriberAutoCreateProject: transcriberAutoCreate,
+        transcriberKeywords,
+      });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e) {
@@ -9131,6 +9267,114 @@ function PhoneSettingsTab({ companyId, globalStaff=[], permLevel=1 }) {
               <button className="btn btn-primary btn-xs" onClick={saveGroup} disabled={!groupName.trim()}>
                 {editGroupId ? "Save Changes" : "Add Group"}
               </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Call Transcriber ── */}
+      <div className="card" style={{padding:20}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>Call Transcriber</div>
+            <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>
+              AI-powered call transcription with keyword detection and automatic project creation.
+              Each transcription uses 1 Cortex Coin.
+            </div>
+          </div>
+          <button onClick={() => setTranscriberEnabled(e => !e)} style={{
+            width:44,height:24,borderRadius:12,border:"none",cursor:"pointer",position:"relative",
+            background: transcriberEnabled ? "var(--green)" : "var(--s3)",
+            transition:"background .2s",
+          }}>
+            <div style={{
+              width:18,height:18,borderRadius:"50%",background:"#fff",position:"absolute",top:3,
+              left: transcriberEnabled ? 23 : 3,
+              transition:"left .2s",boxShadow:"0 1px 3px rgba(0,0,0,.2)",
+            }}/>
+          </button>
+        </div>
+
+        {transcriberEnabled && (
+          <div style={{marginTop:16,display:"flex",flexDirection:"column",gap:14}}>
+            {/* Auto-create project toggle */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+              padding:"10px 14px",borderRadius:8,background:"var(--s2)",border:"1px solid var(--br)"}}>
+              <div>
+                <div style={{fontSize:12,fontWeight:600,color:"var(--t1)"}}>Auto-Create Projects</div>
+                <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>
+                  Automatically create a new project when a new customer calls about a service request.
+                  Checks existing records by customer name, phone number, and address to avoid duplicates.
+                </div>
+              </div>
+              <button onClick={() => setTranscriberAutoCreate(e => !e)} style={{
+                width:38,height:20,borderRadius:10,border:"none",cursor:"pointer",position:"relative",flexShrink:0,
+                background: transcriberAutoCreate ? "var(--green)" : "var(--s3)",
+                transition:"background .2s",marginLeft:12,
+              }}>
+                <div style={{
+                  width:14,height:14,borderRadius:"50%",background:"#fff",position:"absolute",top:3,
+                  left: transcriberAutoCreate ? 21 : 3,
+                  transition:"left .2s",boxShadow:"0 1px 3px rgba(0,0,0,.2)",
+                }}/>
+              </button>
+            </div>
+
+            {/* Keywords */}
+            <div>
+              <div style={{fontSize:12,fontWeight:600,color:"var(--t1)",marginBottom:6}}>Keywords to Listen For</div>
+              <div style={{fontSize:10,color:"var(--t3)",marginBottom:8}}>
+                Add keywords or phrases the transcriber should flag when detected in calls (e.g. "water damage", "emergency", "insurance claim").
+              </div>
+              <div style={{display:"flex",gap:6,marginBottom:8}}>
+                <input className="inp" placeholder="Add a keyword…" value={newKeyword}
+                  onChange={e => setNewKeyword(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter" && newKeyword.trim()) {
+                      setTranscriberKeywords(prev => [...prev, newKeyword.trim()]);
+                      setNewKeyword("");
+                    }
+                  }}
+                  style={{flex:1,fontSize:12}}/>
+                <button className="btn btn-ghost btn-xs" onClick={() => {
+                  if (newKeyword.trim()) {
+                    setTranscriberKeywords(prev => [...prev, newKeyword.trim()]);
+                    setNewKeyword("");
+                  }
+                }} style={{fontSize:11}}>Add</button>
+              </div>
+              {transcriberKeywords.length > 0 && (
+                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                  {transcriberKeywords.map((kw, i) => (
+                    <span key={i} style={{
+                      display:"inline-flex",alignItems:"center",gap:5,fontSize:11,
+                      background:"rgba(91,163,245,.1)",border:"1px solid rgba(91,163,245,.25)",
+                      color:"var(--blue)",borderRadius:12,padding:"3px 10px",
+                    }}>
+                      {kw}
+                      <span onClick={() => setTranscriberKeywords(prev => prev.filter((_,j) => j !== i))}
+                        style={{cursor:"pointer",opacity:.6,fontWeight:700,fontSize:13,lineHeight:1}}>&times;</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Info box */}
+            <div style={{background:"rgba(34,211,238,0.07)",border:"1px solid rgba(34,211,238,0.18)",
+              borderRadius:9,padding:"12px 16px",display:"flex",gap:12,alignItems:"flex-start"}}>
+              <div style={{color:"var(--teal)",flexShrink:0,marginTop:1}}>{Ic.mindflow}</div>
+              <div>
+                <div style={{fontSize:12,fontWeight:700,color:"var(--teal)",marginBottom:4}}>How Call Transcriber Works</div>
+                <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.8}}>
+                  1. When a call recording is ready, the AI transcribes the conversation and extracts customer details.<br/>
+                  2. It listens for your configured keywords and flags them in the transcript.<br/>
+                  3. If <strong style={{color:"var(--t1)"}}>Auto-Create Projects</strong> is on, it checks for existing customers by name, phone, and address.<br/>
+                  4. New customers with service requests get a project created automatically as a "New Lead".<br/>
+                  5. Existing customers are linked to their active project instead of creating duplicates.<br/>
+                  6. Each transcription costs <strong style={{color:"var(--t1)"}}>1 Cortex Coin</strong> from your billing cycle.
+                </div>
+              </div>
             </div>
           </div>
         )}
