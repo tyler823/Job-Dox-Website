@@ -509,9 +509,19 @@ function loadProjDocs(projId) {
 function saveProjDocs(projId, docs) {
   try { const all = JSON.parse(localStorage.getItem(LS_PROJ_DOCS)) || {}; all[projId] = docs; localStorage.setItem(LS_PROJ_DOCS, JSON.stringify(all)); } catch {}
 }
-function pushProjDoc(projId, doc) {
+function pushProjDoc(projId, doc, projName, userName) {
   const docs = loadProjDocs(projId).filter(d => d.id !== doc.id);
   saveProjDocs(projId, [...docs, doc]);
+  // Only push activity for non-invoice docs (invoices push their own event)
+  if (doc.type !== "invoice") {
+    pushActivity({
+      actionType: "document",
+      action:     `Document added: ${doc.name || doc.number || "Document"}`,
+      proj:       projName || projId || "",
+      projId:     projId || null,
+      user:       userName || "Staff",
+    });
+  }
 }
 
 /* ── Per-project Message Log (emails sent from Documents tab) ── */
@@ -665,7 +675,39 @@ function WorkTypePills({ worktypes, customWorkTypes=[] }) {
 }
 
 const PROJECTS = [];
-const ACTIVITY = [];
+/* ── Activity Feed — every meaningful event writes here ── */
+const LS_ACTIVITY = "jd_activity_log";
+const ACTIVITY_COLORS = {
+  task:     "var(--amber)",
+  invoice:  "var(--green)",
+  document: "var(--blue)",
+  call:     "var(--purple)",
+  vendor:   "var(--acc)",
+  note:     "var(--teal)",
+  project:  "var(--t2)",
+};
+function loadActivity() {
+  try { return JSON.parse(localStorage.getItem(LS_ACTIVITY)) || []; } catch { return []; }
+}
+function pushActivity({ actionType, action, proj, projId, user }) {
+  try {
+    const existing = loadActivity();
+    const entry = {
+      id:         `act-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+      actionType,
+      action,
+      proj:       proj || "",
+      projId:     projId || null,
+      user:       user || "Staff",
+      color:      ACTIVITY_COLORS[actionType] || "var(--t2)",
+      time:       new Date().toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit" }),
+      ts:         Date.now(),
+      live:       true,
+    };
+    const updated = [entry, ...existing.map(e => ({ ...e, live: false }))].slice(0, 200);
+    localStorage.setItem(LS_ACTIVITY, JSON.stringify(updated));
+  } catch {}
+}
 const TODAY_ISO = new Date().toISOString().slice(0,10);
 const MY_TASKS = [];
 const DAILY_NOTES_SEED = [];
@@ -1874,12 +1916,21 @@ function FeedActionPopup({ item, pos, onClose, onNavigate }) {
 }
 
 function PortfolioSidebar({ onNavigate }) {
-  const [popup, setPopup] = useState(null);
+  const [popup,    setPopup]    = useState(null);
+  const [activity, setActivity] = useState(() => loadActivity());
+
+  // Poll every 4 seconds so the feed updates without a full page refresh
+  useEffect(() => {
+    const interval = setInterval(() => setActivity(loadActivity()), 4000);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleClick = (e, item) => {
     e.stopPropagation();
     const r = e.currentTarget.getBoundingClientRect();
     setPopup({ item, x: r.left, y: r.top });
   };
+
   return (
     <div className="port-sidebar" style={{position:"relative"}}>
       {popup && <FeedActionPopup item={popup.item} pos={popup} onClose={()=>setPopup(null)} onNavigate={onNavigate}/>}
@@ -1888,7 +1939,14 @@ function PortfolioSidebar({ onNavigate }) {
         <span className="mono" style={{fontSize:9,color:"var(--green)"}}>LIVE</span>
       </div>
       <div style={{flex:1,overflowY:"auto"}}>
-        {ACTIVITY.map(item=>(
+        {activity.length === 0 && (
+          <div style={{padding:"28px 16px",textAlign:"center",color:"var(--t3)"}}>
+            <div style={{fontSize:22,opacity:.2,marginBottom:8}}>📋</div>
+            <div style={{fontSize:11}}>No activity yet.</div>
+            <div style={{fontSize:10,marginTop:4,lineHeight:1.5}}>Events appear here when tasks are created, invoices generated, calls logged, and more.</div>
+          </div>
+        )}
+        {activity.map(item=>(
           <div key={item.id} className="feed-row" style={{cursor:"pointer",transition:"background .1s"}}
             onClick={e=>handleClick(e,item)}
             onMouseEnter={e=>e.currentTarget.style.background="var(--s2)"}
@@ -1968,11 +2026,13 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
   const [calYear,  setCalYear]  = useState(() => new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
 
-  // New task/appointment modal
-  const [addingModal, setAddingModal] = useState(false);
-  const [addType, setAddType] = useState("task"); // "task" | "appointment"
-  const [newForm, setNewForm] = useState({title:"", priority:"med", due:"", time:"", notes:"", assignedUserIds:[]});
-  const [commentTask, setCommentTask] = useState(null);
+  // New / edit task modal
+  const [addingModal,  setAddingModal]  = useState(false);
+  const [editingTask,  setEditingTask]  = useState(null);   // task object being edited
+  const [addType,      setAddType]      = useState("task");
+  const [newForm,      setNewForm]      = useState({title:"", priority:"med", due:"", time:"", notes:"", assignedUserIds:[], projId:null});
+  const [commentTask,  setCommentTask]  = useState(null);
+  const [expandedThread, setExpandedThread] = useState({}); // {taskId: bool}
 
   const toggleTask = id => {
     // If the task came from a project, toggle its status in project localStorage
@@ -1989,29 +2049,88 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
     saveTasks(updated);
   };
 
-  const createTask = () => {
+  // Open edit modal pre-populated with an existing task
+  const openEditModal = (t) => {
+    setEditingTask(t);
+    setAddType(t.type || "task");
+    setNewForm({
+      title:           t.title || "",
+      priority:        t.priority || "med",
+      due:             t.date || t.due || "",
+      time:            t.time || "",
+      notes:           t.notes || "",
+      assignedUserIds: Array.isArray(t.assignedUserIds) ? t.assignedUserIds : [],
+      projId:          t.projId || null,
+    });
+    setAddingModal(true);
+  };
+
+  const saveTask = () => {
     if (!newForm.title.trim()) return;
+    const linkedProj = newForm.projId ? projects.find(p => p.id === newForm.projId) : null;
+
+    if (editingTask) {
+      // ── Edit existing task ──
+      const patch = {
+        ...editingTask,
+        title:           newForm.title,
+        priority:        newForm.priority,
+        date:            newForm.due || editingTask.date,
+        due:             newForm.due || editingTask.due,
+        time:            newForm.time || editingTask.time,
+        notes:           newForm.notes,
+        assignedUserIds: newForm.assignedUserIds,
+        proj:            linkedProj?.name || editingTask.proj || "",
+        projId:          newForm.projId || editingTask.projId || null,
+        type:            addType,
+      };
+      if (editingTask._fromProject && editingTask.projId) {
+        // Write back to project storage
+        const stored = _lsRead(editingTask.projId, "tasks", []);
+        _lsWrite(editingTask.projId, "tasks", stored.map(x => x.id === editingTask.id ? { ...x, ...patch, status: x.status } : x));
+      } else {
+        const updated = allTasks.map(x => x.id === editingTask.id ? patch : x);
+        setAllTasks(updated);
+        saveTasks(updated);
+      }
+      setEditingTask(null);
+      setAddingModal(false);
+      setNewForm({title:"", priority:"med", due:"", time:"", notes:"", assignedUserIds:[], projId:null});
+      return;
+    }
+
+    // ── Create new task ──
     const t = {
       id: uid(),
       title: newForm.title,
       priority: newForm.priority,
-      date: selDate,
+      date: newForm.due || selDate,
+      due:  newForm.due || selDate,
       type: addType,
       time: newForm.time || "08:00",
       notes: newForm.notes,
       assignedUserIds: newForm.assignedUserIds,
       assigned: viewingName,
-      proj: "",
-      projId: null,
+      proj:   linkedProj?.name || "",
+      projId: newForm.projId || null,
       done: false,
       commentThread: [],
     };
     const updated = [...allTasks, t];
     setAllTasks(updated);
     saveTasks(updated);
-    setNewForm({title:"", priority:"med", due:"", time:"", notes:"", assignedUserIds:[]});
+    pushActivity({
+      actionType: addType === "appointment" ? "note" : "task",
+      action:     `${addType === "appointment" ? "Appointment" : "Task"} created: ${newForm.title}`,
+      proj:       linkedProj?.name || "Personal",
+      projId:     newForm.projId || null,
+      user:       currentUser?.name || "Staff",
+    });
+    setNewForm({title:"", priority:"med", due:"", time:"", notes:"", assignedUserIds:[], projId:null});
     setAddingModal(false);
   };
+
+  const createTask = saveTask; // alias so the modal button can call either
 
   const toggleNewAssignee = (id) => {
     setNewForm(p => ({
@@ -2040,28 +2159,32 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
 
   return (
     <>
-      {/* Add Task/Appointment Modal */}
+      {/* Add / Edit Task Modal */}
       {addingModal && (
-        <div className="overlay" onClick={e => e.target===e.currentTarget && setAddingModal(false)}>
+        <div className="overlay" onClick={e => { if(e.target===e.currentTarget){setAddingModal(false);setEditingTask(null);} }}>
           <div className="modal modal-sm anim">
             <div className="modal-hd">
               <div>
-                <div className="modal-ttl">{addType==="appointment"?"New Appointment":"New Task"}</div>
-                <div style={{fontSize:11,color:"var(--t3)",marginTop:1}}>
-                  {dispDate.toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}
-                </div>
+                <div className="modal-ttl">{editingTask ? "Edit Task" : addType==="appointment" ? "New Appointment" : "New Task"}</div>
+                {!editingTask && (
+                  <div style={{fontSize:11,color:"var(--t3)",marginTop:1}}>
+                    {dispDate.toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}
+                  </div>
+                )}
               </div>
-              <button className="btn btn-ghost btn-xs" onClick={()=>setAddingModal(false)}>{Ic.close}</button>
+              <button className="btn btn-ghost btn-xs" onClick={()=>{setAddingModal(false);setEditingTask(null);}}>{Ic.close}</button>
             </div>
             <div className="modal-body">
               {/* Type toggle */}
-              <div style={{display:"flex",gap:5}}>
-                {["task","appointment"].map(tt => (
-                  <button key={tt} className={`chip${addType===tt?" on":""}`} onClick={()=>setAddType(tt)}>
-                    {tt==="task"?"Task":"Appointment"}
-                  </button>
-                ))}
-              </div>
+              {!editingTask && (
+                <div style={{display:"flex",gap:5}}>
+                  {["task","appointment"].map(tt => (
+                    <button key={tt} className={`chip${addType===tt?" on":""}`} onClick={()=>setAddType(tt)}>
+                      {tt==="task"?"Task":"Appointment"}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <div>
                 <label className="lbl">{addType==="appointment"?"Title *":"Task *"}</label>
@@ -2077,6 +2200,10 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
                     <option value="low">Low</option>
                   </select>
                 </div>
+                <div>
+                  <label className="lbl">Due Date</label>
+                  <input type="date" className="inp" value={newForm.due} onChange={e=>setNewForm(p=>({...p,due:e.target.value}))}/>
+                </div>
                 {addType==="appointment" && (
                   <div>
                     <label className="lbl">Time</label>
@@ -2085,37 +2212,61 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
                 )}
               </div>
 
-              {/* Multi-user assignment — available to L5+ */}
-              {canViewAllStaff && globalStaff.length > 0 && (
+              {/* Link to Project */}
+              {projects.length > 0 && (
                 <div>
-                  <label className="lbl">Assign To (select multiple)</label>
-                  <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>
-                    {globalStaff.map((s,i) => {
-                      const name = `${s.firstName||""} ${s.lastName||""}`.trim() || s.email || s.id;
-                      const sel  = newForm.assignedUserIds.includes(s.id);
-                      return (
-                        <button key={s.id}
-                          onClick={() => toggleNewAssignee(s.id)}
-                          style={{
-                            display:"flex",alignItems:"center",gap:5,
-                            padding:"3px 9px",borderRadius:20,border:`1px solid ${sel?"var(--blue)":"var(--br)"}`,
-                            background:sel?"rgba(91,163,245,.12)":"transparent",
-                            color:sel?"var(--blue)":"var(--t2)",cursor:"pointer",fontSize:11,transition:"all .12s",
-                          }}>
-                          <Av name={name} color={AVCOLORS[i % AVCOLORS.length]} size={18}/>
-                          {name}
-                          {sel && <span style={{color:"var(--blue)"}}>{Ic.check}</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {newForm.assignedUserIds.length > 1 && (
-                    <div style={{fontSize:10,color:"var(--t3)",marginTop:5}}>
-                      {Ic.sms} All {newForm.assignedUserIds.length} staff will be texted when this {addType} is created.
-                    </div>
-                  )}
+                  <label className="lbl">Link to Project <span style={{color:"var(--t3)",fontWeight:400}}>(optional)</span></label>
+                  <select className="sel" value={newForm.projId || ""} onChange={e=>setNewForm(p=>({...p,projId:e.target.value||null}))}>
+                    <option value="">— Personal task —</option>
+                    {projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
                 </div>
               )}
+
+              {/* Assignment — creator is always auto-included, L5+ can add more */}
+              <div>
+                <label className="lbl">Assigned To</label>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:4}}>
+                  {/* Always show current user as a chip */}
+                  {currentMemberId && (() => {
+                    const me = globalStaff.find(s=>s.id===currentMemberId);
+                    const myName = me ? `${me.firstName||""} ${me.lastName||""}`.trim() : currentUser?.name || "Me";
+                    const isSel = newForm.assignedUserIds.includes(currentMemberId);
+                    return (
+                      <button key={currentMemberId}
+                        onClick={()=>toggleNewAssignee(currentMemberId)}
+                        style={{
+                          display:"flex",alignItems:"center",gap:5,
+                          padding:"3px 9px",borderRadius:20,border:`1px solid ${isSel?"var(--acc)":"var(--br)"}`,
+                          background:isSel?"var(--acc-lo)":"transparent",
+                          color:isSel?"var(--acc)":"var(--t2)",cursor:"pointer",fontSize:11,transition:"all .12s",
+                        }}>
+                        <Av name={myName} color="var(--acc)" size={18}/>
+                        {myName} (me)
+                        {isSel && <span style={{color:"var(--acc)"}}>{Ic.check}</span>}
+                      </button>
+                    );
+                  })()}
+                  {canViewAllStaff && globalStaff.filter(s=>s.id!==currentMemberId).map((s,i) => {
+                    const name = `${s.firstName||""} ${s.lastName||""}`.trim() || s.email || s.id;
+                    const sel  = newForm.assignedUserIds.includes(s.id);
+                    return (
+                      <button key={s.id}
+                        onClick={() => toggleNewAssignee(s.id)}
+                        style={{
+                          display:"flex",alignItems:"center",gap:5,
+                          padding:"3px 9px",borderRadius:20,border:`1px solid ${sel?"var(--blue)":"var(--br)"}`,
+                          background:sel?"rgba(91,163,245,.12)":"transparent",
+                          color:sel?"var(--blue)":"var(--t2)",cursor:"pointer",fontSize:11,transition:"all .12s",
+                        }}>
+                        <Av name={name} color={AVCOLORS[(i+1) % AVCOLORS.length]} size={18}/>
+                        {name}
+                        {sel && <span style={{color:"var(--blue)"}}>{Ic.check}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
               <div>
                 <label className="lbl">Notes</label>
@@ -2123,9 +2274,9 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
               </div>
             </div>
             <div className="modal-ft">
-              <button className="btn btn-ghost" onClick={()=>setAddingModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={createTask} disabled={!newForm.title.trim()}>
-                {addType==="appointment" ? <>{Ic.calendar} Create Appointment</> : <>{Ic.plus} Create Task</>}
+              <button className="btn btn-ghost" onClick={()=>{setAddingModal(false);setEditingTask(null);}}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveTask} disabled={!newForm.title.trim()}>
+                {editingTask ? <>{Ic.check} Save Changes</> : addType==="appointment" ? <>{Ic.calendar} Create Appointment</> : <>{Ic.plus} Create Task</>}
               </button>
             </div>
           </div>
@@ -2216,8 +2367,8 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
           <div className="topbar-sub">{isToday?"TODAY · ":""}{dispDate.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"}).toUpperCase()}</div>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
-          <button className="btn btn-ghost btn-xs" onClick={()=>{setAddType("appointment");setAddingModal(true);}}>{Ic.calendar} Appointment</button>
-          <button className="btn btn-primary btn-xs" onClick={()=>{setAddType("task");setAddingModal(true);}}>{Ic.plus} New Task</button>
+          <button className="btn btn-ghost btn-xs" onClick={()=>{setEditingTask(null);setAddType("appointment");setNewForm(p=>({...p,assignedUserIds:currentMemberId&&!p.assignedUserIds.includes(currentMemberId)?[...p.assignedUserIds,currentMemberId]:p.assignedUserIds}));setAddingModal(true);}}>{Ic.calendar} Appointment</button>
+          <button className="btn btn-primary btn-xs" onClick={()=>{setEditingTask(null);setAddType("task");setNewForm(p=>({...p,assignedUserIds:currentMemberId&&!p.assignedUserIds.includes(currentMemberId)?[...p.assignedUserIds,currentMemberId]:p.assignedUserIds}));setAddingModal(true);}}>{Ic.plus} New Task</button>
           <div style={{width:1,height:18,background:"var(--br)",margin:"0 2px"}}/>
           <button className="btn btn-ghost btn-xs" onClick={()=>setSelDate(TODAY_ISO)} style={isToday?{color:"var(--acc)",borderColor:"var(--acc)"}:{}}>Today</button>
           <button className="btn btn-ghost btn-xs" onClick={()=>{const d=new Date(selDate+"T12:00:00");d.setDate(d.getDate()-1);setSelDate(d.toISOString().slice(0,10));}}>{Ic.chev_l} Prev</button>
@@ -2297,35 +2448,83 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
             <div style={{marginBottom: dayAppts.length > 0 ? 24 : 0}}>
               <div className="mono" style={{fontSize:9,color:"var(--t3)",marginBottom:10,letterSpacing:".08em"}}>TASKS</div>
               <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:10,overflow:"hidden"}}>
-                {dayTasks.map((t,i)=>(
-                  <div key={t.id} className="checklist-item" style={{borderBottom:i<dayTasks.length-1?"1px solid var(--br)":"none"}}>
-                    <div className={`chk${t.done?" done":""}`} onClick={()=>toggleTask(t.id)}>
-                      {t.done && <span style={{color:"#fff"}}>{Ic.check}</span>}
-                    </div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:12,fontWeight:600,color:t.done?"var(--t3)":"var(--t1)",textDecoration:t.done?"line-through":"none"}}>{t.title}</div>
-                      <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{t.proj||"Personal task"}</div>
-                      {/* Assignee avatars */}
-                      {(Array.isArray(t.assignedUserIds) && t.assignedUserIds.length > 1 && globalStaff.length > 0) && (
-                        <div style={{display:"flex",gap:2,marginTop:3}}>
-                          {t.assignedUserIds.slice(0,4).map((id,idx) => {
-                            const s = globalStaff.find(x=>x.id===id);
-                            return s ? <Av key={id} name={`${s.firstName||""} ${s.lastName||""}`.trim()} color={AVCOLORS[idx%AVCOLORS.length]} size={16}/> : null;
-                          })}
-                          {t.assignedUserIds.length > 4 && <span style={{fontSize:9,color:"var(--t3)",marginLeft:2}}>+{t.assignedUserIds.length-4}</span>}
+                {dayTasks.map((t,i)=>{
+                  const thread = t.commentThread || [];
+                  const threadOpen = !!expandedThread[t.id];
+                  return (
+                    <div key={t.id} style={{borderBottom:i<dayTasks.length-1?"1px solid var(--br)":"none"}}>
+                      <div className="checklist-item">
+                        <div className={`chk${t.done?" done":""}`} onClick={()=>toggleTask(t.id)}>
+                          {t.done && <span style={{color:"#fff"}}>{Ic.check}</span>}
+                        </div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:12,fontWeight:600,color:t.done?"var(--t3)":"var(--t1)",textDecoration:t.done?"line-through":"none"}}>{t.title}</div>
+                          <div style={{display:"flex",gap:8,alignItems:"center",marginTop:2,flexWrap:"wrap"}}>
+                            <span style={{fontSize:10,color:"var(--t3)"}}>{t.proj||"Personal"}</span>
+                            {t.due && <span style={{fontSize:9,color:"var(--amber)",fontFamily:"var(--mono)"}}>Due {t.due}</span>}
+                          </div>
+                          {(Array.isArray(t.assignedUserIds) && t.assignedUserIds.length > 0 && globalStaff.length > 0) && (
+                            <div style={{display:"flex",gap:2,marginTop:3}}>
+                              {t.assignedUserIds.slice(0,4).map((id,idx) => {
+                                const s = globalStaff.find(x=>x.id===id);
+                                return s ? <Av key={id} name={`${s.firstName||""} ${s.lastName||""}`.trim()} color={AVCOLORS[idx%AVCOLORS.length]} size={16}/> : null;
+                              })}
+                              {t.assignedUserIds.length > 4 && <span style={{fontSize:9,color:"var(--t3)",marginLeft:2}}>+{t.assignedUserIds.length-4}</span>}
+                            </div>
+                          )}
+                        </div>
+                        <div style={{display:"flex",gap:4,flexShrink:0,alignItems:"center"}}>
+                          <span style={{width:6,height:6,borderRadius:"50%",background:priC[t.priority]||"var(--t3)"}}/>
+                          {!t._fromProject && (
+                            <button className="btn btn-ghost btn-xs" style={{padding:"2px 6px",fontSize:9}} title="Edit task"
+                              onClick={()=>openEditModal(t)}>
+                              {Ic.edit||<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>}
+                            </button>
+                          )}
+                          <button className="btn btn-ghost btn-xs" style={{padding:"2px 6px",fontSize:9,color:threadOpen?"var(--blue)":"",background:threadOpen?"rgba(91,163,245,.1)":""}}
+                            onClick={()=>setExpandedThread(p=>({...p,[t.id]:!p[t.id]}))}>
+                            {Ic.comment}
+                            {thread.length > 0 && <span className="mono" style={{fontSize:8,marginLeft:2,color:"var(--purple)"}}>{thread.length}</span>}
+                          </button>
+                          {t.projId && <button className="btn btn-ghost btn-xs" style={{padding:"2px 6px",fontSize:9}} onClick={()=>onNavigate(t.projId,"tasks")}>{Ic.goto}</button>}
+                        </div>
+                      </div>
+                      {/* Inline comment thread */}
+                      {threadOpen && (
+                        <div style={{background:"var(--s3)",borderTop:"1px solid var(--br)",padding:"10px 14px 10px 46px"}}>
+                          {thread.length === 0 && (
+                            <div style={{fontSize:10,color:"var(--t3)",marginBottom:8}}>No comments yet. Start the conversation below.</div>
+                          )}
+                          {thread.map((c,ci)=>(
+                            <div key={ci} style={{display:"flex",gap:8,marginBottom:8}}>
+                              <Av name={c.author||"?"} color={AVCOLORS[ci%AVCOLORS.length]} size={22}/>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{display:"flex",gap:8,alignItems:"baseline"}}>
+                                  <span style={{fontSize:11,fontWeight:600,color:"var(--t1)"}}>{c.author}</span>
+                                  <span style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)"}}>{c.ts ? new Date(c.ts).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}) : ""}</span>
+                                </div>
+                                <div style={{fontSize:11,color:"var(--t2)",marginTop:1,lineHeight:1.45}}>{c.text}</div>
+                              </div>
+                            </div>
+                          ))}
+                          <InlineCommentBox
+                            authorName={currentUser?.name || "Staff"}
+                            onSubmit={(text) => {
+                              const newComment = { author: currentUser?.name||"Staff", text, ts: new Date().toISOString() };
+                              if (t._fromProject && t.projId) {
+                                const stored = _lsRead(t.projId, "tasks", []);
+                                _lsWrite(t.projId, "tasks", stored.map(x => x.id===t.id ? {...x, commentThread:[...(x.commentThread||[]),newComment]} : x));
+                              } else {
+                                const updated = allTasks.map(x => x.id===t.id ? {...x, commentThread:[...(x.commentThread||[]),newComment]} : x);
+                                setAllTasks(updated); saveTasks(updated);
+                              }
+                            }}
+                          />
                         </div>
                       )}
                     </div>
-                    <div style={{display:"flex",gap:4,flexShrink:0,alignItems:"center"}}>
-                      <span style={{width:6,height:6,borderRadius:"50%",background:priC[t.priority]||"var(--t3)"}}/>
-                      <button className="btn btn-ghost btn-xs" style={{padding:"2px 6px",fontSize:9}} onClick={()=>setCommentTask(t)}>
-                        {Ic.comment}
-                        {(t.commentThread||[]).length > 0 && <span className="mono" style={{fontSize:8,marginLeft:2}}>{(t.commentThread||[]).length}</span>}
-                      </button>
-                      {t.projId && <button className="btn btn-ghost btn-xs" style={{padding:"2px 6px",fontSize:9}} onClick={()=>onNavigate(t.projId,"tasks")}>{Ic.goto}</button>}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -2381,8 +2580,8 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
               <div className="mono" style={{fontSize:11}}>NOTHING SCHEDULED</div>
               <div style={{fontSize:11}}>No tasks or appointments for this day.</div>
               <div style={{display:"flex",gap:7,marginTop:8}}>
-                <button className="btn btn-ghost btn-xs" onClick={()=>{setAddType("appointment");setAddingModal(true);}}>{Ic.calendar} Add Appointment</button>
-                <button className="btn btn-primary btn-xs" onClick={()=>{setAddType("task");setAddingModal(true);}}>{Ic.plus} Add Task</button>
+                <button className="btn btn-ghost btn-xs" onClick={()=>{setEditingTask(null);setAddType("appointment");setNewForm(p=>({...p,assignedUserIds:currentMemberId&&!p.assignedUserIds.includes(currentMemberId)?[...p.assignedUserIds,currentMemberId]:p.assignedUserIds}));setAddingModal(true);}}>{Ic.calendar} Add Appointment</button>
+                <button className="btn btn-primary btn-xs" onClick={()=>{setEditingTask(null);setAddType("task");setNewForm(p=>({...p,assignedUserIds:currentMemberId&&!p.assignedUserIds.includes(currentMemberId)?[...p.assignedUserIds,currentMemberId]:p.assignedUserIds}));setAddingModal(true);}}>{Ic.plus} Add Task</button>
               </div>
             </div>
           )}
@@ -3105,6 +3304,36 @@ function MediaTab({ folders:foldersIn=[], setFolders:setFoldersIn=()=>{}, upload
 
 // DocumentsTab is imported from ./JobDoxDocuments.jsx
 
+/* ── InlineCommentBox: compact comment input used inline in My Day task rows ── */
+function InlineCommentBox({ authorName, onSubmit }) {
+  const [text, setText] = React.useState("");
+  const submit = () => {
+    const t = text.trim();
+    if (!t) return;
+    onSubmit(t);
+    setText("");
+  };
+  return (
+    <div style={{display:"flex",gap:7,alignItems:"flex-start",marginTop:6}}>
+      <Av name={authorName||"?"} color="var(--acc)" size={22}/>
+      <div style={{flex:1,display:"flex",gap:6,alignItems:"flex-end"}}>
+        <textarea
+          className="txa"
+          value={text}
+          onChange={e=>setText(e.target.value)}
+          onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();submit();}}}
+          placeholder="Add a comment… (Enter to send)"
+          rows={1}
+          style={{flex:1,minHeight:32,resize:"none",fontSize:11,padding:"5px 9px"}}
+        />
+        <button className="btn btn-primary btn-xs" style={{height:32,padding:"0 12px"}} onClick={submit} disabled={!text.trim()}>
+          Send
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ── TaskCommentModal: opens from both TasksTab and MyDayPage ── */
 function TaskCommentModal({ task, onClose, currentUserName="You", globalStaff=[], companyId="", phoneSettings={} }) {
   const [comments, setComments] = useState(task.commentThread || []);
@@ -3269,7 +3498,7 @@ function TaskCommentModal({ task, onClose, currentUserName="You", globalStaff=[]
   );
 }
 
-function TasksTab({ projId="", initialTasks=[], globalStaff=[], companyId="", phoneSettings={}, currentMemberId="", isVendor=false }) {
+function TasksTab({ projId="", projName="", initialTasks=[], globalStaff=[], companyId="", phoneSettings={}, currentMemberId="", isVendor=false, currentUser }) {
   // Load from LS first; fall back to Firestore initialTasks; then empty
   const [tasks, setTasksRaw] = useState(() => {
     if (projId) {
@@ -3321,6 +3550,13 @@ function TasksTab({ projId="", initialTasks=[], globalStaff=[], companyId="", ph
       commentThread: [],
     };
     setTasks(t => [...t, newTask]);
+    pushActivity({
+      actionType: taskType === "appointment" ? "note" : "task",
+      action:     `${taskType === "appointment" ? "Appointment" : "Task"} created: ${f.title}`,
+      proj:       projName || projId || "Project",
+      projId:     projId || null,
+      user:       currentUser?.name || "Staff",
+    });
     setF({title:"", assignedUserIds:[], due:"", priority:"med", time:"", type:"task", notes:""});
     setAdding(false);
   };
@@ -3521,30 +3757,144 @@ function TasksTab({ projId="", initialTasks=[], globalStaff=[], companyId="", ph
   );
 }
 
+/* ── Budget category color palette (cycles through work types) ── */
+const BUDGET_COLORS = ["var(--blue)","var(--purple)","var(--amber)","var(--green)","var(--acc)","var(--teal)","var(--rose, #f87171)"];
+
 function BudgetTab({ proj, laborCost=0 }) {
-  const cats=[{name:"Mitigation",budgeted:15000,actual:12400,color:"var(--blue)"},{name:"Equipment",budgeted:8500,actual:6800,color:"var(--purple)"},{name:"Demo",budgeted:6000,actual:0,color:"var(--amber)"},{name:"Reconstruction",budgeted:10000,actual:0,color:"var(--green)"},{name:"Contents",budgeted:2500,actual:1200,color:"var(--acc)"},{name:"Labor",budgeted:12000,actual:laborCost+1068.75,color:"var(--teal)"}];
-  const tB=cats.reduce((s,c)=>s+c.budgeted,0),tA=cats.reduce((s,c)=>s+c.actual,0);
+  const LS_BUDGETS = "jd_project_budgets";
+
+  // ── Load / save per-project budget amounts ──
+  const loadBudgets = () => {
+    try { return JSON.parse(localStorage.getItem(LS_BUDGETS)) || {}; } catch { return {}; }
+  };
+  const saveBudgets = (all) => { try { localStorage.setItem(LS_BUDGETS, JSON.stringify(all)); } catch {} };
+
+  // Build work-type categories from the project, falling back to a generic set
+  const projWorkTypes = useMemo(() => {
+    const wts = proj?.worktypes;
+    if (Array.isArray(wts) && wts.length) return wts.map(w => w.type || w).filter(Boolean);
+    if (proj?.type) return [proj.type];
+    return ["Mitigation","Equipment","Reconstruction","Contents","Labor"];
+  }, [proj]);
+
+  // Stored budget amounts keyed by work-type name
+  const [editingKey, setEditingKey]   = useState(null);   // which cat is being edited
+  const [editAmount, setEditAmount]   = useState("");
+
+  const storedAmounts = useMemo(() => {
+    const all = loadBudgets();
+    return all[proj?.id] || {};
+  }, [proj?.id, editingKey]); // re-read whenever we save
+
+  const setBudgetFor = (catName, amount) => {
+    const all = loadBudgets();
+    if (!all[proj?.id]) all[proj?.id] = {};
+    all[proj?.id][catName] = Number(amount) || 0;
+    saveBudgets(all);
+    setEditingKey(null);
+    pushActivity({ actionType:"note", action:`Budget updated for ${catName}`, proj:proj?.name||proj?.id||"", projId:proj?.id||null, user:"Staff" });
+  };
+
+  // Actual spend: sum all non-void invoices for this project
+  const invoices = useMemo(() => loadProjInvoices(proj?.id || ""), [proj?.id]);
+  const totalInvoiced = invoices.filter(i => i.status !== "void").reduce((s,i) => s + (i.total || 0), 0);
+
+  // A/R = unpaid invoices
+  const totalAR = invoices.filter(i => i.status === "unpaid" || i.status === "sent").reduce((s,i) => s + (i.total || 0), 0);
+
+  // Build category rows
+  const cats = projWorkTypes.map((name, idx) => {
+    const budgeted = storedAmounts[name] || 0;
+    // Attribute invoiced spend to a category if the invoice has a budgetCatId matching the name, else distribute evenly
+    const catInvoices = invoices.filter(i => i.status !== "void" && (i.budgetCatId === name || (!i.budgetCatId)));
+    // If no budgetCatId tagging, distribute evenly across categories
+    const hasTaggedInvoices = invoices.some(i => i.budgetCatId);
+    const actual = hasTaggedInvoices
+      ? invoices.filter(i => i.status !== "void" && i.budgetCatId === name).reduce((s,i) => s+(i.total||0), 0)
+      : (idx === 0 ? totalInvoiced : 0); // show total on first row if untagged
+    return { name, budgeted, actual, color: BUDGET_COLORS[idx % BUDGET_COLORS.length] };
+  });
+
+  const tB = cats.reduce((s,c) => s + c.budgeted, 0);
+  const tA = totalInvoiced;
+
   return (
     <div className="scroll"><div style={{maxWidth:900,margin:"0 auto"}}>
+
+      {/* KPI header */}
       <div className="g4" style={{gap:9,marginBottom:16}}>
-        {[["Total Budget",fmt$(tB),"var(--t1)"],["Invoiced",fmt$(tA),"var(--amber)"],["Remaining",fmt$(tB-tA),"var(--green)"],["Accounts Rec.",fmt$(8400),"var(--blue)"]].map(([l,v,c])=>(
-          <div key={l} className="kpi" style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9}}><div className="kpi-val" style={{color:c}}>{v}</div><div className="kpi-lbl">{l}</div></div>
+        {[
+          ["Total Budget",  fmt$(tB),    "var(--t1)"],
+          ["Invoiced",      fmt$(tA),    "var(--amber)"],
+          ["Remaining",     fmt$(tB-tA), tB-tA < 0 ? "var(--acc)" : "var(--green)"],
+          ["Accounts Rec.", fmt$(totalAR),"var(--blue)"],
+        ].map(([l,v,c])=>(
+          <div key={l} className="kpi" style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9}}>
+            <div className="kpi-val" style={{color:c}}>{v}</div>
+            <div className="kpi-lbl">{l}</div>
+          </div>
         ))}
       </div>
-      {cats.map(cat=>{const p=pct(cat.actual,cat.budgeted);return(
-        <div key={cat.name} className="card" style={{marginBottom:9}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
-            <span style={{fontWeight:600,fontSize:13}}>{cat.name}</span>
-            <div style={{display:"flex",gap:16}}>
-              {[["Budgeted",fmt$(cat.budgeted),"var(--t1)"],["Actual",fmt$(cat.actual),cat.color],["Remaining",fmt$(cat.budgeted-cat.actual),cat.budgeted-cat.actual<0?"var(--acc)":"var(--t2)"]].map(([l,v,c])=>(
-                <div key={l} style={{textAlign:"right"}}><div className="lbl">{l}</div><div className="mono" style={{fontSize:12,color:c,fontWeight:700}}>{v}</div></div>
-              ))}
+
+      {/* Per-worktype category rows */}
+      {cats.map(cat => {
+        const p = pct(cat.actual, cat.budgeted);
+        const isEditing = editingKey === cat.name;
+        return (
+          <div key={cat.name} className="card" style={{marginBottom:9}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:7,gap:12}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,flex:1,minWidth:0}}>
+                <div style={{width:10,height:10,borderRadius:3,background:cat.color,flexShrink:0}}/>
+                <span style={{fontWeight:600,fontSize:13,color:"var(--t1)"}}>{cat.name}</span>
+              </div>
+              <div style={{display:"flex",gap:12,alignItems:"center",flexShrink:0}}>
+                {/* Budgeted — click to edit */}
+                <div style={{textAlign:"right",minWidth:90}}>
+                  <div className="lbl">Budgeted</div>
+                  {isEditing ? (
+                    <div style={{display:"flex",gap:5,alignItems:"center",marginTop:2}}>
+                      <input
+                        type="number" className="inp" autoFocus
+                        value={editAmount}
+                        onChange={e=>setEditAmount(e.target.value)}
+                        onKeyDown={e=>{if(e.key==="Enter")setBudgetFor(cat.name,editAmount);if(e.key==="Escape")setEditingKey(null);}}
+                        style={{width:88,height:26,fontSize:11,textAlign:"right"}}
+                        placeholder="0"
+                      />
+                      <button className="btn btn-primary btn-xs" style={{height:26,padding:"0 8px"}} onClick={()=>setBudgetFor(cat.name,editAmount)}>{Ic.check}</button>
+                      <button className="btn btn-ghost btn-xs" style={{height:26,padding:"0 6px"}} onClick={()=>setEditingKey(null)}>{Ic.close}</button>
+                    </div>
+                  ) : (
+                    <div style={{display:"flex",gap:5,alignItems:"center",justifyContent:"flex-end"}}>
+                      <div className="mono" style={{fontSize:12,color:"var(--t1)",fontWeight:700}}>{fmt$(cat.budgeted)}</div>
+                      <button className="btn btn-ghost btn-xs" style={{padding:"1px 5px",fontSize:9,opacity:.6}}
+                        onClick={()=>{setEditingKey(cat.name);setEditAmount(String(cat.budgeted||""));}}
+                        title="Edit budget">✎</button>
+                    </div>
+                  )}
+                </div>
+                {[["Actual", fmt$(cat.actual), cat.color],["Remaining", fmt$(cat.budgeted-cat.actual), cat.budgeted-cat.actual<0?"var(--acc)":"var(--t2)"]].map(([l,v,c])=>(
+                  <div key={l} style={{textAlign:"right",minWidth:72}}>
+                    <div className="lbl">{l}</div>
+                    <div className="mono" style={{fontSize:12,color:c,fontWeight:700}}>{v}</div>
+                  </div>
+                ))}
+              </div>
             </div>
+            <div className="bar-track" style={{height:6}}>
+              <div className="bar-fill" style={{width:`${p}%`,background:p>90?"var(--acc)":p>70?"var(--amber)":cat.color,transition:"width .4s ease"}}/>
+            </div>
+            <div style={{fontSize:10,color:"var(--t3)",marginTop:3}}>{p}% of budget utilized{cat.budgeted===0?" — set a budget above to track progress":""}</div>
           </div>
-          <div className="bar-track" style={{height:6}}><div className="bar-fill" style={{width:`${p}%`,background:p>90?"var(--acc)":p>70?"var(--amber)":cat.color}}/></div>
-          <div style={{fontSize:10,color:"var(--t3)",marginTop:3}}>{p}% utilized</div>
+        );
+      })}
+
+      {/* Hint when no invoices exist yet */}
+      {invoices.length === 0 && (
+        <div style={{marginTop:16,padding:"12px 14px",background:"var(--s3)",border:"1px solid var(--br)",borderRadius:9,fontSize:11,color:"var(--t3)"}}>
+          No invoices generated yet. Actual spend will populate once invoices are created from the Scope tab.
         </div>
-      );})}
+      )}
     </div></div>
   );
 }
@@ -3715,7 +4065,7 @@ function ScopeTab({ proj, scopeItems: items=[], setScopeItems: setItems=()=>{}, 
       date:        new Date().toISOString(),
       dueDate:     new Date(Date.now() + dueInDays*86400000).toISOString(),
       summary,
-      lineItems:   items,
+      lineItems:   items.map(({_notesOpen, ...rest}) => rest), // strip UI-only flag before saving
       adjustments: { overhead, discount, taxId:selTaxId, taxName:selTax.name, taxRate:selTax.rate, surcharges },
       subtotal:    sub, overheadAmt:ovAmt, surchargeAmt:surAmt, discountAmt:discAmt, taxAmt, total,
       terms,
@@ -3739,6 +4089,14 @@ function ScopeTab({ proj, scopeItems: items=[], setScopeItems: setItems=()=>{}, 
       date:      inv.date,
       invoiceMode,
       _inv:      inv,          // full invoice data for preview/print
+    });
+    // Activity feed
+    pushActivity({
+      actionType: "invoice",
+      action:     `Invoice ${inv.number} generated — ${fmt$c(inv.total)}`,
+      proj:       proj?.name || proj?.id || "",
+      projId:     proj?.id || null,
+      user:       co?.name || "Staff",
     });
     if (onDocGenerated) onDocGenerated();
     setGenerated(true);
@@ -3867,33 +4225,67 @@ function ScopeTab({ proj, scopeItems: items=[], setScopeItems: setItems=()=>{}, 
           {vis.map(it=>{
             const src = SOURCE_BADGE[it.source||"manual"];
             const showRoom = invoiceMode==="complex" && showRooms;
+            const notesOpen = !!it._notesOpen;
             return (
-              <div key={it.id} style={{display:"grid",gridTemplateColumns:showRoom?"140px 1fr 62px 70px 80px 80px 26px":"1fr 62px 70px 80px 80px 26px",gap:6,alignItems:"center",
-                padding:"5px 9px",background:"var(--s2)",border:"1px solid var(--br)",borderRadius:7,marginBottom:3,
-                borderLeft:`3px solid ${src?.color||"var(--br)"}`}}>
-                {showRoom && (
-                  <input value={it.room||""} onChange={e=>upd(it.id,"room",e.target.value)} className="inp"
-                    style={{height:28,fontSize:10}} placeholder="e.g. Master Bed"/>
-                )}
-                <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}>
-                  <input value={it.desc} onChange={e=>upd(it.id,"desc",e.target.value)} className="inp" style={{height:28,fontSize:11,flex:1}}/>
-                  {it.source && it.source!=="manual" && (
-                    <span style={{fontSize:8,fontWeight:700,color:src?.color,borderRadius:3,padding:"1px 5px",
-                      background:src?.color+"18",border:`1px solid ${src?.color}35`,flexShrink:0,whiteSpace:"nowrap"}}>
-                      {src?.label}
-                    </span>
+              <div key={it.id} style={{marginBottom:3}}>
+                {/* Main row */}
+                <div style={{display:"grid",gridTemplateColumns:showRoom?"140px 1fr 62px 70px 80px 80px 52px":"1fr 62px 70px 80px 80px 52px",gap:6,alignItems:"center",
+                  padding:"5px 9px",background:"var(--s2)",border:"1px solid var(--br)",borderRadius:notesOpen?"7px 7px 0 0":"7px",
+                  borderLeft:`3px solid ${src?.color||"var(--br)"}`}}>
+                  {showRoom && (
+                    <input value={it.room||""} onChange={e=>upd(it.id,"room",e.target.value)} className="inp"
+                      style={{height:28,fontSize:10}} placeholder="e.g. Master Bed"/>
                   )}
+                  <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}>
+                    <input value={it.desc} onChange={e=>upd(it.id,"desc",e.target.value)} className="inp" style={{height:28,fontSize:11,flex:1}}/>
+                    {it.source && it.source!=="manual" && (
+                      <span style={{fontSize:8,fontWeight:700,color:src?.color,borderRadius:3,padding:"1px 5px",
+                        background:src?.color+"18",border:`1px solid ${src?.color}35`,flexShrink:0,whiteSpace:"nowrap"}}>
+                        {src?.label}
+                      </span>
+                    )}
+                  </div>
+                  <select value={it.unit} onChange={e=>upd(it.id,"unit",e.target.value)} className="sel" style={{height:28,fontSize:11}}>
+                    {["SF","LF","EA","HR","MO","LS","day"].map(u=><option key={u}>{u}</option>)}
+                  </select>
+                  <input type="number" value={it.qty} onChange={e=>upd(it.id,"qty",+e.target.value)} className="inp" style={{height:28,fontSize:11}}/>
+                  <div style={{position:"relative"}}>
+                    <span style={{position:"absolute",left:7,top:"50%",transform:"translateY(-50%)",color:"var(--t3)",fontSize:11}}>$</span>
+                    <input type="number" value={it.price} onChange={e=>upd(it.id,"price",+e.target.value)} className="inp" style={{height:28,fontSize:11,paddingLeft:16}}/>
+                  </div>
+                  <div className="mono" style={{fontSize:11,fontWeight:700,color:"var(--green)",textAlign:"right"}}>{fmt$c(it.qty*it.price)}</div>
+                  <div style={{display:"flex",gap:3,alignItems:"center"}}>
+                    {/* F9 Notes toggle */}
+                    <button
+                      title="F9 Line note"
+                      onClick={()=>upd(it.id,"_notesOpen",!notesOpen)}
+                      className="btn btn-ghost btn-xs"
+                      style={{padding:"2px 5px",fontSize:9,fontFamily:"var(--mono)",fontWeight:700,
+                        color:notesOpen||(it.notes?.trim())?"var(--amber)":"var(--t3)",
+                        background:(it.notes?.trim()&&!notesOpen)?"rgba(251,191,36,.12)":"",
+                        border:(it.notes?.trim()&&!notesOpen)?"1px solid rgba(251,191,36,.3)":""}}>
+                      F9
+                    </button>
+                    <button className="btn btn-danger btn-xs" style={{padding:"2px 5px"}} onClick={()=>setItems(p=>p.filter(i=>i.id!==it.id))}>{Ic.trash}</button>
+                  </div>
                 </div>
-                <select value={it.unit} onChange={e=>upd(it.id,"unit",e.target.value)} className="sel" style={{height:28,fontSize:11}}>
-                  {["SF","LF","EA","HR","MO","LS","day"].map(u=><option key={u}>{u}</option>)}
-                </select>
-                <input type="number" value={it.qty} onChange={e=>upd(it.id,"qty",+e.target.value)} className="inp" style={{height:28,fontSize:11}}/>
-                <div style={{position:"relative"}}>
-                  <span style={{position:"absolute",left:7,top:"50%",transform:"translateY(-50%)",color:"var(--t3)",fontSize:11}}>$</span>
-                  <input type="number" value={it.price} onChange={e=>upd(it.id,"price",+e.target.value)} className="inp" style={{height:28,fontSize:11,paddingLeft:16}}/>
-                </div>
-                <div className="mono" style={{fontSize:11,fontWeight:700,color:"var(--green)",textAlign:"right"}}>{fmt$c(it.qty*it.price)}</div>
-                <button className="btn btn-danger btn-xs" onClick={()=>setItems(p=>p.filter(i=>i.id!==it.id))}>{Ic.trash}</button>
+                {/* F9 Notes row */}
+                {notesOpen && (
+                  <div style={{padding:"7px 11px",background:"rgba(251,191,36,.05)",border:"1px solid var(--br)",borderTop:"none",borderRadius:"0 0 7px 7px"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                      <span className="mono" style={{fontSize:9,color:"var(--amber)",fontWeight:700}}>F9 LINE NOTE</span>
+                      {it.notes?.trim() && <span style={{fontSize:9,color:"var(--t3)"}}>Included on invoice</span>}
+                    </div>
+                    <textarea
+                      className="txa"
+                      value={it.notes||""}
+                      onChange={e=>upd(it.id,"notes",e.target.value)}
+                      placeholder="Add a note for this line item — will print on the invoice under this line…"
+                      rows={2}
+                      style={{fontSize:11,resize:"vertical"}}
+                    />
+                  </div>
+                )}
               </div>
             );
           })}
@@ -4512,13 +4904,20 @@ function InvoicePreviewPortalModal({ inv, onClose }) {
           {isComplex && (
             <div style={{marginBottom:16}}>
               {!hasRooms && (inv.lineItems||[]).map((li,i)=>(
-                <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 50px 60px 70px 70px",gap:6,
-                  padding:"5px 0",borderBottom:"1px solid var(--br)",fontSize:11}}>
-                  <div>{li.desc}</div>
-                  <div style={{color:"var(--t3)",textAlign:"center"}}>{li.unit}</div>
-                  <div style={{textAlign:"right"}}>{li.qty}</div>
-                  <div style={{textAlign:"right"}}>{fmt$c(li.price)}</div>
-                  <div style={{textAlign:"right",fontWeight:700,color:"var(--green)"}}>{fmt$c(li.qty*li.price)}</div>
+                <div key={i} style={{borderBottom:"1px solid var(--br)"}}>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 50px 60px 70px 70px",gap:6,
+                    padding:"5px 0",fontSize:11}}>
+                    <div>{li.desc}</div>
+                    <div style={{color:"var(--t3)",textAlign:"center"}}>{li.unit}</div>
+                    <div style={{textAlign:"right"}}>{li.qty}</div>
+                    <div style={{textAlign:"right"}}>{fmt$c(li.price)}</div>
+                    <div style={{textAlign:"right",fontWeight:700,color:"var(--green)"}}>{fmt$c(li.qty*li.price)}</div>
+                  </div>
+                  {li.notes?.trim() && (
+                    <div style={{fontSize:10,color:"var(--t3)",fontStyle:"italic",paddingBottom:5,paddingLeft:2,lineHeight:1.4}}>
+                      ↳ {li.notes}
+                    </div>
+                  )}
                 </div>
               ))}
               {hasRooms && Object.entries(roomGroups||{}).map(([room,items])=>(
@@ -7230,7 +7629,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       {tab==="contacts"       && <ContactsTab contacts={contacts} setContacts={setContacts}/>}
       {tab==="media"          && <MediaTab       folders={mediaFolders} setFolders={setMediaFolders} uploads={mediaUploads} setUploads={setMediaUploads}/>}
       {tab==="documents"      && <ProjectDocumentsPanel proj={proj} contacts={contacts} assignedStaff={assignedStaff} onNavigate={onNavigate}/>}
-      {tab==="tasks"          && <TasksTab projId={proj.id} initialTasks={proj.templateTasks||[]} globalStaff={globalStaff} companyId={companyId} phoneSettings={phoneSettings} currentMemberId={currentMemberId} isVendor={isVendor}/>}
+      {tab==="tasks"          && <TasksTab projId={proj.id} projName={proj.name} initialTasks={proj.templateTasks||[]} globalStaff={globalStaff} companyId={companyId} phoneSettings={phoneSettings} currentMemberId={currentMemberId} isVendor={isVendor} currentUser={currentUser}/>}
       {tab==="finance"        && <FinancialTab proj={proj} companyId={companyId} laborCost={laborCost} invoices={loadProjInvoices(proj.id)} onInvoiceVoid={id=>{const all=loadAllInvoices().map(i=>i.id===id?{...i,status:"void"}:i);saveAllInvoices(all);}}/>}
       {tab==="shifts"         && <ShiftsTab projId={proj.id} externalShifts={myShifts} canViewRates={canViewRates}/>}
       {tab==="scope"          && <ScopeTab proj={proj} scopeItems={scopeItems} setScopeItems={setScopeItems} contacts={contacts}/>}
@@ -7252,7 +7651,7 @@ function AdvToolsPanel({ onClose, priceLists, setPriceLists, companyId, globalSt
   const [showDocTemplates, setShowDocTemplates] = useState(false);
   const TOOLS = [
     { icon:Ic.msg,      label:"Message Center",       desc:"Company-wide calls, texts & emails", action:()=>setShowMsgCenter(true) },
-    { icon:Ic.mindflow, label:"CortexAI",              desc:"AI-powered workflow generation", link:"mindflow.html" },
+    { icon:Ic.mindflow, label:"CortexAI",              desc:"AI-powered workflow generation", link:"/mindflow.html" },
     { icon:Ic.pricetag, label:"Price Lists",            desc:`${priceLists.length} lists · Manage equipment & material pricing`, action:()=>setShowPLManager(true) },
     { icon:Ic.doc,      label:"Document Templates",    desc:"Manage reusable contracts, authorizations & change orders", action:()=>setShowDocTemplates(true) },
     { icon:Ic.attr,     label:"Attribute Templates",   desc:"Configure custom project fields" },
@@ -9099,16 +9498,12 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     setOfficeGeoStatus("pending");
     setOfficeError("");
     try {
-      // Use Google Maps Geocoding API for reliable US address resolution
-      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(q)}&key=${GMAPS_KEY}`;
-      const res  = await fetch(url);
-      const data = await res.json();
-      if (data.status === "OK" && data.results?.[0]) {
-        const loc = data.results[0].geometry.location;
-        setOfficeForm(f => ({ ...f, lat: loc.lat, lng: loc.lng }));
+      const result = await geocodeAddress(q);
+      if (result && result.lat != null && result.lng != null) {
+        setOfficeForm(f => ({ ...f, lat: result.lat, lng: result.lng }));
         setOfficeGeoStatus("ok");
       } else {
-        throw new Error(data.status);
+        throw new Error("No result");
       }
     } catch {
       setOfficeGeoStatus("fail");
