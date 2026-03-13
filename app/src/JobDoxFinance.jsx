@@ -50,6 +50,148 @@ function lsUpdateInvoice(id, patch) {
   return all.filter(i => i.projId === (all.find(x=>x.id===id)?.projId));
 }
 
+/* ── Budget Templates (global, mirrors Settings → Budget Categories) ── */
+const LS_BUDGET_TEMPLATES = "jd_budget_templates";
+const DEFAULT_BUDGET_TEMPLATES = [
+  { id:"bc1",  name:"General Demo / Tear-out", color:"#f59e0b", workTypes:[], active:true },
+  { id:"bc2",  name:"Structural / Framing",    color:"#8b5cf6", workTypes:[], active:true },
+  { id:"bc3",  name:"Drywall",                 color:"#06b6d4", workTypes:[], active:true },
+  { id:"bc4",  name:"Painting",                color:"#84cc16", workTypes:[], active:true },
+  { id:"bc5",  name:"Flooring",                color:"#f97316", workTypes:[], active:true },
+  { id:"bc6",  name:"Electrical",              color:"#eab308", workTypes:[], active:true },
+  { id:"bc7",  name:"Plumbing",                color:"#3b82f6", workTypes:[], active:true },
+  { id:"bc8",  name:"HVAC / Mechanical",       color:"#10b981", workTypes:[], active:true },
+  { id:"bc9",  name:"Equipment",               color:"#ec4899", workTypes:[], active:true },
+  { id:"bc10", name:"Contents",                color:"#6366f1", workTypes:[], active:true },
+  { id:"bc11", name:"Labor",                   color:"#14b8a6", workTypes:[], active:true },
+  { id:"bc12", name:"General Cleanup",         color:"#a3a3a3", workTypes:[], active:true },
+  { id:"bc13", name:"Roofing",                 color:"#dc2626", workTypes:[], active:true },
+  { id:"bc14", name:"Windows / Doors",         color:"#7c3aed", workTypes:[], active:true },
+  { id:"bc15", name:"Insulation",              color:"#059669", workTypes:[], active:true },
+  { id:"bc16", name:"Mitigation",              color:"#0891b2", workTypes:[], active:true },
+];
+function lsGetBudgetTemplates() {
+  try { return JSON.parse(localStorage.getItem(LS_BUDGET_TEMPLATES)) || DEFAULT_BUDGET_TEMPLATES; } catch { return DEFAULT_BUDGET_TEMPLATES; }
+}
+
+/* ── Per-project budgets ── */
+const LS_PROJECT_BUDGETS = "jd_project_budgets";
+// Shape: { [projId]: { categories:[{id,name,color,budgeted,source,xactRCV,xactACV,xactDep,active}], xactimate:{filename,importDate}|null } }
+function lsGetProjectBudget(projId) {
+  try {
+    const all = JSON.parse(localStorage.getItem(LS_PROJECT_BUDGETS)) || {};
+    return all[projId] || { categories:[], xactimate:null };
+  } catch { return { categories:[], xactimate:null }; }
+}
+function lsSaveProjectBudget(projId, data) {
+  try {
+    const all = JSON.parse(localStorage.getItem(LS_PROJECT_BUDGETS)) || {};
+    all[projId] = data;
+    localStorage.setItem(LS_PROJECT_BUDGETS, JSON.stringify(all));
+  } catch {}
+}
+
+/* ── Xactimate "Recap by Category" PDF Parser ── */
+// Loads PDF.js from CDN if not already loaded, then extracts text from each page.
+// The Recap by Category format lists lines like:
+//   CATEGORY NAME          $12,450.00     $0.00    $12,450.00
+// We parse: category name, RCV (col 1), Depreciation (col 2), ACV (col 3)
+async function loadPdfJs() {
+  if (window.pdfjsLib) return window.pdfjsLib;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    s.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      resolve(window.pdfjsLib);
+    };
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+async function parseXactimatePdf(file) {
+  const pdfjsLib = await loadPdfJs();
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+  let fullText = "";
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page  = await pdf.getPage(p);
+    const items = await page.getTextContent();
+    // Group items by approximate Y position to reconstruct rows
+    const rows = {};
+    items.items.forEach(item => {
+      const y = Math.round(item.transform[5]);
+      if (!rows[y]) rows[y] = [];
+      rows[y].push({ x: item.transform[4], text: item.str.trim() });
+    });
+    // Sort rows top-to-bottom, items left-to-right
+    const sortedYs = Object.keys(rows).map(Number).sort((a,b)=>b-a);
+    sortedYs.forEach(y => {
+      const line = rows[y].sort((a,b)=>a.x-b.x).map(i=>i.text).join("  ");
+      fullText += line + "\n";
+    });
+    fullText += "--- PAGE BREAK ---\n";
+  }
+
+  // Parse lines: find rows that have a category name + dollar amounts
+  // Xactimate lines look like: "DRYWALL   $12,150.00   $0.00   $12,150.00"
+  // or with depreciation: "PAINTING   $8,750.50   $875.05   $7,875.45"
+  const dollarRe = /\$([\d,]+(?:\.\d{2})?)/g;
+  const lines = fullText.split("\n");
+  const categories = [];
+  const seen = new Set();
+
+  // Detect if we're in the category summary section
+  let inSummary = false;
+  for (const raw of lines) {
+    const line = raw.trim();
+    // Markers that indicate we've entered the recap section
+    if (/category\s+summary|recap\s+by\s+category|estimate\s+summary/i.test(line)) {
+      inSummary = true; continue;
+    }
+    if (!inSummary) continue;
+    // Skip header/separator/footer lines
+    if (/^[-=─]+$/.test(line)) continue;
+    if (/^(category|rcv|depreciation|acv|total|subtotal|overhead|profit|page)/i.test(line)) continue;
+    if (!line || line.length < 4) continue;
+
+    // Extract all dollar amounts from this line
+    const amounts = [];
+    let m;
+    const re = /\$([\d,]+(?:\.\d{2})?)/g;
+    while ((m = re.exec(line)) !== null) {
+      amounts.push(parseFloat(m[1].replace(/,/g, "")));
+    }
+    if (amounts.length < 1) continue; // need at least one dollar amount
+
+    // Category name = everything before the first dollar sign
+    const dollarIdx = line.indexOf("$");
+    const rawName = line.slice(0, dollarIdx).trim();
+    if (!rawName || rawName.length < 2) continue;
+    // Normalize: title-case and clean up
+    const name = rawName.replace(/\s+/g, " ")
+      .split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+
+    if (seen.has(name)) continue;
+    seen.add(name);
+
+    // Xactimate columns: RCV | Depreciation | ACV
+    const rcv  = amounts[0] || 0;
+    const dep  = amounts.length >= 3 ? amounts[1] : 0;
+    const acv  = amounts.length >= 3 ? amounts[2] : (amounts[1] || rcv);
+
+    // Skip lines that are clearly totals
+    if (/total|subtotal/i.test(name)) continue;
+
+    categories.push({ name, xactRCV: rcv, xactACV: acv, xactDep: dep });
+  }
+
+  return categories;
+}
+
 // Convert a stored invoice into a synthetic AR transaction for totals/lists
 function invoiceToTx(inv) {
   return {
@@ -209,14 +351,15 @@ export function FinancialHealthBadge({ projId, companyId }) {
 /* ─────────────────────────────────────────────────────────────────────────────
    ADD TRANSACTION MODAL  (with receipt photo upload for cost-side entries)
 ───────────────────────────────────────────────────────────────────────────── */
-function AddTransactionModal({ onSave, onClose, worktypes=[], defaultType }) {
+function AddTransactionModal({ onSave, onClose, worktypes=[], defaultType, budgetCategories=[] }) {
   const [f, setF] = useState({
     type: defaultType || "invoice", date:today(), amount:"", description:"",
-    category:"", vendor:"", status:"open", notes:"", receipts:[]
+    category:"", budgetCatId:"", vendor:"", status:"open", notes:"", receipts:[]
   });
   const u = (k,v) => setF(p=>({...p,[k]:v}));
   const wtOptions = worktypes.map(w=>w.type||w).filter(Boolean);
   const isCost = ["bill","payment_out","expense","payroll"].includes(f.type);
+  const activeBudgetCats = budgetCategories.filter(c=>c.active);
 
   const handleReceipts = (e) => {
     const files = Array.from(e.target.files);
@@ -270,7 +413,7 @@ function AddTransactionModal({ onSave, onClose, worktypes=[], defaultType }) {
 
           <div className="g2" style={{gap:9,marginBottom:9}}>
             <div>
-              <label className="lbl">Category / Work Type</label>
+              <label className="lbl">Work Type</label>
               <select className="sel" value={f.category} onChange={e=>u("category",e.target.value)}>
                 <option value="">— General —</option>
                 {(wtOptions.length ? wtOptions : WORK_TYPES).map(wt=>(
@@ -296,6 +439,20 @@ function AddTransactionModal({ onSave, onClose, worktypes=[], defaultType }) {
               </div>
             )}
           </div>
+
+          {/* Budget category picker — shown for all cost-side entries if budget cats exist */}
+          {isCost && activeBudgetCats.length > 0 && (
+            <div style={{marginBottom:12}}>
+              <label className="lbl">Budget Category</label>
+              <select className="sel" value={f.budgetCatId} onChange={e=>u("budgetCatId",e.target.value)}>
+                <option value="">— Unallocated —</option>
+                {activeBudgetCats.map(c=>(
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <div style={{fontSize:9,color:"var(--t3)",marginTop:3}}>Assigns this expense to a budget category for tracking.</div>
+            </div>
+          )}
 
           {/* Receipt / photo upload — for cost-side entries */}
           {isCost && (
@@ -490,6 +647,421 @@ function InvoicePreviewModal({ inv, onClose }) {
 /* ─────────────────────────────────────────────────────────────────────────────
    BUDGET BUILDER — per work type
 ───────────────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────────
+   XACTIMATE IMPORT MODAL
+   Shows parsed Xactimate categories. User can:
+   - Match each to an existing project category OR create a new one
+   - Set the budget amount from RCV, ACV, or custom
+   - Toggle categories on/off
+───────────────────────────────────────────────────────────────────────────── */
+function XactimateImportModal({ parsedCats=[], existingCats=[], filename, onApply, onClose }) {
+  // For each parsed category: { name, xactRCV, xactACV, xactDep }
+  // Build initial row state: try to match by name to existing
+  const [rows, setRows] = useState(() => parsedCats.map(pc => {
+    const match = existingCats.find(e => e.name.toLowerCase() === pc.name.toLowerCase());
+    return {
+      id:       match ? match.id : `xc-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      name:     pc.name,
+      xactRCV:  pc.xactRCV,
+      xactACV:  pc.xactACV,
+      xactDep:  pc.xactDep,
+      budgeted: pc.xactRCV,   // default to RCV
+      source:   "rcv",        // rcv | acv | custom
+      color:    match?.color || "#5ba3f5",
+      active:   true,
+      isNew:    !match,
+    };
+  }));
+
+  const updRow = (i, k, v) => setRows(rs => rs.map((r,idx) => idx===i ? {...r,[k]:v} : r));
+
+  const totRCV = rows.filter(r=>r.active).reduce((s,r)=>s+(r.xactRCV||0),0);
+  const totBudgeted = rows.filter(r=>r.active).reduce((s,r)=>s+(r.budgeted||0),0);
+
+  const handleApply = () => {
+    const cats = rows.filter(r=>r.active).map(r => ({
+      id:       r.id,
+      name:     r.name,
+      color:    r.color,
+      budgeted: r.budgeted,
+      source:   "xactimate",
+      xactRCV:  r.xactRCV,
+      xactACV:  r.xactACV,
+      xactDep:  r.xactDep,
+      active:   true,
+    }));
+    onApply(cats, filename);
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:"var(--s1)",border:"1px solid var(--br)",borderRadius:14,width:"100%",maxWidth:780,maxHeight:"90vh",display:"flex",flexDirection:"column"}}>
+        {/* Header */}
+        <div style={{padding:"16px 20px",borderBottom:"1px solid var(--br)",display:"flex",alignItems:"center",gap:12}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:15,fontWeight:700,color:"var(--t1)"}}>Import Xactimate Estimate</div>
+            <div style={{fontSize:11,color:"var(--t3)",marginTop:2,fontFamily:"var(--mono)"}}>{filename}</div>
+          </div>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontSize:11,color:"var(--t3)"}}>Total RCV</div>
+            <div style={{fontSize:15,fontWeight:800,color:"var(--green)",fontFamily:"var(--mono)"}}>{f$(totRCV)}</div>
+          </div>
+          <button className="btn btn-ghost btn-xs" onClick={onClose} style={{marginLeft:8}}>✕</button>
+        </div>
+
+        {/* Info banner */}
+        <div style={{padding:"10px 20px",background:"rgba(91,163,245,.07)",borderBottom:"1px solid var(--br)",fontSize:11,color:"var(--t2)"}}>
+          {rows.length} categories found. Choose which to import and whether to budget by <strong>RCV</strong>, <strong>ACV</strong>, or a custom amount. These will be added to this project's budget.
+        </div>
+
+        {/* Column headers */}
+        <div style={{display:"grid",gridTemplateColumns:"24px 1fr 90px 90px 110px 32px",gap:8,padding:"8px 20px",borderBottom:"1px solid var(--br)"}}>
+          {["","Category","RCV","ACV","Budget As",""].map((h,i)=>(
+            <div key={i} style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",textAlign:i>=2?"right":"left"}}>{h}</div>
+          ))}
+        </div>
+
+        {/* Rows */}
+        <div style={{overflowY:"auto",flex:1,padding:"4px 0"}}>
+          {rows.map((r,i) => (
+            <div key={r.id} style={{display:"grid",gridTemplateColumns:"24px 1fr 90px 90px 110px 32px",gap:8,
+              padding:"8px 20px",borderBottom:"1px solid var(--br)",alignItems:"center",
+              opacity:r.active?1:0.4,background:r.active?"transparent":"var(--s2)"}}>
+              {/* Toggle */}
+              <input type="checkbox" checked={r.active} onChange={e=>updRow(i,"active",e.target.checked)}
+                style={{width:14,height:14,accentColor:"var(--blue)",cursor:"pointer"}}/>
+              {/* Name + color */}
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <input type="color" value={r.color} onChange={e=>updRow(i,"color",e.target.value)}
+                  style={{width:18,height:18,border:"none",borderRadius:4,cursor:"pointer",padding:0,background:"none"}}/>
+                <div>
+                  <div style={{fontSize:12,fontWeight:600,color:"var(--t1)"}}>{r.name}</div>
+                  {r.isNew && <div style={{fontSize:9,color:"var(--blue)",fontFamily:"var(--mono)"}}>NEW CATEGORY</div>}
+                </div>
+              </div>
+              {/* RCV */}
+              <div style={{textAlign:"right",fontFamily:"var(--mono)",fontSize:11,color:"var(--green)"}}>{f$(r.xactRCV)}</div>
+              {/* ACV */}
+              <div style={{textAlign:"right",fontFamily:"var(--mono)",fontSize:11,color:"var(--amber)"}}>
+                {r.xactDep>0 ? f$(r.xactACV) : <span style={{color:"var(--t3)"}}>—</span>}
+              </div>
+              {/* Budget dropdown */}
+              <div>
+                <select className="sel" value={r.source} style={{fontSize:10,height:26}}
+                  onChange={e=>{
+                    const src = e.target.value;
+                    updRow(i,"source",src);
+                    if (src==="rcv") updRow(i,"budgeted",r.xactRCV);
+                    else if (src==="acv") updRow(i,"budgeted",r.xactACV);
+                  }}>
+                  <option value="rcv">RCV {f$(r.xactRCV)}</option>
+                  {r.xactDep>0 && <option value="acv">ACV {f$(r.xactACV)}</option>}
+                  <option value="custom">Custom…</option>
+                </select>
+                {r.source==="custom" && (
+                  <input type="number" className="inp" value={r.budgeted} min={0} style={{marginTop:3,height:24,fontSize:10}}
+                    onChange={e=>updRow(i,"budgeted",parseFloat(e.target.value)||0)}/>
+                )}
+              </div>
+              {/* Dep badge */}
+              <div>
+                {r.xactDep>0 && (
+                  <div style={{fontSize:8,color:"var(--acc)",background:"rgba(239,68,68,.12)",borderRadius:3,padding:"2px 4px",fontFamily:"var(--mono)",textAlign:"center"}}>DEP</div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div style={{padding:"14px 20px",borderTop:"1px solid var(--br)",display:"flex",alignItems:"center",gap:12}}>
+          <div style={{flex:1,fontSize:11,color:"var(--t2)"}}>
+            <span style={{fontWeight:700,color:"var(--t1)"}}>{rows.filter(r=>r.active).length}</span> categories · Budget total: <span style={{fontFamily:"var(--mono)",color:"var(--green)",fontWeight:700}}>{f$(totBudgeted)}</span>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary btn-sm" onClick={handleApply}>Apply to Budget</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   XACTIMATE BUDGET TAB
+   Full replacement for BudgetBuilder. Supports:
+   - Upload & parse Xactimate PDF (Recap by Category)
+   - Apply global category templates from Settings
+   - Manual add/edit categories
+   - Per-category progress bars vs actual AP spend
+   - Budgeted amount editing
+───────────────────────────────────────────────────────────────────────────── */
+function XactimateBudgetTab({ proj, transactions=[], budgetData, onBudgetChange }) {
+  const [importModal, setImportModal] = useState(null); // { parsedCats, filename }
+  const [parsing,     setParsing]     = useState(false);
+  const [parseErr,    setParseErr]    = useState("");
+  const [editCatId,   setEditCatId]   = useState(null);
+  const fileRef = useRef();
+
+  const categories = budgetData?.categories || [];
+  const xactimate  = budgetData?.xactimate  || null;
+
+  // Compute actual spend per category from AP/cost transactions
+  const actuals = useMemo(() => {
+    const map = {};
+    transactions.forEach(t => {
+      if (t._isGenerated || t.auto) return;
+      if (TX_SIDE[t.type]!=="cost" && TX_SIDE[t.type]!=="ap") return;
+      const cat = t.budgetCatId || t.category || "__uncat__";
+      map[cat] = (map[cat] || 0) + (t.amount || 0);
+    });
+    return map;
+  }, [transactions]);
+
+  const totBudgeted = categories.filter(c=>c.active).reduce((s,c)=>s+(c.budgeted||0),0);
+  const totActual   = categories.filter(c=>c.active).reduce((s,c)=>s+(actuals[c.id]||actuals[c.name]||0),0);
+  const uncatActual = actuals["__uncat__"] || 0;
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    if (!file.name.toLowerCase().endsWith(".pdf")) { setParseErr("Please upload a PDF file."); return; }
+    setParsing(true); setParseErr("");
+    try {
+      const parsed = await parseXactimatePdf(file);
+      if (!parsed.length) {
+        setParseErr("No categories found. Make sure the PDF includes a 'Recap by Category' or 'Category Summary' page.");
+      } else {
+        setImportModal({ parsedCats: parsed, filename: file.name });
+      }
+    } catch(err) {
+      setParseErr("Failed to parse PDF: " + err.message);
+    }
+    setParsing(false);
+  };
+
+  const applyTemplate = () => {
+    const templates = lsGetBudgetTemplates();
+    // Filter to templates applicable to this project's work types (or all if no workTypes set)
+    const projWT = (proj.worktypes||[]).map(w=>(w.type||w).toLowerCase());
+    const relevant = templates.filter(t => {
+      if (!t.active) return false;
+      if (!t.workTypes?.length) return true; // universal
+      return t.workTypes.some(wt => projWT.includes(wt.toLowerCase()));
+    });
+    if (!relevant.length) {
+      setParseErr("No budget category templates defined yet. Add them in Settings → Budget Categories.");
+      return;
+    }
+    const newCats = relevant.map(t => ({
+      id:       t.id,
+      name:     t.name,
+      color:    t.color,
+      budgeted: 0,
+      source:   "manual",
+      active:   true,
+    }));
+    const updated = { ...budgetData, categories: newCats };
+    onBudgetChange(updated);
+  };
+
+  const handleXactApply = (cats, filename) => {
+    // Merge with existing: update matching by id, append new
+    const existing = categories.filter(c => !cats.find(nc => nc.id===c.id));
+    const merged = [...cats, ...existing];
+    const updated = {
+      ...budgetData,
+      categories: merged,
+      xactimate: { filename, importDate: today() },
+    };
+    onBudgetChange(updated);
+    setImportModal(null);
+  };
+
+  const updCat = (id, patch) => {
+    const cats = categories.map(c => c.id===id ? {...c,...patch} : c);
+    onBudgetChange({ ...budgetData, categories: cats });
+  };
+
+  const addManual = () => {
+    const id = `mc-${Date.now()}`;
+    const cats = [...categories, { id, name:"New Category", color:"#5ba3f5", budgeted:0, source:"manual", active:true }];
+    onBudgetChange({ ...budgetData, categories: cats });
+    setEditCatId(id);
+  };
+
+  const removeCat = (id) => {
+    onBudgetChange({ ...budgetData, categories: categories.filter(c=>c.id!==id) });
+  };
+
+  return (
+    <div>
+      {/* Action bar */}
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+        <div style={{flex:1}}>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>Budget Categories</div>
+          {xactimate && (
+            <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",marginTop:2}}>
+              Xactimate: {xactimate.filename} · imported {xactimate.importDate}
+            </div>
+          )}
+        </div>
+        <button className="btn btn-ghost btn-xs" onClick={applyTemplate}>
+          📋 Apply Template
+        </button>
+        <button className="btn btn-ghost btn-xs" style={{color:"var(--blue)"}}
+          onClick={()=>fileRef.current?.click()} disabled={parsing}>
+          {parsing ? "⏳ Parsing…" : "📄 Import Xactimate PDF"}
+        </button>
+        <input ref={fileRef} type="file" accept=".pdf" style={{display:"none"}} onChange={handleFile}/>
+        <button className="btn btn-primary btn-xs" onClick={addManual}>+ Add Category</button>
+      </div>
+
+      {parseErr && (
+        <div style={{padding:"9px 13px",background:"rgba(239,68,68,.1)",border:"1px solid rgba(239,68,68,.25)",
+          borderRadius:8,fontSize:11,color:"var(--acc)",marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
+          ⚠ {parseErr}
+          <button style={{marginLeft:"auto",background:"none",border:"none",color:"var(--t3)",cursor:"pointer"}} onClick={()=>setParseErr("")}>✕</button>
+        </div>
+      )}
+
+      {/* KPI row */}
+      {categories.length > 0 && (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:9,marginBottom:16}}>
+          {[
+            ["Total Budgeted", f$(totBudgeted), "var(--t1)"],
+            ["Total Spent",    f$(totActual),   totActual>totBudgeted?"var(--acc)":"var(--amber)"],
+            ["Remaining",      f$(totBudgeted-totActual), totBudgeted-totActual<0?"var(--acc)":"var(--green)"],
+            ["Unallocated Spend", f$(uncatActual), uncatActual>0?"var(--amber)":"var(--t3)"],
+          ].map(([l,v,c])=>(
+            <div key={l} className="kpi" style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9}}>
+              <div className="kpi-val" style={{color:c}}>{v}</div>
+              <div className="kpi-lbl">{l}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Category list */}
+      {categories.length===0 ? (
+        <div style={{padding:"32px 20px",textAlign:"center",background:"var(--s2)",borderRadius:12,border:"1px dashed var(--br)"}}>
+          <div style={{fontSize:13,color:"var(--t2)",marginBottom:8}}>No budget categories yet</div>
+          <div style={{fontSize:11,color:"var(--t3)",marginBottom:16}}>Import an Xactimate PDF, apply a template from Settings, or add categories manually.</div>
+          <div style={{display:"flex",justifyContent:"center",gap:10}}>
+            <button className="btn btn-secondary btn-sm" onClick={()=>fileRef.current?.click()}>📄 Import Xactimate PDF</button>
+            <button className="btn btn-ghost btn-sm" onClick={applyTemplate}>📋 Apply Template</button>
+          </div>
+        </div>
+      ) : (
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {categories.map(cat => {
+            const actual  = actuals[cat.id] || actuals[cat.name] || 0;
+            const p       = cat.budgeted > 0 ? Math.min((actual/cat.budgeted)*100, 999) : (actual>0?100:0);
+            const barColor= p>=100?"var(--acc)":p>=80?"var(--amber)":cat.color||"var(--blue)";
+            const isEdit  = editCatId === cat.id;
+
+            return (
+              <div key={cat.id} className="card" style={{padding:"12px 14px",opacity:cat.active?1:0.5}}>
+                <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+                  {/* Color swatch */}
+                  <input type="color" value={cat.color||"#5ba3f5"} onChange={e=>updCat(cat.id,"color",e.target.value)}
+                    title="Category color"
+                    style={{width:20,height:20,border:"none",borderRadius:4,cursor:"pointer",padding:0,background:"none",flexShrink:0,marginTop:2}}/>
+
+                  {/* Name + source badge */}
+                  <div style={{flex:1,minWidth:0}}>
+                    {isEdit ? (
+                      <input className="inp" autoFocus value={cat.name} style={{fontSize:13,fontWeight:600,marginBottom:6}}
+                        onChange={e=>updCat(cat.id,"name",e.target.value)}
+                        onBlur={()=>setEditCatId(null)}
+                        onKeyDown={e=>e.key==="Enter"&&setEditCatId(null)}/>
+                    ) : (
+                      <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:6}}>
+                        <span style={{fontWeight:600,fontSize:13,color:"var(--t1)",cursor:"pointer"}}
+                          onClick={()=>setEditCatId(cat.id)}>{cat.name}</span>
+                        {cat.source==="xactimate" && (
+                          <span style={{fontSize:8,background:"rgba(91,163,245,.15)",color:"var(--blue)",
+                            borderRadius:3,padding:"1px 5px",fontFamily:"var(--mono)"}}>XACTIMATE</span>
+                        )}
+                        {cat.xactDep>0 && (
+                          <span style={{fontSize:8,background:"rgba(239,68,68,.12)",color:"var(--acc)",
+                            borderRadius:3,padding:"1px 5px",fontFamily:"var(--mono)"}}>DEP {f$(cat.xactDep)}</span>
+                        )}
+                      </div>
+                    )}
+                    {/* Progress bar */}
+                    <div style={{background:"var(--s3)",borderRadius:4,height:5,overflow:"hidden",marginBottom:4}}>
+                      <div style={{height:"100%",width:`${Math.min(p,100)}%`,background:barColor,borderRadius:4,transition:"width .3s"}}/>
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--t3)"}}>
+                      <span>{p.toFixed(0)}% utilized</span>
+                      <span className="mono">{f$(actual)} spent of {f$(cat.budgeted)}</span>
+                    </div>
+                  </div>
+
+                  {/* Budgeted amount input */}
+                  <div style={{flexShrink:0,width:110}}>
+                    <div style={{fontSize:9,color:"var(--t3)",marginBottom:3}}>Budgeted</div>
+                    <div style={{position:"relative"}}>
+                      <span style={{position:"absolute",left:7,top:"50%",transform:"translateY(-50%)",color:"var(--t3)",fontSize:11}}>$</span>
+                      <input type="number" className="inp" value={cat.budgeted||""} min={0} style={{paddingLeft:16,fontSize:12,height:28}}
+                        onChange={e=>updCat(cat.id,"budgeted",parseFloat(e.target.value)||0)}/>
+                    </div>
+                    {cat.xactRCV>0 && cat.source==="xactimate" && (
+                      <div style={{fontSize:9,color:"var(--t3)",marginTop:2,fontFamily:"var(--mono)"}}>
+                        RCV {f$(cat.xactRCV)}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Controls */}
+                  <div style={{display:"flex",flexDirection:"column",gap:3,flexShrink:0}}>
+                    <button className="btn btn-ghost btn-xs" title={cat.active?"Hide":"Show"}
+                      onClick={()=>updCat(cat.id,"active",!cat.active)}
+                      style={{fontSize:10,padding:"2px 6px"}}>{cat.active?"👁":"—"}</button>
+                    <button className="btn btn-ghost btn-xs" style={{color:"var(--acc)",fontSize:10,padding:"2px 6px"}}
+                      onClick={()=>removeCat(cat.id)} title="Remove">✕</button>
+                  </div>
+                </div>
+
+                {/* Xactimate sub-values */}
+                {cat.source==="xactimate" && cat.xactACV > 0 && cat.xactACV !== cat.xactRCV && (
+                  <div style={{marginTop:8,paddingTop:8,borderTop:"1px solid var(--br)",display:"flex",gap:20}}>
+                    {[["RCV",cat.xactRCV,"var(--green)"],["Depreciation",cat.xactDep,"var(--acc)"],["ACV",cat.xactACV,"var(--amber)"]].map(([l,v,c])=>(
+                      <div key={l}>
+                        <div style={{fontSize:9,color:"var(--t3)"}}>{l}</div>
+                        <div style={{fontFamily:"var(--mono)",fontSize:11,color:c,fontWeight:700}}>{f$(v)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Unallocated spend warning */}
+      {uncatActual > 0 && (
+        <div style={{marginTop:12,padding:"10px 14px",background:"rgba(245,158,11,.08)",border:"1px solid rgba(245,158,11,.25)",
+          borderRadius:9,fontSize:11,color:"var(--amber)"}}>
+          ⚠ <strong>{f$(uncatActual)}</strong> in expenses have no budget category assigned. Tag transactions in the Payable tab to track them here.
+        </div>
+      )}
+
+      {importModal && (
+        <XactimateImportModal
+          parsedCats={importModal.parsedCats}
+          existingCats={categories}
+          filename={importModal.filename}
+          onApply={handleXactApply}
+          onClose={()=>setImportModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
 function BudgetBuilder({ budgets, setBudgets, worktypes=[], transactions=[] }) {
   const activeTypes = worktypes.length
     ? [...new Set([...worktypes.map(w=>w.type||w), ...Object.keys(budgets)])]
@@ -1029,6 +1601,15 @@ export function FinancialTab({ proj, companyId, laborCost=0, invoices: _invoices
   const [addModal, setAddModal] = useState(false);
   const [addTypeHint, setAddTypeHint] = useState("invoice");
 
+  // ── Per-project budget (localStorage) ──
+  const [projBudget, setProjBudget] = useState(() => lsGetProjectBudget(proj.id));
+  const handleBudgetChange = useCallback((updated) => {
+    lsSaveProjectBudget(proj.id, updated);
+    setProjBudget(updated);
+  }, [proj.id]);
+  // Re-sync when navigating between projects
+  useEffect(() => { setProjBudget(lsGetProjectBudget(proj.id)); }, [proj.id]);
+
   // ── Local invoice state (reads from localStorage, reactive to updates within this session) ──
   const [invoices, setInvoices] = useState(() => lsGetInvoices(proj.id));
 
@@ -1132,6 +1713,7 @@ export function FinancialTab({ proj, companyId, laborCost=0, invoices: _invoices
           onClose={()=>setAddModal(false)}
           worktypes={proj.worktypes||[]}
           defaultType={addTypeHint}
+          budgetCategories={projBudget.categories||[]}
         />
       )}
 
@@ -1266,19 +1848,12 @@ export function FinancialTab({ proj, companyId, laborCost=0, invoices: _invoices
 
         {/* ── BUDGET ── */}
         {subTab==="budget" && (
-          <div>
-            <SectionHead action={
-              <button className="btn btn-primary btn-xs" onClick={()=>save({budgets:data.budgets})}>
-                Save Budget
-              </button>
-            }>Budget by Work Type</SectionHead>
-            <BudgetBuilder
-              budgets={data.budgets||{}}
-              setBudgets={setBudgets}
-              worktypes={proj.worktypes||[]}
-              transactions={allTransactions}
-            />
-          </div>
+          <XactimateBudgetTab
+            proj={proj}
+            transactions={allTransactions}
+            budgetData={projBudget}
+            onBudgetChange={handleBudgetChange}
+          />
         )}
 
         {/* ── AR ── */}
