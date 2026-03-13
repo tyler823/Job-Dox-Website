@@ -35,6 +35,36 @@ const fPct = (a,b) => b>0 ? Math.min(100,Math.max(0,(a/b)*100)).toFixed(1) : "0.
 const today = () => new Date().toISOString().split("T")[0];
 const daysAgo = d => { if (!d) return 0; return Math.floor((Date.now()-new Date(d).getTime())/86400000); };
 
+/* ── localStorage invoice helpers (mirrors portal — self-contained) ── */
+const LS_INV_KEY = "jd_invoices";
+function lsGetInvoices(projId) {
+  try {
+    const all = JSON.parse(localStorage.getItem(LS_INV_KEY)) || [];
+    return projId ? all.filter(i => i.projId === projId) : all;
+  } catch { return []; }
+}
+function lsSaveAll(arr) { try { localStorage.setItem(LS_INV_KEY, JSON.stringify(arr)); } catch {} }
+function lsUpdateInvoice(id, patch) {
+  const all = (JSON.parse(localStorage.getItem(LS_INV_KEY)) || []).map(i => i.id === id ? {...i,...patch} : i);
+  lsSaveAll(all);
+  return all.filter(i => i.projId === (all.find(x=>x.id===id)?.projId));
+}
+
+// Convert a stored invoice into a synthetic AR transaction for totals/lists
+function invoiceToTx(inv) {
+  return {
+    id:          `__inv__${inv.id}`,
+    type:        "invoice",
+    date:        inv.date ? inv.date.split("T")[0] : today(),
+    amount:      inv.total || 0,
+    description: `${inv.number || "Invoice"} — ${inv.projName || ""}`,
+    category:    "Billing",
+    status:      inv.status === "paid" ? "paid" : inv.status === "void" ? "void" : "sent",
+    _invId:      inv.id,
+    _isGenerated:true,
+  };
+}
+
 // Work-type categories (mirrors WT_META in portal)
 const WORK_TYPES = [
   "Water Mitigation","Fire & Smoke","Mold Remediation","Storm Damage",
@@ -177,15 +207,25 @@ export function FinancialHealthBadge({ projId, companyId }) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   ADD TRANSACTION MODAL
+   ADD TRANSACTION MODAL  (with receipt photo upload for cost-side entries)
 ───────────────────────────────────────────────────────────────────────────── */
-function AddTransactionModal({ onSave, onClose, worktypes=[] }) {
+function AddTransactionModal({ onSave, onClose, worktypes=[], defaultType }) {
   const [f, setF] = useState({
-    type:"invoice", date:today(), amount:"", description:"",
-    category:"", vendor:"", status:"open", notes:""
+    type: defaultType || "invoice", date:today(), amount:"", description:"",
+    category:"", vendor:"", status:"open", notes:"", receipts:[]
   });
   const u = (k,v) => setF(p=>({...p,[k]:v}));
   const wtOptions = worktypes.map(w=>w.type||w).filter(Boolean);
+  const isCost = ["bill","payment_out","expense","payroll"].includes(f.type);
+
+  const handleReceipts = (e) => {
+    const files = Array.from(e.target.files);
+    Promise.all(files.map(file => new Promise(res => {
+      const reader = new FileReader();
+      reader.onload = ev => res({ name: file.name, dataUrl: ev.target.result, type: file.type });
+      reader.readAsDataURL(file);
+    }))).then(results => u("receipts", [...(f.receipts||[]), ...results]));
+  };
 
   return (
     <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
@@ -257,6 +297,42 @@ function AddTransactionModal({ onSave, onClose, worktypes=[] }) {
             )}
           </div>
 
+          {/* Receipt / photo upload — for cost-side entries */}
+          {isCost && (
+            <div style={{marginBottom:12}}>
+              <label className="lbl">Receipts / Photos</label>
+              <label style={{display:"flex",alignItems:"center",gap:9,padding:"9px 12px",
+                background:"var(--s3)",border:"1px dashed var(--br-hi)",borderRadius:8,cursor:"pointer",
+                fontSize:11,color:"var(--t2)",transition:"border-color .12s"}}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{color:"var(--blue)",flexShrink:0}}>
+                  <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                </svg>
+                <span>Upload receipt photos or PDFs</span>
+                <input type="file" accept="image/*,application/pdf" multiple style={{display:"none"}} onChange={handleReceipts}/>
+              </label>
+              {(f.receipts||[]).length > 0 && (
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:8}}>
+                  {f.receipts.map((r,i)=>(
+                    <div key={i} style={{position:"relative",borderRadius:7,overflow:"hidden",
+                      border:"1px solid var(--br)",background:"var(--s3)"}}>
+                      {r.type?.startsWith("image/")
+                        ? <img src={r.dataUrl} alt={r.name} style={{width:64,height:64,objectFit:"cover",display:"block"}}/>
+                        : <div style={{width:64,height:64,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3}}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{color:"var(--acc)"}}><path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5z"/></svg>
+                            <span style={{fontSize:8,color:"var(--t3)"}}>PDF</span>
+                          </div>
+                      }
+                      <button onClick={()=>u("receipts",f.receipts.filter((_,j)=>j!==i))}
+                        style={{position:"absolute",top:2,right:2,width:16,height:16,borderRadius:"50%",
+                          background:"rgba(0,0,0,.6)",border:"none",color:"#fff",fontSize:9,cursor:"pointer",
+                          display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{marginBottom:14}}>
             <label className="lbl">Notes (optional)</label>
             <textarea className="txa" value={f.notes} onChange={e=>u("notes",e.target.value)} style={{minHeight:44}}/>
@@ -270,6 +346,141 @@ function AddTransactionModal({ onSave, onClose, worktypes=[] }) {
               onClose();
             }}>Save Entry</button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   INVOICE PREVIEW MODAL  (full printable view of a generated invoice)
+───────────────────────────────────────────────────────────────────────────── */
+function InvoicePreviewModal({ inv, onClose }) {
+  if (!inv) return null;
+  const co   = inv.company || {};
+  const adj  = inv.adjustments || {};
+  const fmt  = n => new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(n||0);
+  const fmtDate = d => { try { return new Date(d).toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}); } catch { return d||""; }};
+
+  const STATUS_COLORS = {
+    unpaid:  { label:"UNPAID",   color:"var(--amber)" },
+    paid:    { label:"PAID",     color:"var(--green)" },
+    partial: { label:"PARTIAL",  color:"var(--blue)"  },
+    void:    { label:"VOID",     color:"var(--t3)"    },
+  };
+  const sc = STATUS_COLORS[inv.status] || STATUS_COLORS.unpaid;
+
+  const lineTotal = (inv.lineItems||[]).reduce((s,i)=>s+(i.qty||0)*(i.price||0),0);
+
+  return (
+    <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()} style={{alignItems:"flex-start",paddingTop:32,overflowY:"auto"}}>
+      <div className="modal anim modal-lg" style={{maxWidth:720,width:"100%"}}>
+        <div className="modal-hd" style={{position:"sticky",top:0,zIndex:10,background:"var(--s2)"}}>
+          <div className="modal-ttl">{inv.number || "Invoice"}</div>
+          <div style={{display:"flex",gap:7,alignItems:"center"}}>
+            <span style={{fontSize:9,fontWeight:700,fontFamily:"var(--mono)",color:sc.color,
+              background:`${sc.color}18`,border:`1px solid ${sc.color}40`,borderRadius:4,padding:"2px 8px"}}>
+              {sc.label}
+            </span>
+            <button className="btn btn-secondary btn-xs" onClick={()=>window.print()}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{marginRight:4}}><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>
+              Print
+            </button>
+            <button className="btn btn-ghost btn-xs" onClick={onClose}>✕</button>
+          </div>
+        </div>
+
+        <div className="modal-body" style={{padding:28}}>
+          {/* Header row */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24,flexWrap:"wrap",gap:16}}>
+            <div>
+              {co.logo && <img src={co.logo} alt="" style={{height:48,objectFit:"contain",marginBottom:10,display:"block"}}/>}
+              <div style={{fontWeight:800,fontSize:15,color:"var(--t1)"}}>{co.name||"Your Company"}</div>
+              <div style={{fontSize:11,color:"var(--t3)",marginTop:3,lineHeight:1.75}}>
+                {[co.address,co.city,co.state,co.zip].filter(Boolean).join(", ")}
+                {co.phone && <><br/>{co.phone}</>}
+                {co.email && <><br/>{co.email}</>}
+              </div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontWeight:800,fontSize:22,color:"var(--t1)",fontFamily:"var(--mono)",letterSpacing:-0.5}}>{inv.number||"INVOICE"}</div>
+              <div style={{fontSize:11,color:"var(--t3)",marginTop:6,lineHeight:2}}>
+                <div><span style={{color:"var(--t2)",fontWeight:600}}>Date:</span> {fmtDate(inv.date)}</div>
+                <div><span style={{color:"var(--t2)",fontWeight:600}}>Due:</span> {fmtDate(inv.dueDate)}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Bill to */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
+            <div style={{padding:"12px 14px",background:"var(--s3)",borderRadius:9,border:"1px solid var(--br)"}}>
+              <div className="mono" style={{fontSize:9,color:"var(--t3)",marginBottom:5,letterSpacing:.5}}>BILL TO</div>
+              <div style={{fontWeight:700,fontSize:13,color:"var(--t1)"}}>{inv.clientName||"Client"}</div>
+              <div style={{fontSize:11,color:"var(--t3)",marginTop:3,lineHeight:1.7}}>{inv.projAddress||""}</div>
+            </div>
+            <div style={{padding:"12px 14px",background:"var(--s3)",borderRadius:9,border:"1px solid var(--br)"}}>
+              <div className="mono" style={{fontSize:9,color:"var(--t3)",marginBottom:5,letterSpacing:.5}}>PROJECT</div>
+              <div style={{fontWeight:700,fontSize:13,color:"var(--t1)"}}>{inv.projName||""}</div>
+              {inv.summary && <div style={{fontSize:10,color:"var(--t2)",marginTop:4,lineHeight:1.65}}>{inv.summary}</div>}
+            </div>
+          </div>
+
+          {/* Line items table */}
+          <div style={{marginBottom:20}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 60px 60px 80px 80px",gap:0,
+              background:"var(--s3)",borderRadius:"7px 7px 0 0",padding:"7px 10px",
+              borderBottom:"2px solid var(--br-hi)"}}>
+              {["Description","Unit","Qty","Unit Price","Total"].map((h,i)=>(
+                <div key={h} className="mono" style={{fontSize:9,color:"var(--t3)",textAlign:i>1?"right":"left"}}>{h}</div>
+              ))}
+            </div>
+            {(inv.lineItems||[]).map((it,i)=>(
+              <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 60px 60px 80px 80px",gap:0,
+                padding:"7px 10px",borderBottom:"1px solid var(--br)",
+                background:i%2===0?"transparent":"rgba(255,255,255,.015)"}}>
+                <div style={{fontSize:11,color:"var(--t1)"}}>{it.desc}</div>
+                <div className="mono" style={{fontSize:10,color:"var(--t3)",textAlign:"center"}}>{it.unit}</div>
+                <div className="mono" style={{fontSize:10,color:"var(--t2)",textAlign:"right"}}>{it.qty}</div>
+                <div className="mono" style={{fontSize:10,color:"var(--t2)",textAlign:"right"}}>{fmt(it.price)}</div>
+                <div className="mono" style={{fontSize:11,fontWeight:700,color:"var(--t1)",textAlign:"right"}}>{fmt((it.qty||0)*(it.price||0))}</div>
+              </div>
+            ))}
+            {(inv.lineItems||[]).length === 0 && (
+              <div style={{padding:"16px 10px",fontSize:11,color:"var(--t3)",textAlign:"center",border:"1px solid var(--br)",borderTop:"none"}}>
+                No line items
+              </div>
+            )}
+          </div>
+
+          {/* Totals block */}
+          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:20}}>
+            <div style={{minWidth:260,background:"var(--s3)",borderRadius:9,border:"1px solid var(--br)",padding:"12px 16px"}}>
+              {[
+                ["Subtotal",                     lineTotal,          "var(--t2)", false],
+                ...(adj.overhead>0 ? [[`Overhead / Profit (${adj.overhead}%)`, inv.overheadAmt||0, "var(--amber)", false]] : []),
+                ...((adj.surcharges||[]).map(sc=>[`${sc.label} (${sc.pct}%)`, lineTotal*(sc.pct/100), "var(--amber)", false])),
+                ...(adj.discount>0 ? [[`Discount`,  -(inv.discountAmt||0), "var(--acc)", false]] : []),
+                ...(adj.taxRate>0  ? [[`${adj.taxName||"Tax"} (${adj.taxRate}%)`, inv.taxAmt||0, "var(--t2)", false]] : []),
+              ].map(([l,v,c])=>(
+                <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid var(--br)"}}>
+                  <span style={{fontSize:10,color:c}}>{l}</span>
+                  <span className="mono" style={{fontSize:11,color:c,fontWeight:600}}>{v<0?"-":""}{fmt(Math.abs(v))}</span>
+                </div>
+              ))}
+              <div style={{display:"flex",justifyContent:"space-between",padding:"9px 0 2px",marginTop:4}}>
+                <span style={{fontSize:13,fontWeight:800,color:"var(--t1)"}}>TOTAL DUE</span>
+                <span className="mono" style={{fontSize:18,fontWeight:800,color:"var(--green)"}}>{fmt(inv.total||0)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Terms */}
+          {inv.terms && (
+            <div style={{padding:"11px 14px",background:"var(--s3)",borderRadius:9,border:"1px solid var(--br)"}}>
+              <div className="mono" style={{fontSize:9,color:"var(--t3)",marginBottom:6,letterSpacing:.5}}>TERMS &amp; CONDITIONS</div>
+              <div style={{fontSize:10,color:"var(--t3)",lineHeight:1.75}}>{inv.terms}</div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -350,18 +561,46 @@ function BudgetBuilder({ budgets, setBudgets, worktypes=[], transactions=[] }) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   ACCOUNTS RECEIVABLE
+   ACCOUNTS RECEIVABLE  (shows generated invoices + manual AR entries)
 ───────────────────────────────────────────────────────────────────────────── */
-function ARPanel({ transactions, onAdd }) {
-  const arTxs = transactions.filter(t=>TX_SIDE[t.type]==="ar").sort((a,b)=>b.date>a.date?1:-1);
-  const totalInvoiced = arTxs.filter(t=>t.type==="invoice").reduce((s,t)=>s+t.amount,0);
-  const collected    = arTxs.filter(t=>t.type==="payment_in").reduce((s,t)=>s+t.amount,0);
+function ARPanel({ transactions, invoices=[], onAdd, onInvoiceChange }) {
+  const [previewInv, setPreviewInv] = useState(null);
+
+  // Only show non-voided invoices unless explicitly looking
+  const visInvoices = invoices.filter(inv => inv.status !== "void");
+  const voidedInvoices = invoices.filter(inv => inv.status === "void");
+
+  // Manual AR entries (exclude synthetic __inv__ entries — shown in invoice cards)
+  const manualAR = transactions.filter(t => TX_SIDE[t.type]==="ar" && !t._isGenerated)
+                               .sort((a,b)=>b.date>a.date?1:-1);
+
+  // Totals include all invoices
+  const totalInvoiced = invoices.filter(i=>i.status!=="void").reduce((s,i)=>s+(i.total||0),0)
+                      + manualAR.filter(t=>t.type==="invoice").reduce((s,t)=>s+t.amount,0);
+  const collected    = invoices.filter(i=>i.status==="paid").reduce((s,i)=>s+(i.total||0),0)
+                     + manualAR.filter(t=>t.type==="payment_in").reduce((s,t)=>s+t.amount,0);
   const arBalance    = totalInvoiced - collected;
 
-  const STATUS_C = { draft:"var(--t3)",sent:"var(--blue)",partial:"var(--amber)",paid:"var(--green)" };
+  const STATUS_C = {
+    unpaid:  "var(--amber)",
+    paid:    "var(--green)",
+    partial: "var(--blue)",
+    void:    "var(--t3)",
+    // legacy manual invoice statuses
+    draft:"var(--t3)",sent:"var(--blue)",
+  };
+
+  const markPaid = (inv) => {
+    onInvoiceChange(inv.id, { status:"paid", paidAt: new Date().toISOString() });
+  };
+  const voidInv = (inv) => {
+    onInvoiceChange(inv.id, { status:"void" });
+  };
 
   return (
     <div>
+      {previewInv && <InvoicePreviewModal inv={previewInv} onClose={()=>setPreviewInv(null)}/>}
+
       <div className="g4" style={{gap:9,marginBottom:14}}>
         <KpiCard label="Total Invoiced" value={f$(totalInvoiced)} color="var(--blue)"/>
         <KpiCard label="Collected"      value={f$(collected)}     color="var(--green)"/>
@@ -369,13 +608,109 @@ function ARPanel({ transactions, onAdd }) {
         <KpiCard label="Collection Rate" value={totalInvoiced>0?`${fPct(collected,totalInvoiced)}%`:"—"} color="var(--teal)"/>
       </div>
 
-      <SectionHead action={
-        <button className="btn btn-primary btn-xs" onClick={()=>onAdd("invoice")}>+ Invoice / Payment</button>
-      }>Accounts Receivable</SectionHead>
+      {/* Generated Invoices section */}
+      {(visInvoices.length > 0 || voidedInvoices.length > 0) && (
+        <div style={{marginBottom:20}}>
+          <SectionHead action={
+            <button className="btn btn-primary btn-xs" onClick={()=>onAdd("invoice")}>+ Manual Invoice</button>
+          }>Generated Invoices</SectionHead>
 
-      {arTxs.length === 0
-        ? <EmptyState icon="📄" msg="No invoices yet — add an invoice to start tracking AR"/>
-        : arTxs.map(tx => (
+          {visInvoices.map(inv => (
+            <div key={inv.id} style={{display:"flex",alignItems:"center",gap:10,
+              padding:"10px 13px",background:"var(--s2)",border:"1px solid var(--br)",
+              borderRadius:9,marginBottom:5,borderLeft:`3px solid ${STATUS_C[inv.status]||"var(--amber)"}`}}>
+              {/* Invoice icon */}
+              <div style={{width:38,height:38,borderRadius:9,flexShrink:0,display:"flex",alignItems:"center",
+                justifyContent:"center",background:"rgba(91,163,245,.12)",fontSize:16}}>🧾</div>
+
+              {/* Info */}
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
+                  <span style={{fontSize:12,fontWeight:700,color:"var(--t1)"}}>{inv.number||"Invoice"}</span>
+                  <span style={{fontSize:9,fontWeight:700,fontFamily:"var(--mono)",
+                    color:STATUS_C[inv.status]||"var(--amber)",
+                    background:`${STATUS_C[inv.status]||"var(--amber)"}18`,
+                    border:`1px solid ${STATUS_C[inv.status]||"var(--amber)"}40`,
+                    borderRadius:4,padding:"1px 6px"}}>
+                    {(inv.status||"unpaid").toUpperCase()}
+                  </span>
+                </div>
+                <div className="mono" style={{fontSize:9,color:"var(--t3)",marginTop:2}}>
+                  {inv.date ? new Date(inv.date).toLocaleDateString() : ""}
+                  {inv.dueDate ? ` · Due ${new Date(inv.dueDate).toLocaleDateString()}` : ""}
+                  {inv.clientName ? ` · ${inv.clientName}` : ""}
+                </div>
+                {inv.summary && (
+                  <div style={{fontSize:10,color:"var(--t3)",marginTop:2,
+                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:380}}>
+                    {inv.summary}
+                  </div>
+                )}
+              </div>
+
+              {/* Amount */}
+              <div style={{textAlign:"right",flexShrink:0,marginRight:6}}>
+                <div className="mono" style={{fontWeight:800,fontSize:14,color:"var(--blue)"}}>
+                  {f$c(inv.total||0)}
+                </div>
+                <div style={{fontSize:9,color:"var(--t3)",marginTop:1}}>
+                  {(inv.lineItems||[]).length} line item{(inv.lineItems||[]).length!==1?"s":""}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
+                <button className="btn btn-secondary btn-xs" style={{fontSize:10}}
+                  onClick={()=>setPreviewInv(inv)}>
+                  View
+                </button>
+                {inv.status==="unpaid" && (
+                  <button className="btn btn-xs" style={{fontSize:10,background:"rgba(26,217,138,.12)",
+                    color:"var(--green)",border:"1px solid rgba(26,217,138,.3)"}}
+                    onClick={()=>markPaid(inv)}>
+                    Mark Paid
+                  </button>
+                )}
+                {inv.status!=="void" && (
+                  <button className="btn btn-ghost btn-xs" style={{fontSize:10,color:"var(--t3)"}}
+                    onClick={()=>{ if(window.confirm("Void this invoice?")) voidInv(inv); }}>
+                    Void
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {/* Voided — collapsed */}
+          {voidedInvoices.length > 0 && (
+            <details style={{marginTop:4}}>
+              <summary style={{fontSize:10,color:"var(--t3)",cursor:"pointer",padding:"4px 0"}}>
+                {voidedInvoices.length} voided invoice{voidedInvoices.length!==1?"s":""}
+              </summary>
+              <div style={{marginTop:4,opacity:.6}}>
+                {voidedInvoices.map(inv=>(
+                  <div key={inv.id} style={{display:"flex",alignItems:"center",gap:10,
+                    padding:"6px 11px",background:"var(--s2)",border:"1px solid var(--br)",
+                    borderRadius:7,marginBottom:3}}>
+                    <span style={{fontSize:11,color:"var(--t3)",flex:1}}>{inv.number} — {inv.clientName||""}</span>
+                    <span className="mono" style={{fontSize:10,color:"var(--t3)"}}>{f$c(inv.total||0)}</span>
+                    <button className="btn btn-ghost btn-xs" style={{fontSize:9}} onClick={()=>setPreviewInv(inv)}>View</button>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+      )}
+
+      {/* Manual AR entries */}
+      <SectionHead action={
+        invoices.length===0 ? <button className="btn btn-primary btn-xs" onClick={()=>onAdd("invoice")}>+ Invoice / Payment</button> : null
+      }>Manual AR Entries</SectionHead>
+
+      {manualAR.length === 0
+        ? <EmptyState icon="📄" msg={invoices.length>0?"No manual AR entries — use Scope/Invoice tab to generate invoices":"No invoices yet — add an invoice or generate one from the Scope/Invoice tab"}/>
+        : manualAR.map(tx => (
           <div key={tx.id} className="row" style={{display:"flex",alignItems:"center",gap:10}}>
             <div style={{width:36,height:36,borderRadius:9,flexShrink:0,display:"flex",alignItems:"center",
               justifyContent:"center",background:TX_TYPES[tx.type]?.bg,color:TX_TYPES[tx.type]?.color,fontSize:14}}>
@@ -439,7 +774,24 @@ function APPanel({ transactions, onAdd }) {
               {tx.type==="bill"?"📬":"💸"}
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:12,fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tx.description}</div>
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                <span style={{fontSize:12,fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tx.description}</span>
+                {/* Receipt thumbnails */}
+                {(tx.receipts||[]).length > 0 && (
+                  <div style={{display:"flex",gap:3,flexShrink:0}}>
+                    {tx.receipts.slice(0,3).map((r,i)=>(
+                      <a key={i} href={r.dataUrl} target="_blank" rel="noreferrer" title={r.name}>
+                        {r.type?.startsWith("image/")
+                          ? <img src={r.dataUrl} alt="" style={{width:22,height:22,borderRadius:4,objectFit:"cover",border:"1px solid var(--br)"}}/>
+                          : <span style={{fontSize:8,padding:"2px 4px",background:"var(--s3)",borderRadius:4,
+                              border:"1px solid var(--br)",color:"var(--acc)",fontFamily:"var(--mono)"}}>PDF</span>
+                        }
+                      </a>
+                    ))}
+                    {tx.receipts.length > 3 && <span style={{fontSize:9,color:"var(--t3)"}}>+{tx.receipts.length-3}</span>}
+                  </div>
+                )}
+              </div>
               <div style={{fontSize:10,color:"var(--t3)",marginTop:1,fontFamily:"var(--mono)"}}>
                 {tx.date}{tx.vendor?` · ${tx.vendor}`:""}{tx.category?` · ${tx.category}`:""}
               </div>
@@ -470,7 +822,8 @@ function APPanel({ transactions, onAdd }) {
 ───────────────────────────────────────────────────────────────────────────── */
 function TransactionsPanel({ transactions, onAdd }) {
   const [filter, setFilter] = useState("all");
-  const sorted = [...transactions].sort((a,b)=>b.date>a.date?1:-1);
+  // Exclude synthetic generated-invoice entries — those are managed in ARPanel
+  const sorted = [...transactions].filter(t=>!t._isGenerated).sort((a,b)=>b.date>a.date?1:-1);
   const vis = filter==="all" ? sorted : sorted.filter(t=>TX_SIDE[t.type]===filter||t.type===filter);
 
   return (
@@ -492,8 +845,25 @@ function TransactionsPanel({ transactions, onAdd }) {
             padding:"8px 11px",background:"var(--s2)",border:"1px solid var(--br)",
             borderRadius:7,marginBottom:3,borderLeft:`3px solid ${TX_TYPES[tx.type]?.color||"var(--br)"}`}}>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:12,fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                {tx.description}
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                <span style={{fontSize:12,fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                  {tx.description}
+                </span>
+                {/* Receipt thumbnails */}
+                {(tx.receipts||[]).length > 0 && (
+                  <div style={{display:"flex",gap:3,alignItems:"center",flexShrink:0}}>
+                    {tx.receipts.slice(0,3).map((r,i)=>(
+                      <a key={i} href={r.dataUrl} target="_blank" rel="noreferrer" title={r.name}>
+                        {r.type?.startsWith("image/")
+                          ? <img src={r.dataUrl} alt="" style={{width:20,height:20,borderRadius:3,objectFit:"cover",border:"1px solid var(--br)",display:"block"}}/>
+                          : <span style={{fontSize:8,padding:"1px 4px",background:"var(--s3)",borderRadius:3,
+                              border:"1px solid var(--br)",color:"var(--acc)",fontFamily:"var(--mono)"}}>PDF</span>
+                        }
+                      </a>
+                    ))}
+                    {tx.receipts.length > 3 && <span style={{fontSize:9,color:"var(--t3)"}}>+{tx.receipts.length-3}</span>}
+                  </div>
+                )}
               </div>
               <div style={{fontSize:10,color:"var(--t3)",marginTop:1,fontFamily:"var(--mono)"}}>
                 {tx.date}
@@ -650,14 +1020,29 @@ Be direct and specific. Flag anything that needs immediate attention.`;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   FINANCIAL TAB  (exported — replaces / supplements BudgetTab)
+   FINANCIAL TAB  (exported)
 ───────────────────────────────────────────────────────────────────────────── */
-export function FinancialTab({ proj, companyId, laborCost=0 }) {
+export function FinancialTab({ proj, companyId, laborCost=0, invoices: _invoicesProp=[], onInvoiceVoid }) {
   const [subTab, setSubTab] = useState("overview");
   const [data, setData]     = useState({ budgets:{}, transactions:[] });
   const [saving, setSaving] = useState(false);
   const [addModal, setAddModal] = useState(false);
   const [addTypeHint, setAddTypeHint] = useState("invoice");
+
+  // ── Local invoice state (reads from localStorage, reactive to updates within this session) ──
+  const [invoices, setInvoices] = useState(() => lsGetInvoices(proj.id));
+
+  const handleInvoiceChange = (id, patch) => {
+    const updated = lsUpdateInvoice(id, patch);
+    setInvoices(lsGetInvoices(proj.id));
+    // If voiding, also call portal callback if provided
+    if (patch.status === "void" && onInvoiceVoid) onInvoiceVoid(id);
+  };
+
+  // Re-sync invoices when proj.id changes (navigating between projects)
+  useEffect(() => {
+    setInvoices(lsGetInvoices(proj.id));
+  }, [proj.id]);
 
   // Firestore path
   const docRef = useMemo(()=>
@@ -672,7 +1057,6 @@ export function FinancialTab({ proj, companyId, laborCost=0 }) {
       if (snap.exists()) {
         setData({ budgets:{}, transactions:[], ...snap.data() });
       } else {
-        // Seed from project budget if available
         const seedBudgets = {};
         (proj.worktypes||[]).forEach(wt => {
           seedBudgets[wt.type||wt] = { budgeted: wt.budget||0, targetMargin:30 };
@@ -686,11 +1070,16 @@ export function FinancialTab({ proj, companyId, laborCost=0 }) {
   // Inject labor cost from shifts as a synthetic transaction
   const allTransactions = useMemo(() => {
     const base = data.transactions || [];
-    if (!laborCost) return base;
-    const hasLabor = base.some(t=>t.id==="__labor__");
-    if (hasLabor) return base.map(t=>t.id==="__labor__"?{...t,amount:laborCost}:t);
-    return [...base, {id:"__labor__",type:"payroll",date:today(),description:"Labor (from Shift Reports)",amount:laborCost,category:"Labor",auto:true}];
-  }, [data.transactions, laborCost]);
+    // Merge in synthetic invoice entries for totals (AR sub-tab handles display separately)
+    const invTxs = invoices.filter(i=>i.status!=="void").map(invoiceToTx);
+    const withLabor = (() => {
+      if (!laborCost) return base;
+      const hasLabor = base.some(t=>t.id==="__labor__");
+      if (hasLabor) return base.map(t=>t.id==="__labor__"?{...t,amount:laborCost}:t);
+      return [...base, {id:"__labor__",type:"payroll",date:today(),description:"Labor (from Shift Reports)",amount:laborCost,category:"Labor",auto:true}];
+    })();
+    return [...withLabor, ...invTxs];
+  }, [data.transactions, laborCost, invoices]);
 
   const health = useMemo(() => computeHealth({...data,transactions:allTransactions}), [data, allTransactions]);
 
@@ -724,9 +1113,14 @@ export function FinancialTab({ proj, companyId, laborCost=0 }) {
     { k:"ai",       l:"AI Analyst"   },
   ];
 
+  // Totals factor in localStorage invoices
   const totBudget     = Object.values(data.budgets||{}).reduce((s,b)=>s+(b.budgeted||0),0);
-  const totalInvoiced = allTransactions.filter(t=>t.type==="invoice").reduce((s,t)=>s+t.amount,0);
-  const collected     = allTransactions.filter(t=>t.type==="payment_in").reduce((s,t)=>s+t.amount,0);
+  const invTotal      = invoices.filter(i=>i.status!=="void").reduce((s,i)=>s+(i.total||0),0);
+  const invPaid       = invoices.filter(i=>i.status==="paid").reduce((s,i)=>s+(i.total||0),0);
+  const manualInvoiced= (data.transactions||[]).filter(t=>t.type==="invoice").reduce((s,t)=>s+t.amount,0);
+  const manualPaid    = (data.transactions||[]).filter(t=>t.type==="payment_in").reduce((s,t)=>s+t.amount,0);
+  const totalInvoiced = invTotal + manualInvoiced;
+  const collected     = invPaid  + manualPaid;
   const totalCosts    = allTransactions.filter(t=>TX_SIDE[t.type]==="cost"||TX_SIDE[t.type]==="ap").reduce((s,t)=>s+t.amount,0);
   const totalAP       = allTransactions.filter(t=>t.type==="bill").reduce((s,t)=>s+t.amount,0);
 
@@ -749,6 +1143,12 @@ export function FinancialTab({ proj, companyId, laborCost=0 }) {
               className={`tab${subTab===t.k?" active":""}`}
               style={{whiteSpace:"nowrap",borderBottom:subTab===t.k?"2px solid var(--acc)":"2px solid transparent",marginBottom:"-1px"}}>
               {t.l}
+              {t.k==="ar" && invoices.filter(i=>i.status==="unpaid").length>0 && (
+                <span style={{marginLeft:4,fontSize:8,background:"rgba(232,156,24,.2)",color:"var(--amber)",
+                  borderRadius:3,padding:"1px 5px",fontFamily:"var(--mono)"}}>
+                  {invoices.filter(i=>i.status==="unpaid").length}
+                </span>
+              )}
               {t.k==="ai" && <span style={{marginLeft:4,fontSize:8,background:"rgba(167,139,250,.2)",color:"var(--purple)",borderRadius:3,padding:"1px 4px",fontFamily:"var(--mono)"}}>AI</span>}
             </button>
           ))}
@@ -770,6 +1170,30 @@ export function FinancialTab({ proj, companyId, laborCost=0 }) {
                 <button className="btn btn-xs" onClick={()=>setSubTab("ai")}
                   style={{background:"rgba(167,139,250,.15)",color:"var(--purple)",border:"1px solid rgba(167,139,250,.3)"}}>
                   🧠 Analyze
+                </button>
+              </div>
+            )}
+
+            {/* Invoice summary banner when invoices exist */}
+            {invoices.length > 0 && (
+              <div style={{padding:"11px 14px",background:"rgba(91,163,245,.07)",border:"1px solid rgba(91,163,245,.2)",
+                borderRadius:10,marginBottom:14,display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+                <div>
+                  <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",marginBottom:2}}>GENERATED INVOICES</div>
+                  <div className="mono" style={{fontSize:15,fontWeight:800,color:"var(--blue)"}}>{f$c(invTotal)}</div>
+                </div>
+                <div style={{width:1,height:32,background:"var(--br)"}}/>
+                <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
+                  {[
+                    [`${invoices.filter(i=>i.status==="unpaid").length} Unpaid`, "var(--amber)"],
+                    [`${invoices.filter(i=>i.status==="paid").length} Paid`,     "var(--green)"],
+                    [`${invoices.filter(i=>i.status==="void").length} Void`,     "var(--t3)"  ],
+                  ].map(([l,c])=>(
+                    <div key={l} style={{fontSize:11,color:c,fontWeight:600}}>{l}</div>
+                  ))}
+                </div>
+                <button className="btn btn-secondary btn-xs" style={{marginLeft:"auto"}} onClick={()=>setSubTab("ar")}>
+                  View Invoices →
                 </button>
               </div>
             )}
@@ -832,7 +1256,7 @@ export function FinancialTab({ proj, companyId, laborCost=0 }) {
             </div>
 
             <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
-              <button className="btn btn-secondary btn-xs" onClick={()=>openAdd("invoice")}>+ Invoice</button>
+              <button className="btn btn-secondary btn-xs" onClick={()=>openAdd("invoice")}>+ Manual Invoice</button>
               <button className="btn btn-secondary btn-xs" onClick={()=>openAdd("payment_in")}>+ Payment Received</button>
               <button className="btn btn-secondary btn-xs" onClick={()=>openAdd("bill")}>+ Vendor Bill</button>
               <button className="btn btn-secondary btn-xs" onClick={()=>openAdd("expense")}>+ CC / Expense</button>
@@ -858,7 +1282,14 @@ export function FinancialTab({ proj, companyId, laborCost=0 }) {
         )}
 
         {/* ── AR ── */}
-        {subTab==="ar" && <ARPanel transactions={allTransactions} onAdd={openAdd}/>}
+        {subTab==="ar" && (
+          <ARPanel
+            transactions={allTransactions}
+            invoices={invoices}
+            onAdd={openAdd}
+            onInvoiceChange={handleInvoiceChange}
+          />
+        )}
 
         {/* ── AP ── */}
         {subTab==="ap" && <APPanel transactions={allTransactions} onAdd={openAdd}/>}
