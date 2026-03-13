@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { DocumentsTab, LogoUploadSection, DocumentTemplateCenter } from "./JobDoxDocuments.jsx";
 import { FinancialTab, FinancialHealthBadge, FinancialDashboard } from "./JobDoxFinance.jsx";
+import ContentsDox from "./ContentsDox.jsx";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
          doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where } from "firebase/firestore";
-import ContentsDox from "./ContentsDox.jsx";
 
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyAFwSEDPqKgAUbwbh_2KZNwLDdGCZEiq3E",
@@ -907,6 +907,16 @@ async function fsFindInviteByEmail(companyId, email) {
   return { id: d.id, ...d.data() };
 }
 
+/* ── Field app invite code helpers ── */
+async function fsCreateFieldInviteCode(companyId, companyName) {
+  const code = "JDFIELD-" + Math.random().toString(36).substring(2,8).toUpperCase();
+  await setDoc(doc(db, "fieldInviteCodes", code), {
+    companyId, companyName: companyName||"",
+    createdAt: serverTimestamp(), used: false
+  });
+  return code;
+}
+ 
 /* ── Offices helpers ── */
 function fsListenOffices(companyId, cb) {
   const q = collection(db, "companies", companyId, "offices");
@@ -6048,21 +6058,7 @@ function DryDoxTab({ proj, priceLists=[], onPushToScope }) {
 // SECTION 4 · ENHANCED CONTENTSDOX TAB
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CONTENTS_SEED = [
-  { id:1, room:"Living Room",   item:"Samsung 65\" QLED TV",           qty:1, condition:"Total Loss", repVal:1299, acvVal:780,  status:"claim"   },
-  { id:2, room:"Living Room",   item:"Ashley Sectional Sofa (Gray)",    qty:1, condition:"Total Loss", repVal:1899, acvVal:1140, status:"claim"   },
-  { id:3, room:"Living Room",   item:"Coffee Table — Wood",             qty:1, condition:"Damaged",    repVal:349,  acvVal:175,  status:"restore" },
-  { id:4, room:"Kitchen",       item:"KitchenAid Stand Mixer (Red)",    qty:1, condition:"Restorable", repVal:479,  acvVal:320,  status:"restore" },
-  { id:5, room:"Master Bedroom",item:"Casper King Mattress",            qty:1, condition:"Total Loss", repVal:1695, acvVal:1017, status:"claim"   },
-  { id:6, room:"Master Bedroom",item:"IKEA Malm Dresser (6-drawer)",    qty:1, condition:"Damaged",    repVal:299,  acvVal:120,  status:"pending" },
-];
-
-const ITEM_STATUS = {
-  pending:  { label:"Pending",  color:"var(--t3)" },
-  claim:    { label:"To Claim", color:"var(--acc)" },
-  restore:  { label:"Restore",  color:"var(--amber)" },
-  cleared:  { label:"Cleared",  color:"var(--green)" },
-};
+// ContentsDox is now a separate imported component (ContentsDox.jsx)
 
 
 function ContentsDoxTab({ proj, onPushToScope }) {
@@ -7632,7 +7628,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       </div>
       {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff} worktypes={worktypes} setWorktypes={setWorktypes} currentUser={currentUser} assignedStaff={assignedStaff} setAssignedStaff={setAssignedStaff}/>}
       {tab==="drydox"         && <DryDoxTab      proj={proj} priceLists={priceLists} onPushToScope={handlePushToScope}/>}
-      {tab==="contentsdox" && <ContentsDox proj={proj} companyId={companyId} db={db} onPushToScope={handlePushToScope}/>}
+         {tab==="contentsdox"    && <ContentsDox proj={proj} companyId={companyId} db={db} onPushToScope={handlePushToScope}/>}
       {tab==="estimatedox"    && <EstimateDoxTab proj={proj}/>}
       {tab==="contacts"       && <ContactsTab contacts={contacts} setContacts={setContacts}/>}
       {tab==="media"          && <MediaTab       folders={mediaFolders} setFolders={setMediaFolders} uploads={mediaUploads} setUploads={setMediaUploads}/>}
