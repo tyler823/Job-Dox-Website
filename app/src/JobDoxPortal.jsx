@@ -2015,7 +2015,7 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
       }
     }
     return result;
-  }, [projects, currentMemberId]);
+  }, [projects, currentMemberId, projTasksVersion]);
 
   // Merged list for display — My Day personal tasks + assigned project tasks, de-duped by id
   const allDisplayTasks = useMemo(() => {
@@ -2025,6 +2025,10 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
   const [selDate, setSelDate]   = useState(TODAY_ISO);
   const [calYear,  setCalYear]  = useState(() => new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
+
+  // Version counter — increment after any write to project task localStorage to force projTasks to re-read
+  const [projTasksVersion, setProjTasksVersion] = useState(0);
+  const bumpProjTasks = () => setProjTasksVersion(v => v + 1);
 
   // New / edit task modal
   const [addingModal,  setAddingModal]  = useState(false);
@@ -2041,6 +2045,7 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
       const stored = _lsRead(projTask.projId, "tasks", []);
       const updated = stored.map(x => x.id === id ? { ...x, status: x.status === "done" ? "open" : "done" } : x);
       _lsWrite(projTask.projId, "tasks", updated);
+      bumpProjTasks();
       return;
     }
     // Otherwise update My Day personal tasks
@@ -2088,6 +2093,7 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
         // Write back to project storage
         const stored = _lsRead(editingTask.projId, "tasks", []);
         _lsWrite(editingTask.projId, "tasks", stored.map(x => x.id === editingTask.id ? { ...x, ...patch, status: x.status } : x));
+        bumpProjTasks();
       } else {
         const updated = allTasks.map(x => x.id === editingTask.id ? patch : x);
         setAllTasks(updated);
@@ -2514,6 +2520,7 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
                               if (t._fromProject && t.projId) {
                                 const stored = _lsRead(t.projId, "tasks", []);
                                 _lsWrite(t.projId, "tasks", stored.map(x => x.id===t.id ? {...x, commentThread:[...(x.commentThread||[]),newComment]} : x));
+                                bumpProjTasks();
                               } else {
                                 const updated = allTasks.map(x => x.id===t.id ? {...x, commentThread:[...(x.commentThread||[]),newComment]} : x);
                                 setAllTasks(updated); saveTasks(updated);
@@ -3306,7 +3313,7 @@ function MediaTab({ folders:foldersIn=[], setFolders:setFoldersIn=()=>{}, upload
 
 /* ── InlineCommentBox: compact comment input used inline in My Day task rows ── */
 function InlineCommentBox({ authorName, onSubmit }) {
-  const [text, setText] = React.useState("");
+  const [text, setText] = useState("");
   const submit = () => {
     const t = text.trim();
     if (!t) return;
