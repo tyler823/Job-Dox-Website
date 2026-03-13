@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { DocumentsTab, LogoUploadSection, DocumentTemplateCenter } from "./JobDoxDocuments.jsx";
 import { FinancialTab, FinancialHealthBadge, FinancialDashboard } from "./JobDoxFinance.jsx";
 import { initializeApp } from "firebase/app";
@@ -175,7 +175,18 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
 .proj-card:hover{border-color:var(--br-hi);box-shadow:0 6px 24px rgba(0,0,0,.14);}
 .proj-accent{height:4px;}
 .proj-body{padding:12px 14px;flex:1;cursor:pointer;}
-.proj-actions{padding:7px 9px;border-top:1px solid var(--br);display:flex;gap:4px;background:var(--s3);}
+.proj-actions{padding:0;border-top:1px solid var(--br);display:grid;grid-template-columns:1fr 1fr 1fr 1fr;background:var(--s3);}
+.proj-actions .pab{display:flex;align-items:center;justify-content:center;gap:4px;padding:9px 4px;font-size:10px;font-weight:600;font-family:var(--ui);color:var(--t2);background:transparent;border:none;cursor:pointer;transition:background .12s,color .12s;white-space:nowrap;overflow:hidden;border-right:1px solid var(--br);}
+.proj-actions .pab:last-child{border-right:none;}
+.proj-actions .pab:hover{background:var(--s4);color:var(--t1);}
+.proj-actions .pab.pab-green{color:var(--green);}
+.proj-actions .pab.pab-green:hover{background:rgba(26,217,138,.08);}
+.proj-actions .pab.pab-blue{color:var(--blue);}
+.proj-actions .pab.pab-blue:hover{background:rgba(91,163,245,.08);}
+.proj-actions .pab.pab-amber{color:var(--amber);}
+.proj-actions .pab.pab-amber:hover{background:rgba(232,156,24,.08);}
+.proj-actions .pab.pab-danger{color:var(--acc);}
+.proj-actions .pab.pab-danger:hover{background:rgba(228,53,49,.08);}
 
 .bar-track{height:5px;background:var(--s4);border-radius:3px;overflow:hidden;margin-top:3px;}
 .bar-fill{height:100%;border-radius:3px;transition:width .4s;}
@@ -274,7 +285,6 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
   .port-sidebar{width:100%;border-left:none;border-top:1px solid var(--br);max-height:220px;}
   .port-projects{padding:10px;}
   .proj-grid{grid-template-columns:1fr;}
-  .proj-actions{flex-wrap:wrap;gap:4px;}
   
   /* Tabs */
   .tabs{padding:0 8px;}
@@ -321,7 +331,6 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
   .kpi-bar{display:grid;grid-template-columns:1fr 1fr;overflow-x:unset;}
   .kpi{border-right:1px solid var(--br);border-bottom:1px solid var(--br);}
   .kpi:nth-child(even){border-right:none;}
-  .proj-actions .btn-xs{font-size:9px;padding:3px 6px;}
   .tabs .tab span:not(.mono):not(.badge-count){display:none;}
   .tab{padding:11px 10px;gap:0;}
   .g2,.g3,.g4{grid-template-columns:1fr;}
@@ -492,6 +501,77 @@ function pushInvoice(inv) {
   saveAllInvoices([...all, inv]);
 }
 
+/* ── Per-project Documents (invoices + signed docs that have been pushed here) ── */
+const LS_PROJ_DOCS = "jd_proj_docs";
+function loadProjDocs(projId) {
+  try { const all = JSON.parse(localStorage.getItem(LS_PROJ_DOCS)) || {}; return all[projId] || []; } catch { return []; }
+}
+function saveProjDocs(projId, docs) {
+  try { const all = JSON.parse(localStorage.getItem(LS_PROJ_DOCS)) || {}; all[projId] = docs; localStorage.setItem(LS_PROJ_DOCS, JSON.stringify(all)); } catch {}
+}
+function pushProjDoc(projId, doc) {
+  const docs = loadProjDocs(projId).filter(d => d.id !== doc.id);
+  saveProjDocs(projId, [...docs, doc]);
+}
+
+/* ── Per-project Message Log (emails sent from Documents tab) ── */
+const LS_PROJ_MSGS = "jd_proj_msgs";
+function loadProjMsgs(projId) {
+  try { const all = JSON.parse(localStorage.getItem(LS_PROJ_MSGS)) || {}; return all[projId] || []; } catch { return []; }
+}
+function saveProjMsgs(projId, msgs) {
+  try { const all = JSON.parse(localStorage.getItem(LS_PROJ_MSGS)) || {}; all[projId] = msgs; localStorage.setItem(LS_PROJ_MSGS, JSON.stringify(all)); } catch {}
+}
+function pushProjMsg(projId, msg) {
+  const msgs = loadProjMsgs(projId);
+  saveProjMsgs(projId, [...msgs, { ...msg, id: msg.id || `msg-${Date.now()}`, ts: new Date().toISOString() }]);
+}
+
+/* ── Job email address helpers ── */
+/* ── Vendor Manager LS helpers ────────────────────────────── */
+const LS_VENDORS = "jd_vendors";
+function loadVendors()        { try { return JSON.parse(localStorage.getItem(LS_VENDORS)) || []; } catch { return []; } }
+function saveVendors(arr)     { try { localStorage.setItem(LS_VENDORS, JSON.stringify(arr)); } catch {} }
+function upsertVendor(v)      { const all = loadVendors().filter(x => x.id !== v.id); saveVendors([...all, v]); }
+function deleteVendor(id)     { saveVendors(loadVendors().filter(v => v.id !== id)); }
+
+/* ── Vendor Bills mirror  (AP bills linked to vendor records) ─── */
+const LS_VENDOR_BILLS = "jd_vendor_bills";
+function loadVendorBills()              { try { return JSON.parse(localStorage.getItem(LS_VENDOR_BILLS)) || []; } catch { return []; } }
+function saveVendorBills(arr)           { try { localStorage.setItem(LS_VENDOR_BILLS, JSON.stringify(arr)); } catch {} }
+function upsertVendorBill(bill)         { const all = loadVendorBills().filter(b => b.id !== bill.id); saveVendorBills([...all, bill]); }
+function loadBillsByVendor(vendorId)    { return loadVendorBills().filter(b => b.vendorId === vendorId); }
+function markVendorBillPaid(id, paid)   {
+  const all = loadVendorBills().map(b => b.id === id ? { ...b, status: paid ? "paid" : "approved" } : b);
+  saveVendorBills(all);
+}
+
+/* ── COI status utility ─────────────────────────────────────────── */
+// Returns: "ok" | "expiring" | "expired" | "missing"
+function getCoiStatus(vendor) {
+  if (!vendor?.coi) return "missing";
+  if (!vendor.coi.expiresAt) return "ok";
+  const d = new Date(vendor.coi.expiresAt);
+  const now = new Date();
+  if (d < now) return "expired";
+  if (d < new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)) return "expiring";
+  return "ok";
+}
+const COI_STATUS = {
+  ok:       { label:"COI Valid",        color:"var(--green)", bg:"rgba(26,217,138,.12)"  },
+  expiring: { label:"COI Expiring",     color:"var(--amber)", bg:"rgba(245,158,11,.15)"  },
+  expired:  { label:"COI EXPIRED",      color:"var(--acc)",   bg:"rgba(239,68,68,.15)"   },
+  missing:  { label:"COI Missing",      color:"var(--acc)",   bg:"rgba(239,68,68,.1)"    },
+};
+
+function getJobEmail(proj, coInfo) {
+  if (proj?.jobEmail) return proj.jobEmail;
+  // Auto-generate from proj id + company domain
+  const slug = (proj?.name || proj?.id || "job").toLowerCase().replace(/[^a-z0-9]/g,"-").slice(0,20);
+  const domain = coInfo?.email ? coInfo.email.split("@")[1] : "jobdox.com";
+  return `job-${slug}@${domain}`;
+}
+
 const DEFAULT_WORK_TYPES    = [];
 const DEFAULT_STATUSES      = [];
 const DEFAULT_PROJECT_TYPES = [];
@@ -598,6 +678,75 @@ const DOCS_SEED = [];
 const TASKS_SEED = [];
 
 const SCOPE_SEED = [];
+
+/* ══════════════════════════════════════════════════════════════════
+   PER-PROJECT PERSISTENCE LAYER
+   All project-level data is keyed as "jd_p_{key}_{projId}" in
+   localStorage so it survives page refreshes, re-deploys, and
+   tab switches without needing a Firestore write for every edit.
+══════════════════════════════════════════════════════════════════ */
+const _PFX = "jd_p_";
+
+function _lsRead(projId, key, def) {
+  try {
+    const raw = localStorage.getItem(`${_PFX}${key}_${projId}`);
+    return raw !== null ? JSON.parse(raw) : def;
+  } catch { return def; }
+}
+function _lsWrite(projId, key, val) {
+  try { localStorage.setItem(`${_PFX}${key}_${projId}`, JSON.stringify(val)); } catch(e) {
+    // Storage full — warn once per key
+    if (!window[`_lsWarn_${key}`]) { console.warn(`[Job-Dox] localStorage full for key "${key}". Consider moving media to cloud storage.`); window[`_lsWarn_${key}`] = true; }
+  }
+}
+
+// Typed per-project accessors — keys MUST match useProjState call sites exactly
+const lsProj = {
+  contacts:     { load: (id) => _lsRead(id, "contacts",    null), save: (id,v) => _lsWrite(id, "contacts",    v) },
+  scope:        { load: (id) => _lsRead(id, "scope",       null), save: (id,v) => _lsWrite(id, "scope",       v) },
+  tasks:        { load: (id) => _lsRead(id, "tasks",       null), save: (id,v) => _lsWrite(id, "tasks",       v) },
+  notes:        { load: (id) => _lsRead(id, "notes",       null), save: (id,v) => _lsWrite(id, "notes",       v) },
+  worktypes:    { load: (id) => _lsRead(id, "worktypes",   null), save: (id,v) => _lsWrite(id, "worktypes",   v) },
+  mediaFolders: { load: (id) => _lsRead(id, "mfolders",    null), save: (id,v) => _lsWrite(id, "mfolders",    v) },
+  mediaUploads: { load: (id) => _lsRead(id, "muploads",    null), save: (id,v) => _lsWrite(id, "muploads",    v) },
+  emailSched:   { load: (id) => _lsRead(id, "emailsched",  null), save: (id,v) => _lsWrite(id, "emailsched",  v) },
+  clientPortal: { load: (id) => _lsRead(id, "cportal",     null), save: (id,v) => _lsWrite(id, "cportal",     v) },
+  assigned:     { load: (id) => _lsRead(id, "assigned",    null), save: (id,v) => _lsWrite(id, "assigned",    v) },
+};
+
+// React hook: loads from LS on mount, auto-saves on every change,
+// re-loads if projId changes (navigating between projects).
+function useProjState(projId, key, fallback) {
+  const accessor = lsProj[key];
+  if (!accessor) throw new Error(`[useProjState] Unknown key: "${key}"`);
+
+  const resolve = (stored, fb) => {
+    if (stored !== null) return stored;
+    return typeof fb === "function" ? fb() : fb;
+  };
+
+  const [val, setValRaw] = useState(() => resolve(accessor.load(projId), fallback));
+
+  // Re-load when projId changes (user navigates between projects)
+  const prevProjId = useRef(projId);
+  useEffect(() => {
+    if (prevProjId.current === projId) return;
+    prevProjId.current = projId;
+    setValRaw(resolve(accessor.load(projId), fallback));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projId]);
+
+  const setVal = useCallback((updater) => {
+    setValRaw(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      accessor.save(projId, next);
+      return next;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projId, key]);
+
+  return [val, setVal];
+}
 
 const PRICE_LIST = [
   {code:"WTR-EXT",desc:"Water Extraction",unit:"SF",price:0.85},
@@ -836,6 +985,7 @@ const CURRENT_USER = {
    normalised by normPerm() on read.
 ══════════════════════════════════════════════ */
 const PERM_LEVELS = {
+  0:  { label:"Vendor · Subcontractor",   short:"VND", color:"#e89c18" },
   1:  { label:"Level 1 · Field I",        short:"L1",  color:"#6b7280" },
   2:  { label:"Level 2 · Field II",       short:"L2",  color:"#6b7280" },
   3:  { label:"Level 3 · Technician",     short:"L3",  color:"#22d3ee" },
@@ -849,6 +999,7 @@ const PERM_LEVELS = {
 };
 
 const PERM_DESCRIPTIONS = {
+  0:  { title:"Vendor / Subcontractor", desc:"External vendor or subcontractor login. Sees only projects they are personally assigned to. Can clock in/out and upload photos only. Sees only the specific tasks and checklists they are assigned to — no other project data, no financials." },
   1:  { title:"Field I",      desc:"Sees only projects they are personally assigned to. No financial data of any kind. Can clock in/out and update task status only." },
   2:  { title:"Field II",     desc:"Same project visibility as Level 1. Can view task checklists and add media/photos. No financial access." },
   3:  { title:"Technician",   desc:"Sees all projects at their assigned office(s). Can manage tasks and log notes. No financial or billing data." },
@@ -863,10 +1014,19 @@ const PERM_DESCRIPTIONS = {
 
 // Normalise legacy string permissions to numbers
 function normPerm(raw) {
-  if (typeof raw === "number") return Math.min(10, Math.max(1, raw));
+  if (typeof raw === "number") return Math.min(10, Math.max(0, raw));
+  if (raw === "vendor" || raw === "subcontractor") return 0;
   if (raw === "admin")   return 10;
   if (raw === "manager") return 7;
   return 3; // "staff" or anything else
+}
+
+// Lead Technician or higher — qualifies for default Reply-To on outbound emails.
+// Threshold: permissionLevel >= 6 (Project Lead) OR a role name that implies lead responsibility.
+const LEAD_ROLES = new Set(["Lead Technician","Project Manager","Estimator","Office Admin"]);
+function isLeadOrAbove(staffMember) {
+  const perm = normPerm(staffMember?.permission ?? staffMember?.permissionLevel ?? 3);
+  return perm >= 6 || LEAD_ROLES.has(staffMember?.systemRole);
 }
 
 // Capability gates — derive all caps from a numeric level
@@ -874,7 +1034,8 @@ function permCaps(level) {
   const lv = normPerm(level);
   return {
     level:               lv,
-    canViewOwnJobsOnly:  lv <= 2,                // 1-2: see only assigned projects
+    isVendorPerm:        lv === 0,                // 0: external vendor/subcontractor
+    canViewOwnJobsOnly:  lv <= 2,                // 0-2: see only assigned projects
     canViewOfficeJobs:   lv >= 3 && lv <= 4,     // 3-4: same-office projects only
     canViewAllJobs:      lv >= 5,                // 5+: all projects cross-office
     canAddProject:       lv >= 5,                // 5+: create new projects
@@ -2317,13 +2478,12 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                       </div>
                     )}
                     <div className="proj-actions" onClick={e=>e.stopPropagation()}>
-                      <button className={`btn btn-xs ${isClocked?"btn-danger":"btn-green"}`} style={isClocked?{background:"var(--acc)",color:"#fff",border:"none"}:{}} onClick={()=>setClock(proj)}>
+                      <button className={`pab ${isClocked?"pab-danger":"pab-green"}`} onClick={()=>setClock(proj)}>
                         {isClocked ? <>{Ic.stopwatch} Clock Out</> : <>{Ic.clock} Clock In</>}
                       </button>
-                      <button className="btn btn-blue btn-xs" onClick={()=>setNotify(proj)}>{Ic.notify} Notify</button>
-                      <button className="btn btn-ghost btn-xs" onClick={()=>openMaps(proj)}>{Ic.map} Navigate</button>
-                      <div style={{flex:1}}/>
-                      <button className="btn btn-amber btn-xs" onClick={()=>setComm(proj)} style={{background:"rgba(232,156,24,.1)",border:"1px solid rgba(232,156,24,.25)",color:"var(--amber)"}}>{Ic.phone} Contact</button>
+                      <button className="pab pab-blue" onClick={()=>setNotify(proj)}>{Ic.notify} Notify</button>
+                      <button className="pab" onClick={()=>openMaps(proj)}>{Ic.map} Navigate</button>
+                      <button className="pab pab-amber" onClick={()=>setComm(proj)}>{Ic.phone} Contact</button>
                     </div>
                   </div>
                 );
@@ -2398,14 +2558,40 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
   );
 }
 
-function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emailSchedule="weekly", setEmailSchedule=()=>{}, clientPortal=false, setClientPortal=()=>{}, globalStaff=[], worktypes=[], setWorktypes=()=>{}, currentUser=null }) {
+function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emailSchedule="weekly", setEmailSchedule=()=>{}, clientPortal=false, setClientPortal=()=>{}, globalStaff=[], worktypes=[], setWorktypes=()=>{}, currentUser=null, assignedStaff=[], setAssignedStaff=()=>{} }) {
   const [attrs, setAttrs]           = useState({});
-  const [assigned, setAssigned]     = useState([]);   // project-level assignments from globalStaff
+  const assigned    = assignedStaff;
+  const setAssigned = setAssignedStaff;
   const [addingNote, setAddingNote] = useState(false);
   const [noteText, setNoteText]     = useState("");
   const [assignPick, setAssignPick] = useState(false);
+  const [coiWarn,   setCoiWarn]     = useState(null); // { staff, vendor, status } — pending assignment blocked by COI
 
   const unassigned = globalStaff.filter(s => !assigned.find(a => a.id === s.id));
+
+  // When assigning, check if this staff member is a vendor with COI issues
+  const handleAssign = (s) => {
+    setAssignPick(false);
+    const perm = normPerm(s.permission ?? s.permissionLevel ?? 3);
+    if (perm === 0) {
+      // Look up their vendor record by memberstackId or email
+      const vendorRec = loadVendors().find(v =>
+        (v.memberstackId && v.memberstackId === s.id) ||
+        (v.email && s.email && v.email.toLowerCase() === s.email.toLowerCase())
+      );
+      const status = getCoiStatus(vendorRec);
+      if (status === "expired" || status === "missing") {
+        setCoiWarn({ staff: s, vendor: vendorRec, status });
+        return;
+      }
+      if (status === "expiring") {
+        // warn but don't block
+        setCoiWarn({ staff: s, vendor: vendorRec, status, soft: true });
+        return;
+      }
+    }
+    setAssigned(a => [...a, s]);
+  };
 
   const addNote = () => {
     if(!noteText.trim()) return;
@@ -2531,23 +2717,36 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
               )}
               {globalStaff.length > 0 && unassigned.length > 0 && (
                 <div style={{position:"relative"}}>
-                  <button className="btn btn-ghost btn-xs" onClick={()=>setAssignPick(v=>!v)}>{Ic.plus} Assign Staff</button>
+                  <button className="btn btn-ghost btn-xs" onClick={()=>setAssignPick(v=>!v)}>{Ic.plus} Assign Staff / Vendor</button>
                   {assignPick && (
-                    <div style={{position:"absolute",right:0,top:"100%",marginTop:4,background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,minWidth:220,zIndex:50,boxShadow:"0 8px 24px rgba(0,0,0,.35)",overflow:"hidden"}}>
+                    <div style={{position:"absolute",right:0,top:"100%",marginTop:4,background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,minWidth:260,zIndex:50,boxShadow:"0 8px 24px rgba(0,0,0,.35)",overflow:"hidden",maxHeight:320,overflowY:"auto"}}>
                       {unassigned.map(s=>{
-                        const rc = ROLE_COLORS[s.systemRole]||"#5ba3f5";
+                        const rc    = ROLE_COLORS[s.systemRole]||"#5ba3f5";
+                        const perm  = normPerm(s.permission ?? s.permissionLevel ?? 3);
+                        const isVnd = perm === 0;
+                        const vRec  = isVnd ? loadVendors().find(v =>
+                          (v.memberstackId && v.memberstackId === s.id) ||
+                          (v.email && s.email && v.email.toLowerCase() === s.email.toLowerCase())
+                        ) : null;
+                        const coiSt = isVnd ? getCoiStatus(vRec) : "ok";
                         return (
                           <button key={s.id} style={{width:"100%",background:"transparent",border:"none",borderBottom:"1px solid var(--br)",padding:"9px 13px",display:"flex",alignItems:"center",gap:9,cursor:"pointer",fontFamily:"var(--ui)"}}
-                            onClick={()=>{setAssigned(a=>[...a,s]);setAssignPick(false);}}
+                            onClick={()=>handleAssign(s)}
                             onMouseEnter={e=>e.currentTarget.style.background="var(--s3)"}
                             onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                             <div style={{width:28,height:28,borderRadius:"50%",background:`${rc}18`,border:`1.5px solid ${rc}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:rc,flexShrink:0}}>
                               {s.photoUrl?<img src={s.photoUrl} style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/>:`${(s.firstName||"")[0]}${(s.lastName||"")[0]}`}
                             </div>
-                            <div style={{textAlign:"left"}}>
+                            <div style={{textAlign:"left",flex:1,minWidth:0}}>
                               <div style={{fontSize:11,fontWeight:700,color:"var(--t1)"}}>{s.firstName} {s.lastName}</div>
-                              <div style={{fontSize:9,color:rc,fontWeight:600}}>{s.systemRole}</div>
+                              <div style={{fontSize:9,color:rc,fontWeight:600}}>{s.systemRole||PERM_LEVELS[perm]?.short}</div>
                             </div>
+                            {isVnd && (
+                              <span style={{fontSize:8,padding:"1px 5px",borderRadius:3,fontFamily:"var(--mono)",fontWeight:700,flexShrink:0,
+                                background:COI_STATUS[coiSt].bg,color:COI_STATUS[coiSt].color}}>
+                                {coiSt==="ok"?"COI ✓":coiSt==="expiring"?"COI ⚠":coiSt==="expired"?"COI ✕":"NO COI"}
+                              </span>
+                            )}
                           </button>
                         );
                       })}
@@ -2562,15 +2761,31 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
               {globalStaff.length === 0 ? "No company staff configured. Go to Settings › Staff to add team members." : "No staff assigned to this project yet."}
             </div>
           ) : assigned.map(s=>{
-            const rc = ROLE_COLORS[s.systemRole]||"#5ba3f5";
+            const rc    = ROLE_COLORS[s.systemRole]||"#5ba3f5";
+            const perm  = normPerm(s.permission ?? s.permissionLevel ?? 3);
+            const isVnd = perm === 0;
+            const vRec  = isVnd ? loadVendors().find(v =>
+              (v.memberstackId && v.memberstackId === s.id) ||
+              (v.email && s.email && v.email.toLowerCase() === s.email.toLowerCase())
+            ) : null;
+            const coiSt = isVnd ? getCoiStatus(vRec) : "ok";
+            const coiWarnStyle = (coiSt === "expired" || coiSt === "missing")
+              ? {border:"1.5px solid var(--acc)",background:"rgba(239,68,68,.04)"}
+              : coiSt === "expiring" ? {border:"1.5px solid var(--amber)",background:"rgba(245,158,11,.04)"} : {};
             return (
-              <div key={s.id} className="staff-row">
+              <div key={s.id} className="staff-row" style={coiWarnStyle}>
                 <div style={{width:32,height:32,borderRadius:"50%",overflow:"hidden",background:`${rc}18`,border:`1.5px solid ${rc}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:rc,flexShrink:0}}>
                   {s.photoUrl?<img src={s.photoUrl} style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:"50%"}}/>:`${(s.firstName||"")[0]}${(s.lastName||"")[0]}`}
                 </div>
                 <div style={{flex:1,minWidth:0,fontSize:12,fontWeight:600,color:"var(--t1)"}}>{s.firstName} {s.lastName}</div>
-                <div style={{fontSize:11,width:170}}>
-                  <span style={{borderRadius:20,padding:"2px 8px",fontSize:9,fontWeight:700,background:`${rc}18`,color:rc}}>{s.systemRole}</span>
+                <div style={{fontSize:11,width:170,display:"flex",alignItems:"center",gap:5}}>
+                  <span style={{borderRadius:20,padding:"2px 8px",fontSize:9,fontWeight:700,background:`${rc}18`,color:rc}}>{s.systemRole||PERM_LEVELS[perm]?.short}</span>
+                  {isVnd && coiSt !== "ok" && (
+                    <span style={{fontSize:8,padding:"1px 5px",borderRadius:3,fontFamily:"var(--mono)",fontWeight:700,
+                      background:COI_STATUS[coiSt].bg,color:COI_STATUS[coiSt].color}}>
+                      {coiSt==="expiring"?"COI ⚠":"COI ✕"}
+                    </span>
+                  )}
                 </div>
                 <div style={{fontSize:11,color:"var(--blue)",width:140}}>{s.phone||"—"}</div>
                 <div style={{display:"flex",gap:4}}>
@@ -2582,6 +2797,61 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
             );
           })}
         </div>
+
+        {/* ── COI Warning Modal ── */}
+        {coiWarn && (
+          <div className="overlay" onClick={()=>setCoiWarn(null)}>
+            <div className="modal anim" style={{maxWidth:460}} onClick={e=>e.stopPropagation()}>
+              <div className="modal-hd">
+                <div>
+                  <div className="modal-ttl" style={{color: coiWarn.status==="expiring"?"var(--amber)":"var(--acc)"}}>
+                    {coiWarn.status==="expiring" ? "⚠ COI Expiring Soon" :
+                     coiWarn.status==="expired"  ? "🚫 COI Expired" : "🚫 Certificate of Insurance Missing"}
+                  </div>
+                  <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>
+                    {coiWarn.staff.firstName} {coiWarn.staff.lastName} · {coiWarn.staff.systemRole||"Vendor"}
+                  </div>
+                </div>
+                <button className="btn btn-ghost btn-xs" onClick={()=>setCoiWarn(null)}>✕</button>
+              </div>
+              <div className="modal-body">
+                {coiWarn.status === "expiring" ? (
+                  <>
+                    <div style={{padding:"12px 14px",background:"rgba(245,158,11,.08)",border:"1px solid rgba(245,158,11,.3)",borderRadius:8,marginBottom:14,fontSize:11,color:"var(--t2)",lineHeight:1.65}}>
+                      ⚠ This vendor's Certificate of Insurance expires on <strong>{coiWarn.vendor?.coi?.expiresAt ? new Date(coiWarn.vendor.coi.expiresAt).toLocaleDateString() : "—"}</strong>. You can still assign them to this project, but you should request an updated COI before work begins.
+                    </div>
+                    <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                      <button className="btn btn-ghost btn-sm" onClick={()=>setCoiWarn(null)}>Cancel</button>
+                      <button className="btn btn-primary btn-sm" style={{background:"var(--amber)",borderColor:"var(--amber)"}}
+                        onClick={()=>{ setAssigned(a=>[...a,coiWarn.staff]); setCoiWarn(null); }}>
+                        Assign Anyway
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{padding:"12px 14px",background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.3)",borderRadius:8,marginBottom:14,fontSize:11,color:"var(--t2)",lineHeight:1.65}}>
+                      🚫 {coiWarn.status === "expired"
+                        ? `This vendor's Certificate of Insurance expired on ${coiWarn.vendor?.coi?.expiresAt ? new Date(coiWarn.vendor.coi.expiresAt).toLocaleDateString() : "an unknown date"}.`
+                        : "This vendor does not have a Certificate of Insurance on file."}
+                      {" "}Assigning them to new projects is not recommended until their COI is updated.
+                    </div>
+                    <div style={{fontSize:11,color:"var(--t3)",marginBottom:14}}>
+                      You can upload their updated COI in <strong style={{color:"var(--t2)"}}>Settings → Vendors → {coiWarn.staff.firstName} {coiWarn.staff.lastName} → Documents</strong>.
+                    </div>
+                    <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                      <button className="btn btn-ghost btn-sm" onClick={()=>setCoiWarn(null)}>Don't Assign</button>
+                      <button className="btn btn-danger btn-sm"
+                        onClick={()=>{ setAssigned(a=>[...a,coiWarn.staff]); setCoiWarn(null); }}>
+                        Assign Anyway (Override)
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         <div className="card" style={{gridColumn:"1/-1"}}>
           <div style={{marginBottom:13}}>
             <div style={{fontSize:13,fontWeight:700}}>Custom Attributes</div>
@@ -2681,13 +2951,12 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
   );
 }
 
-function ContactsTab() {
-  const [contacts, setContacts] = useState(CONTACTS_SEED);
-  const [adding, setAdding]     = useState(false);
-  const [f, setF]               = useState({name:"",role:"",phone:"",email:""});
+function ContactsTab({ contacts=[], setContacts=()=>{} }) {
+  const [adding, setAdding] = useState(false);
+  const [f, setF]           = useState({name:"",role:"",phone:"",email:""});
   const add = () => {
     if (!f.name) return;
-    setContacts(c=>[...c,{id:uid(),...f,color:AVCOLORS[contacts.length%AVCOLORS.length]}]);
+    setContacts(c => [...c, {id:uid(), ...f, color:AVCOLORS[c.length % AVCOLORS.length]}]);
     setF({name:"",role:"",phone:"",email:""}); setAdding(false);
   };
   return (
@@ -2732,15 +3001,36 @@ function ContactsTab() {
   );
 }
 
-function MediaTab({ folders:foldersIn, setFolders:setFoldersIn, uploads:uploadsIn, setUploads:setUploadsIn }) {
-  const [folders, setFoldersL] = useState(foldersIn || ["Day 1 — Initial Documentation","Moisture Mapping","Equipment Setup"]);
-  const [active, setActive]    = useState(null);
-  const [uploads, setUploadsL] = useState(uploadsIn || []);
-  const [nf, setNf]            = useState("");
-  const fileRef                = useRef();
-  const setFolders = v => { const val = typeof v === "function" ? v(folders) : v; setFoldersL(val); if(setFoldersIn) setFoldersIn(val); };
-  const setUploads = v => { const val = typeof v === "function" ? v(uploads) : v; setUploadsL(val); if(setUploadsIn) setUploadsIn(val); };
-  const handleUp = e => { Array.from(e.target.files).forEach(f=>{const r=new FileReader();r.onload=ev=>setUploads(u=>[...u,{id:uid(),name:f.name,dataUrl:ev.target.result,folder:active||"Unfiled"}]);r.readAsDataURL(f);}); e.target.value=""; };
+function MediaTab({ folders:foldersIn=[], setFolders:setFoldersIn=()=>{}, uploads:uploadsIn=[], setUploads:setUploadsIn=()=>{} }) {
+  // Use props directly — parent (ProjectDetail) owns the state and persists it via useProjState.
+  // No internal copy; all mutations call the parent setter which auto-saves to localStorage.
+  const folders  = foldersIn;
+  const uploads  = uploadsIn;
+  const setFolders = useCallback((v) => {
+    const next = typeof v === "function" ? v(folders) : v;
+    setFoldersIn(next);
+  }, [folders, setFoldersIn]);
+  const setUploads = useCallback((v) => {
+    const next = typeof v === "function" ? v(uploads) : v;
+    setUploadsIn(next);
+  }, [uploads, setUploadsIn]);
+
+  const [active, setActive] = useState(null);
+  const [nf, setNf]         = useState("");
+  const fileRef             = useRef();
+
+  const handleUp = e => {
+    Array.from(e.target.files).forEach(f => {
+      // Guard: warn if file is large (base64 in LS can hit quota quickly)
+      if (f.size > 2 * 1024 * 1024) {
+        console.warn(`[Job-Dox] Photo "${f.name}" is ${(f.size/1024/1024).toFixed(1)} MB. Large photos may fill localStorage. Consider cloud storage.`);
+      }
+      const r = new FileReader();
+      r.onload = ev => setUploads(u => [...u, { id:uid(), name:f.name, dataUrl:ev.target.result, folder:active||"Unfiled", size:f.size }]);
+      r.readAsDataURL(f);
+    });
+    e.target.value = "";
+  };
   if (typeof active==="string") {
     const fu=uploads.filter(u=>u.folder===active);
     return (
@@ -2941,8 +3231,25 @@ function TaskCommentModal({ task, onClose, currentUserName="You", globalStaff=[]
   );
 }
 
-function TasksTab({ initialTasks=[], globalStaff=[], companyId="", phoneSettings={} }) {
-  const [tasks, setTasks] = useState(() => initialTasks.length ? initialTasks : TASKS_SEED);
+function TasksTab({ projId="", initialTasks=[], globalStaff=[], companyId="", phoneSettings={}, currentMemberId="", isVendor=false }) {
+  // Load from LS first; fall back to Firestore initialTasks; then empty
+  const [tasks, setTasksRaw] = useState(() => {
+    if (projId) {
+      const stored = _lsRead(projId, "tasks", null);
+      if (stored !== null) return stored;
+    }
+    return initialTasks.length ? initialTasks : [];
+  });
+
+  // Wrap setTasks to auto-save on every change
+  const setTasks = useCallback((updater) => {
+    setTasksRaw(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      if (projId) _lsWrite(projId, "tasks", next);
+      return next;
+    });
+  }, [projId]);
+
   const [filter, setFilter] = useState("open");
   const [adding, setAdding] = useState(false);
   const [commentTask, setCommentTask] = useState(null);
@@ -2988,7 +3295,11 @@ function TasksTab({ initialTasks=[], globalStaff=[], companyId="", phoneSettings
     }));
   };
 
-  const vis = tasks.filter(t => filter==="all" || t.status===filter);
+  // Vendors only see tasks they are personally assigned to
+  const visBase = isVendor && currentMemberId
+    ? tasks.filter(t => Array.isArray(t.assignedUserIds) && t.assignedUserIds.includes(currentMemberId))
+    : tasks;
+  const vis = visBase.filter(t => filter==="all" || t.status===filter);
   const priC = {high:"var(--acc)", med:"var(--amber)", low:"var(--t3)"};
 
   return (
@@ -3017,8 +3328,9 @@ function TasksTab({ initialTasks=[], globalStaff=[], companyId="", phoneSettings
             ))}
           </div>
           <div style={{display:"flex",gap:6}}>
-            <button className="btn btn-ghost btn-xs" onClick={()=>{setTaskType("appointment");setAdding(v=>!v);}}>{Ic.calendar} Appointment</button>
-            <button className="btn btn-primary btn-xs" onClick={()=>{setTaskType("task");setAdding(v=>!v);}}>{Ic.plus} Add Task</button>
+            {!isVendor && <button className="btn btn-ghost btn-xs" onClick={()=>{setTaskType("appointment");setAdding(v=>!v);}}>{Ic.calendar} Appointment</button>}
+            {!isVendor && <button className="btn btn-primary btn-xs" onClick={()=>{setTaskType("task");setAdding(v=>!v);}}>{Ic.plus} Add Task</button>}
+            {isVendor && <span style={{fontSize:10,color:"var(--t3)",fontStyle:"italic"}}>Showing your assigned tasks</span>}
           </div>
         </div>
 
@@ -3288,11 +3600,7 @@ function ShiftsTab({ projId, externalShifts=[], canViewRates, canViewPayRates=fa
 
 
 
-function ScopeTab({ proj, scopeItems: externalItems, setScopeItems: setExternal }) {
-  const [internalItems, setInternal] = useState(SCOPE_SEED);
-  const items    = externalItems !== undefined ? externalItems : internalItems;
-  const setItems = externalItems !== undefined ? setExternal   : setInternal;
-
+function ScopeTab({ proj, scopeItems: items=[], setScopeItems: setItems=()=>{}, contacts=[], onDocGenerated }) {
   const billing   = loadBilling();
   const co        = loadCoInfo();
 
@@ -3308,6 +3616,20 @@ function ScopeTab({ proj, scopeItems: externalItems, setScopeItems: setExternal 
   const [showPinned,   setShowPinned]  = useState(false);
   const [filterSrc,    setFilter]      = useState("all");
   const [generated,    setGenerated]   = useState(false);
+
+  // ── New: invoice mode + room support + budget assignment ──
+  const [invoiceMode,   setInvoiceMode]   = useState("simple"); // "simple" | "complex"
+  const [showRooms,     setShowRooms]     = useState(false);    // show room column in complex mode
+  const [budgetCatId,   setBudgetCatId]   = useState("");       // which budget category this invoice is applied to
+  const [dueInDays,     setDueInDays]     = useState(30);
+
+  // Budget categories for this project
+  const projBudget = useMemo(() => {
+    try {
+      const all = JSON.parse(localStorage.getItem("jd_project_budgets")) || {};
+      return (all[proj?.id]?.categories || []).filter(c => c.active);
+    } catch { return []; }
+  }, [proj?.id]);
 
   const selTax    = billing.taxRates?.find(t => t.id === selTaxId) || { name:"No Tax", rate:0 };
   const sub       = items.reduce((s,i) => s + i.qty*i.price, 0);
@@ -3340,26 +3662,46 @@ function ScopeTab({ proj, scopeItems: externalItems, setScopeItems: setExternal 
     const b = loadBilling();
     const num = b.nextInvoiceNum || 1001;
     saveBilling({ ...b, nextInvoiceNum: num+1 });
+    const co = loadCoInfo();
+    const budgetCat = projBudget.find(c => c.id === budgetCatId) || null;
     const inv = {
-      id:         `inv-${Date.now()}`,
-      number:     `INV-${num}`,
-      projId:     proj?.id || "",
-      projName:   proj?.name || "",
-      projAddress:proj?.address || "",
-      clientName: proj?.clientName || proj?.client || "",
-      clientPhone:proj?.clientPhone || proj?.phone || "",
-      company:    co,
-      date:       new Date().toISOString(),
-      dueDate:    new Date(Date.now()+30*86400000).toISOString(),
+      id:          `inv-${Date.now()}`,
+      number:      `INV-${num}`,
+      projId:      proj?.id || "",
+      projName:    proj?.name || "",
+      projAddress: proj?.address || "",
+      clientName:  proj?.clientName || proj?.client || "",
+      clientPhone: proj?.clientPhone || proj?.phone || "",
+      company:     co,
+      date:        new Date().toISOString(),
+      dueDate:     new Date(Date.now() + dueInDays*86400000).toISOString(),
       summary,
-      lineItems:  items,
-      adjustments:{ overhead, discount, taxId:selTaxId, taxName:selTax.name, taxRate:selTax.rate, surcharges },
-      subtotal:   sub, overheadAmt:ovAmt, surchargeAmt:surAmt, discountAmt:discAmt, taxAmt, total,
+      lineItems:   items,
+      adjustments: { overhead, discount, taxId:selTaxId, taxName:selTax.name, taxRate:selTax.rate, surcharges },
+      subtotal:    sub, overheadAmt:ovAmt, surchargeAmt:surAmt, discountAmt:discAmt, taxAmt, total,
       terms,
-      status:     "unpaid",
-      createdAt:  new Date().toISOString(),
+      status:      "unpaid",
+      invoiceMode,                               // "simple" | "complex"
+      hasRooms:    invoiceMode === "complex" && showRooms,
+      budgetCatId: budgetCatId || null,
+      budgetCatName: budgetCat?.name || null,
+      createdAt:   new Date().toISOString(),
     };
+    // Push to Finance (LS invoices)
     pushInvoice(inv);
+    // Push to Documents tab as a sendable document
+    pushProjDoc(proj?.id || "", {
+      id:        inv.id,
+      type:      "invoice",
+      number:    inv.number,
+      name:      `${inv.number} — ${proj?.name || "Invoice"}`,
+      total:     inv.total,
+      status:    "unpaid",
+      date:      inv.date,
+      invoiceMode,
+      _inv:      inv,          // full invoice data for preview/print
+    });
+    if (onDocGenerated) onDocGenerated();
     setGenerated(true);
     setTimeout(()=>setGenerated(false), 3500);
   };
@@ -3470,8 +3812,11 @@ function ScopeTab({ proj, scopeItems: externalItems, setScopeItems: setExternal 
           </div>
 
           {/* Column headers */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 62px 70px 80px 80px 26px",gap:6,padding:"3px 9px",marginBottom:3}}>
-            {["Description","Unit","Qty","Unit Price","Total",""].map((h,i)=><div key={i} className="mono" style={{fontSize:9,color:"var(--t3)"}}>{h}</div>)}
+          <div style={{display:"grid",gridTemplateColumns:invoiceMode==="complex"&&showRooms?"140px 1fr 62px 70px 80px 80px 26px":"1fr 62px 70px 80px 80px 26px",gap:6,padding:"3px 9px",marginBottom:3}}>
+            {(invoiceMode==="complex"&&showRooms
+              ? ["Room","Description","Unit","Qty","Unit Price","Total",""]
+              : ["Description","Unit","Qty","Unit Price","Total",""]
+            ).map((h,i)=><div key={i} className="mono" style={{fontSize:9,color:"var(--t3)"}}>{h}</div>)}
           </div>
 
           {vis.length===0 && (
@@ -3482,10 +3827,15 @@ function ScopeTab({ proj, scopeItems: externalItems, setScopeItems: setExternal 
 
           {vis.map(it=>{
             const src = SOURCE_BADGE[it.source||"manual"];
+            const showRoom = invoiceMode==="complex" && showRooms;
             return (
-              <div key={it.id} style={{display:"grid",gridTemplateColumns:"1fr 62px 70px 80px 80px 26px",gap:6,alignItems:"center",
+              <div key={it.id} style={{display:"grid",gridTemplateColumns:showRoom?"140px 1fr 62px 70px 80px 80px 26px":"1fr 62px 70px 80px 80px 26px",gap:6,alignItems:"center",
                 padding:"5px 9px",background:"var(--s2)",border:"1px solid var(--br)",borderRadius:7,marginBottom:3,
                 borderLeft:`3px solid ${src?.color||"var(--br)"}`}}>
+                {showRoom && (
+                  <input value={it.room||""} onChange={e=>upd(it.id,"room",e.target.value)} className="inp"
+                    style={{height:28,fontSize:10}} placeholder="e.g. Master Bed"/>
+                )}
                 <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}>
                   <input value={it.desc} onChange={e=>upd(it.id,"desc",e.target.value)} className="inp" style={{height:28,fontSize:11,flex:1}}/>
                   {it.source && it.source!=="manual" && (
@@ -3619,15 +3969,68 @@ function ScopeTab({ proj, scopeItems: externalItems, setScopeItems: setExternal 
           <div style={{fontSize:9,color:"var(--t3)",marginTop:4}}>Edit your default Terms in Settings → Billing.</div>
         </div>
 
+        {/* ── Invoice Configuration ── */}
+        <div className="card" style={{padding:14}}>
+          <div className="sec" style={{marginBottom:12}}>Invoice Configuration</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+            {/* Invoice Mode */}
+            <div>
+              <label className="lbl">Invoice Type</label>
+              <div style={{display:"flex",gap:6,marginTop:4}}>
+                {[["simple","Simple","Total amount only"],["complex","Complex","Full line-item breakdown"]].map(([val,label,sub])=>(
+                  <button key={val} onClick={()=>{setInvoiceMode(val);if(val==="simple")setShowRooms(false);}}
+                    style={{flex:1,padding:"8px 10px",borderRadius:8,cursor:"pointer",textAlign:"left",transition:"all .12s",
+                      border:`1.5px solid ${invoiceMode===val?"var(--blue)":"var(--br)"}`,
+                      background:invoiceMode===val?"rgba(91,163,245,.08)":"var(--s2)"}}>
+                    <div style={{fontSize:11,fontWeight:700,color:invoiceMode===val?"var(--blue)":"var(--t1)"}}>{label}</div>
+                    <div style={{fontSize:9,color:"var(--t3)",marginTop:2}}>{sub}</div>
+                  </button>
+                ))}
+              </div>
+              {invoiceMode==="complex" && (
+                <label style={{display:"flex",alignItems:"center",gap:6,marginTop:8,cursor:"pointer"}}>
+                  <input type="checkbox" checked={showRooms} onChange={e=>setShowRooms(e.target.checked)}
+                    style={{width:13,height:13,accentColor:"var(--blue)"}}/>
+                  <span style={{fontSize:11,color:"var(--t2)"}}>Group by Room / Area</span>
+                  <span style={{fontSize:9,color:"var(--t3)"}}>— adds Room column to each line item</span>
+                </label>
+              )}
+            </div>
+            {/* Budget Assignment + Due Date */}
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              <div>
+                <label className="lbl">Apply to Budget Category</label>
+                <select className="sel" value={budgetCatId} onChange={e=>setBudgetCatId(e.target.value)}>
+                  <option value="">— None / General —</option>
+                  {projBudget.map(c=>(
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                {projBudget.length===0 && (
+                  <div style={{fontSize:9,color:"var(--t3)",marginTop:3}}>No budget categories on this project yet. Add them in the Finance → Budget tab.</div>
+                )}
+              </div>
+              <div>
+                <label className="lbl">Payment Due</label>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <input type="number" className="inp" value={dueInDays} min={0} style={{width:60}}
+                    onChange={e=>setDueInDays(parseInt(e.target.value)||0)}/>
+                  <span style={{fontSize:11,color:"var(--t2)"}}>days from today</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* ── Generate Actions ── */}
         {generated && (
           <div style={{padding:"11px 16px",background:"rgba(26,217,138,.1)",border:"1px solid rgba(26,217,138,.3)",borderRadius:9,color:"var(--green)",fontWeight:700,fontSize:12,display:"flex",alignItems:"center",gap:8}}>
-            {Ic.check} Invoice generated and saved to the Finance tab.
+            {Ic.check} Invoice generated → saved to Finance &amp; Documents tabs.
           </div>
         )}
         <div style={{display:"flex",justifyContent:"flex-end",gap:8,paddingBottom:24}}>
           <button className="btn btn-ghost">Preview PDF</button>
-          <button className="btn btn-primary btn-lg" onClick={generateInvoice}>{Ic.invoice} Generate Invoice → Finance</button>
+          <button className="btn btn-primary btn-lg" onClick={generateInvoice}>{Ic.invoice} Generate Invoice → Finance &amp; Docs</button>
         </div>
 
       </div>
@@ -3654,13 +4057,535 @@ function SurchargeAdder({ onAdd, onCancel }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 
-function MessagesTab() {
+/* ══════════════════════════════════════════════════════════════════
+   DOC EMAIL MODAL  — pick recipients and send documents from the Documents tab
+══════════════════════════════════════════════════════════════════ */
+function DocEmailModal({ docs=[], contacts=[], proj, assignedStaff=[], onSend, onClose }) {
+  const co       = loadCoInfo();
+  const jobEmail = getJobEmail(proj, co);
+
+  // Lead-or-above staff on this project who have an email address
+  const leadStaff = assignedStaff.filter(s => isLeadOrAbove(s) && s.email);
+
+  // Reply-To defaults: job address always on, lead+ staff pre-checked
+  const [replyToJob,    setReplyToJob]    = useState(true);
+  const [selReplyStaff, setSelReplyStaff] = useState(() => new Set(leadStaff.map(s => s.id)));
+
+  const [selDocs, setSelDocs] = useState(new Set(docs.map(d => d.id)));
+  const [selCts,  setSelCts]  = useState(new Set(contacts.filter(c=>c.email).map(c => c.id)));
+  const [subject, setSubject] = useState(`Documents from ${proj?.name || "your project"}`);
+  const [body,    setBody]    = useState(
+    `Hi,\n\nPlease find the attached document(s) for ${proj?.name || "your project"}.\n\nIf you have any questions, feel free to reply to this email.\n\nThank you.`
+  );
+  const [sending, setSending] = useState(false);
+  const [sent,    setSent]    = useState(false);
+
+  const toggleDoc = id => setSelDocs(s => { const n=new Set(s); n.has(id)?n.delete(id):n.add(id); return n; });
+  const toggleCt  = id => setSelCts(s  => { const n=new Set(s); n.has(id)?n.delete(id):n.add(id); return n; });
+  const toggleRS  = id => setSelReplyStaff(s => { const n=new Set(s); n.has(id)?n.delete(id):n.add(id); return n; });
+
+  const allDocs = selDocs.size === docs.length;
+  const allCts  = selCts.size  === contacts.filter(c=>c.email).length;
+
+  const replyToAddresses = [
+    replyToJob ? jobEmail : null,
+    ...leadStaff.filter(s => selReplyStaff.has(s.id)).map(s => s.email),
+  ].filter(Boolean);
+
+  const handleSend = async () => {
+    if (!selCts.size) return;
+    setSending(true);
+    const recipients   = contacts.filter(c => selCts.has(c.id));
+    const attachedDocs = docs.filter(d => selDocs.has(d.id));
+    const ccStaff      = leadStaff.filter(s => selReplyStaff.has(s.id));
+    pushProjMsg(proj?.id || "", {
+      type:      "email",
+      direction: "outbound",
+      from:      jobEmail,
+      replyTo:   replyToAddresses.join(", "),
+      cc:        ccStaff.map(s => s.email).join(", "),
+      to:        recipients.map(c => c.email || c.name).join(", "),
+      recipients,
+      ccStaff:   ccStaff.map(s => ({ id:s.id, name:`${s.firstName||""} ${s.lastName||""}`.trim(), email:s.email })),
+      subject,
+      body,
+      docs:      attachedDocs.map(d => ({ id:d.id, name:d.name, type:d.type })),
+    });
+    await new Promise(r => setTimeout(r, 600));
+    setSending(false); setSent(true);
+    setTimeout(() => { onSend?.(); onClose(); }, 1200);
+  };
+
   return (
+    <div className="overlay" onClick={e => e.target===e.currentTarget && onClose()}>
+      <div className="modal anim" style={{maxWidth:600,maxHeight:"92vh",display:"flex",flexDirection:"column"}}>
+        <div className="modal-hd">
+          <div>
+            <div className="modal-ttl">Send Documents</div>
+            <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",marginTop:2}}>From: {jobEmail}</div>
+          </div>
+          <button className="btn btn-ghost btn-xs" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body" style={{overflowY:"auto",flex:1}}>
+
+          {/* Documents */}
+          <div style={{marginBottom:14}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:7}}>
+              <label className="lbl" style={{margin:0}}>Documents to Attach</label>
+              <button className="btn btn-ghost btn-xs" style={{fontSize:10}}
+                onClick={()=>setSelDocs(allDocs?new Set():new Set(docs.map(d=>d.id)))}>
+                {allDocs?"Deselect All":"Select All"}
+              </button>
+            </div>
+            {docs.length===0 && <div style={{fontSize:11,color:"var(--t3)"}}>No documents on this project yet.</div>}
+            {docs.map(d=>(
+              <label key={d.id} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 11px",
+                borderRadius:7,border:`1.5px solid ${selDocs.has(d.id)?"var(--blue)":"var(--br)"}`,
+                background:selDocs.has(d.id)?"rgba(91,163,245,.07)":"var(--s2)",
+                marginBottom:5,cursor:"pointer",transition:"all .1s"}}>
+                <input type="checkbox" checked={selDocs.has(d.id)} onChange={()=>toggleDoc(d.id)}
+                  style={{width:13,height:13,accentColor:"var(--blue)"}}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</div>
+                  <div style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",marginTop:1}}>
+                    {d.type==="invoice"?"📄 Invoice":"📑 Document"}
+                    {d.total ? ` · ${fmt$c(d.total)}`        : ""}
+                    {d.status? ` · ${d.status.toUpperCase()}` : ""}
+                  </div>
+                </div>
+              </label>
+            ))}
+          </div>
+
+          {/* TO: Contacts */}
+          <div style={{marginBottom:14}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:7}}>
+              <label className="lbl" style={{margin:0}}>To: Recipients</label>
+              <button className="btn btn-ghost btn-xs" style={{fontSize:10}}
+                onClick={()=>setSelCts(allCts?new Set():new Set(contacts.filter(c=>c.email).map(c=>c.id)))}>
+                {allCts?"Deselect All":"Select All"}
+              </button>
+            </div>
+            {contacts.filter(c=>c.email).length===0 && (
+              <div style={{fontSize:11,color:"var(--t3)"}}>No contacts with email addresses. Add them in the Contacts tab.</div>
+            )}
+            {contacts.filter(c=>c.email).map(c=>(
+              <label key={c.id} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 11px",
+                borderRadius:7,border:`1.5px solid ${selCts.has(c.id)?"var(--blue)":"var(--br)"}`,
+                background:selCts.has(c.id)?"rgba(91,163,245,.07)":"var(--s2)",
+                marginBottom:5,cursor:"pointer",transition:"all .1s"}}>
+                <input type="checkbox" checked={selCts.has(c.id)} onChange={()=>toggleCt(c.id)}
+                  style={{width:13,height:13,accentColor:"var(--blue)"}}/>
+                <Av name={c.name} color={c.color||"#5ba3f5"} size={26}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:600,color:"var(--t1)"}}>{c.name}</div>
+                  <div style={{fontSize:10,color:"var(--t3)"}}>{c.role} · {c.email}</div>
+                </div>
+              </label>
+            ))}
+            {contacts.filter(c=>!c.email).length>0 && (
+              <div style={{fontSize:9,color:"var(--t3)",marginTop:4}}>
+                {contacts.filter(c=>!c.email).length} contact(s) have no email and are excluded.
+              </div>
+            )}
+          </div>
+
+          {/* REPLY-TO & CC: Staff */}
+          <div style={{marginBottom:14}}>
+            <div style={{marginBottom:7}}>
+              <label className="lbl" style={{margin:0}}>Reply-To &amp; CC: Staff</label>
+              <div style={{fontSize:9,color:"var(--t3)",marginTop:2}}>
+                Contacts who reply will reach all checked addresses. Lead Technician+ are pre-selected.
+              </div>
+            </div>
+
+            {/* Job address row */}
+            <label style={{display:"flex",alignItems:"center",gap:9,padding:"7px 11px",
+              borderRadius:7,border:`1.5px solid ${replyToJob?"var(--green)":"var(--br)"}`,
+              background:replyToJob?"rgba(26,217,138,.06)":"var(--s2)",
+              marginBottom:5,cursor:"pointer",transition:"all .1s"}}>
+              <input type="checkbox" checked={replyToJob} onChange={e=>setReplyToJob(e.target.checked)}
+                style={{width:13,height:13,accentColor:"var(--green)"}}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:11,fontWeight:600,color:"var(--t1)",fontFamily:"var(--mono)"}}>{jobEmail}</div>
+                <div style={{fontSize:9,color:"var(--t3)"}}>Job address — logs replies in the Messages tab</div>
+              </div>
+              <span style={{fontSize:8,background:"rgba(26,217,138,.15)",color:"var(--green)",borderRadius:4,padding:"1px 6px",fontFamily:"var(--mono)",flexShrink:0}}>JOB</span>
+            </label>
+
+            {/* Lead+ staff */}
+            {leadStaff.length===0 && (
+              <div style={{fontSize:11,color:"var(--t3)",padding:"6px 11px",fontStyle:"italic"}}>
+                No lead-level staff on this project yet — assign staff (Lead Technician or above) in the Overview tab and they'll appear here automatically.
+              </div>
+            )}
+            {leadStaff.map(s => {
+              const rc   = ROLE_COLORS[s.systemRole] || "#5ba3f5";
+              const perm = normPerm(s.permission ?? s.permissionLevel ?? 3);
+              const pl   = PERM_LEVELS[perm];
+              const checked = selReplyStaff.has(s.id);
+              return (
+                <label key={s.id} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 11px",
+                  borderRadius:7,border:`1.5px solid ${checked?rc:"var(--br)"}`,
+                  background:checked?`${rc}0d`:"var(--s2)",
+                  marginBottom:5,cursor:"pointer",transition:"all .1s"}}>
+                  <input type="checkbox" checked={checked} onChange={()=>toggleRS(s.id)}
+                    style={{width:13,height:13,accentColor:rc}}/>
+                  <Av name={`${s.firstName||""} ${s.lastName||""}`} color={rc} size={26}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12,fontWeight:600,color:"var(--t1)"}}>{s.firstName} {s.lastName}</div>
+                    <div style={{fontSize:10,color:"var(--t3)"}}>{s.email}</div>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,flexShrink:0}}>
+                    <span style={{fontSize:8,background:`${rc}18`,color:rc,borderRadius:4,padding:"1px 6px",fontFamily:"var(--mono)",whiteSpace:"nowrap"}}>{s.systemRole||pl?.short}</span>
+                    {checked && <span style={{fontSize:8,color:"var(--t3)"}}>reply-to + cc</span>}
+                  </div>
+                </label>
+              );
+            })}
+
+            {/* Reply-To preview */}
+            {replyToAddresses.length>0 && (
+              <div style={{marginTop:8,padding:"7px 11px",background:"var(--s3)",border:"1px solid var(--br)",borderRadius:7}}>
+                <div style={{fontSize:9,color:"var(--t3)",marginBottom:3,fontFamily:"var(--mono)"}}>REPLY-TO HEADER</div>
+                <div style={{fontSize:10,color:"var(--t2)",wordBreak:"break-all",lineHeight:1.7,fontFamily:"var(--mono)"}}>
+                  {replyToAddresses.join(", ")}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Subject + body */}
+          <div style={{marginBottom:9}}>
+            <label className="lbl">Subject</label>
+            <input className="inp" value={subject} onChange={e=>setSubject(e.target.value)}/>
+          </div>
+          <div style={{marginBottom:14}}>
+            <label className="lbl">Message</label>
+            <textarea className="txa" value={body} onChange={e=>setBody(e.target.value)} style={{minHeight:100,fontSize:11,lineHeight:1.65}}/>
+          </div>
+
+          {/* Routing summary */}
+          <div style={{padding:"8px 11px",background:"rgba(91,163,245,.07)",border:"1px solid rgba(91,163,245,.2)",borderRadius:8,fontSize:10,color:"var(--t2)"}}>
+            📬 Sent from <strong style={{fontFamily:"var(--mono)"}}>{jobEmail}</strong>.{" "}
+            {replyToAddresses.length>1
+              ? `Replies reach ${replyToAddresses.length} addresses — job inbox${leadStaff.filter(s=>selReplyStaff.has(s.id)).length>0?` + ${leadStaff.filter(s=>selReplyStaff.has(s.id)).length} staff`:""}.`
+              : "Replies go to the job inbox and are logged in the Messages tab."}
+          </div>
+        </div>
+
+        <div style={{padding:"12px 20px",borderTop:"1px solid var(--br)",display:"flex",alignItems:"center",gap:10}}>
+          <div style={{flex:1,fontSize:11,color:"var(--t3)"}}>
+            {selCts.size} recipient{selCts.size!==1?"s":""} · {selDocs.size} doc{selDocs.size!==1?"s":""}
+            {selReplyStaff.size>0 && ` · ${selReplyStaff.size} staff cc'd`}
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary btn-sm" onClick={handleSend}
+            disabled={sending||sent||!selCts.size||!selDocs.size} style={{minWidth:100}}>
+            {sent?"✓ Sent!":sending?"Sending…":"Send Email"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   PROJECT DOCUMENTS TAB  — shows invoices + signed docs, email sending
+══════════════════════════════════════════════════════════════════ */
+function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate }) {
+  const [docs,      setDocs]      = useState(() => loadProjDocs(proj?.id||""));
+  const [emailModal,setEmailModal]= useState(false);
+  const [selInv,    setSelInv]    = useState(null);   // invoice preview
+
+  // Re-load if proj changes
+  useEffect(()=>{ setDocs(loadProjDocs(proj?.id||"")); }, [proj?.id]);
+
+  const removeDoc = (id) => {
+    const updated = docs.filter(d=>d.id!==id);
+    saveProjDocs(proj?.id||"", updated);
+    setDocs(updated);
+  };
+
+  const jobEmail = getJobEmail(proj, loadCoInfo());
+
+  return (
+    <div className="scroll"><div style={{maxWidth:900,margin:"0 auto"}}>
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+        <div>
+          <div className="sec" style={{marginBottom:2}}>Project Documents</div>
+          <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>Job email: {jobEmail}</div>
+        </div>
+        <div style={{display:"flex",gap:7}}>
+          <button className="btn btn-secondary btn-xs" onClick={()=>onNavigate&&onNavigate(proj?.id,"scope")}>
+            + Generate Invoice
+          </button>
+          {docs.length>0 && (
+            <button className="btn btn-primary btn-xs" onClick={()=>setEmailModal(true)}>
+              ✉ Email Documents
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Document list */}
+      {docs.length===0 ? (
+        <div style={{padding:"36px 20px",textAlign:"center",background:"var(--s2)",borderRadius:12,border:"1px dashed var(--br)"}}>
+          <div style={{fontSize:28,opacity:.25,marginBottom:10}}>📄</div>
+          <div style={{fontSize:13,color:"var(--t2)",marginBottom:6}}>No documents yet</div>
+          <div style={{fontSize:11,color:"var(--t3)",marginBottom:16}}>Generate an invoice from the Scope/Invoice tab — it'll appear here automatically.</div>
+          <button className="btn btn-secondary btn-sm" onClick={()=>onNavigate&&onNavigate(proj?.id,"scope")}>
+            Go to Scope/Invoice
+          </button>
+        </div>
+      ) : (
+        <div style={{display:"flex",flexDirection:"column",gap:7}}>
+          {[...docs].reverse().map(doc=>(
+            <div key={doc.id} className="card" style={{padding:"12px 15px",display:"flex",alignItems:"center",gap:12}}>
+              <div style={{fontSize:22,flexShrink:0}}>{doc.type==="invoice"?"🧾":"📑"}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <span style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>{doc.name}</span>
+                  {doc.invoiceMode && (
+                    <span style={{fontSize:9,background:doc.invoiceMode==="complex"?"rgba(139,92,246,.15)":"rgba(91,163,245,.15)",
+                      color:doc.invoiceMode==="complex"?"var(--purple)":"var(--blue)",borderRadius:4,padding:"1px 6px",fontFamily:"var(--mono)"}}>
+                      {doc.invoiceMode.toUpperCase()}
+                    </span>
+                  )}
+                  {doc.status && (
+                    <span style={{fontSize:9,background:doc.status==="paid"?"rgba(26,217,138,.15)":"rgba(245,158,11,.15)",
+                      color:doc.status==="paid"?"var(--green)":"var(--amber)",borderRadius:4,padding:"1px 6px",fontFamily:"var(--mono)"}}>
+                      {doc.status.toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>
+                  {doc.date ? new Date(doc.date).toLocaleDateString() : ""}
+                  {doc.total ? ` · ${fmt$c(doc.total)}` : ""}
+                </div>
+              </div>
+              <div style={{display:"flex",gap:6,flexShrink:0}}>
+                {doc._inv && (
+                  <button className="btn btn-secondary btn-xs" onClick={()=>setSelInv(doc._inv)}>
+                    View
+                  </button>
+                )}
+                <button className="btn btn-ghost btn-xs" style={{color:"var(--blue)"}}
+                  onClick={()=>setEmailModal({singleDoc:doc})}>
+                  ✉
+                </button>
+                <button className="btn btn-ghost btn-xs" style={{color:"var(--acc)"}}
+                  onClick={()=>{ if(window.confirm("Remove this document?")) removeDoc(doc.id); }}>
+                  {Ic.trash}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Email modal */}
+      {emailModal && (
+        <DocEmailModal
+          docs={emailModal.singleDoc ? [emailModal.singleDoc] : docs}
+          contacts={contacts}
+          assignedStaff={assignedStaff}
+          proj={proj}
+          onSend={()=>{ setDocs(loadProjDocs(proj?.id||"")); }}
+          onClose={()=>setEmailModal(false)}
+        />
+      )}
+
+      {/* Invoice preview */}
+      {selInv && <InvoicePreviewPortalModal inv={selInv} onClose={()=>setSelInv(null)}/>}
+    </div></div>
+  );
+}
+
+/* Simple inline invoice preview (portal side, doesn't require finance file import) */
+function InvoicePreviewPortalModal({ inv, onClose }) {
+  if (!inv) return null;
+  const isComplex = inv.invoiceMode === "complex";
+  const hasRooms  = inv.hasRooms && isComplex;
+
+  // Group by room if applicable
+  const roomGroups = useMemo(() => {
+    if (!hasRooms) return null;
+    const groups = {};
+    (inv.lineItems||[]).forEach(li => {
+      const room = li.room || "General";
+      if (!groups[room]) groups[room] = [];
+      groups[room].push(li);
+    });
+    return groups;
+  }, [inv, hasRooms]);
+
+  return (
+    <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()} style={{alignItems:"flex-start",paddingTop:32,overflowY:"auto"}}>
+      <div className="modal anim" style={{maxWidth:700,width:"100%"}}>
+        <div className="modal-hd">
+          <div className="modal-ttl">{inv.number} Preview</div>
+          <div style={{display:"flex",gap:6}}>
+            <button className="btn btn-secondary btn-xs" onClick={()=>window.print()}>🖨 Print</button>
+            <button className="btn btn-ghost btn-xs" onClick={onClose}>✕</button>
+          </div>
+        </div>
+        <div className="modal-body" style={{fontFamily:"var(--font)"}}>
+          {/* Header */}
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:20}}>
+            <div>
+              {inv.company?.logo && <img src={inv.company.logo} alt="" style={{height:36,marginBottom:6,display:"block"}}/>}
+              <div style={{fontWeight:700,fontSize:14}}>{inv.company?.name}</div>
+              <div style={{fontSize:10,color:"var(--t3)",lineHeight:1.6}}>{inv.company?.phone}<br/>{inv.company?.email}</div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontFamily:"var(--mono)",fontSize:18,fontWeight:800,color:"var(--t1)"}}>{inv.number}</div>
+              <div style={{fontSize:10,color:"var(--t3)",marginTop:4}}>
+                Date: {inv.date?new Date(inv.date).toLocaleDateString():""}<br/>
+                Due: {inv.dueDate?new Date(inv.dueDate).toLocaleDateString():""}
+              </div>
+              {inv.budgetCatName && (
+                <div style={{marginTop:6,fontSize:10,background:"rgba(91,163,245,.12)",color:"var(--blue)",borderRadius:5,padding:"2px 8px",display:"inline-block",fontFamily:"var(--mono)"}}>
+                  Budget: {inv.budgetCatName}
+                </div>
+              )}
+            </div>
+          </div>
+          <div style={{borderBottom:"1px solid var(--br)",marginBottom:16}}/>
+          <div style={{display:"flex",gap:20,marginBottom:16}}>
+            <div><div style={{fontSize:9,color:"var(--t3)",marginBottom:3}}>BILL TO</div><div style={{fontWeight:600}}>{inv.clientName}</div><div style={{fontSize:10,color:"var(--t3)"}}>{inv.projAddress}</div></div>
+            <div><div style={{fontSize:9,color:"var(--t3)",marginBottom:3}}>PROJECT</div><div style={{fontWeight:600}}>{inv.projName}</div></div>
+          </div>
+
+          {/* Simple mode: just total */}
+          {!isComplex && (
+            <div style={{padding:"20px",background:"var(--s2)",borderRadius:10,textAlign:"center",marginBottom:16}}>
+              <div style={{fontSize:11,color:"var(--t3)",marginBottom:6}}>TOTAL AMOUNT DUE</div>
+              <div style={{fontFamily:"var(--mono)",fontSize:32,fontWeight:800,color:"var(--green)"}}>{fmt$c(inv.total)}</div>
+              {inv.summary && <div style={{fontSize:11,color:"var(--t2)",marginTop:10,lineHeight:1.6}}>{inv.summary}</div>}
+            </div>
+          )}
+
+          {/* Complex mode: full line items */}
+          {isComplex && (
+            <div style={{marginBottom:16}}>
+              {!hasRooms && (inv.lineItems||[]).map((li,i)=>(
+                <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 50px 60px 70px 70px",gap:6,
+                  padding:"5px 0",borderBottom:"1px solid var(--br)",fontSize:11}}>
+                  <div>{li.desc}</div>
+                  <div style={{color:"var(--t3)",textAlign:"center"}}>{li.unit}</div>
+                  <div style={{textAlign:"right"}}>{li.qty}</div>
+                  <div style={{textAlign:"right"}}>{fmt$c(li.price)}</div>
+                  <div style={{textAlign:"right",fontWeight:700,color:"var(--green)"}}>{fmt$c(li.qty*li.price)}</div>
+                </div>
+              ))}
+              {hasRooms && Object.entries(roomGroups||{}).map(([room,items])=>(
+                <div key={room} style={{marginBottom:12}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"var(--blue)",padding:"5px 8px",background:"rgba(91,163,245,.08)",borderRadius:5,marginBottom:4}}>{room}</div>
+                  {items.map((li,i)=>(
+                    <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 50px 60px 70px 70px",gap:6,
+                      padding:"4px 8px",borderBottom:"1px solid var(--br)",fontSize:11}}>
+                      <div>{li.desc}</div>
+                      <div style={{color:"var(--t3)",textAlign:"center"}}>{li.unit}</div>
+                      <div style={{textAlign:"right"}}>{li.qty}</div>
+                      <div style={{textAlign:"right"}}>{fmt$c(li.price)}</div>
+                      <div style={{textAlign:"right",fontWeight:700,color:"var(--green)"}}>{fmt$c(li.qty*li.price)}</div>
+                    </div>
+                  ))}
+                  <div style={{display:"flex",justifyContent:"flex-end",fontSize:11,fontWeight:700,color:"var(--t2)",padding:"3px 8px"}}>
+                    Room subtotal: {fmt$c(items.reduce((s,li)=>s+li.qty*li.price,0))}
+                  </div>
+                </div>
+              ))}
+              {/* Totals */}
+              <div style={{marginTop:10,borderTop:"2px solid var(--br)",paddingTop:10}}>
+                {[
+                  ["Subtotal", fmt$c(inv.subtotal||0), "var(--t2)"],
+                  ...(inv.adjustments?.overhead>0?[[`Overhead (${inv.adjustments.overhead}%)`,fmt$c(inv.overheadAmt||0),"var(--amber)"]]:[]),
+                  ...(inv.adjustments?.discount>0?[[`Discount (${inv.adjustments.discount}%)`,`-${fmt$c(inv.discountAmt||0)}`,"var(--acc)"]]:[]),
+                  ...(inv.taxAmt>0?[[inv.adjustments?.taxName||"Tax",fmt$c(inv.taxAmt||0),"var(--t2)"]]:[]),
+                  ["TOTAL DUE",fmt$c(inv.total||0),"var(--green)"],
+                ].map(([l,v,c],i,arr)=>(
+                  <div key={l} style={{display:"flex",justifyContent:"flex-end",gap:24,padding:"3px 0",
+                    borderBottom:i===arr.length-1?"none":"1px solid var(--br)"}}>
+                    <span style={{fontSize:10,color:"var(--t3)",minWidth:140,textAlign:"right"}}>{l}</span>
+                    <span className="mono" style={{fontSize:i===arr.length-1?15:11,color:c,fontWeight:700,minWidth:80,textAlign:"right"}}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {inv.terms && (
+            <div style={{marginTop:12,padding:"10px 12px",background:"var(--s2)",borderRadius:7,fontSize:9,color:"var(--t3)",lineHeight:1.7}}>
+              <div style={{fontWeight:700,marginBottom:4,color:"var(--t2)"}}>Terms & Conditions</div>
+              {inv.terms}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MessagesTab({ proj, contacts=[] }) {
+  const [msgs, setMsgs] = useState(() => loadProjMsgs(proj?.id||""));
+  const [refresh, setRefresh] = useState(0);
+
+  useEffect(()=>{ setMsgs(loadProjMsgs(proj?.id||"")); }, [proj?.id, refresh]);
+
+  const co       = loadCoInfo();
+  const jobEmail = getJobEmail(proj, co);
+
+  if (!msgs.length) return (
     <div style={{padding:"32px 0",textAlign:"center",color:"var(--t3)"}}>
       <div style={{fontSize:28,marginBottom:8,opacity:.4}}>💬</div>
-      <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:4}}>Project Messages</div>
-      <div style={{fontSize:11}}>Message history for this project will appear here.</div>
+      <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:4}}>No messages yet</div>
+      <div style={{fontSize:11,marginBottom:4}}>Emails sent from the Documents tab will appear here.</div>
+      <div style={{fontSize:10,fontFamily:"var(--mono)",color:"var(--blue)",marginTop:8}}>Job email: {jobEmail}</div>
     </div>
+  );
+
+  return (
+    <div className="scroll"><div style={{maxWidth:800,margin:"0 auto"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+        <div className="sec">Message Log</div>
+        <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>Job email: {jobEmail}</div>
+      </div>
+      {[...msgs].reverse().map(m=>(
+        <div key={m.id} className="card" style={{marginBottom:8,padding:"12px 15px"}}>
+          <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+            <div style={{fontSize:20,flexShrink:0,marginTop:1}}>{m.type==="email"?"✉️":"💬"}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:4}}>
+                <span style={{fontSize:12,fontWeight:700,color:"var(--t1)"}}>{m.subject}</span>
+                <span style={{fontSize:8,background:"rgba(91,163,245,.12)",color:"var(--blue)",borderRadius:3,padding:"1px 5px",fontFamily:"var(--mono)"}}>
+                  {m.direction==="outbound"?"SENT":"RECEIVED"}
+                </span>
+              </div>
+              <div style={{fontSize:10,color:"var(--t3)",marginBottom:6}}>
+                <span>To: {m.to}</span>
+                <span style={{marginLeft:10}}>From: {m.from}</span>
+                <span style={{marginLeft:10,fontFamily:"var(--mono)"}}>{m.ts?new Date(m.ts).toLocaleString():""}</span>
+              </div>
+              {m.docs?.length>0 && (
+                <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:6}}>
+                  {m.docs.map(d=>(
+                    <span key={d.id} style={{fontSize:9,background:"var(--s3)",border:"1px solid var(--br)",borderRadius:4,padding:"2px 7px",color:"var(--t2)"}}>
+                      📎 {d.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div style={{fontSize:10,color:"var(--t2)",lineHeight:1.6,whiteSpace:"pre-wrap",borderTop:"1px solid var(--br)",paddingTop:6}}>
+                {m.body}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div></div>
   );
 }
 
@@ -6164,22 +7089,31 @@ const PROJ_TABS = [
 
 
 
-function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists, companyId="", phoneSettings={} }) {
+function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists, companyId="", phoneSettings={}, isVendor=false, currentMemberId="" }) {
   const [tab,setTab]           = useState(initialTab||"overview");
   const [notifyModal,setNotify]= useState(false);
   const [commModal,setComm]    = useState(false);
   const [clockModal,setClock]  = useState(false);
-  // Shared state lifted so all tabs stay in sync
-  const [dailyNotes, setDailyNotes]     = useState(DAILY_NOTES_SEED);
-  const [emailSchedule, setEmailSched]  = useState("weekly");
-  const [clientPortal, setClientPortal] = useState(true);
-  const [mediaFolders, setMediaFolders] = useState(["Day 1 — Initial Documentation","Moisture Mapping","Equipment Setup"]);
-  const [mediaUploads, setMediaUploads] = useState([]);
-  const [projDocs, setProjDocs]         = useState(DOCS_SEED);
-  // ── Scope items lifted here so DryDox + ContentsDox can push to it ──
-  const [scopeItems, setScopeItems]     = useState(SCOPE_SEED);
-  // ── Work types: seeded from project data, managed locally + synced to localStorage ──
-  const [worktypes, setWorktypes]       = useState(proj.worktypes || []);
+  // ── All shared tab state is now persisted via useProjState ──
+  // useProjState(projId, key, fallback) saves to localStorage automatically
+  // and re-loads when navigating between projects.
+  const DEFAULT_MEDIA_FOLDERS = ["Day 1 — Initial Documentation","Moisture Mapping","Equipment Setup"];
+
+  const [dailyNotes,   setDailyNotes]  = useProjState(proj.id, "notes",        []);
+  const [emailSchedule,setEmailSched]  = useProjState(proj.id, "emailSched",   "weekly");
+  const [clientPortal, setClientPortal]= useProjState(proj.id, "clientPortal", true);
+  const [mediaFolders, setMediaFolders]= useProjState(proj.id, "mediaFolders", DEFAULT_MEDIA_FOLDERS);
+  const [mediaUploads, setMediaUploads]= useProjState(proj.id, "mediaUploads", []);
+  // Contacts lifted here so Documents + Messages tabs can use them
+  const [contacts,     setContacts]    = useProjState(proj.id, "contacts",     []);
+  // Assigned staff lifted here so Documents tab can use lead+ for Reply-To
+  const [assignedStaff, setAssignedStaff] = useProjState(proj.id, "assigned",  []);
+  // Scope items lifted here so DryDox + ContentsDox can push to it
+  const [scopeItems,   setScopeItems]  = useProjState(proj.id, "scope",        []);
+  // Project-level work type assignments (separate from company work type definitions)
+  const [worktypes,    setWorktypes]   = useProjState(proj.id, "worktypes",    proj.worktypes || []);
+  // projDocs state kept for legacy ProjectReportTab compatibility; canonical source is lsProj.docs (loadProjDocs)
+  const [projDocs, setProjDocs]        = useState(DOCS_SEED);
 
   const openMaps = () => window.open(`https://maps.google.com/?q=${encodeURIComponent(proj.address)}`,"_blank");
   const isClocked = clockInState?.projId === proj.id;
@@ -6248,18 +7182,18 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
           </button>
         ))}
       </div>
-      {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff} worktypes={worktypes} setWorktypes={setWorktypes} currentUser={currentUser}/>}
+      {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff} worktypes={worktypes} setWorktypes={setWorktypes} currentUser={currentUser} assignedStaff={assignedStaff} setAssignedStaff={setAssignedStaff}/>}
       {tab==="drydox"         && <DryDoxTab      proj={proj} priceLists={priceLists} onPushToScope={handlePushToScope}/>}
       {tab==="contentsdox"    && <ContentsDoxTab proj={proj} onPushToScope={handlePushToScope}/>}
       {tab==="estimatedox"    && <EstimateDoxTab proj={proj}/>}
-      {tab==="contacts"       && <ContactsTab/>}
+      {tab==="contacts"       && <ContactsTab contacts={contacts} setContacts={setContacts}/>}
       {tab==="media"          && <MediaTab       folders={mediaFolders} setFolders={setMediaFolders} uploads={mediaUploads} setUploads={setMediaUploads}/>}
-      {tab==="documents"      && <DocumentsTab   proj={proj} docs={projDocs} setDocs={setProjDocs}/>}
-      {tab==="tasks"          && <TasksTab initialTasks={proj.templateTasks||[]} globalStaff={globalStaff} companyId={companyId} phoneSettings={phoneSettings}/>}
+      {tab==="documents"      && <ProjectDocumentsPanel proj={proj} contacts={contacts} assignedStaff={assignedStaff} onNavigate={onNavigate}/>}
+      {tab==="tasks"          && <TasksTab projId={proj.id} initialTasks={proj.templateTasks||[]} globalStaff={globalStaff} companyId={companyId} phoneSettings={phoneSettings} currentMemberId={currentMemberId} isVendor={isVendor}/>}
       {tab==="finance"        && <FinancialTab proj={proj} companyId={companyId} laborCost={laborCost} invoices={loadProjInvoices(proj.id)} onInvoiceVoid={id=>{const all=loadAllInvoices().map(i=>i.id===id?{...i,status:"void"}:i);saveAllInvoices(all);}}/>}
       {tab==="shifts"         && <ShiftsTab projId={proj.id} externalShifts={myShifts} canViewRates={canViewRates}/>}
-      {tab==="scope"          && <ScopeTab proj={proj} scopeItems={scopeItems} setScopeItems={setScopeItems}/>}
-      {tab==="messages"       && <MessagesTab/>}
+      {tab==="scope"          && <ScopeTab proj={proj} scopeItems={scopeItems} setScopeItems={setScopeItems} contacts={contacts}/>}
+      {tab==="messages"       && <MessagesTab proj={proj} contacts={contacts}/>}
       {tab==="calls"          && <CallLogTab proj={proj} companyId={companyId} globalStaff={globalStaff} currentUser={currentUser} phoneSettings={phoneSettings}/>}
       {tab==="project-report" && <ProjectReportTab proj={proj} dailyNotes={dailyNotes} mediaFolders={mediaFolders} mediaUploads={mediaUploads} docs={projDocs}/>}
     </>
@@ -7313,8 +8247,690 @@ function PhoneSettingsTab({ companyId, globalStaff=[], permLevel=1 }) {
   );
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   VENDOR MANAGER TAB
+   Lives inside Settings. Stores W9, COI, portal login info.
+   Cross-references jd_invoices for revenue + AP paid per project.
+══════════════════════════════════════════════════════════════════════ */
+/* Single AP bill row in Vendor Invoices tab */
+function BillRow({ bill, onTogglePaid }) {
+  const STATUS_C = { received:"var(--blue)", approved:"var(--purple)", scheduled:"var(--amber)", paid:"var(--green)" };
+  const isPaid = bill.status === "paid";
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:8,
+      marginBottom:5,background:"var(--s2)",border:`1px solid ${isPaid?"var(--br)":"rgba(232,156,24,.25)"}`}}>
+      <div style={{fontSize:18,flexShrink:0,opacity:isPaid?0.4:1}}>📬</div>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:12,fontWeight:600,color:isPaid?"var(--t3)":"var(--t1)",
+          textDecoration:isPaid?"line-through":"none",
+          overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+          {bill.description||"Bill"}
+        </div>
+        <div style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",marginTop:1}}>
+          {bill.date}{bill.projName?` · ${bill.projName}`:""}{bill.category?` · ${bill.category}`:""}
+        </div>
+      </div>
+      <span style={{fontSize:9,fontWeight:700,fontFamily:"var(--mono)",padding:"2px 6px",borderRadius:4,
+        background:`${STATUS_C[bill.status]||"var(--t3)"}18`,color:STATUS_C[bill.status]||"var(--t3)"}}>
+        {(bill.status||"open").toUpperCase()}
+      </span>
+      <div style={{textAlign:"right",flexShrink:0,minWidth:72}}>
+        <div style={{fontSize:13,fontWeight:700,fontFamily:"var(--mono)",color:isPaid?"var(--t3)":"#e89c18"}}>
+          {fmt$(bill.amount||0)}
+        </div>
+      </div>
+      <button className={`btn btn-xs ${isPaid?"btn-ghost":"btn-primary"}`}
+        style={isPaid?{}:{background:"var(--green)",borderColor:"var(--green)"}}
+        onClick={()=>onTogglePaid(bill.id, !isPaid)}
+        title={isPaid?"Mark as Outstanding":"Mark as Paid"}>
+        {isPaid ? "↩ Unmark" : "✓ Paid"}
+      </button>
+    </div>
+  );
+}
 
-function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission=1, currentMemberId, currentMemberName, onPermissionChange, offices=[] }) {
+function VendorManagerTab({ projects=[], globalStaff=[], companyId="" }) {
+  const [vendors,    setVendors]    = useState(loadVendors);
+  const [selected,   setSelected]   = useState(null); // vendor id open in detail panel
+  const [detailTab,  setDetailTab]  = useState("profile");
+  const [showForm,   setShowForm]   = useState(false);
+  const [saving,     setSaving]     = useState(false);
+  const [search,     setSearch]     = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+
+  const BLANK = {
+    id:"", firstName:"", lastName:"", company:"", trade:"", email:"", phone:"",
+    status:"active", permissionLevel:0, notes:"",
+    w9:    null,  // { fileName, base64, uploadedAt }
+    coi:   null,  // { fileName, base64, uploadedAt, expiresAt }
+    memberstackId:"",
+  };
+  const [form, setForm] = useState(BLANK);
+  const fld = (k,v) => setForm(f=>({...f,[k]:v}));
+
+  const save = () => {
+    if (!form.firstName && !form.company) return;
+    setSaving(true);
+    const v = { ...form, id: form.id || uid(), permissionLevel: 0 };
+    upsertVendor(v);
+    setVendors(loadVendors());
+    setTimeout(()=>{ setSaving(false); setShowForm(false); setForm(BLANK); }, 400);
+  };
+
+  const del = (id) => {
+    if (!window.confirm("Remove this vendor? This cannot be undone.")) return;
+    deleteVendor(id);
+    setVendors(loadVendors());
+    if (selected === id) setSelected(null);
+  };
+
+  const openNew  = ()  => { setForm(BLANK);  setShowForm(true); };
+  const openEdit = (v) => { setForm({...BLANK,...v}); setShowForm(true); };
+
+  // File upload → base64
+  const handleFile = async (field, file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const base64 = e.target.result;
+      fld(field, { fileName: file.name, base64, uploadedAt: new Date().toISOString(), expiresAt: form[field]?.expiresAt || "" });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // For existing vendor detail panel — reload from LS when vendors change
+  const currentVendor = vendors.find(v => v.id === selected) || null;
+
+  // ── Per-vendor project stats ──────────────────────────────────────
+  // A vendor is "on" a project if they appear in jd_p_assigned_{projId}
+  const vendorProjects = (vendor) => {
+    if (!vendor) return [];
+    const allInvoices = loadAllInvoices();
+    return projects.map(p => {
+      const assigned = _lsRead(p.id, "assigned", null) || [];
+      const onJob = assigned.some(s =>
+        s.id === vendor.id ||
+        s.email === vendor.email ||
+        (`${s.firstName||""} ${s.lastName||""}`.trim().toLowerCase() === `${vendor.firstName||""} ${vendor.lastName||""}`.trim().toLowerCase())
+      );
+      if (!onJob) return null;
+
+      const projInvs = allInvoices.filter(i => i.projId === p.id);
+      // Revenue = client invoices (type==="invoice" or no type, not bill/expense/payroll/payment_out)
+      const AP_TYPES = new Set(["bill","payment_out","expense","payroll"]);
+      const revenue = projInvs
+        .filter(i => !AP_TYPES.has(i.type) && i.status !== "void")
+        .reduce((s,i) => s + (i.total ?? i.amount ?? 0), 0);
+      // Paid to this vendor = AP bills/payments matching vendor name or id
+      const vendorName = [vendor.firstName, vendor.lastName].filter(Boolean).join(" ").toLowerCase();
+      const vendorCompany = (vendor.company || "").toLowerCase();
+      const paid = projInvs
+        .filter(i => AP_TYPES.has(i.type) && (
+          (i.vendor || "").toLowerCase().includes(vendorName) ||
+          (vendorName && (i.vendor || "").toLowerCase().includes(vendorName)) ||
+          (vendorCompany && (i.vendor || "").toLowerCase().includes(vendorCompany))
+        ))
+        .reduce((s,i) => s + (i.amount ?? 0), 0);
+
+      return { proj: p, revenue, paid, pct: revenue > 0 ? (paid/revenue*100) : 0 };
+    }).filter(Boolean);
+  };
+
+  // Filter + search
+  const vis = vendors.filter(v => {
+    if (filterStatus !== "all" && v.status !== filterStatus) return false;
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return `${v.firstName} ${v.lastName} ${v.company} ${v.trade} ${v.email}`.toLowerCase().includes(q);
+  });
+
+  // COI expiry warning
+  const coiExpired = (v) => {
+    if (!v.coi?.expiresAt) return false;
+    return new Date(v.coi.expiresAt) < new Date();
+  };
+  const coiExpiringSoon = (v) => {
+    if (!v.coi?.expiresAt) return false;
+    const d = new Date(v.coi.expiresAt);
+    const now = new Date();
+    return d >= now && d < new Date(now.getTime() + 30*24*60*60*1000);
+  };
+
+  // Overall stats across ALL vendors
+  const allInvoices   = loadAllInvoices();
+  const AP_TYPES_GLOB = new Set(["bill","payment_out","expense","payroll"]);
+  const totalVendorPaid = vendors.reduce((sum, v) => {
+    const vn = `${v.firstName||""} ${v.lastName||""}`.trim().toLowerCase();
+    const vc = (v.company||"").toLowerCase();
+    return sum + allInvoices
+      .filter(i => AP_TYPES_GLOB.has(i.type) &&
+        ((vn && (i.vendor||"").toLowerCase().includes(vn)) ||
+         (vc && (i.vendor||"").toLowerCase().includes(vc))))
+      .reduce((s,i) => s+(i.amount||0), 0);
+  }, 0);
+
+  const STATUS_COLORS = { active:"var(--green)", inactive:"var(--t3)" };
+
+  return (
+    <div style={{display:"flex",gap:0,height:"100%",minHeight:500}}>
+      {/* ── LEFT PANEL: list ── */}
+      <div style={{width:selected?320:undefined,flex:selected?undefined:1,flexShrink:0,display:"flex",flexDirection:"column",gap:0,
+        borderRight:selected?"1px solid var(--br)":"none",paddingRight:selected?20:0,marginRight:selected?20:0}}>
+
+        {/* Header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+          <div>
+            <div style={{fontSize:14,fontWeight:700,color:"var(--t1)"}}>Vendor &amp; Subcontractor Registry</div>
+            <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>
+              {vendors.length} vendor{vendors.length!==1?"s":""} · ${fmt$(totalVendorPaid)} total paid out
+            </div>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={openNew}>{Ic.plus} Add Vendor</button>
+        </div>
+
+        {/* Search + filter */}
+        <div style={{display:"flex",gap:7,marginBottom:12}}>
+          <input className="inp" placeholder="Search vendors…" value={search}
+            onChange={e=>setSearch(e.target.value)} style={{flex:1,fontSize:11}}/>
+          {["all","active","inactive"].map(s=>(
+            <button key={s} className={`chip${filterStatus===s?" on":""}`} onClick={()=>setFilterStatus(s)}
+              style={{fontSize:10,textTransform:"capitalize"}}>{s}</button>
+          ))}
+        </div>
+
+        {/* Summary KPI row */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:14}}>
+          {[
+            ["Total Vendors",   vendors.length,                      "var(--blue)"],
+            ["Active",          vendors.filter(v=>v.status==="active").length, "var(--green)"],
+            ["COI Expiring",    vendors.filter(coiExpiringSoon).length + vendors.filter(coiExpired).length, "var(--amber)"],
+          ].map(([l,v,c])=>(
+            <div key={l} style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,padding:"10px 13px"}}>
+              <div style={{fontSize:18,fontWeight:800,color:c,fontFamily:"var(--mono)"}}>{v}</div>
+              <div style={{fontSize:9,color:"var(--t3)",marginTop:2,fontFamily:"var(--ui)"}}>{l}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Vendor list */}
+        {vis.length === 0 && (
+          <div style={{padding:32,textAlign:"center",color:"var(--t3)",fontSize:11,fontStyle:"italic"}}>
+            {vendors.length===0 ? "No vendors yet — click Add Vendor to get started." : "No vendors match your search."}
+          </div>
+        )}
+        {vis.map(v => {
+          const vp   = vendorProjects(v);
+          const paid = vp.reduce((s,p)=>s+p.paid,0);
+          const rev  = vp.reduce((s,p)=>s+p.revenue,0);
+          const hasW9  = !!v.w9;
+          const hasCOI = !!v.coi;
+          const expired = coiExpired(v);
+          const expiring = coiExpiringSoon(v);
+          return (
+            <div key={v.id}
+              onClick={()=>{ setSelected(v.id===selected?null:v.id); setDetailTab("profile"); }}
+              style={{padding:"12px 14px",borderRadius:10,cursor:"pointer",marginBottom:5,
+                border:`1.5px solid ${selected===v.id?"var(--blue)":"var(--br)"}`,
+                background:selected===v.id?"rgba(91,163,245,.06)":"var(--s2)",transition:"all .1s"}}>
+              <div style={{display:"flex",alignItems:"center",gap:9}}>
+                <div style={{width:36,height:36,borderRadius:"50%",flexShrink:0,
+                  background:"rgba(232,156,24,.12)",border:"1.5px solid #e89c18",
+                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"#e89c18"}}>
+                  {(v.firstName?.[0]||v.company?.[0]||"V").toUpperCase()}{(v.lastName?.[0]||"").toUpperCase()}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {v.firstName||""} {v.lastName||""} {v.company?<span style={{color:"var(--t3)",fontWeight:400}}>· {v.company}</span>:null}
+                  </div>
+                  <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{v.trade||"General"} · {vp.length} project{vp.length!==1?"s":""}</div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3}}>
+                  <span style={{fontSize:8,background:`${STATUS_COLORS[v.status]}20`,color:STATUS_COLORS[v.status],
+                    borderRadius:4,padding:"1px 6px",fontFamily:"var(--mono)",fontWeight:700,textTransform:"uppercase"}}>{v.status}</span>
+                  <div style={{display:"flex",gap:3}}>
+                    <span style={{fontSize:8,padding:"1px 5px",borderRadius:3,fontFamily:"var(--mono)",fontWeight:700,
+                      background:hasW9?"rgba(26,217,138,.12)":"rgba(239,68,68,.1)",
+                      color:hasW9?"var(--green)":"var(--acc)"}}>W9</span>
+                    <span style={{fontSize:8,padding:"1px 5px",borderRadius:3,fontFamily:"var(--mono)",fontWeight:700,
+                      background:expired?"rgba(239,68,68,.15)":expiring?"rgba(245,158,11,.15)":hasCOI?"rgba(26,217,138,.12)":"rgba(239,68,68,.1)",
+                      color:expired?"var(--acc)":expiring?"var(--amber)":hasCOI?"var(--green)":"var(--acc)"}}>
+                      COI{expired?" !":" "}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {!selected && (
+                <div style={{display:"flex",gap:14,marginTop:8,paddingTop:8,borderTop:"1px solid var(--br)"}}>
+                  {[["Revenue",`$${fmt$(rev)}`,"var(--t2)"],["Paid","$"+fmt$(paid),"var(--amber)"],["Margin",rev>0?`${(100-paid/rev*100).toFixed(0)}%`:"—","var(--green)"]].map(([l,val,c])=>(
+                    <div key={l}>
+                      <div style={{fontSize:11,fontWeight:700,color:c,fontFamily:"var(--mono)"}}>{val}</div>
+                      <div style={{fontSize:9,color:"var(--t3)"}}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── RIGHT PANEL: detail ── */}
+      {selected && currentVendor && (() => {
+        const v   = currentVendor;
+        const vp  = vendorProjects(v);
+        const totalRev  = vp.reduce((s,p)=>s+p.revenue,0);
+        const totalPaid = vp.reduce((s,p)=>s+p.paid,0);
+        const overallPct = totalRev > 0 ? (totalPaid/totalRev*100) : 0;
+        const expired  = coiExpired(v);
+        const expiring = coiExpiringSoon(v);
+
+        return (
+          <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}>
+            {/* Detail header */}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <div style={{width:44,height:44,borderRadius:"50%",background:"rgba(232,156,24,.12)",border:"2px solid #e89c18",
+                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:"#e89c18",flexShrink:0}}>
+                  {(v.firstName?.[0]||v.company?.[0]||"V").toUpperCase()}{(v.lastName?.[0]||"").toUpperCase()}
+                </div>
+                <div>
+                  <div style={{fontSize:15,fontWeight:800,color:"var(--t1)"}}>{v.firstName} {v.lastName}</div>
+                  <div style={{fontSize:11,color:"var(--t3)"}}>{v.company||""}{v.company&&v.trade?" · ":""}{v.trade||""}</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:6}}>
+                <button className="btn btn-ghost btn-xs" onClick={()=>openEdit(v)}>✏ Edit</button>
+                <button className="btn btn-danger btn-xs" onClick={()=>del(v.id)}>🗑 Remove</button>
+                <button className="btn btn-ghost btn-xs" onClick={()=>setSelected(null)}>✕</button>
+              </div>
+            </div>
+
+            {/* KPI strip */}
+            {(() => {
+              const bills        = loadBillsByVendor(v.id);
+              const billsTotal   = bills.reduce((s,b)=>s+(b.amount||0),0);
+              const billsPaid    = bills.filter(b=>b.status==="paid").reduce((s,b)=>s+(b.amount||0),0);
+              const billsOpen    = billsTotal - billsPaid;
+              return (
+                <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:14}}>
+                  {[
+                    ["Projects",     vp.length,                "var(--blue)"],
+                    ["Total Revenue","$"+fmt$(totalRev),       "var(--t2)"],
+                    ["Total Paid",   "$"+fmt$(totalPaid),       "#e89c18"],
+                    ["Outstanding",  "$"+fmt$(billsOpen),      billsOpen>0?"var(--acc)":"var(--t3)"],
+                    ["Cost/Rev",     totalRev>0?`${overallPct.toFixed(1)}%`:"—", overallPct>60?"var(--acc)":overallPct>40?"var(--amber)":"var(--green)"],
+                  ].map(([l,val,c])=>(
+                    <div key={l} style={{background:"var(--s2)",border:`1px solid ${l==="Outstanding"&&billsOpen>0?"var(--acc)":"var(--br)"}`,borderRadius:9,padding:"10px 13px"}}>
+                      <div style={{fontSize:15,fontWeight:800,color:c,fontFamily:"var(--mono)"}}>{val}</div>
+                      <div style={{fontSize:9,color:"var(--t3)",marginTop:2}}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* Sub-tabs */}
+            <div style={{display:"flex",gap:0,borderBottom:"1px solid var(--br)",marginBottom:16}}>
+              {[["profile","Profile"],["documents","Documents"],["projects","Projects"],["invoices","Invoices / AP"]].map(([k,l])=>(
+                <button key={k} onClick={()=>setDetailTab(k)} style={{padding:"7px 16px",background:"none",border:"none",
+                  borderBottom:detailTab===k?"2px solid var(--blue)":"2px solid transparent",
+                  color:detailTab===k?"var(--t1)":"var(--t3)",fontWeight:detailTab===k?700:400,
+                  fontSize:11,cursor:"pointer",fontFamily:"var(--ui)",marginBottom:-1}}>
+                  {l}
+                </button>
+              ))}
+            </div>
+
+            {/* Profile tab */}
+            {detailTab === "profile" && (
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                <div className="card">
+                  <div style={{fontSize:11,fontWeight:700,color:"var(--t2)",marginBottom:10}}>Contact Information</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
+                    {[["Name",`${v.firstName||""} ${v.lastName||""}`.trim()||"—"],
+                      ["Company", v.company||"—"],
+                      ["Trade / Specialty", v.trade||"—"],
+                      ["Email", v.email||"—"],
+                      ["Phone", v.phone||"—"],
+                      ["Status", v.status||"active"],
+                    ].map(([label,val])=>(
+                      <div key={label}>
+                        <div style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",marginBottom:2}}>{label.toUpperCase()}</div>
+                        <div style={{fontSize:11,color:"var(--t1)",fontWeight:500}}>{val}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {v.memberstackId && (
+                  <div className="card">
+                    <div style={{fontSize:11,fontWeight:700,color:"var(--t2)",marginBottom:6}}>Portal Access</div>
+                    <div style={{fontSize:10,color:"var(--t3)"}}>Memberstack ID: <span style={{fontFamily:"var(--mono)",color:"var(--t2)"}}>{v.memberstackId}</span></div>
+                    <div style={{fontSize:10,color:"var(--t3)",marginTop:3}}>Permission: <span style={{fontFamily:"var(--mono)",color:"#e89c18",fontWeight:700}}>VND · Vendor/Subcontractor</span></div>
+                  </div>
+                )}
+                {v.notes && (
+                  <div className="card">
+                    <div style={{fontSize:11,fontWeight:700,color:"var(--t2)",marginBottom:6}}>Notes</div>
+                    <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{v.notes}</div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Documents tab */}
+            {detailTab === "documents" && (
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                {/* W9 */}
+                <div className="card">
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:700,color:"var(--t1)"}}>W-9 Form</div>
+                      <div style={{fontSize:9,color:"var(--t3)",marginTop:1}}>IRS Form W-9 — required for 1099 reporting</div>
+                    </div>
+                    <span style={{fontSize:9,padding:"2px 8px",borderRadius:4,fontFamily:"var(--mono)",fontWeight:700,
+                      background:v.w9?"rgba(26,217,138,.12)":"rgba(239,68,68,.1)",
+                      color:v.w9?"var(--green)":"var(--acc)"}}>
+                      {v.w9 ? "ON FILE" : "MISSING"}
+                    </span>
+                  </div>
+                  {v.w9 ? (
+                    <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",background:"var(--s3)",borderRadius:7,border:"1px solid var(--br)"}}>
+                      <span style={{fontSize:18}}>📄</span>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:11,fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.w9.fileName}</div>
+                        <div style={{fontSize:9,color:"var(--t3)"}}>Uploaded {new Date(v.w9.uploadedAt).toLocaleDateString()}</div>
+                      </div>
+                      <a href={v.w9.base64} download={v.w9.fileName}
+                        style={{fontSize:10,color:"var(--blue)",textDecoration:"none",fontWeight:600}}>↓ Download</a>
+                      <button className="btn btn-danger btn-xs" onClick={()=>{
+                        const updated = {...v, w9:null};
+                        upsertVendor(updated);
+                        setVendors(loadVendors());
+                      }}>✕</button>
+                    </div>
+                  ) : (
+                    <label style={{display:"flex",alignItems:"center",gap:9,padding:"10px 14px",border:"1.5px dashed var(--br)",
+                      borderRadius:8,cursor:"pointer",color:"var(--t3)",fontSize:11,transition:"all .12s"}}
+                      onMouseEnter={e=>e.currentTarget.style.borderColor="var(--blue)"}
+                      onMouseLeave={e=>e.currentTarget.style.borderColor="var(--br)"}>
+                      <span style={{fontSize:20}}>📎</span>
+                      <span>Click to upload W-9 (PDF)</span>
+                      <input type="file" accept=".pdf,image/*" style={{display:"none"}}
+                        onChange={async e=>{
+                          if(!e.target.files[0]) return;
+                          await handleFile("w9", e.target.files[0]);
+                          // wait for state then save
+                          setTimeout(()=>{
+                            const latest = loadVendors().find(x=>x.id===v.id)||v;
+                            const reader = new FileReader();
+                            reader.onload = ev => {
+                              const updated = {...latest, w9:{fileName:e.target.files[0].name, base64:ev.target.result, uploadedAt:new Date().toISOString()}};
+                              upsertVendor(updated);
+                              setVendors(loadVendors());
+                            };
+                            reader.readAsDataURL(e.target.files[0]);
+                          }, 0);
+                        }}/>
+                    </label>
+                  )}
+                </div>
+
+                {/* Certificate of Insurance */}
+                <div className="card">
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:700,color:"var(--t1)"}}>Certificate of Insurance</div>
+                      <div style={{fontSize:9,color:"var(--t3)",marginTop:1}}>General liability + workers' comp COI</div>
+                    </div>
+                    <span style={{fontSize:9,padding:"2px 8px",borderRadius:4,fontFamily:"var(--mono)",fontWeight:700,
+                      background:expired?"rgba(239,68,68,.15)":expiring?"rgba(245,158,11,.15)":v.coi?"rgba(26,217,138,.12)":"rgba(239,68,68,.1)",
+                      color:expired?"var(--acc)":expiring?"var(--amber)":v.coi?"var(--green)":"var(--acc)"}}>
+                      {v.coi ? (expired?"EXPIRED":expiring?"EXPIRING SOON":"ON FILE") : "MISSING"}
+                    </span>
+                  </div>
+                  {v.coi && (
+                    <div style={{marginBottom:10,display:"flex",alignItems:"center",gap:10,padding:"9px 12px",background:"var(--s3)",borderRadius:7,border:"1px solid var(--br)"}}>
+                      <span style={{fontSize:18}}>🛡️</span>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:11,fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.coi.fileName}</div>
+                        <div style={{fontSize:9,color:"var(--t3)"}}>
+                          Uploaded {new Date(v.coi.uploadedAt).toLocaleDateString()}
+                          {v.coi.expiresAt ? ` · Expires ${new Date(v.coi.expiresAt).toLocaleDateString()}` : ""}
+                        </div>
+                      </div>
+                      <a href={v.coi.base64} download={v.coi.fileName}
+                        style={{fontSize:10,color:"var(--blue)",textDecoration:"none",fontWeight:600}}>↓ Download</a>
+                      <button className="btn btn-danger btn-xs" onClick={()=>{
+                        const updated = {...v, coi:null};
+                        upsertVendor(updated);
+                        setVendors(loadVendors());
+                      }}>✕</button>
+                    </div>
+                  )}
+                  {/* Expiry date input — always shown */}
+                  <div style={{display:"flex",gap:9,alignItems:"center",marginBottom:8}}>
+                    <label style={{fontSize:10,color:"var(--t3)",whiteSpace:"nowrap"}}>COI Expiry Date</label>
+                    <input type="date" className="inp" style={{flex:1,fontSize:11}}
+                      value={v.coi?.expiresAt?.substring(0,10)||""}
+                      onChange={e=>{
+                        const updated = {...v, coi: v.coi ? {...v.coi, expiresAt:e.target.value} : null};
+                        upsertVendor(updated); setVendors(loadVendors());
+                      }}/>
+                  </div>
+                  {!v.coi && (
+                    <label style={{display:"flex",alignItems:"center",gap:9,padding:"10px 14px",border:"1.5px dashed var(--br)",
+                      borderRadius:8,cursor:"pointer",color:"var(--t3)",fontSize:11,transition:"all .12s"}}
+                      onMouseEnter={e=>e.currentTarget.style.borderColor="var(--blue)"}
+                      onMouseLeave={e=>e.currentTarget.style.borderColor="var(--br)"}>
+                      <span style={{fontSize:20}}>📎</span>
+                      <span>Click to upload COI (PDF)</span>
+                      <input type="file" accept=".pdf,image/*" style={{display:"none"}}
+                        onChange={e=>{
+                          if(!e.target.files[0]) return;
+                          const file = e.target.files[0];
+                          const reader = new FileReader();
+                          reader.onload = ev => {
+                            const latest = loadVendors().find(x=>x.id===v.id)||v;
+                            const updated = {...latest, coi:{fileName:file.name, base64:ev.target.result, uploadedAt:new Date().toISOString(), expiresAt:latest.coi?.expiresAt||""}};
+                            upsertVendor(updated); setVendors(loadVendors());
+                          };
+                          reader.readAsDataURL(file);
+                        }}/>
+                    </label>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Projects tab */}
+            {detailTab === "projects" && (
+              <div>
+                {vp.length === 0 && (
+                  <div style={{padding:28,textAlign:"center",color:"var(--t3)",fontSize:11,fontStyle:"italic"}}>
+                    This vendor hasn't been assigned to any projects yet. Assign them in a project's Overview tab.
+                  </div>
+                )}
+                {vp.length > 0 && (
+                  <>
+                    {/* Column headers */}
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 110px 110px 80px 70px",gap:8,
+                      padding:"6px 12px",marginBottom:4}}>
+                      {["Project","Revenue","Paid Out","% Rev","Status"].map(h=>(
+                        <div key={h} style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",fontWeight:700}}>{h.toUpperCase()}</div>
+                      ))}
+                    </div>
+                    {vp.map(({proj:p, revenue, paid, pct}) => (
+                      <div key={p.id} style={{display:"grid",gridTemplateColumns:"1fr 110px 110px 80px 70px",gap:8,
+                        padding:"10px 12px",borderRadius:8,marginBottom:4,
+                        background:"var(--s2)",border:"1px solid var(--br)",alignItems:"center"}}>
+                        <div>
+                          <div style={{fontSize:12,fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
+                          <div style={{fontSize:9,color:"var(--t3)",marginTop:1}}>{p.address||"No address"}</div>
+                        </div>
+                        <div style={{fontSize:12,fontWeight:700,color:"var(--t2)",fontFamily:"var(--mono)"}}>${fmt$(revenue)}</div>
+                        <div style={{fontSize:12,fontWeight:700,color:"#e89c18",fontFamily:"var(--mono)"}}>${fmt$(paid)}</div>
+                        <div>
+                          <div style={{fontSize:11,fontWeight:700,fontFamily:"var(--mono)",
+                            color:pct>60?"var(--acc)":pct>40?"var(--amber)":"var(--green)"}}>
+                            {revenue>0?`${pct.toFixed(1)}%`:"—"}
+                          </div>
+                          {/* Mini bar */}
+                          {revenue > 0 && (
+                            <div style={{height:3,background:"var(--s3)",borderRadius:2,marginTop:3,overflow:"hidden"}}>
+                              <div style={{height:"100%",width:`${Math.min(pct,100)}%`,
+                                background:pct>60?"var(--acc)":pct>40?"var(--amber)":"var(--green)",
+                                transition:"width .4s"}}/>
+                            </div>
+                          )}
+                        </div>
+                        <span style={{fontSize:9,padding:"2px 6px",borderRadius:4,fontFamily:"var(--mono)",fontWeight:700,textTransform:"uppercase",
+                          background:`${STATUS_COLORS[p.status==="completed"?"active":"active"]}18`,
+                          color:"var(--t3)"}}>{p.status||"active"}</span>
+                      </div>
+                    ))}
+                    {/* Totals row */}
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 110px 110px 80px 70px",gap:8,
+                      padding:"10px 12px",borderRadius:8,marginTop:6,
+                      background:"var(--s3)",border:"1px solid var(--br)",alignItems:"center"}}>
+                      <div style={{fontSize:11,fontWeight:700,color:"var(--t2)"}}>TOTALS</div>
+                      <div style={{fontSize:12,fontWeight:800,color:"var(--t1)",fontFamily:"var(--mono)"}}>${fmt$(totalRev)}</div>
+                      <div style={{fontSize:12,fontWeight:800,color:"#e89c18",fontFamily:"var(--mono)"}}>{"$"+fmt$(totalPaid)}</div>
+                      <div style={{fontSize:11,fontWeight:800,fontFamily:"var(--mono)",
+                        color:overallPct>60?"var(--acc)":overallPct>40?"var(--amber)":"var(--green)"}}>
+                        {totalRev>0?`${overallPct.toFixed(1)}%`:"—"}
+                      </div>
+                      <div/>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* ── Invoices / AP tab ── */}
+            {detailTab === "invoices" && (() => {
+              const [billsState, setBillsState] = [
+                loadBillsByVendor(v.id),
+                () => {},  // reload trigger handled inline
+              ];
+              const bills     = loadBillsByVendor(v.id);
+              const outstanding = bills.filter(b => b.status !== "paid");
+              const paid        = bills.filter(b => b.status === "paid");
+              const totalBilled = bills.reduce((s,b)=>s+(b.amount||0),0);
+              const totalPaid   = paid.reduce((s,b)=>s+(b.amount||0),0);
+              const totalOpen   = totalBilled - totalPaid;
+
+              return (
+                <div>
+                  {/* AP summary */}
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:14}}>
+                    {[
+                      ["Total Billed", "$"+fmt$(totalBilled), "var(--t2)"],
+                      ["Paid",         "$"+fmt$(totalPaid),   "var(--green)"],
+                      ["Outstanding",  "$"+fmt$(totalOpen),   totalOpen>0?"var(--acc)":"var(--t3)"],
+                    ].map(([l,val,c])=>(
+                      <div key={l} style={{background:"var(--s2)",border:`1px solid ${l==="Outstanding"&&totalOpen>0?"var(--acc)":"var(--br)"}`,borderRadius:9,padding:"10px 13px"}}>
+                        <div style={{fontSize:16,fontWeight:800,color:c,fontFamily:"var(--mono)"}}>{val}</div>
+                        <div style={{fontSize:9,color:"var(--t3)",marginTop:2}}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {bills.length === 0 && (
+                    <div style={{padding:28,textAlign:"center",color:"var(--t3)",fontSize:11,fontStyle:"italic"}}>
+                      No bills linked to this vendor yet. In the Finance module, add a Bill and select this vendor from the vendor dropdown — it will appear here automatically.
+                    </div>
+                  )}
+
+                  {/* Outstanding bills first */}
+                  {outstanding.length > 0 && (
+                    <div style={{marginBottom:12}}>
+                      <div style={{fontSize:10,fontWeight:700,color:"var(--acc)",fontFamily:"var(--mono)",marginBottom:6,letterSpacing:".05em"}}>OUTSTANDING — {outstanding.length} bill{outstanding.length!==1?"s":""}</div>
+                      {outstanding.map(bill => (
+                        <BillRow key={bill.id} bill={bill} onTogglePaid={(id,paid)=>{
+                          markVendorBillPaid(id,paid);
+                          setSelected(s=>s); // force re-render
+                        }}/>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Paid bills */}
+                  {paid.length > 0 && (
+                    <div>
+                      <div style={{fontSize:10,fontWeight:700,color:"var(--green)",fontFamily:"var(--mono)",marginBottom:6,letterSpacing:".05em"}}>PAID — {paid.length} bill{paid.length!==1?"s":""}</div>
+                      {paid.map(bill => (
+                        <BillRow key={bill.id} bill={bill} onTogglePaid={(id,paid)=>{
+                          markVendorBillPaid(id,paid);
+                          setSelected(s=>s);
+                        }}/>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        );
+      })()}
+
+      {/* ── ADD / EDIT FORM (modal) ── */}
+      {showForm && (
+        <div className="overlay" onClick={e=>e.target===e.currentTarget&&setShowForm(false)}>
+          <div className="modal anim" style={{maxWidth:520,maxHeight:"90vh",display:"flex",flexDirection:"column"}}>
+            <div className="modal-hd">
+              <div className="modal-ttl">{form.id ? "Edit Vendor" : "Add Vendor / Subcontractor"}</div>
+              <button className="btn btn-ghost btn-xs" onClick={()=>setShowForm(false)}>✕</button>
+            </div>
+            <div className="modal-body" style={{overflowY:"auto",flex:1,display:"flex",flexDirection:"column",gap:10}}>
+
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div><label className="lbl">First Name</label>
+                  <input className="inp" value={form.firstName} onChange={e=>fld("firstName",e.target.value)}/></div>
+                <div><label className="lbl">Last Name</label>
+                  <input className="inp" value={form.lastName} onChange={e=>fld("lastName",e.target.value)}/></div>
+              </div>
+              <div><label className="lbl">Company / Business Name</label>
+                <input className="inp" value={form.company} onChange={e=>fld("company",e.target.value)} placeholder="Optional"/></div>
+              <div><label className="lbl">Trade / Specialty</label>
+                <input className="inp" value={form.trade} onChange={e=>fld("trade",e.target.value)}
+                  placeholder="e.g. Electrical, Plumbing, Drywall, HVAC…"/></div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div><label className="lbl">Email</label>
+                  <input className="inp" type="email" value={form.email} onChange={e=>fld("email",e.target.value)}/></div>
+                <div><label className="lbl">Phone</label>
+                  <input className="inp" type="tel" value={form.phone} onChange={e=>fld("phone",e.target.value)}/></div>
+              </div>
+              <div><label className="lbl">Status</label>
+                <select className="sel" value={form.status} onChange={e=>fld("status",e.target.value)}>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+              <div><label className="lbl">Memberstack ID (for portal login)</label>
+                <input className="inp" value={form.memberstackId} onChange={e=>fld("memberstackId",e.target.value)}
+                  placeholder="mem_xxxx — links this record to their portal account"/>
+                <div style={{fontSize:9,color:"var(--t3)",marginTop:3}}>
+                  Portal logins for this vendor use <strong style={{fontFamily:"var(--mono)",color:"#e89c18"}}>VND</strong> permission — they can only see assigned jobs, assigned tasks, clock in/out, and upload photos.
+                </div>
+              </div>
+              <div><label className="lbl">Notes</label>
+                <textarea className="txa" value={form.notes} onChange={e=>fld("notes",e.target.value)}
+                  placeholder="Internal notes about this vendor…" style={{minHeight:64,fontSize:11}}/></div>
+            </div>
+            <div style={{padding:"12px 20px",borderTop:"1px solid var(--br)",display:"flex",gap:8,justifyContent:"flex-end"}}>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setShowForm(false)}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={save} disabled={saving||(!form.firstName&&!form.company)}>
+                {saving?"Saving…":form.id?"Save Changes":"Add Vendor"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission=1, currentMemberId, currentMemberName, onPermissionChange, offices=[], projects=[] }) {
   const [tab,      setTab]      = useState("staff");
   const [editId,   setEditId]   = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -7489,7 +9105,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     </div>
   );
 
-  const TABS = [["staff","Staff"],["offices","Offices"],["phone","Phone & Calls"],["cortex","CortexAI"],["general","General"],["roadmap","Roadmap"]];
+  const TABS = [["staff","Staff"],["vendors","Vendors"],["offices","Offices"],["phone","Phone & Calls"],["cortex","CortexAI"],["general","General"],["roadmap","Roadmap"]];
 
   return (
     <div className="scroll" style={{flex:1,overflow:"auto"}}>
@@ -7883,6 +9499,9 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
         )}
 
         {/* ── OFFICES TAB ── */}
+        {tab==="vendors" && (
+          <VendorManagerTab projects={projects} globalStaff={globalStaff} companyId={companyId}/>
+        )}
         {tab==="offices" && (
           <div>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
@@ -8514,6 +10133,7 @@ export default function JobDoxPortal() {
               currentMemberId={currentMember?.id}
               currentMemberName={currentUser?.name}
               offices={offices}
+              projects={projects}
               onPermissionChange={(memberId, newPerm) => {
                 if (memberId === currentMember?.id) {
                   setPermission(normPerm(newPerm));
@@ -8558,6 +10178,8 @@ export default function JobDoxPortal() {
             setPriceLists={setPriceLists}
             companyId={companyId}
             phoneSettings={phoneSettings}
+            isVendor={caps.isVendorPerm}
+            currentMemberId={currentMember?.id || ""}
           />
         ) : (
           <PortfolioPage
