@@ -3151,7 +3151,6 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
       </div>
     </>
   );
-}
 
 function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emailSchedule="weekly", setEmailSchedule=()=>{}, clientPortal=false, setClientPortal=()=>{}, globalStaff=[], worktypes=[], setWorktypes=()=>{}, currentUser=null, assignedStaff=[], setAssignedStaff=()=>{} }) {
   const [attrs, setAttrs]           = useState({});
