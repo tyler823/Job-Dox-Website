@@ -10998,6 +10998,7 @@ export default function JobDoxPortal() {
   const [phoneSettings,     setPhoneSettings]      = useState({});  // loaded from Firestore on companyId resolve
   const [cortexAlert,        setCortexAlert]        = useState(null);  // Cortex Coins usage alert
   const [cortexAlertDismissed, setCortexAlertDismissed] = useState(false);
+  const [coInfo,               setCoInfo]              = useState(loadCoInfo);
   const attrDefs = DEFAULT_ATTR_DEFS;
 
   // Re-sync if another tab updates localStorage config
