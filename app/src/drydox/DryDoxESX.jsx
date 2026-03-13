@@ -6,7 +6,7 @@
    - Uses Xactimate's ESX schema for room geometry
 ══════════════════════════════════════════════════════════════════ */
 import { useState, useCallback } from "react";
-import { DDIc, getET, WATER_CATEGORIES, MATERIAL_CLASSES } from "./DryDoxConstants.js";
+import { DDIc, getET, WATER_CATEGORIES, MATERIAL_CLASSES } from "./DryDoxConstants.jsx";
 
 // ── ESX XML Generation ──
 // Xactimate ESX files are ZIP archives containing XML sketch data.

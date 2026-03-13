@@ -13,7 +13,7 @@ import {
   DDIc, MATERIAL_CLASSES, WATER_CATEGORIES, EQUIP_TYPES, getET,
   rhColor, rhLabel, fmtDate, fmtShort, calcGPP, calcDewPoint,
   DRY_STANDARD_RH, DRY_STANDARD_GPP, fmt$c,
-} from "./DryDoxConstants.js";
+} from "./DryDoxConstants.jsx";
 
 // ── SVG Chart for PDF (self-contained, print-friendly) ──
 function PrintTrendChart({ data, dataKey, color, label, threshold, height = 80 }) {

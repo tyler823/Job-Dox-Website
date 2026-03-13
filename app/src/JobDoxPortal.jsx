@@ -11529,7 +11529,6 @@ export default function JobDoxPortal() {
             canArchive={canArchiveProject}
           />
         )}
-        )}
       </div>
     </div>
   );

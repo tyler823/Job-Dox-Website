@@ -6,7 +6,7 @@
    - Push to project Scope/Invoice tab
 ══════════════════════════════════════════════════════════════════ */
 import { useState, useMemo } from "react";
-import { dduid, DDIc, fmt$c } from "./DryDoxConstants.js";
+import { dduid, DDIc, fmt$c } from "./DryDoxConstants.jsx";
 
 export default function DryDoxScope({
   scopeItems, setScopeItems, priceLists = [], activePLId, onPushToScope,

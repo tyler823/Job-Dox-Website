@@ -16,7 +16,7 @@
    - ESX sketch export for Xactimate
 ══════════════════════════════════════════════════════════════════ */
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { DRYDOX_CSS, dduid, DDIc, EQUIP_TYPES, getET, fmt$c, rhColor, rhLabel, compareS500 } from "./drydox/DryDoxConstants.js";
+import { DRYDOX_CSS, dduid, DDIc, EQUIP_TYPES, getET, fmt$c, rhColor, rhLabel, compareS500 } from "./drydox/DryDoxConstants.jsx";
 import DryDoxFloorPlan from "./drydox/DryDoxFloorPlan.jsx";
 import DryDoxMoisture from "./drydox/DryDoxMoisture.jsx";
 import DryDoxEquipment from "./drydox/DryDoxEquipment.jsx";
