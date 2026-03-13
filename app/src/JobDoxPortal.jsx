@@ -7627,6 +7627,54 @@ function ColorPicker({ value, onChange }) {
   );
 }
 
+function FieldInviteSection({ companyId, companyName }) {
+  const [code,    setCode]    = useState(null);
+  const [loading, setLoading] = useState(false);
+ 
+  const generate = async () => {
+    if (!companyId) return;
+    setLoading(true);
+    try {
+      const c = await fsCreateFieldInviteCode(companyId, companyName);
+      setCode(c);
+    } catch(e) { console.error("Field invite failed:", e); }
+    setLoading(false);
+  };
+ 
+  return (
+    <div style={{background:"rgba(167,139,250,.07)",border:"1px solid rgba(167,139,250,.2)",
+      borderRadius:10,padding:"14px 16px",marginBottom:16}}>
+      <div style={{fontSize:12,fontWeight:700,color:"var(--purple)",marginBottom:4}}>
+        📱 Field App Invites
+      </div>
+      <div style={{fontSize:11,color:"var(--t2)",marginBottom:12,lineHeight:1.6}}>
+        Generate a one-time code for a field technician to create their account
+        in the Job-Dox Field app. Each code can only be used once.
+      </div>
+      {code ? (
+        <div>
+          <div style={{background:"var(--s3)",border:"1px solid var(--br)",borderRadius:8,
+            padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:8}}>
+            <span style={{fontFamily:"var(--mono)",fontSize:15,fontWeight:700,color:"var(--purple)",letterSpacing:".08em"}}>{code}</span>
+            <button className="btn btn-ghost btn-xs"
+              onClick={()=>navigator.clipboard.writeText(code)}>Copy</button>
+          </div>
+          <div style={{fontSize:10,color:"var(--t3)"}}>
+            Share this code with the technician. They enter it in the Field App on first launch.
+          </div>
+          <button className="btn btn-ghost btn-xs" style={{marginTop:8}} onClick={()=>setCode(null)}>
+            Generate Another
+          </button>
+        </div>
+      ) : (
+        <button className="btn btn-secondary btn-xs" onClick={generate} disabled={loading}>
+          {loading ? "Generating…" : "Generate Field Invite Code"}
+        </button>
+      )}
+    </div>
+  );
+}
+ 
 function GeneralSettingsTab() {
   const [sec, setSec]         = useState("company");
   const [coInfo, setCoInfo]   = useState(loadCoInfo);
