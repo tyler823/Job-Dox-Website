@@ -23,6 +23,32 @@ const FIREBASE_CONFIG = {
 const _fbApp = initializeApp(FIREBASE_CONFIG);
 const db     = getFirestore(_fbApp);
 
+// ── Single-session enforcement ──────────────────────────────────────────────
+// On login we write a random token to activeSessions/{memberstackId}.
+// A real-time listener watches that doc — if the token changes (someone logged
+// in from another device / browser), this session auto-logs out.
+const PORTAL_SESSION_TOKEN = `ptl_${Date.now()}_${Math.random().toString(36).slice(2,10)}`;
+let _portalSessionUnsub = null;
+
+async function claimPortalSession(memberId) {
+  try {
+    await setDoc(doc(db, "activeSessions", memberId), {
+      token: PORTAL_SESSION_TOKEN,
+      app: "portal",
+      claimedAt: serverTimestamp(),
+    });
+  } catch(e) { /* offline or permissions */ }
+}
+
+function watchPortalSession(memberId, onKicked) {
+  if (_portalSessionUnsub) _portalSessionUnsub();
+  _portalSessionUnsub = onSnapshot(doc(db, "activeSessions", memberId), snap => {
+    if (!snap.exists()) return;
+    const remote = snap.data().token;
+    if (remote && remote !== PORTAL_SESSION_TOKEN) onKicked();
+  });
+}
+
 /* ── Netlify function caller — mirrors the Firebase httpsCallable API ── */
 const NETLIFY = "/.netlify/functions";
 async function callFn(name, data) {
@@ -11162,6 +11188,17 @@ export default function JobDoxPortal() {
 
       // ── Stream pending invites (admin only, but harmless to load) ──
       unsubInvites = fsListenInvites(cid, list => setPendingInvites(list));
+
+      // ── Single-session: claim this device and watch for kicks ──
+      await claimPortalSession(member.id);
+      watchPortalSession(member.id, async () => {
+        // Another device/browser logged in — sign out here
+        if (_portalSessionUnsub) { _portalSessionUnsub(); _portalSessionUnsub = null; }
+        try { await window.$memberstackDom.logout(); } catch(e) {}
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.href = "https://job-dox.ai";
+      });
     }
 
     function getMember() {
@@ -11177,6 +11214,7 @@ export default function JobDoxPortal() {
       // Watch for auth changes — handles concurrent login kicks and manual logouts
       window.$memberstackDom.onAuthChange((member) => {
         if (!member) {
+          if (_portalSessionUnsub) { _portalSessionUnsub(); _portalSessionUnsub = null; }
           localStorage.clear();
           sessionStorage.clear();
           window.location.href = "https://job-dox.ai";
@@ -11190,6 +11228,7 @@ export default function JobDoxPortal() {
       if (unsubStaff)    unsubStaff();
       if (unsubInvites)  unsubInvites();
       if (unsubOffices)  unsubOffices();
+      if (_portalSessionUnsub) _portalSessionUnsub();
     };
   }, []);
 
