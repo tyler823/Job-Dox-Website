@@ -1311,69 +1311,102 @@ function ClockInModal({ proj, clockInState, onClockIn, onClockOut, onClose, curr
   );
 }
 
-function NotifyModal({ proj, onClose, globalStaff=[] }) {
-  // ── Staff selection (full object so we have photoUrl) ──
-  const staffList = globalStaff.filter(s => s.firstName || s.lastName);
-  const [selectedStaffId, setSelectedStaffId] = useState(staffList[0]?.id || "");
-  const selectedStaff = staffList.find(s => s.id === selectedStaffId) || staffList[0] || null;
-  const techName  = selectedStaff ? `${selectedStaff.firstName||""} ${selectedStaff.lastName||""}`.trim() : "Crew";
-  const photoUrl  = selectedStaff?.photoUrl || "";
-
+function NotifyModal({ proj, onClose, globalStaff=[], currentUser, phoneSettings={}, companyId="" }) {
   const companyName = loadCoInfo().name || "our team";
+  const userName = currentUser?.name || "your technician";
 
   // ── ETA state: "loading" | "ready" | "denied" | "error" | "manual" ──
   const [eta,       setEta]       = useState("30");
   const [etaState,  setEtaState]  = useState("loading"); // drives the UI indicator
+  const [etaEdited, setEtaEdited] = useState(false);      // user manually changed ETA
   const [sending,   setSending]   = useState(false);
   const [sent,      setSent]      = useState(false);
   const [sendError, setSendError] = useState("");
 
   const firstName = (proj.client || "there").split(" ")[0];
-  const msg = `Hi ${firstName}! Your ${companyName} crew is on the way. ${techName} will arrive in approx. ${eta} min. They are IICRC certified with photo ID. Questions? Reply here or call us. — ${companyName}`;
+  const msg = `Hi ${firstName}, this is ${userName} with ${companyName}. I am headed to ${proj.address || "your location"} and should arrive in approx. ${eta} min. Questions? Reply here or call us.`;
 
-  // ── Geolocation + Distance Matrix on mount ──
+  // ── Geolocation + Haversine ETA on mount ──
   useEffect(() => {
     if (!navigator.geolocation) { setEtaState("manual"); return; }
 
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          const origin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          const userLat = pos.coords.latitude;
+          const userLng = pos.coords.longitude;
           const destAddr = proj.address || "";
           if (!destAddr) { setEtaState("manual"); return; }
 
-          // Use Google Maps JavaScript API (DistanceMatrixService) — works client-side without CORS issues
-          if (!window.google?.maps?.DistanceMatrixService) { setEtaState("manual"); return; }
-          const service = new window.google.maps.DistanceMatrixService();
-          service.getDistanceMatrix({
-            origins:            [origin],
-            destinations:       [destAddr],
-            travelMode:         window.google.maps.TravelMode.DRIVING,
-            drivingOptions:     { departureTime: new Date(), trafficModel: "bestGuess" },
-            unitSystem:         window.google.maps.UnitSystem.IMPERIAL,
-          }, (response, status) => {
-            if (status === "OK") {
-              const el = response?.rows?.[0]?.elements?.[0];
-              if (el?.status === "OK" && (el.duration_in_traffic?.value || el.duration?.value)) {
-                const secs = el.duration_in_traffic?.value || el.duration.value;
-                const mins = Math.ceil(secs / 60);
-                setEta(String(mins));
-                setEtaState("ready");
-              } else {
-                setEtaState("manual");
-              }
-            } else {
-              setEtaState("manual");
+          // Try Google Maps JS API first (if loaded)
+          if (window.google?.maps?.Geocoder && window.google?.maps?.DistanceMatrixService) {
+            try {
+              const geocoder = new window.google.maps.Geocoder();
+              geocoder.geocode({ address: destAddr }, (results, geoStatus) => {
+                if (geoStatus === "OK" && results[0]) {
+                  const service = new window.google.maps.DistanceMatrixService();
+                  service.getDistanceMatrix({
+                    origins:        [{ lat: userLat, lng: userLng }],
+                    destinations:   [results[0].geometry.location],
+                    travelMode:     window.google.maps.TravelMode.DRIVING,
+                    unitSystem:     window.google.maps.UnitSystem.IMPERIAL,
+                  }, (response, status) => {
+                    if (status === "OK") {
+                      const el = response?.rows?.[0]?.elements?.[0];
+                      if (el?.status === "OK" && el.duration?.value) {
+                        const mins = Math.ceil(el.duration.value / 60);
+                        if (!etaEdited) setEta(String(mins));
+                        setEtaState("ready");
+                        return;
+                      }
+                    }
+                    // Google API failed — fall through to Haversine
+                    fallbackHaversine(userLat, userLng, destAddr);
+                  });
+                } else {
+                  fallbackHaversine(userLat, userLng, destAddr);
+                }
+              });
+              return; // async — geocoder callback will handle state
+            } catch {
+              // fall through to Haversine
             }
-          });
+          }
+
+          // Fallback: geocode the destination with Nominatim (free, no API key) then Haversine
+          fallbackHaversine(userLat, userLng, destAddr);
         } catch {
           setEtaState("manual");
         }
       },
-      () => setEtaState("denied"),    // user denied location
-      { timeout: 8000 }
+      () => setEtaState("denied"),
+      { timeout: 10000 }
     );
   }, [proj.address]);
+
+  const fallbackHaversine = async (lat1, lng1, destAddr) => {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(destAddr)}`);
+      const data = await res.json();
+      if (data[0]?.lat && data[0]?.lon) {
+        const lat2 = parseFloat(data[0].lat);
+        const lng2 = parseFloat(data[0].lon);
+        const R = 3959; // earth radius in miles
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+        const miles = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        // Estimate: ~30mph average city driving speed
+        const mins = Math.max(5, Math.ceil(miles / 30 * 60));
+        if (!etaEdited) setEta(String(mins));
+        setEtaState("ready");
+      } else {
+        setEtaState("manual");
+      }
+    } catch {
+      setEtaState("manual");
+    }
+  };
 
   const doSend = async () => {
     if (!proj.clientPhone) { setSendError("No client phone number on this project."); return; }
@@ -1383,7 +1416,6 @@ function NotifyModal({ proj, onClose, globalStaff=[] }) {
       await sendSMS({
         to:          proj.clientPhone,
         messageBody: msg,
-        mediaUrl:    photoUrl,
         from:        phoneSettings?.twilioNumber || "",
         contactName: proj.client || proj.clientPhone,
         companyId,
@@ -1401,7 +1433,7 @@ function NotifyModal({ proj, onClose, globalStaff=[] }) {
   // ── ETA indicator label ──
   const etaIndicator = {
     loading: { color:"var(--t3)",  text:"Getting your location…" },
-    ready:   { color:"var(--green)",text:"Live traffic ETA" },
+    ready:   { color:"var(--green)",text: etaEdited ? "ETA manually adjusted" : "Live ETA from your location" },
     denied:  { color:"var(--amber)",text:"Location denied — enter manually" },
     manual:  { color:"var(--amber)",text:"Enter ETA manually" },
     error:   { color:"var(--amber)",text:"Could not calculate — enter manually" },
@@ -1426,44 +1458,11 @@ function NotifyModal({ proj, onClose, globalStaff=[] }) {
               <div style={{width:52,height:52,borderRadius:"50%",background:"rgba(26,217,138,.15)",border:"2px solid var(--green)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",color:"var(--green)",fontSize:22}}>
                 {Ic.check}
               </div>
-              <div style={{fontWeight:700,fontSize:15}}>Message sent{photoUrl ? " with photo" : ""}!</div>
+              <div style={{fontWeight:700,fontSize:15}}>Message sent!</div>
               <div style={{fontSize:12,color:"var(--t2)",marginTop:4}}>Delivered to {proj.clientPhone}</div>
             </div>
           ) : (
             <>
-              {/* Crew member selector */}
-              <div>
-                <label className="lbl">Crew Member</label>
-                <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                  {/* Show real photo if available, else initials avatar */}
-                  {photoUrl ? (
-                    <img
-                      src={photoUrl}
-                      alt={techName}
-                      style={{width:44,height:44,borderRadius:"50%",objectFit:"cover",border:"2px solid var(--br)",flexShrink:0}}
-                      onError={e => { e.target.style.display="none"; }}
-                    />
-                  ) : (
-                    <Av name={techName} color="var(--acc)" size={44}/>
-                  )}
-                  <select className="sel" style={{flex:1}} value={selectedStaffId}
-                    onChange={e => setSelectedStaffId(e.target.value)}>
-                    {staffList.length > 0
-                      ? staffList.map(s => {
-                          const n = `${s.firstName||""} ${s.lastName||""}`.trim();
-                          return <option key={s.id} value={s.id}>{n}</option>;
-                        })
-                      : <option value="">Crew</option>}
-                  </select>
-                </div>
-                {/* Photo MMS indicator */}
-                <div style={{marginTop:5,fontSize:10,color:photoUrl?"var(--green)":"var(--t3)",display:"flex",alignItems:"center",gap:4}}>
-                  {photoUrl
-                    ? <>{Ic.photo} Photo will be included as MMS</>
-                    : <>No profile photo — will send as plain SMS. Add one in Settings › Staff.</>}
-                </div>
-              </div>
-
               {/* ETA field with live indicator */}
               <div>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
@@ -1481,7 +1480,7 @@ function NotifyModal({ proj, onClose, globalStaff=[] }) {
                     type="number"
                     className="inp"
                     value={eta}
-                    onChange={e => { setEta(e.target.value); setEtaState("manual"); }}
+                    onChange={e => { setEta(e.target.value); setEtaEdited(true); if (etaState !== "ready") setEtaState("manual"); }}
                     style={{width:90,flexShrink:0}}
                     min="1"
                     max="999"
@@ -1489,22 +1488,22 @@ function NotifyModal({ proj, onClose, globalStaff=[] }) {
                   <div style={{display:"flex",gap:4,flexWrap:"wrap",flex:1}}>
                     {["10","15","20","30","45","60"].map(n => (
                       <button key={n} className={`chip${eta===n?" on":""}`}
-                        onClick={() => { setEta(n); setEtaState("manual"); }}
+                        onClick={() => { setEta(n); setEtaEdited(true); }}
                         style={{fontSize:10,padding:"2px 8px"}}>{n}</button>
                     ))}
                   </div>
                 </div>
+                {etaEdited && etaState === "ready" && (
+                  <div style={{marginTop:4,fontSize:10,color:"var(--amber)",fontFamily:"var(--mono)"}}>
+                    ETA manually overridden (original auto-calculated)
+                  </div>
+                )}
               </div>
 
               {/* Message preview */}
               <div>
                 <div className="lbl" style={{marginBottom:7}}>Message Preview</div>
                 <div style={{background:"var(--s3)",borderRadius:10,padding:12,display:"flex",justifyContent:"flex-end",flexDirection:"column",gap:8,alignItems:"flex-end"}}>
-                  {photoUrl && (
-                    <img src={photoUrl} alt="Staff photo"
-                      style={{width:80,height:80,borderRadius:10,objectFit:"cover",border:"2px solid var(--br-hi)"}}
-                      onError={e => { e.target.style.display="none"; }}/>
-                  )}
                   <div className="sms-bubble">{msg}</div>
                 </div>
               </div>
@@ -2732,7 +2731,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
     <>
       {showAdd    && <AddProjModal onClose={()=>setShowAdd(false)} onAdd={onAdd} customWorkTypes={customWorkTypes} customStatuses={customStatuses} customProjectTypes={customProjectTypes} offices={offices}/>}
       {clockProj  && <ClockInModal proj={clockProj} clockInState={clockInState} onClockIn={onClockIn} onClockOut={onClockOut} onClose={()=>setClock(null)} currentUser={currentUser} canViewRates={canViewRates}/>}
-      {notifyProj && <NotifyModal proj={notifyProj} onClose={()=>setNotify(null)} globalStaff={globalStaff}/>}
+      {notifyProj && <NotifyModal proj={notifyProj} onClose={()=>setNotify(null)} globalStaff={globalStaff} currentUser={currentUser} phoneSettings={phoneSettings} companyId={companyId}/>}
       {commProj   && <CommModal    proj={commProj}   onClose={()=>setComm(null)} currentUser={currentUser} phoneSettings={phoneSettings} companyId={companyId}/>}
 
       {/* ── Archive confirmation modal ── */}
@@ -3432,14 +3431,21 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
                   <span style={{fontSize:11,color:"var(--t2)",fontWeight:600}}>Are you sure?</span>
                   <button className="btn btn-ghost btn-xs" onClick={()=>setArchiveConfirm(false)} disabled={archiveBusy}>Cancel</button>
                   <button className={`btn ${proj.archived ? "btn-green" : "btn-danger"} btn-xs`} disabled={archiveBusy}
-                    onClick={async ()=>{
+                    onClick={async (e)=>{
+                      e.stopPropagation();
+                      e.preventDefault();
+                      if (archiveBusy) return;
                       setArchiveBusy(true);
                       try {
-                        await onArchive(proj.id, !proj.archived);
+                        if (onArchive) {
+                          await onArchive(proj.id, !proj.archived);
+                        }
                         setArchiveConfirm(false);
                         if (onBack) onBack();
-                      } catch(e) { console.error(e); }
-                      setArchiveBusy(false);
+                      } catch(err) {
+                        console.error("Archive failed:", err);
+                        setArchiveBusy(false);
+                      }
                     }}>
                     {archiveBusy
                       ? <><span style={{width:10,height:10,border:"2px solid rgba(255,255,255,.3)",borderTopColor:"#fff",borderRadius:"50%",animation:"jd-spin .7s linear infinite",display:"inline-block"}}/> Processing…</>
@@ -7945,7 +7951,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
   return (
     <>
       {clockModal  && <ClockInModal proj={proj} clockInState={clockInState} onClockIn={onClockIn} onClockOut={onClockOut} onClose={()=>setClock(false)} currentUser={currentUser} canViewRates={canViewRates}/>}
-      {notifyModal && <NotifyModal proj={proj} onClose={()=>setNotify(false)} globalStaff={globalStaff}/>}
+      {notifyModal && <NotifyModal proj={proj} onClose={()=>setNotify(false)} globalStaff={globalStaff} currentUser={currentUser} phoneSettings={phoneSettings} companyId={companyId}/>}
       {commModal   && <CommModal    proj={proj} onClose={()=>setComm(false)} currentUser={currentUser} phoneSettings={phoneSettings} companyId={companyId}/>}
       <div className="topbar">
         <div style={{display:"flex",alignItems:"center",gap:11}}>
