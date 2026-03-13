@@ -5,8 +5,8 @@
    - Equipment day-in / day-out tracking
    - Links to company inventory list
 ══════════════════════════════════════════════════════════════════ */
-import { useState, useRef, useCallback, useMemo } from "react";
-import { dduid, DDIc, EQUIP_TYPES, getET, fmt$c } from "./DryDoxConstants.js";
+import { useState, useCallback, useMemo } from "react";
+import { dduid, DDIc, EQUIP_TYPES, getET, fmt$c, compareS500 } from "./DryDoxConstants.js";
 
 // ── Equipment Inventory Sidebar (drag source) ──
 function EquipmentInventory({ inventory, onDeploy }) {
@@ -172,12 +172,21 @@ export default function DryDoxEquipment({
   rooms, equipmentPlacements, setEquipmentPlacements,
   inventory = [], priceLists = [], activePLId,
   billingDays, setBillingDays, onPushToScope,
+  s500Comments = {}, s500Overrides = {},
 }) {
   const [view, setView] = useState("deployed"); // deployed, inventory, billing
   const [deployModal, setDeployModal] = useState(null); // item to deploy or true for empty
   const [dragTarget, setDragTarget] = useState(null);
 
   const currentPL = priceLists.find(pl => pl.id === activePLId);
+
+  // S500 comparison for inline banner
+  const s500 = useMemo(
+    () => compareS500(rooms, equipmentPlacements, s500Overrides?.dehuPPD, s500Overrides?.scrubberCFM),
+    [rooms, equipmentPlacements, s500Overrides]
+  );
+  const underMismatches = s500.mismatches.filter(m => !m.over);
+  const hasUncommented = underMismatches.some(m => !(s500Comments?.[m.type] || "").trim());
 
   // Equipment counts
   const activeEquip = equipmentPlacements.filter(e => !e.removedAt);
@@ -252,6 +261,33 @@ export default function DryDoxEquipment({
           </div>
         ))}
       </div>
+
+      {/* S500 compliance inline banner */}
+      {rooms.length > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+          background: s500.matched ? "rgba(26,217,138,.06)" : "rgba(228,53,49,.06)",
+          border: `1px solid ${s500.matched ? "rgba(26,217,138,.2)" : "rgba(228,53,49,.2)"}`,
+          borderRadius: 8, marginBottom: 12, fontSize: 11,
+        }}>
+          <span style={{
+            fontWeight: 700, fontFamily: "var(--mono)", fontSize: 10,
+            color: s500.matched ? "var(--green)" : "var(--acc)",
+          }}>
+            {s500.matched ? "✓ S500" : "⚠ S500"}
+          </span>
+          <div style={{ flex: 1, color: "var(--t2)" }}>
+            {s500.matched
+              ? "Equipment meets IICRC S500 recommendations."
+              : `${underMismatches.length} shortfall${underMismatches.length > 1 ? "s" : ""}: ${underMismatches.map(m => `${m.label} (${m.deployed}/${m.recommended})`).join(", ")}`}
+          </div>
+          {!s500.matched && hasUncommented && (
+            <span style={{ fontSize: 9, color: "var(--acc)", fontWeight: 700, fontFamily: "var(--mono)" }}>
+              REASON NEEDED
+            </span>
+          )}
+        </div>
+      )}
 
       {/* View toggle */}
       <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>

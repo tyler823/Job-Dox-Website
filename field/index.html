@@ -328,6 +328,23 @@ const getETF = v => EQUIP_TYPES_F.find(t=>t.v===v)||EQUIP_TYPES_F[5];
 const calcGPPF = (t,r) => { if(!t||!r)return 0; const c=(t-32)*5/9; const es=6.112*Math.exp((17.67*c)/(c+243.5)); const ea=es*(r/100); return Math.round(0.622*(ea/(1013.25-ea))*7000*10)/10; };
 const calcDPF = (t,r) => { if(!t||!r)return 0; const c=(t-32)*5/9; const g=(17.27*c)/(237.7+c)+Math.log(r/100); return Math.round(((237.7*g)/(17.27-g))*9/5+32); };
 
+// S500 equipment recommendation formulas (IICRC)
+const S500_FACTORS = {class1:100,class2:50,class3:40,class4:40};
+const S500_ACH_F = {cat1:0,cat2:4,cat3:6};
+function calcS500F(rooms) {
+  let fan=0, dehu=0, scrub=0;
+  (rooms||[]).forEach(r=>{
+    const sf=(parseFloat(r.widthFt)||0)*(parseFloat(r.depthFt)||0);
+    const lf=2*((parseFloat(r.widthFt)||0)+(parseFloat(r.depthFt)||0));
+    fan+=Math.max(Math.ceil(sf/50),Math.ceil(lf/14),1);
+    const cf=sf*(parseFloat(r.ceilingFt)||8);
+    dehu+=Math.max(Math.ceil((cf/(S500_FACTORS[r.materialClass||"class2"]||50))/80),sf>0?1:0);
+    const ach=S500_ACH_F[r.category||"cat1"]||0;
+    if(ach>0) scrub+=Math.max(Math.ceil((cf*ach/60)/500),1);
+  });
+  return {fan,dehu,scrub};
+}
+
 function DryDoxScreen({ proj, fieldUser }) {
   const [sub, setSub] = useState("readings");
   const [logs, setLogs] = useState([]);
@@ -337,7 +354,7 @@ function DryDoxScreen({ proj, fieldUser }) {
   const [saving, setSaving] = useState(false);
   const [expandLog, setExpandLog] = useState(null);
   const [f, setF] = useState({temp:"",rh:"",gpp:"",notes:"",roomId:"",surface:"",moistureContent:""});
-  const [rf, setRF] = useState({label:"",widthFt:"12",depthFt:"10",ceilingFt:"8"});
+  const [rf, setRF] = useState({label:"",widthFt:"12",depthFt:"10",ceilingFt:"8",category:"cat1",materialClass:"class2"});
   const [ef, setEF] = useState({type:"fan",brand:"",serial:"",roomId:"",notes:""});
 
   const projRef = fieldUser?.companyId && proj?.id
@@ -380,9 +397,10 @@ function DryDoxScreen({ proj, fieldUser }) {
     await projRef.collection("dryingRooms").add({
       label:rf.label.trim(), widthFt:parseFloat(rf.widthFt)||12,
       depthFt:parseFloat(rf.depthFt)||10, ceilingFt:parseFloat(rf.ceilingFt)||8,
+      category:rf.category||"cat1", materialClass:rf.materialClass||"class2",
       createdAt:firebase.firestore.FieldValue.serverTimestamp(),
     });
-    setRF({label:"",widthFt:"12",depthFt:"10",ceilingFt:"8"});
+    setRF({label:"",widthFt:"12",depthFt:"10",ceilingFt:"8",category:"cat1",materialClass:"class2"});
     setShow(null); setSaving(false);
   };
 
@@ -523,13 +541,48 @@ function DryDoxScreen({ proj, fieldUser }) {
         )}
 
         {/* ── EQUIPMENT TAB ── */}
-        {sub==="equipment"&&(
+        {sub==="equipment"&&(()=>{
+          const rec = calcS500F(rooms);
+          const dep = {fan:0,dehu:0,scrub:0};
+          activeEquip.forEach(eq=>{
+            if(eq.type==="fan")dep.fan++;
+            else if(eq.type==="dehu")dep.dehu++;
+            else if(eq.type==="scrubber")dep.scrub++;
+          });
+          const ok = dep.fan>=rec.fan && dep.dehu>=rec.dehu && dep.scrub>=rec.scrub;
+          return (
           <div className="scroll-pad">
             <div className="kpi-row">
               <div className="kpi-box"><div className="kpi-val" style={{color:"var(--green)"}}>{activeEquip.length}</div><div className="kpi-lbl">Active</div></div>
               <div className="kpi-box"><div className="kpi-val" style={{color:"var(--t3)"}}>{equip.length-activeEquip.length}</div><div className="kpi-lbl">Removed</div></div>
               <div className="kpi-box"><div className="kpi-val" style={{color:"var(--blue)"}}>{[...new Set(equip.map(e=>e.type))].length}</div><div className="kpi-lbl">Types</div></div>
             </div>
+
+            {/* S500 Recommendations Banner */}
+            {rooms.length>0&&(
+              <div style={{
+                background:ok?"rgba(26,217,138,.06)":"rgba(228,53,49,.06)",
+                border:`1px solid ${ok?"rgba(26,217,138,.2)":"rgba(228,53,49,.2)"}`,
+                borderRadius:10,padding:"10px 12px",marginBottom:12,
+              }}>
+                <div style={{fontSize:11,fontWeight:700,color:ok?"var(--green)":"var(--acc)",marginBottom:6}}>
+                  {ok?"✓ S500 Compliant":"⚠ S500 Equipment Shortfall"}
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
+                  {[
+                    ["🌀 AM",dep.fan,rec.fan],
+                    ["💧 DH",dep.dehu,rec.dehu],
+                    ["🌬️ AS",dep.scrub,rec.scrub],
+                  ].map(([l,d,r])=>(
+                    <div key={l} style={{textAlign:"center",background:"var(--s2)",borderRadius:6,padding:"6px 4px",border:`1px solid ${d>=r?"rgba(26,217,138,.2)":"rgba(228,53,49,.2)"}`}}>
+                      <div style={{fontFamily:"var(--mono)",fontSize:14,fontWeight:700,color:r===0?"var(--t3)":d>=r?"var(--green)":"var(--acc)"}}>{d}/{r}</div>
+                      <div style={{fontSize:8,color:"var(--t3)",fontFamily:"var(--mono)"}}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <button className="btn btn-primary btn-full" style={{marginBottom:14}} onClick={()=>setShow("equip")}>{I.plus} Deploy Equipment</button>
             {equip.length===0
               ?<div className="empty"><div className="empty-ico" style={{opacity:.12,fontSize:24}}>🔧</div><div style={{fontSize:12,color:"var(--t3)"}}>No equipment deployed yet.</div></div>
@@ -559,7 +612,8 @@ function DryDoxScreen({ proj, fieldUser }) {
               })
             }
           </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* ── READING SHEET ── */}
@@ -607,6 +661,25 @@ function DryDoxScreen({ proj, fieldUser }) {
               <div><label className="lbl">Width (ft)</label><input className="inp" type="number" value={rf.widthFt} onChange={e=>setRF(p=>({...p,widthFt:e.target.value}))} inputMode="decimal"/></div>
               <div><label className="lbl">Depth (ft)</label><input className="inp" type="number" value={rf.depthFt} onChange={e=>setRF(p=>({...p,depthFt:e.target.value}))} inputMode="decimal"/></div>
               <div><label className="lbl">Ceiling (ft)</label><input className="inp" type="number" value={rf.ceilingFt} onChange={e=>setRF(p=>({...p,ceilingFt:e.target.value}))} inputMode="decimal"/></div>
+            </div>
+            <div className="g2" style={{marginBottom:12}}>
+              <div>
+                <label className="lbl">Water Category</label>
+                <select className="sel" value={rf.category} onChange={e=>setRF(p=>({...p,category:e.target.value}))}>
+                  <option value="cat1">Cat 1 — Clean</option>
+                  <option value="cat2">Cat 2 — Gray</option>
+                  <option value="cat3">Cat 3 — Black</option>
+                </select>
+              </div>
+              <div>
+                <label className="lbl">Material Class</label>
+                <select className="sel" value={rf.materialClass} onChange={e=>setRF(p=>({...p,materialClass:e.target.value}))}>
+                  <option value="class1">Class 1 — Low</option>
+                  <option value="class2">Class 2 — Medium</option>
+                  <option value="class3">Class 3 — Fast</option>
+                  <option value="class4">Class 4 — Specialty</option>
+                </select>
+              </div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10}}>
               <button className="btn btn-ghost" onClick={()=>setShow(null)}>Cancel</button>

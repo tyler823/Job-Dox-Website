@@ -16,13 +16,14 @@
    - ESX sketch export for Xactimate
 ══════════════════════════════════════════════════════════════════ */
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { DRYDOX_CSS, dduid, DDIc, EQUIP_TYPES, getET, fmt$c, rhColor, rhLabel } from "./drydox/DryDoxConstants.js";
+import { DRYDOX_CSS, dduid, DDIc, EQUIP_TYPES, getET, fmt$c, rhColor, rhLabel, compareS500 } from "./drydox/DryDoxConstants.js";
 import DryDoxFloorPlan from "./drydox/DryDoxFloorPlan.jsx";
 import DryDoxMoisture from "./drydox/DryDoxMoisture.jsx";
 import DryDoxEquipment from "./drydox/DryDoxEquipment.jsx";
 import DryDoxScope from "./drydox/DryDoxScope.jsx";
 import DryDoxReport from "./drydox/DryDoxReport.jsx";
 import DryDoxESX from "./drydox/DryDoxESX.jsx";
+import DryDoxS500 from "./drydox/DryDoxS500.jsx";
 
 // ── Persistent state hook (mirrors useProjState from portal) ──
 function useDryDoxState(projId, key, fallback) {
@@ -70,6 +71,14 @@ export default function DryDoxTab({ proj, priceLists = [], onPushToScope, compan
   const [dryingComplete, setDryingComplete]     = useDryDoxState(projId, "dryingComplete", null);
   const [billingDays, setBillingDays]           = useDryDoxState(projId, "billingDays", 3);
   const [activePLId, setActivePL]               = useState(priceLists[0]?.id || null);
+  const [s500Comments, setS500Comments]         = useDryDoxState(projId, "s500Comments", {});
+  const [s500Overrides, setS500Overrides]       = useDryDoxState(projId, "s500Overrides", {});
+
+  // ── S500 compliance check ──
+  const s500Status = useMemo(
+    () => compareS500(rooms, equipmentPlacements, s500Overrides?.dehuPPD, s500Overrides?.scrubberCFM),
+    [rooms, equipmentPlacements, s500Overrides]
+  );
 
   // ── Sub-tab navigation ──
   const [subtab, setSubtab] = useState("floorplan");
@@ -78,6 +87,7 @@ export default function DryDoxTab({ proj, priceLists = [], onPushToScope, compan
     { key: "floorplan",  label: "Floor Plan",    icon: DDIc.floor,  badge: rooms.length },
     { key: "moisture",   label: "Moisture",      icon: DDIc.drop,   badge: dryingLogs.length },
     { key: "equipment",  label: "Equipment",     icon: DDIc.equip,  badge: equipmentPlacements.filter(e => !e.removedAt).length },
+    { key: "s500",       label: "S500",          icon: DDIc.check,  badge: s500Status.matched ? 0 : s500Status.mismatches.filter(m => !m.over).length, flagged: !s500Status.matched },
     { key: "scope",      label: "Scope",         icon: DDIc.scope,  badge: scopeItems.length },
     { key: "report",     label: "Report",        icon: DDIc.pdf },
     { key: "esx",        label: "ESX Export",    icon: DDIc.export },
@@ -142,7 +152,7 @@ export default function DryDoxTab({ proj, priceLists = [], onPushToScope, compan
             onClick={() => setSubtab(t.key)}>
             <span style={{ opacity: 0.7 }}>{t.icon}</span>
             <span>{t.label}</span>
-            {t.badge > 0 && <span className="dd-badge">{t.badge}</span>}
+            {t.badge > 0 && <span className="dd-badge" style={t.flagged ? { background: "var(--acc)" } : undefined}>{t.badge}</span>}
           </button>
         ))}
         <div style={{ flex: 1 }} />
@@ -217,6 +227,16 @@ export default function DryDoxTab({ proj, priceLists = [], onPushToScope, compan
               priceLists={priceLists} activePLId={activePLId}
               billingDays={billingDays} setBillingDays={setBillingDays}
               onPushToScope={handlePushToScope}
+              s500Comments={s500Comments} s500Overrides={s500Overrides}
+            />
+          )}
+
+          {subtab === "s500" && (
+            <DryDoxS500
+              rooms={rooms}
+              equipmentPlacements={equipmentPlacements}
+              s500Comments={s500Comments} setS500Comments={setS500Comments}
+              s500Overrides={s500Overrides} setS500Overrides={setS500Overrides}
             />
           )}
 

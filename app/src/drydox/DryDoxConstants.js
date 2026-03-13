@@ -94,6 +94,123 @@ export function calcDewPoint(tempF, rh) {
   return Math.round((dpC * 9/5 + 32) * 10) / 10;
 }
 
+// ── IICRC S500 Equipment Recommendation Formulas ──
+// Chart factors for dehumidifier PPD calculation by water class
+export const S500_DEHU_FACTORS = {
+  class1: 100,  // Low evaporation
+  class2: 50,   // Medium evaporation
+  class3: 40,   // Fast evaporation
+  class4: 40,   // Specialty drying
+};
+
+// Default dehumidifier AHAM rating (PPD) — user can override per unit
+export const DEFAULT_DEHU_PPD = 80;
+
+// Default air scrubber CFM rating — user can override
+export const DEFAULT_SCRUBBER_CFM = 500;
+
+// Standard air changes per hour for air scrubbers (Cat 3 = 6, Cat 2 = 4, Cat 1 = 0)
+export const S500_ACH = {
+  cat1: 0,  // Category 1 — no scrubber required by standard
+  cat2: 4,  // Category 2 — gray water
+  cat3: 6,  // Category 3 — black water
+};
+
+/**
+ * Calculate S500 air mover recommendation for a room.
+ * Method: 1 air mover per 50 SF of affected floor area (high density)
+ *         or 1 per 14 LF of wall (wall method) — we use whichever is higher.
+ */
+export function calcAirMovers(room) {
+  const sqft = (parseFloat(room.widthFt) || 0) * (parseFloat(room.depthFt) || 0);
+  const perimLF = 2 * ((parseFloat(room.widthFt) || 0) + (parseFloat(room.depthFt) || 0));
+  const byFloor = Math.ceil(sqft / 50);
+  const byWall = Math.ceil(perimLF / 14);
+  return Math.max(byFloor, byWall, 1);
+}
+
+/**
+ * Calculate S500 dehumidifier recommendation for a room.
+ * Formula: Cubic footage ÷ chart factor = PPD needed
+ *          PPD needed ÷ dehu AHAM rating = number of units
+ */
+export function calcDehumidifiers(room, dehuPPD = DEFAULT_DEHU_PPD) {
+  const sqft = (parseFloat(room.widthFt) || 0) * (parseFloat(room.depthFt) || 0);
+  const ceilingFt = parseFloat(room.ceilingFt) || 8;
+  const cubicFt = sqft * ceilingFt;
+  const matClass = room.materialClass || "class2";
+  const factor = S500_DEHU_FACTORS[matClass] || 50;
+  const ppdNeeded = cubicFt / factor;
+  return Math.max(Math.ceil(ppdNeeded / dehuPPD), sqft > 0 ? 1 : 0);
+}
+
+/**
+ * Calculate S500 air scrubber recommendation for a room.
+ * Formula: CFM = (Cubic Feet × ACH) / 60
+ *          Units = CFM needed ÷ scrubber CFM rating
+ * Only required for Cat 2/3 water.
+ */
+export function calcAirScrubbers(room, scrubberCFM = DEFAULT_SCRUBBER_CFM) {
+  const category = room.category || "cat1";
+  const ach = S500_ACH[category] || 0;
+  if (ach === 0) return 0;
+  const sqft = (parseFloat(room.widthFt) || 0) * (parseFloat(room.depthFt) || 0);
+  const ceilingFt = parseFloat(room.ceilingFt) || 8;
+  const cubicFt = sqft * ceilingFt;
+  const cfmNeeded = (cubicFt * ach) / 60;
+  return Math.max(Math.ceil(cfmNeeded / scrubberCFM), 1);
+}
+
+/**
+ * Calculate full S500 recommendation for all rooms.
+ * Returns { rooms: [...per-room], totals: { fan, dehu, scrubber } }
+ */
+export function calcS500Recommendations(rooms, dehuPPD = DEFAULT_DEHU_PPD, scrubberCFM = DEFAULT_SCRUBBER_CFM) {
+  const result = { rooms: [], totals: { fan: 0, dehu: 0, scrubber: 0 } };
+  (rooms || []).forEach(room => {
+    const fan = calcAirMovers(room);
+    const dehu = calcDehumidifiers(room, dehuPPD);
+    const scrubber = calcAirScrubbers(room, scrubberCFM);
+    result.rooms.push({ roomId: room.id, label: room.label, fan, dehu, scrubber });
+    result.totals.fan += fan;
+    result.totals.dehu += dehu;
+    result.totals.scrubber += scrubber;
+  });
+  return result;
+}
+
+/**
+ * Compare deployed equipment vs S500 recommendations.
+ * Returns { matched, mismatches[], deployed: {fan,dehu,scrubber}, recommended: {fan,dehu,scrubber} }
+ */
+export function compareS500(rooms, equipmentPlacements, dehuPPD, scrubberCFM) {
+  const recs = calcS500Recommendations(rooms, dehuPPD, scrubberCFM);
+  const active = (equipmentPlacements || []).filter(e => !e.removedAt);
+
+  const deployed = { fan: 0, dehu: 0, scrubber: 0 };
+  active.forEach(eq => {
+    if (eq.type === "fan") deployed.fan++;
+    else if (eq.type === "dehu" || eq.type === "dehu-des") deployed.dehu++;
+    else if (eq.type === "scrubber" || eq.type === "negair") deployed.scrubber++;
+  });
+
+  const mismatches = [];
+  if (deployed.fan < recs.totals.fan) mismatches.push({ type: "fan", label: "Air Movers", deployed: deployed.fan, recommended: recs.totals.fan });
+  if (deployed.dehu < recs.totals.dehu) mismatches.push({ type: "dehu", label: "Dehumidifiers", deployed: deployed.dehu, recommended: recs.totals.dehu });
+  if (deployed.scrubber < recs.totals.scrubber) mismatches.push({ type: "scrubber", label: "Air Scrubbers", deployed: deployed.scrubber, recommended: recs.totals.scrubber });
+  // Also flag over-deployment (not a violation, but informational)
+  if (deployed.fan > recs.totals.fan) mismatches.push({ type: "fan", label: "Air Movers", deployed: deployed.fan, recommended: recs.totals.fan, over: true });
+  if (deployed.dehu > recs.totals.dehu) mismatches.push({ type: "dehu", label: "Dehumidifiers", deployed: deployed.dehu, recommended: recs.totals.dehu, over: true });
+
+  return {
+    matched: mismatches.filter(m => !m.over).length === 0,
+    mismatches,
+    deployed,
+    recommended: recs.totals,
+    perRoom: recs.rooms,
+  };
+}
+
 // ── SVG Icons used across DryDox ──
 export const DDIc = {
   drop:    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8z"/></svg>,
