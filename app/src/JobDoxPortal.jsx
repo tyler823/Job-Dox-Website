@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { DocumentsTab, LogoUploadSection, DocumentTemplateCenter } from "./JobDoxDocuments.jsx";
 import { FinancialTab, FinancialHealthBadge, FinancialDashboard } from "./JobDoxFinance.jsx";
+import ContentsDox from "./ContentsDox.jsx";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
          doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where } from "firebase/firestore";
@@ -6296,141 +6297,8 @@ function DryDoxTab({ proj, priceLists=[], onPushToScope }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SECTION 4 · ENHANCED CONTENTSDOX TAB
+// SECTION 4 · CONTENTSDOX — imported from ContentsDox.jsx
 // ─────────────────────────────────────────────────────────────────────────────
-
-const CONTENTS_SEED = [
-  { id:1, room:"Living Room",   item:"Samsung 65\" QLED TV",           qty:1, condition:"Total Loss", repVal:1299, acvVal:780,  status:"claim"   },
-  { id:2, room:"Living Room",   item:"Ashley Sectional Sofa (Gray)",    qty:1, condition:"Total Loss", repVal:1899, acvVal:1140, status:"claim"   },
-  { id:3, room:"Living Room",   item:"Coffee Table — Wood",             qty:1, condition:"Damaged",    repVal:349,  acvVal:175,  status:"restore" },
-  { id:4, room:"Kitchen",       item:"KitchenAid Stand Mixer (Red)",    qty:1, condition:"Restorable", repVal:479,  acvVal:320,  status:"restore" },
-  { id:5, room:"Master Bedroom",item:"Casper King Mattress",            qty:1, condition:"Total Loss", repVal:1695, acvVal:1017, status:"claim"   },
-  { id:6, room:"Master Bedroom",item:"IKEA Malm Dresser (6-drawer)",    qty:1, condition:"Damaged",    repVal:299,  acvVal:120,  status:"pending" },
-];
-
-const ITEM_STATUS = {
-  pending:  { label:"Pending",  color:"var(--t3)" },
-  claim:    { label:"To Claim", color:"var(--acc)" },
-  restore:  { label:"Restore",  color:"var(--amber)" },
-  cleared:  { label:"Cleared",  color:"var(--green)" },
-};
-
-
-function ContentsDoxTab({ proj, onPushToScope }) {
-  const [items, setItems]   = useState(CONTENTS_SEED);
-  const [roomF, setRoomF]   = useState("All");
-  const [adding, setAdding] = useState(false);
-  const [pushStatus, setPushStatus] = useState(null);
-  const [f, setF] = useState({room:"",item:"",qty:"1",condition:"Damaged",repVal:"",acvVal:"",status:"pending"});
-  const rooms  = ["All",...new Set(items.map(i=>i.room))];
-  const vis    = roomF==="All" ? items : items.filter(i=>i.room===roomF);
-  const totRep = vis.reduce((s,i)=>s+i.repVal*(i.qty||1),0);
-  const totAcv = vis.reduce((s,i)=>s+i.acvVal*(i.qty||1),0);
-
-  const addItem = () => {
-    if (!f.item) return;
-    setItems(p=>[...p,{id:uid(),...f,qty:parseInt(f.qty)||1,repVal:parseFloat(f.repVal)||0,acvVal:parseFloat(f.acvVal)||0}]);
-    setF({room:"",item:"",qty:"1",condition:"Damaged",repVal:"",acvVal:"",status:"pending"}); setAdding(false);
-  };
-
-  const pushClaimsToScope = () => {
-    if (!onPushToScope) return;
-    const claimItems = items.filter(i=>i.status==="claim");
-    if (!claimItems.length) { setPushStatus("No items marked 'To Claim'. Set item status to 'claim' first."); return; }
-    const lineItems = claimItems.map(i=>({
-      id: uid(),
-      desc: `Contents — ${i.item} (${i.room})`,
-      unit: "EA", qty: i.qty||1, price: i.repVal,
-      source: "contentsdox",
-    }));
-    onPushToScope(lineItems);
-    setPushStatus(`✓ Pushed ${lineItems.length} contents claims to Scope/Invoice`);
-    setTimeout(()=>setPushStatus(null), 4000);
-  };
-
-  return (
-    <div className="scroll"><div style={{maxWidth:960,margin:"0 auto"}}>
-      <div className="g4" style={{gap:9,marginBottom:16}}>
-        {[["Total Items",items.length,"var(--t1)"],["Replacement Value",fmt$(totRep),"var(--amber)"],
-          ["ACV",fmt$(totAcv),"var(--green)"],["To Claim",items.filter(i=>i.status==="claim").length,"var(--acc)"]
-        ].map(([l,v,c])=>(
-          <div key={l} className="kpi" style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9}}>
-            <div className="kpi-val" style={{color:c}}>{v}</div><div className="kpi-lbl">{l}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Push to scope banner */}
-      {onPushToScope && (
-        <div style={{background:"rgba(91,163,245,.07)",border:"1px solid rgba(91,163,245,.2)",borderRadius:9,
-          padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
-          <div style={{flex:1}}>
-            <div style={{fontSize:12,fontWeight:700,color:"var(--blue)"}}>Push Contents Claims to Invoice</div>
-            <div style={{fontSize:11,color:"var(--t2)",marginTop:1}}>{items.filter(i=>i.status==="claim").length} items marked "To Claim" · Replacement value {fmt$(items.filter(i=>i.status==="claim").reduce((s,i)=>s+i.repVal*(i.qty||1),0))}</div>
-          </div>
-          {pushStatus && <div style={{fontSize:11,fontWeight:700,color:pushStatus.startsWith("✓")?"var(--green)":"var(--amber)"}}>{pushStatus}</div>}
-          <button className="btn btn-blue" onClick={pushClaimsToScope}>{Ic.invoice} Push Claims to Scope</button>
-        </div>
-      )}
-
-      <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:11,flexWrap:"wrap"}}>
-        <span className="mono" style={{fontSize:9,color:"var(--t3)"}}>ROOM</span>
-        {rooms.map(r=><button key={r} className={`chip${roomF===r?" on":""}`} onClick={()=>setRoomF(r)}>{r}</button>)}
-        <div style={{flex:1}}/>
-        <button className="btn btn-primary btn-xs" onClick={()=>setAdding(v=>!v)}>{Ic.plus} Add Item</button>
-      </div>
-
-      {adding && (
-        <div className="card" style={{marginBottom:12}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 80px 120px",gap:9,marginBottom:9}}>
-            <F label="Room" value={f.room} onChange={v=>setF(p=>({...p,room:v}))} placeholder="e.g. Living Room"/>
-            <F label="Item Description" value={f.item} onChange={v=>setF(p=>({...p,item:v}))} placeholder="Brand + item name"/>
-            <F label="Qty" value={f.qty} onChange={v=>setF(p=>({...p,qty:v}))} placeholder="1"/>
-            <F label="Condition" value={f.condition} onChange={v=>setF(p=>({...p,condition:v}))} options={["Damaged","Total Loss","Restorable","Undamaged"]}/>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginBottom:9}}>
-            <F label="Replacement Value ($)" value={f.repVal} onChange={v=>setF(p=>({...p,repVal:v}))} placeholder="0.00"/>
-            <F label="ACV ($)" value={f.acvVal} onChange={v=>setF(p=>({...p,acvVal:v}))} placeholder="0.00"/>
-            <F label="Status" value={f.status} onChange={v=>setF(p=>({...p,status:v}))} options={["pending","claim","restore","cleared"]}/>
-          </div>
-          <div style={{display:"flex",justifyContent:"flex-end",gap:7}}>
-            <button className="btn btn-ghost btn-xs" onClick={()=>setAdding(false)}>Cancel</button>
-            <button className="btn btn-primary btn-xs" onClick={addItem}>Add to List</button>
-          </div>
-        </div>
-      )}
-
-      <div style={{display:"grid",gridTemplateColumns:"1fr 130px 90px 100px 100px 84px 24px",gap:4,padding:"3px 11px",marginBottom:4}}>
-        {["Item","Room","Condition","Rep. Value","ACV","Status",""].map((h,i)=><div key={i} className="mono" style={{fontSize:8,color:"var(--t3)"}}>{h}</div>)}
-      </div>
-      {vis.map(it=>{
-        const st = ITEM_STATUS[it.status]||ITEM_STATUS.pending;
-        return (
-          <div key={it.id} className="row" style={{display:"grid",gridTemplateColumns:"1fr 130px 90px 100px 100px 84px 24px",gap:4,alignItems:"center",marginBottom:4}}>
-            <div style={{minWidth:0}}>
-              <div style={{fontSize:12,fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.item}</div>
-              {(it.qty||1)>1&&<div style={{fontSize:10,color:"var(--t3)"}}>Qty: {it.qty}</div>}
-            </div>
-            <div style={{fontSize:11,color:"var(--t2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.room}</div>
-            <div style={{fontSize:11,color:it.condition==="Total Loss"?"var(--acc)":it.condition==="Restorable"?"var(--amber)":"var(--t2)"}}>{it.condition}</div>
-            <div className="mono" style={{fontSize:11,fontWeight:700,color:"var(--amber)"}}>{fmt$(it.repVal*(it.qty||1))}</div>
-            <div className="mono" style={{fontSize:11,fontWeight:700,color:"var(--green)"}}>{fmt$(it.acvVal*(it.qty||1))}</div>
-            <select className="sel" value={it.status} onChange={e=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:e.target.value}:x))}
-              style={{height:26,fontSize:10,padding:"2px 6px",color:st.color,fontWeight:700}}>
-              {Object.keys(ITEM_STATUS).map(k=><option key={k} value={k}>{ITEM_STATUS[k].label}</option>)}
-            </select>
-            <button className="btn btn-danger btn-xs" style={{padding:"2px 5px"}} onClick={()=>setItems(p=>p.filter(x=>x.id!==it.id))}>{Ic.trash}</button>
-          </div>
-        );
-      })}
-      <div style={{marginTop:12,padding:"10px 13px",background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,display:"flex",gap:24,justifyContent:"flex-end",alignItems:"center"}}>
-        <div style={{fontSize:11,color:"var(--t3)"}}>{vis.length} items shown</div>
-        <div><div className="lbl">Rep. Value</div><div className="mono" style={{fontSize:13,fontWeight:700,color:"var(--amber)"}}>{fmt$(vis.reduce((s,i)=>s+i.repVal*(i.qty||1),0))}</div></div>
-        <div><div className="lbl">ACV Total</div><div className="mono" style={{fontSize:13,fontWeight:700,color:"var(--green)"}}>{fmt$(vis.reduce((s,i)=>s+i.acvVal*(i.qty||1),0))}</div></div>
-      </div>
-    </div></div>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECTION 5 · ENHANCED SCOPE TAB
@@ -7893,7 +7761,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       </div>
       {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff} worktypes={worktypes} setWorktypes={setWorktypes} currentUser={currentUser} assignedStaff={assignedStaff} setAssignedStaff={setAssignedStaff}/>}
       {tab==="drydox"         && <DryDoxTab      proj={proj} priceLists={priceLists} onPushToScope={handlePushToScope}/>}
-      {tab==="contentsdox"    && <ContentsDoxTab proj={proj} onPushToScope={handlePushToScope}/>}
+      {tab==="contentsdox"    && <ContentsDox proj={proj} companyId={companyId} db={db}/>}
       {tab==="estimatedox"    && <EstimateDoxTab proj={proj}/>}
       {tab==="contacts"       && <ContactsTab contacts={contacts} setContacts={setContacts}/>}
       {tab==="media"          && <MediaTab       folders={mediaFolders} setFolders={setMediaFolders} uploads={mediaUploads} setUploads={setMediaUploads}/>}
