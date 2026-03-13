@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { DocumentsTab, LogoUploadSection, DocumentTemplateCenter } from "./JobDoxDocuments.jsx";
 import { FinancialTab, FinancialHealthBadge, FinancialDashboard } from "./JobDoxFinance.jsx";
 import ContentsDox from "./ContentsDox.jsx";
+import DryDoxModule from "./DryDox.jsx";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
          doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where } from "firebase/firestore";
@@ -7759,7 +7760,7 @@ const PROJ_TABS = [
 
 
 
-function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists, companyId="", phoneSettings={}, isVendor=false, currentMemberId="", onNavigate, canArchive=false, onArchive }) {
+function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists, companyId="", phoneSettings={}, isVendor=false, currentMemberId="", onNavigate, canArchive=false, onArchive, coInfo={} }) {
   const [tab,setTab]           = useState(initialTab||"overview");
   // Sync when initialTab prop changes (e.g. user clicks a nav button while project is already open)
   const prevInitialTab = useRef(initialTab);
@@ -7863,7 +7864,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
         ))}
       </div>
       {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff} worktypes={worktypes} setWorktypes={setWorktypes} currentUser={currentUser} assignedStaff={assignedStaff} setAssignedStaff={setAssignedStaff} canArchive={canArchive} onArchive={onArchive} onBack={onBack}/>}
-      {tab==="drydox"         && <DryDoxTab      proj={proj} priceLists={priceLists} onPushToScope={handlePushToScope}/>}
+      {tab==="drydox"         && <DryDoxModule    proj={proj} priceLists={priceLists} onPushToScope={handlePushToScope} companyLogo={coInfo?.logo}/>}
       {tab==="contentsdox"    && <ContentsDox proj={proj} companyId={companyId} db={db}/>}
       {tab==="estimatedox"    && <EstimateDoxTab proj={proj}/>}
       {tab==="contacts"       && <ContactsTab contacts={contacts} setContacts={setContacts}/>}
@@ -10875,6 +10876,7 @@ export default function JobDoxPortal() {
             onNavigate={handleNavigate}
             canArchive={canArchiveProject}
             onArchive={handleArchiveProject}
+            coInfo={coInfo}
           />
         ) : (
           <PortfolioPage
