@@ -910,7 +910,7 @@ export default function ContentsDox({ proj, companyId, db, onPushToScope }) {
 
             {services.length===0
               ? <div style={{border:"1.5px dashed var(--br)",borderRadius:9,padding:"32px",
-                  textAlign:"center",color:"var(--t3)",fontSize:12"}}>
+                  textAlign:"center",color:"var(--t3)",fontSize:12}}>
                   No services added yet. Add pack-out, cleaning, storage, and other contents services your company performs.
                 </div>
               : services.map(svc=>(
