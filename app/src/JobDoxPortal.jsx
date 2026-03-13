@@ -10854,6 +10854,7 @@ export default function JobDoxPortal() {
             customWorkTypes={customWorkTypes}
             customStatuses={customStatuses}
             customProjectTypes={customProjectTypes}
+            priceLists={priceLists}
           />
         ) : page==="finance" ? (
           <FinancialDashboard
