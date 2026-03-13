@@ -11,7 +11,8 @@ import {
   calcAirMovers, calcDehumidifiers, calcAirScrubbers,
   calcS500Recommendations, compareS500,
   DEFAULT_DEHU_PPD, DEFAULT_SCRUBBER_CFM,
-} from "./DryDoxConstants.js";
+  S500_DEHU_FACTORS, S500_ACH,
+} from "./DryDoxConstants.jsx";
 
 // ── Mismatch Comment Modal ──
 function MismatchCommentModal({ mismatches, existingComments, onSave, onClose }) {
@@ -384,5 +385,3 @@ export default function DryDoxS500({
   );
 }
 
-// Re-export needed items for use in constants import
-import { S500_DEHU_FACTORS, S500_ACH } from "./DryDoxConstants.js";

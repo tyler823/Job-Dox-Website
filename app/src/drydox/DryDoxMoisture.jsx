@@ -11,7 +11,7 @@ import {
   DRY_STANDARD_RH, DRY_STANDARD_GPP,
   rhColor, rhLabel, fmtDate, fmtShort,
   calcGPP, calcDewPoint,
-} from "./DryDoxConstants.js";
+} from "./DryDoxConstants.jsx";
 
 // ── SVG Mini-Chart: Line chart for moisture trends ──
 function TrendChart({ data, dataKey, color, label, threshold, height = 100, width = "100%" }) {
