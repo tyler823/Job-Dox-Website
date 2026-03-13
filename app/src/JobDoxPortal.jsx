@@ -445,6 +445,30 @@ function saveCoInfo(info) {
   localStorage.setItem(LS_CO_KEY, JSON.stringify(info));
 }
 
+/* ── Billing settings (tax rates, T&C, overhead, pinned items) ── */
+const LS_BILLING = "jd_billing_settings";
+const DEFAULT_BILLING = {
+  taxRates:       [{ id:"tx1", name:"No Tax", rate:0 }, { id:"tx2", name:"Sales Tax (8.5%)", rate:8.5 }, { id:"tx3", name:"State Tax (6%)", rate:6 }],
+  defaultTaxId:   "tx1",
+  defaultOverhead: 10,
+  defaultDiscount: 0,
+  terms:          "Payment is due within 30 days of invoice date. A late fee of 1.5% per month will be applied to overdue balances. All work performed per applicable building codes. Contractor is not responsible for pre-existing conditions.",
+  pinnedItems:    {},   // { [workTypeName]: [{ id, desc, unit, price }] }
+  nextInvoiceNum: 1001,
+};
+function loadBilling()     { try { return { ...DEFAULT_BILLING, ...JSON.parse(localStorage.getItem(LS_BILLING)) }; } catch { return DEFAULT_BILLING; } }
+function saveBilling(b)    { try { localStorage.setItem(LS_BILLING, JSON.stringify(b)); } catch {} }
+
+/* ── Invoice storage ── */
+const LS_INVOICES = "jd_invoices";
+function loadAllInvoices() { try { return JSON.parse(localStorage.getItem(LS_INVOICES)) || []; } catch { return []; } }
+function saveAllInvoices(v){ try { localStorage.setItem(LS_INVOICES, JSON.stringify(v)); } catch {} }
+function loadProjInvoices(projId) { return loadAllInvoices().filter(inv => inv.projId === projId); }
+function pushInvoice(inv) {
+  const all = loadAllInvoices().filter(i => i.id !== inv.id);
+  saveAllInvoices([...all, inv]);
+}
+
 const DEFAULT_WORK_TYPES    = [];
 const DEFAULT_STATUSES      = [];
 const DEFAULT_PROJECT_TYPES = [];
@@ -550,13 +574,7 @@ const CONTACTS_SEED = [];
 const DOCS_SEED = [];
 const TASKS_SEED = [];
 
-const SCOPE_SEED = [
-  {id:1,desc:"Water Extraction — Per sq ft",unit:"SF",qty:480,price:0.85},
-  {id:2,desc:"LGR Dehumidifier — Per Day",unit:"EA",qty:3,price:85},
-  {id:3,desc:"Air Mover — Per Day",unit:"EA",qty:8,price:28},
-  {id:4,desc:"Antimicrobial Treatment",unit:"SF",qty:480,price:0.55},
-  {id:5,desc:"Demo — Drywall",unit:"SF",qty:120,price:1.65},
-];
+const SCOPE_SEED = [];
 
 const PRICE_LIST = [
   {code:"WTR-EXT",desc:"Water Extraction",unit:"SF",price:0.85},
@@ -1640,7 +1658,7 @@ function FeedActionPopup({ item, pos, onClose, onNavigate }) {
     actions.push({ icon:Ic.sms, label:"Quick reply",         color:"var(--amber)", action:()=>{ onNavigate(item.projId, "messages"); onClose(); }});
   }
   if (item.actionType==="media")   actions.push({ icon:Ic.photo,  label:"View photos",       color:"var(--purple)", action:()=>{ onNavigate(item.projId, "media"); onClose(); }});
-  if (item.actionType==="budget")  actions.push({ icon:Ic.dollar, label:"Open Budget tab",   color:"var(--green)",  action:()=>{ onNavigate(item.projId, "budget"); onClose(); }});
+  if (item.actionType==="budget")  actions.push({ icon:Ic.dollar, label:"Open Finance tab",   color:"var(--green)",  action:()=>{ onNavigate(item.projId, "finance"); onClose(); }});
   if (item.actionType==="contact") actions.push({ icon:Ic.contact,label:"View Contacts",     color:"var(--blue)",   action:()=>{ onNavigate(item.projId, "contacts"); onClose(); }});
   if (item.actionType==="overview")actions.push({ icon:Ic.chart,  label:"View Overview",     color:"var(--teal)",   action:()=>{ onNavigate(item.projId, "overview"); onClose(); }});
 
@@ -3158,7 +3176,7 @@ function BudgetTab({ proj, laborCost=0 }) {
 }
 
 function ShiftsTab({ projId, externalShifts=[], canViewRates, canViewPayRates=false }) {
-  const SEED=[{id:1,tech:"Jake Reynolds",task:"Initial extraction & setup",mode:"trade",position:"Lead Technician",rate:85,payRate:28,clockIn:"Dec 12 07:45 AM",clockOut:"Dec 12 04:30 PM",hours:8.75,notes:"Extracted ~480 SF, placed 8 air movers",laborCost:743.75},{id:2,tech:"Maria Santos",task:"Equipment monitoring",mode:"trade",position:"Field Technician",rate:65,payRate:22,clockIn:"Dec 13 08:00 AM",clockOut:"Dec 13 01:00 PM",hours:5.0,notes:"Day 2 readings logged in DryDox",laborCost:325}];
+  const SEED=[];
   const [manual, setManual] = useState(SEED);
   const [adding, setAdding] = useState(false);
   const [f, setF] = useState({tech:"",task:"",position:"Lead Technician",rate:"85",clockIn:"",clockOut:"",notes:""});
@@ -3247,27 +3265,85 @@ function ShiftsTab({ projId, externalShifts=[], canViewRates, canViewPayRates=fa
 
 
 
-function ScopeTab({ scopeItems: externalItems, setScopeItems: setExternal }) {
+function ScopeTab({ proj, scopeItems: externalItems, setScopeItems: setExternal }) {
   const [internalItems, setInternal] = useState(SCOPE_SEED);
   const items    = externalItems !== undefined ? externalItems : internalItems;
   const setItems = externalItems !== undefined ? setExternal   : setInternal;
 
-  const [showPL, setShowPL]     = useState(false);
-  const [filterSrc, setFilter]  = useState("all");
-  const upd = (id,k,v) => setItems(p=>p.map(i=>i.id===id?{...i,[k]:v}:i));
-  const sub = items.reduce((s,i)=>s+i.qty*i.price, 0);
-  const sources = [...new Set(items.map(i=>i.source||"manual").filter(Boolean))];
+  const billing   = loadBilling();
+  const co        = loadCoInfo();
 
-  const vis = filterSrc==="all" ? items : items.filter(i=>(i.source||"manual")===filterSrc);
+  // Invoice adjustments state
+  const [summary,      setSummary]    = useState(proj?.notes || "");
+  const [overhead,     setOverhead]   = useState(billing.defaultOverhead);
+  const [discount,     setDiscount]   = useState(billing.defaultDiscount);
+  const [selTaxId,     setSelTaxId]   = useState(billing.defaultTaxId || "tx1");
+  const [terms,        setTerms]      = useState(billing.terms || "");
+  const [addSurcharge, setAddSurcharge] = useState(false);
+  const [surcharges,   setSurcharges]  = useState([]);  // [{id,label,pct}]
+  const [showPL,       setShowPL]      = useState(false);
+  const [showPinned,   setShowPinned]  = useState(false);
+  const [filterSrc,    setFilter]      = useState("all");
+  const [generated,    setGenerated]   = useState(false);
+
+  const selTax    = billing.taxRates?.find(t => t.id === selTaxId) || { name:"No Tax", rate:0 };
+  const sub       = items.reduce((s,i) => s + i.qty*i.price, 0);
+  const ovAmt     = sub * (overhead/100);
+  const surAmt    = surcharges.reduce((s,c) => s + sub*(c.pct/100), 0);
+  const discAmt   = (sub + ovAmt + surAmt) * (discount/100);
+  const taxBase   = sub + ovAmt + surAmt - discAmt;
+  const taxAmt    = taxBase * (selTax.rate/100);
+  const total     = taxBase + taxAmt;
+
+  const upd = (id,k,v) => setItems(p=>p.map(i=>i.id===id?{...i,[k]:v}:i));
+  const sources   = [...new Set(items.map(i=>i.source||"manual").filter(Boolean))];
+  const vis       = filterSrc==="all" ? items : items.filter(i=>(i.source||"manual")===filterSrc);
 
   const SOURCE_BADGE = {
-    drydox:     { label:"DryDox",     color:"var(--blue)"   },
-    contentsdox:{ label:"ContentsDox",color:"var(--purple)" },
-    manual:     { label:"Manual",     color:"var(--t3)"     },
+    drydox:      { label:"DryDox",     color:"var(--blue)"   },
+    contentsdox: { label:"ContentsDox",color:"var(--purple)" },
+    manual:      { label:"Manual",     color:"var(--t3)"     },
+  };
+
+  // Pinned items for this project's work types
+  const projWorkTypes = proj?.worktypes?.map(w=>w.type||w) || (proj?.type ? [proj.type] : []);
+  const pinnedForProj = projWorkTypes.flatMap(wt => (billing.pinnedItems?.[wt] || []).map(pi=>({...pi, _pinSource:wt})));
+
+  const addPinned = (pi) => {
+    setItems(p => [...p, { id:uid(), desc:pi.desc, unit:pi.unit||"EA", qty:1, price:pi.price, source:"manual" }]);
+  };
+
+  const generateInvoice = () => {
+    const b = loadBilling();
+    const num = b.nextInvoiceNum || 1001;
+    saveBilling({ ...b, nextInvoiceNum: num+1 });
+    const inv = {
+      id:         `inv-${Date.now()}`,
+      number:     `INV-${num}`,
+      projId:     proj?.id || "",
+      projName:   proj?.name || "",
+      projAddress:proj?.address || "",
+      clientName: proj?.clientName || proj?.client || "",
+      clientPhone:proj?.clientPhone || proj?.phone || "",
+      company:    co,
+      date:       new Date().toISOString(),
+      dueDate:    new Date(Date.now()+30*86400000).toISOString(),
+      summary,
+      lineItems:  items,
+      adjustments:{ overhead, discount, taxId:selTaxId, taxName:selTax.name, taxRate:selTax.rate, surcharges },
+      subtotal:   sub, overheadAmt:ovAmt, surchargeAmt:surAmt, discountAmt:discAmt, taxAmt, total,
+      terms,
+      status:     "unpaid",
+      createdAt:  new Date().toISOString(),
+    };
+    pushInvoice(inv);
+    setGenerated(true);
+    setTimeout(()=>setGenerated(false), 3500);
   };
 
   return (
     <div className="scroll">
+      {/* Price List Modal */}
       {showPL && (
         <div className="overlay" onClick={e=>e.target===e.currentTarget&&setShowPL(false)}>
           <div className="modal anim">
@@ -3277,7 +3353,7 @@ function ScopeTab({ scopeItems: externalItems, setScopeItems: setExternal }) {
                 <div key={pl.code} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 0",borderBottom:"1px solid var(--br)"}}>
                   <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600,color:"var(--t1)"}}>{pl.desc}</div><div className="mono" style={{fontSize:10,color:"var(--t3)"}}>{pl.code}</div></div>
                   <div className="mono" style={{fontWeight:700,color:"var(--green)"}}>{fmt$c(pl.price)}</div>
-                  <button className="btn btn-primary btn-xs" onClick={()=>{setItems(p=>[...p,{id:uid(),desc:pl.desc,unit:pl.unit,qty:1,price:pl.price}]);setShowPL(false);}}>{Ic.plus}</button>
+                  <button className="btn btn-primary btn-xs" onClick={()=>{setItems(p=>[...p,{id:uid(),desc:pl.desc,unit:pl.unit,qty:1,price:pl.price,source:"manual"}]);setShowPL(false);}}>{Ic.plus}</button>
                 </div>
               ))}
             </div>
@@ -3285,97 +3361,267 @@ function ScopeTab({ scopeItems: externalItems, setScopeItems: setExternal }) {
         </div>
       )}
 
-      <div style={{maxWidth:900,margin:"0 auto"}}>
-        {/* Source filter + header */}
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:11}}>
-          <div style={{display:"flex",alignItems:"center",gap:7}}>
-            <div className="sec" style={{marginBottom:0}}>Scope of Work</div>
-            {sources.length > 1 && (
-              <div style={{display:"flex",gap:4,marginLeft:8}}>
-                <button className={`chip btn-xs${filterSrc==="all"?" on":""}`} onClick={()=>setFilter("all")} style={{fontSize:9}}>All ({items.length})</button>
-                {["drydox","contentsdox","manual"].filter(s=>sources.includes(s)).map(s=>(
-                  <button key={s} className={`chip btn-xs${filterSrc===s?" on":""}`} onClick={()=>setFilter(s)}
-                    style={{fontSize:9,borderColor:filterSrc===s?SOURCE_BADGE[s]?.color:"",color:filterSrc===s?SOURCE_BADGE[s]?.color:""}}>
-                    {SOURCE_BADGE[s]?.label||s} ({items.filter(i=>(i.source||"manual")===s).length})
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <div style={{display:"flex",gap:7}}>
-            <button className="btn btn-secondary btn-xs" onClick={()=>setShowPL(true)}>{Ic.pricetag} Price List</button>
-            <button className="btn btn-secondary btn-xs" onClick={()=>setItems(p=>[...p,{id:uid(),desc:"",unit:"SF",qty:1,price:0,source:"manual"}])}>{Ic.plus} Add Line</button>
-          </div>
-        </div>
-
-        {/* Column headers */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 62px 70px 80px 80px 26px",gap:6,padding:"3px 9px",marginBottom:3}}>
-          {["Description","Unit","Qty","Unit Price","Total",""].map((h,i)=><div key={i} className="mono" style={{fontSize:9,color:"var(--t3)"}}>{h}</div>)}
-        </div>
-
-        {vis.map(it=>{
-          const src = SOURCE_BADGE[it.source||"manual"];
-          return (
-            <div key={it.id} style={{display:"grid",gridTemplateColumns:"1fr 62px 70px 80px 80px 26px",gap:6,alignItems:"center",
-              padding:"5px 9px",background:"var(--s2)",border:"1px solid var(--br)",borderRadius:7,marginBottom:3,
-              borderLeft:`3px solid ${src?.color||"var(--br)"}`}}>
-              <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}>
-                <input value={it.desc} onChange={e=>upd(it.id,"desc",e.target.value)} className="inp" style={{height:28,fontSize:11,flex:1}}/>
-                {it.source && it.source!=="manual" && (
-                  <span style={{fontSize:8,fontWeight:700,color:src?.color,borderRadius:3,padding:"1px 5px",
-                    background:src?.color+"18",border:`1px solid ${src?.color}35`,flexShrink:0,whiteSpace:"nowrap"}}>
-                    {src?.label}
-                  </span>
-                )}
-              </div>
-              <select value={it.unit} onChange={e=>upd(it.id,"unit",e.target.value)} className="sel" style={{height:28,fontSize:11}}>
-                {["SF","LF","EA","HR","MO","LS","day"].map(u=><option key={u}>{u}</option>)}
-              </select>
-              <input type="number" value={it.qty} onChange={e=>upd(it.id,"qty",+e.target.value)} className="inp" style={{height:28,fontSize:11}}/>
-              <div style={{position:"relative"}}>
-                <span style={{position:"absolute",left:7,top:"50%",transform:"translateY(-50%)",color:"var(--t3)",fontSize:11}}>$</span>
-                <input type="number" value={it.price} onChange={e=>upd(it.id,"price",+e.target.value)} className="inp" style={{height:28,fontSize:11,paddingLeft:16}}/>
-              </div>
-              <div className="mono" style={{fontSize:11,fontWeight:700,color:"var(--green)",textAlign:"right"}}>{fmt$c(it.qty*it.price)}</div>
-              <button className="btn btn-danger btn-xs" onClick={()=>setItems(p=>p.filter(i=>i.id!==it.id))}>{Ic.trash}</button>
+      {/* Pinned Items Modal */}
+      {showPinned && (
+        <div className="overlay" onClick={e=>e.target===e.currentTarget&&setShowPinned(false)}>
+          <div className="modal anim">
+            <div className="modal-hd"><div className="modal-ttl">Pinned Items for This Project</div><button className="btn btn-ghost btn-xs" onClick={()=>setShowPinned(false)}>{Ic.close}</button></div>
+            <div className="modal-body">
+              {pinnedForProj.length===0 && (
+                <div className="empty" style={{padding:24}}>
+                  <div style={{fontSize:11,color:"var(--t3)",textAlign:"center",lineHeight:1.6}}>
+                    No pinned items configured for {projWorkTypes.join(", ")||"this project type"}.<br/>
+                    Add them in Settings → Billing → Pinned Line Items.
+                  </div>
+                </div>
+              )}
+              {pinnedForProj.map((pi,i)=>(
+                <div key={i} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 0",borderBottom:"1px solid var(--br)"}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:12,fontWeight:600,color:"var(--t1)"}}>{pi.desc}</div>
+                    <div className="mono" style={{fontSize:9,color:"var(--blue)"}}>{pi._pinSource} · {pi.unit||"EA"}</div>
+                  </div>
+                  <div className="mono" style={{fontWeight:700,color:"var(--green)"}}>{fmt$c(pi.price)}</div>
+                  <button className="btn btn-primary btn-xs" onClick={()=>{addPinned(pi);}}>{Ic.plus} Add</button>
+                </div>
+              ))}
             </div>
-          );
-        })}
+          </div>
+        </div>
+      )}
 
-        {/* Totals */}
-        <div className="card" style={{marginTop:11,display:"flex",justifyContent:"flex-end"}}>
-          <div style={{minWidth:260}}>
-            {[["Subtotal",fmt$c(sub),"var(--t2)"],["Tax (0%)","$0.00","var(--t3)"],["TOTAL DUE",fmt$c(sub),"var(--green)"]].map(([l,v,c])=>(
-              <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:l==="TOTAL DUE"?"none":"1px solid var(--br)"}}>
-                <span className="mono" style={{fontSize:9,color:c,fontWeight:l==="TOTAL DUE"?700:400}}>{l}</span>
-                <span className="mono" style={{fontSize:l==="TOTAL DUE"?16:12,color:c,fontWeight:700}}>{v}</span>
+      <div style={{maxWidth:920,margin:"0 auto",display:"flex",flexDirection:"column",gap:14}}>
+
+        {/* ── Invoice Header ── */}
+        <div className="card" style={{padding:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:10}}>
+            <div>
+              {co.logo && <img src={co.logo} alt="" style={{height:38,objectFit:"contain",marginBottom:8,display:"block"}}/>}
+              <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>{co.name||"Your Company"}</div>
+              <div style={{fontSize:10,color:"var(--t3)",marginTop:2,lineHeight:1.6}}>
+                {[co.address,co.city,co.state,co.zip].filter(Boolean).join(", ")}{co.phone&&<><br/>{co.phone}</>}
+              </div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div className="mono" style={{fontSize:10,color:"var(--t3)",marginBottom:2}}>INVOICE FOR</div>
+              <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>{proj?.name||"Project Name"}</div>
+              <div style={{fontSize:10,color:"var(--t3)",marginTop:2,lineHeight:1.6}}>
+                {proj?.clientName||proj?.client||""}{proj?.address&&<><br/>{proj.address}</>}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Executive Summary ── */}
+        <div className="card" style={{padding:14}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <label className="lbl" style={{margin:0}}>Executive Summary <span style={{color:"var(--t3)",fontWeight:400}}>(optional — printed on invoice)</span></label>
+          </div>
+          <textarea className="txa" value={summary} onChange={e=>setSummary(e.target.value)}
+            placeholder="Brief description of work performed, scope, and conditions found on site…"
+            style={{minHeight:64,fontSize:11,lineHeight:1.65}}/>
+        </div>
+
+        {/* ── Line Items ── */}
+        <div className="card" style={{padding:14}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:7}}>
+              <div className="sec" style={{marginBottom:0}}>Line Items</div>
+              {sources.length > 1 && (
+                <div style={{display:"flex",gap:4,marginLeft:6}}>
+                  <button className={`chip btn-xs${filterSrc==="all"?" on":""}`} onClick={()=>setFilter("all")} style={{fontSize:9}}>All ({items.length})</button>
+                  {["drydox","contentsdox","manual"].filter(s=>sources.includes(s)).map(s=>(
+                    <button key={s} className={`chip btn-xs${filterSrc===s?" on":""}`} onClick={()=>setFilter(s)}
+                      style={{fontSize:9,borderColor:filterSrc===s?SOURCE_BADGE[s]?.color:"",color:filterSrc===s?SOURCE_BADGE[s]?.color:""}}>
+                      {SOURCE_BADGE[s]?.label||s} ({items.filter(i=>(i.source||"manual")===s).length})
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{display:"flex",gap:6}}>
+              {pinnedForProj.length>0 && <button className="btn btn-secondary btn-xs" onClick={()=>setShowPinned(true)}>{Ic.pin} Pinned</button>}
+              <button className="btn btn-secondary btn-xs" onClick={()=>setShowPL(true)}>{Ic.pricetag} Price List</button>
+              <button className="btn btn-primary btn-xs" onClick={()=>setItems(p=>[...p,{id:uid(),desc:"",unit:"SF",qty:1,price:0,source:"manual"}])}>{Ic.plus} Add Line</button>
+            </div>
+          </div>
+
+          {/* Column headers */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 62px 70px 80px 80px 26px",gap:6,padding:"3px 9px",marginBottom:3}}>
+            {["Description","Unit","Qty","Unit Price","Total",""].map((h,i)=><div key={i} className="mono" style={{fontSize:9,color:"var(--t3)"}}>{h}</div>)}
+          </div>
+
+          {vis.length===0 && (
+            <div className="empty" style={{padding:28}}>
+              <div style={{fontSize:11,color:"var(--t3)"}}>No line items yet. Add from the Price List, Pinned Items, or manually above.</div>
+            </div>
+          )}
+
+          {vis.map(it=>{
+            const src = SOURCE_BADGE[it.source||"manual"];
+            return (
+              <div key={it.id} style={{display:"grid",gridTemplateColumns:"1fr 62px 70px 80px 80px 26px",gap:6,alignItems:"center",
+                padding:"5px 9px",background:"var(--s2)",border:"1px solid var(--br)",borderRadius:7,marginBottom:3,
+                borderLeft:`3px solid ${src?.color||"var(--br)"}`}}>
+                <div style={{display:"flex",alignItems:"center",gap:7,minWidth:0}}>
+                  <input value={it.desc} onChange={e=>upd(it.id,"desc",e.target.value)} className="inp" style={{height:28,fontSize:11,flex:1}}/>
+                  {it.source && it.source!=="manual" && (
+                    <span style={{fontSize:8,fontWeight:700,color:src?.color,borderRadius:3,padding:"1px 5px",
+                      background:src?.color+"18",border:`1px solid ${src?.color}35`,flexShrink:0,whiteSpace:"nowrap"}}>
+                      {src?.label}
+                    </span>
+                  )}
+                </div>
+                <select value={it.unit} onChange={e=>upd(it.id,"unit",e.target.value)} className="sel" style={{height:28,fontSize:11}}>
+                  {["SF","LF","EA","HR","MO","LS","day"].map(u=><option key={u}>{u}</option>)}
+                </select>
+                <input type="number" value={it.qty} onChange={e=>upd(it.id,"qty",+e.target.value)} className="inp" style={{height:28,fontSize:11}}/>
+                <div style={{position:"relative"}}>
+                  <span style={{position:"absolute",left:7,top:"50%",transform:"translateY(-50%)",color:"var(--t3)",fontSize:11}}>$</span>
+                  <input type="number" value={it.price} onChange={e=>upd(it.id,"price",+e.target.value)} className="inp" style={{height:28,fontSize:11,paddingLeft:16}}/>
+                </div>
+                <div className="mono" style={{fontSize:11,fontWeight:700,color:"var(--green)",textAlign:"right"}}>{fmt$c(it.qty*it.price)}</div>
+                <button className="btn btn-danger btn-xs" onClick={()=>setItems(p=>p.filter(i=>i.id!==it.id))}>{Ic.trash}</button>
+              </div>
+            );
+          })}
+
+          {/* Source breakdown */}
+          {sources.filter(s=>s!=="manual").length > 0 && (
+            <div style={{marginTop:8,padding:"8px 11px",background:"var(--s3)",border:"1px solid var(--br)",borderRadius:7,display:"flex",gap:14,flexWrap:"wrap"}}>
+              {["drydox","contentsdox"].filter(s=>sources.includes(s)).map(s=>{
+                const sc=items.filter(i=>(i.source||"manual")===s);
+                const total=sc.reduce((sum,i)=>sum+i.qty*i.price,0);
+                const badge=SOURCE_BADGE[s];
+                return total>0?(
+                  <div key={s} style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontSize:10,fontWeight:700,color:badge.color,background:badge.color+"18",borderRadius:4,padding:"1px 7px",border:`1px solid ${badge.color}35`}}>{badge.label}</span>
+                    <span className="mono" style={{fontSize:11,fontWeight:700,color:"var(--t1)"}}>{fmt$c(total)}</span>
+                  </div>
+                ):null;
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ── Adjustments: Overhead, Surcharges, Discount, Tax ── */}
+        <div className="card" style={{padding:14}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div className="sec" style={{marginBottom:0}}>Adjustments &amp; Pricing</div>
+            <button className="btn btn-ghost btn-xs" onClick={()=>setAddSurcharge(v=>!v)}>{Ic.plus} Add Surcharge</button>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            {/* Overhead */}
+            <div>
+              <label className="lbl">Overhead / Profit</label>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <input type="number" className="inp" value={overhead} min={0} max={100} step={0.5}
+                  onChange={e=>setOverhead(Math.max(0,parseFloat(e.target.value)||0))} style={{flex:1}}/>
+                <span style={{fontSize:12,color:"var(--t2)",fontWeight:600}}>%</span>
+                <span className="mono" style={{fontSize:11,color:"var(--amber)",minWidth:70,textAlign:"right"}}>{fmt$c(ovAmt)}</span>
+              </div>
+              <div style={{fontSize:9,color:"var(--t3)",marginTop:3}}>Applied to subtotal. Default set in Settings → Billing.</div>
+            </div>
+            {/* Tax */}
+            <div>
+              <label className="lbl">Tax Rate</label>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <select className="sel" value={selTaxId} onChange={e=>setSelTaxId(e.target.value)} style={{flex:1}}>
+                  {(billing.taxRates||[]).map(t=><option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>)}
+                </select>
+                <span className="mono" style={{fontSize:11,color:"var(--amber)",minWidth:70,textAlign:"right"}}>{fmt$c(taxAmt)}</span>
+              </div>
+              <div style={{fontSize:9,color:"var(--t3)",marginTop:3}}>Manage tax rates in Settings → Billing.</div>
+            </div>
+            {/* Discount */}
+            <div>
+              <label className="lbl">Discount</label>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <input type="number" className="inp" value={discount} min={0} max={100} step={0.5}
+                  onChange={e=>setDiscount(Math.max(0,parseFloat(e.target.value)||0))} style={{flex:1}}/>
+                <span style={{fontSize:12,color:"var(--t2)",fontWeight:600}}>%</span>
+                <span className="mono" style={{fontSize:11,color:"var(--acc)",minWidth:70,textAlign:"right"}}>-{fmt$c(discAmt)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Custom surcharges */}
+          {addSurcharge && (
+            <div style={{marginTop:12,padding:"11px 12px",background:"var(--s3)",border:"1px solid var(--br)",borderRadius:8}}>
+              <div className="sec" style={{marginBottom:8}}>Add Custom Surcharge</div>
+              <SurchargeAdder onAdd={sc=>{setSurcharges(s=>[...s,{...sc,id:uid()}]);setAddSurcharge(false);}} onCancel={()=>setAddSurcharge(false)}/>
+            </div>
+          )}
+          {surcharges.length>0 && (
+            <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:4}}>
+              {surcharges.map(sc=>(
+                <div key={sc.id} style={{display:"flex",alignItems:"center",gap:9,padding:"5px 9px",background:"var(--s3)",borderRadius:6,border:"1px solid var(--br)"}}>
+                  <span style={{flex:1,fontSize:11,color:"var(--t2)"}}>{sc.label}</span>
+                  <span className="mono" style={{fontSize:10,color:"var(--t3)"}}>{sc.pct}%</span>
+                  <span className="mono" style={{fontSize:11,color:"var(--amber)",minWidth:60,textAlign:"right"}}>{fmt$c(sub*(sc.pct/100))}</span>
+                  <button className="btn btn-ghost btn-xs" style={{color:"var(--acc)"}} onClick={()=>setSurcharges(s=>s.filter(x=>x.id!==sc.id))}>{Ic.close}</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Totals ── */}
+        <div className="card" style={{padding:14,display:"flex",justifyContent:"flex-end"}}>
+          <div style={{minWidth:280}}>
+            {[
+              ["Subtotal",             fmt$c(sub),              "var(--t2)"],
+              ...(overhead>0  ? [[`Overhead / Profit (${overhead}%)`, fmt$c(ovAmt), "var(--amber)"]] : []),
+              ...surcharges.map(sc=>[`${sc.label} (${sc.pct}%)`, fmt$c(sub*(sc.pct/100)), "var(--amber)"]),
+              ...(discount>0  ? [[`Discount (${discount}%)`,      `-${fmt$c(discAmt)}`,   "var(--acc)"   ]] : []),
+              ...(selTax.rate>0?[[`${selTax.name}`,               fmt$c(taxAmt),           "var(--t2)"   ]] : []),
+              ["TOTAL DUE",            fmt$c(total),            "var(--green)"],
+            ].map(([l,v,c],i,arr)=>(
+              <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",
+                borderBottom:i===arr.length-1?"none":"1px solid var(--br)"}}>
+                <span className="mono" style={{fontSize:9,color:c,fontWeight:i===arr.length-1?700:400}}>{l}</span>
+                <span className="mono" style={{fontSize:i===arr.length-1?16:12,color:c,fontWeight:700}}>{v}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Source summary */}
-        {sources.filter(s=>s!=="manual").length > 0 && (
-          <div style={{marginTop:8,padding:"9px 12px",background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,display:"flex",gap:14,flexWrap:"wrap"}}>
-            {["drydox","contentsdox"].filter(s=>sources.includes(s)).map(s=>{
-              const sc = items.filter(i=>(i.source||"manual")===s);
-              const total = sc.reduce((sum,i)=>sum+i.qty*i.price,0);
-              const badge = SOURCE_BADGE[s];
-              return total>0?(
-                <div key={s} style={{display:"flex",alignItems:"center",gap:6}}>
-                  <span style={{fontSize:10,fontWeight:700,color:badge.color,background:badge.color+"18",borderRadius:4,padding:"1px 7px",border:`1px solid ${badge.color}35`}}>{badge.label}</span>
-                  <span className="mono" style={{fontSize:11,fontWeight:700,color:"var(--t1)"}}>{fmt$c(total)}</span>
-                </div>
-              ):null;
-            })}
+        {/* ── Terms & Conditions ── */}
+        <div className="card" style={{padding:14}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <label className="lbl" style={{margin:0}}>Terms &amp; Conditions <span style={{color:"var(--t3)",fontWeight:400}}>(printed on every invoice)</span></label>
+            <button className="btn btn-ghost btn-xs" style={{fontSize:9}} onClick={()=>setTerms(billing.terms||"")}>Reset to Default</button>
+          </div>
+          <textarea className="txa" value={terms} onChange={e=>setTerms(e.target.value)} style={{minHeight:72,fontSize:10,lineHeight:1.7,color:"var(--t2)"}}/>
+          <div style={{fontSize:9,color:"var(--t3)",marginTop:4}}>Edit your default Terms in Settings → Billing.</div>
+        </div>
+
+        {/* ── Generate Actions ── */}
+        {generated && (
+          <div style={{padding:"11px 16px",background:"rgba(26,217,138,.1)",border:"1px solid rgba(26,217,138,.3)",borderRadius:9,color:"var(--green)",fontWeight:700,fontSize:12,display:"flex",alignItems:"center",gap:8}}>
+            {Ic.check} Invoice generated and saved to the Finance tab.
           </div>
         )}
-
-        <div style={{display:"flex",justifyContent:"flex-end",marginTop:9,gap:7}}>
+        <div style={{display:"flex",justifyContent:"flex-end",gap:8,paddingBottom:24}}>
           <button className="btn btn-ghost">Preview PDF</button>
-          <button className="btn btn-primary btn-lg" onClick={()=>alert("Invoice generated and saved to Documents.")}>{Ic.invoice} Generate Invoice</button>
+          <button className="btn btn-primary btn-lg" onClick={generateInvoice}>{Ic.invoice} Generate Invoice → Finance</button>
         </div>
+
       </div>
+    </div>
+  );
+}
+
+/* Mini helper for adding a custom surcharge */
+function SurchargeAdder({ onAdd, onCancel }) {
+  const [label, setLabel] = useState("");
+  const [pct,   setPct]   = useState("");
+  return (
+    <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
+      <div style={{flex:1}}><label className="lbl">Label</label><input className="inp" value={label} onChange={e=>setLabel(e.target.value)} placeholder="e.g. Mobilization Fee"/></div>
+      <div style={{width:90}}><label className="lbl">Percent</label><input type="number" className="inp" value={pct} onChange={e=>setPct(e.target.value)} placeholder="10"/></div>
+      <button className="btn btn-primary btn-xs" disabled={!label.trim()||!pct} onClick={()=>onAdd({label:label.trim(),pct:parseFloat(pct)||0})}>Add</button>
+      <button className="btn btn-ghost btn-xs" onClick={onCancel}>Cancel</button>
     </div>
   );
 }
@@ -5885,7 +6131,6 @@ const PROJ_TABS = [
   {key:"media",       label:"Media",          icon:Ic.photo   },
   {key:"documents",   label:"Documents",      icon:Ic.doc     },
   {key:"tasks",       label:"Tasks",          icon:Ic.tasks   },
-  {key:"budget",      label:"Budget",         icon:Ic.dollar  },
   {key:"finance",     label:"Finance",        icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg> },
   {key:"shifts",      label:"Shift Reports",  icon:Ic.clock   },
   {key:"scope",       label:"Scope/Invoice",  icon:Ic.scope   },
@@ -5961,7 +6206,6 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       </div>
       <div className="tabs">
         {PROJ_TABS.filter(t=>{
-          if (t.key==="budget" && !canViewBudget) return false;
           if (t.key==="finance" && !canViewBudget) return false;
           if (t.key==="scope"  && !canViewBillingScope) return false;
           if (t.key==="shifts" && !canViewBudget) return false;
@@ -5989,10 +6233,9 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       {tab==="media"          && <MediaTab       folders={mediaFolders} setFolders={setMediaFolders} uploads={mediaUploads} setUploads={setMediaUploads}/>}
       {tab==="documents"      && <DocumentsTab   proj={proj} docs={projDocs} setDocs={setProjDocs}/>}
       {tab==="tasks"          && <TasksTab initialTasks={proj.templateTasks||[]} globalStaff={globalStaff} companyId={companyId} phoneSettings={phoneSettings}/>}
-      {tab==="budget"         && <BudgetTab proj={proj} laborCost={laborCost}/>}
-      {tab==="finance"        && <FinancialTab proj={proj} companyId={companyId} laborCost={laborCost}/>}
+      {tab==="finance"        && <FinancialTab proj={proj} companyId={companyId} laborCost={laborCost} invoices={loadProjInvoices(proj.id)} onInvoiceVoid={id=>{const all=loadAllInvoices().map(i=>i.id===id?{...i,status:"void"}:i);saveAllInvoices(all);}}/>}
       {tab==="shifts"         && <ShiftsTab projId={proj.id} externalShifts={myShifts} canViewRates={canViewRates}/>}
-      {tab==="scope"          && <ScopeTab scopeItems={scopeItems} setScopeItems={setScopeItems}/>}
+      {tab==="scope"          && <ScopeTab proj={proj} scopeItems={scopeItems} setScopeItems={setScopeItems}/>}
       {tab==="messages"       && <MessagesTab/>}
       {tab==="calls"          && <CallLogTab proj={proj} companyId={companyId} globalStaff={globalStaff} currentUser={currentUser} phoneSettings={phoneSettings}/>}
       {tab==="project-report" && <ProjectReportTab proj={proj} dailyNotes={dailyNotes} mediaFolders={mediaFolders} mediaUploads={mediaUploads} docs={projDocs}/>}
@@ -6173,8 +6416,36 @@ function GeneralSettingsTab() {
   };
   const deletePT = (id) => savePT(projTypes.filter(p=>p.id!==id));
 
+  const [billingCfg, setBillingCfg] = useState(loadBilling);
+  const [billingSaved, setBillingSaved] = useState(false);
+
+  const saveBillingSettings = () => {
+    saveBilling(billingCfg);
+    setBillingSaved(true);
+    setTimeout(()=>setBillingSaved(false), 2000);
+  };
+
+  const addTaxRate = () => {
+    const n = { id:`tx-${Date.now()}`, name:"New Rate", rate:0 };
+    setBillingCfg(b=>({...b, taxRates:[...(b.taxRates||[]),n]}));
+  };
+  const updTax = (id, k, v) => setBillingCfg(b=>({...b, taxRates:(b.taxRates||[]).map(t=>t.id===id?{...t,[k]:v}:t)}));
+  const delTax = (id)       => setBillingCfg(b=>({...b, taxRates:(b.taxRates||[]).filter(t=>t.id!==id)}));
+
+  const addPinnedItem = (wt) => {
+    const curr = billingCfg.pinnedItems?.[wt] || [];
+    setBillingCfg(b=>({...b, pinnedItems:{...(b.pinnedItems||{}),[wt]:[...curr,{id:`pi-${Date.now()}`,desc:"",unit:"SF",price:0}]}}));
+  };
+  const updPinnedItem = (wt, id, k, v) => {
+    setBillingCfg(b=>({...b, pinnedItems:{...(b.pinnedItems||{}),[wt]:(b.pinnedItems?.[wt]||[]).map(pi=>pi.id===id?{...pi,[k]:v}:pi)}}));
+  };
+  const delPinnedItem = (wt, id) => {
+    setBillingCfg(b=>({...b, pinnedItems:{...(b.pinnedItems||{}),[wt]:(b.pinnedItems?.[wt]||[]).filter(pi=>pi.id!==id)}}));
+  };
+
   const SECTIONS = [
     {id:"company",    label:"Company Info"},
+    {id:"billing",    label:"Billing"},
     {id:"worktypes",  label:"Work Types"},
     {id:"statuses",   label:"Statuses"},
     {id:"projtypes",  label:"Project Types"},
@@ -6229,6 +6500,100 @@ function GeneralSettingsTab() {
           <LogoUploadSection coInfo={coInfo} setCoInfo={setCoInfo} />
           <button className="btn btn-p btn-sm" style={{marginTop:16}} onClick={saveCompany}>
             {coSaved ? "✓ Saved" : "Save Company Info"}
+          </button>
+        </div>
+      )}
+
+      {/* ── BILLING ── */}
+      {sec==="billing" && (
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          {/* Tax Rates */}
+          <div className="card" style={{padding:18}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>Tax Rates</div>
+                <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>Define available tax rates. Select per-invoice in the Scope/Invoice tab.</div>
+              </div>
+              <button className="btn btn-primary btn-xs" onClick={addTaxRate}>{Ic.plus} Add Rate</button>
+            </div>
+            {(billingCfg.taxRates||[]).map(t=>(
+              <div key={t.id} style={{display:"grid",gridTemplateColumns:"1fr 120px 28px",gap:8,marginBottom:7,alignItems:"center"}}>
+                <input className="inp" value={t.name||""} onChange={e=>updTax(t.id,"name",e.target.value)} placeholder="Tax name" style={{fontSize:11}}/>
+                <div style={{position:"relative"}}>
+                  <input type="number" className="inp" value={t.rate||""} step=".01" onChange={e=>updTax(t.id,"rate",parseFloat(e.target.value)||0)} style={{fontSize:11,paddingRight:24}}/>
+                  <span style={{position:"absolute",right:9,top:"50%",transform:"translateY(-50%)",fontSize:11,color:"var(--t3)"}}>%</span>
+                </div>
+                <button className="btn btn-ghost btn-xs" style={{color:"var(--acc)"}} onClick={()=>delTax(t.id)}>{Ic.close}</button>
+              </div>
+            ))}
+          </div>
+
+          {/* Defaults */}
+          <div className="card" style={{padding:18}}>
+            <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",marginBottom:10}}>Invoice Defaults</div>
+            <div className="g2" style={{gap:10,marginBottom:12}}>
+              <div>
+                <label className="lbl">Default Overhead / Profit %</label>
+                <div style={{position:"relative"}}>
+                  <input type="number" className="inp" value={billingCfg.defaultOverhead||0} step=".5"
+                    onChange={e=>setBillingCfg(b=>({...b,defaultOverhead:parseFloat(e.target.value)||0}))} style={{paddingRight:24}}/>
+                  <span style={{position:"absolute",right:9,top:"50%",transform:"translateY(-50%)",fontSize:11,color:"var(--t3)"}}>%</span>
+                </div>
+              </div>
+              <div>
+                <label className="lbl">Default Tax Rate</label>
+                <select className="sel" value={billingCfg.defaultTaxId||""} onChange={e=>setBillingCfg(b=>({...b,defaultTaxId:e.target.value}))}>
+                  {(billingCfg.taxRates||[]).map(t=><option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="lbl">Default Terms &amp; Conditions</label>
+              <textarea className="txa" value={billingCfg.terms||""} onChange={e=>setBillingCfg(b=>({...b,terms:e.target.value}))} style={{minHeight:88,fontSize:10,lineHeight:1.75,color:"var(--t2)"}}/>
+              <div style={{fontSize:9,color:"var(--t3)",marginTop:3}}>These terms appear on every invoice by default. You can edit per-invoice in the Scope tab.</div>
+            </div>
+          </div>
+
+          {/* Pinned Line Items */}
+          <div className="card" style={{padding:18}}>
+            <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",marginBottom:4}}>Pinned Line Items by Work Type</div>
+            <div style={{fontSize:11,color:"var(--t3)",marginBottom:14,lineHeight:1.6}}>
+              Line items pinned here will appear as quick-add options in the Scope/Invoice tab for projects matching that work type.
+            </div>
+            {workTypes.length===0 && <div style={{fontSize:11,color:"var(--t3)"}}>No work types defined yet. Add them in the Work Types tab first.</div>}
+            {workTypes.map(wt=>{
+              const pinned = billingCfg.pinnedItems?.[wt.name] || [];
+              return (
+                <div key={wt.id} style={{marginBottom:16,borderRadius:9,border:"1px solid var(--br)",overflow:"hidden"}}>
+                  <div style={{background:"var(--s3)",padding:"8px 13px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:7}}>
+                      <div style={{width:8,height:8,borderRadius:"50%",background:wt.color,flexShrink:0}}/>
+                      <span style={{fontSize:12,fontWeight:700,color:"var(--t1)"}}>{wt.name}</span>
+                      <span className="mono" style={{fontSize:9,color:"var(--t3)"}}>{pinned.length} items</span>
+                    </div>
+                    <button className="btn btn-ghost btn-xs" onClick={()=>addPinnedItem(wt.name)}>{Ic.plus} Add Item</button>
+                  </div>
+                  {pinned.length===0 && <div style={{padding:"12px 14px",fontSize:11,color:"var(--t3)"}}>No pinned items — click Add Item above.</div>}
+                  {pinned.map(pi=>(
+                    <div key={pi.id} style={{display:"grid",gridTemplateColumns:"1fr 80px 90px 28px",gap:7,padding:"7px 13px",borderTop:"1px solid var(--br)",alignItems:"center"}}>
+                      <input className="inp" value={pi.desc||""} onChange={e=>updPinnedItem(wt.name,pi.id,"desc",e.target.value)} placeholder="Description" style={{fontSize:11}}/>
+                      <select className="sel" value={pi.unit||"SF"} onChange={e=>updPinnedItem(wt.name,pi.id,"unit",e.target.value)} style={{fontSize:11}}>
+                        {["SF","LF","EA","HR","MO","LS","day"].map(u=><option key={u}>{u}</option>)}
+                      </select>
+                      <div style={{position:"relative"}}>
+                        <span style={{position:"absolute",left:7,top:"50%",transform:"translateY(-50%)",color:"var(--t3)",fontSize:11}}>$</span>
+                        <input type="number" className="inp" value={pi.price||""} onChange={e=>updPinnedItem(wt.name,pi.id,"price",parseFloat(e.target.value)||0)} style={{fontSize:11,paddingLeft:16}}/>
+                      </div>
+                      <button className="btn btn-ghost btn-xs" style={{color:"var(--acc)"}} onClick={()=>delPinnedItem(wt.name,pi.id)}>{Ic.close}</button>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+
+          <button className="btn btn-primary" onClick={saveBillingSettings}>
+            {billingSaved?"✓ Saved":"Save Billing Settings"}
           </button>
         </div>
       )}
