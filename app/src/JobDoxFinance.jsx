@@ -19,6 +19,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { getFirestore, doc, onSnapshot, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { loadProjEstimates } from "./EstimateDox.jsx";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    HELPERS & CONSTANTS
@@ -1823,6 +1824,113 @@ Be direct and specific. Flag anything that needs immediate attention.`;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   APPROVED ESTIMATES → INVOICE CONVERSION
+───────────────────────────────────────────────────────────────────────────── */
+function ApprovedEstimatesPanel({ proj, invoices=[], onInvoiceCreated }) {
+  const [estimates, setEstimates] = useState(()=>loadProjEstimates(proj.id));
+  useEffect(()=>{ setEstimates(loadProjEstimates(proj.id)); },[proj.id]);
+
+  // Only show accepted/approved estimates that haven't already been converted
+  const convertedEstIds = new Set(invoices.filter(i=>i._fromEstimateId).map(i=>i._fromEstimateId));
+  const eligible = estimates.filter(e=>(e.status==="accepted"||e.status==="approved") && !convertedEstIds.has(e.id));
+
+  if (eligible.length===0) return null;
+
+  const tierTotal = t => (t?.items||[]).reduce((s,i)=>s+(i.total||i.price||0),0);
+
+  const convert = (est) => {
+    // Find the accepted/recommended tier, or the first one
+    const tier = est.tiers?.find(t=>t.recommended) || est.tiers?.[0];
+    if (!tier) return;
+    const total = tierTotal(tier);
+    const invNum = `INV-${Date.now().toString(36).toUpperCase()}`;
+    const inv = {
+      id:          `inv-est-${est.id}-${Date.now()}`,
+      projId:      proj.id,
+      projName:    proj.name||"",
+      number:      invNum,
+      clientName:  est.client||proj.client||"",
+      clientEmail: proj.clientEmail||"",
+      date:        new Date().toISOString(),
+      dueDate:     new Date(Date.now()+30*86400000).toISOString(),
+      summary:     `${est.name} — ${tier.label} Package (${tier.title})`,
+      lineItems:   tier.items.map(item=>({
+        id:item.id, description:item.name, qty:item.qty||1, rate:item.price, amount:item.total||item.price,
+      })),
+      subtotal:    total,
+      total:       total,
+      terms:       "Net 30",
+      status:      "unpaid",
+      invoiceMode: "simple",
+      createdAt:   new Date().toISOString(),
+      _fromEstimateId: est.id,
+      _fromEstimateTier: tier.label,
+    };
+    onInvoiceCreated(inv);
+  };
+
+  return (
+    <div style={{marginTop:18}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+        <div style={{fontSize:12,fontWeight:700,color:"var(--t1)",display:"flex",alignItems:"center",gap:6}}>
+          <span style={{fontSize:14}}>📋</span> Approved Estimates
+          <span style={{fontSize:9,fontWeight:700,fontFamily:"var(--mono)",background:"rgba(26,217,138,.12)",
+            color:"var(--green)",borderRadius:3,padding:"1px 6px",border:"1px solid rgba(26,217,138,.25)"}}>
+            {eligible.length} ready
+          </span>
+        </div>
+      </div>
+      <div style={{fontSize:10,color:"var(--t3)",marginBottom:10}}>
+        These accepted estimates can be converted into invoices for billing.
+      </div>
+      {eligible.map(est=>{
+        const tier = est.tiers?.find(t=>t.recommended) || est.tiers?.[0];
+        const total = tier ? tierTotal(tier) : 0;
+        return (
+          <div key={est.id} style={{display:"flex",alignItems:"center",gap:10,
+            padding:"10px 13px",background:"var(--s2)",border:"1px solid var(--br)",
+            borderRadius:9,marginBottom:5,borderLeft:"3px solid var(--green)"}}>
+            <div style={{width:38,height:38,borderRadius:9,display:"flex",alignItems:"center",
+              justifyContent:"center",background:"rgba(26,217,138,.12)",fontSize:16}}>📋</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
+                <span style={{fontSize:12,fontWeight:700,color:"var(--t1)"}}>{est.name}</span>
+                <span style={{fontSize:9,fontWeight:700,fontFamily:"var(--mono)",
+                  color:"var(--green)",background:"rgba(26,217,138,.1)",
+                  border:"1px solid rgba(26,217,138,.3)",borderRadius:4,padding:"1px 6px"}}>
+                  {(est.status||"").toUpperCase()}
+                </span>
+                {tier && (
+                  <span style={{fontSize:9,fontFamily:"var(--mono)",color:"var(--t3)"}}>
+                    {tier.label} Package
+                  </span>
+                )}
+              </div>
+              <div className="mono" style={{fontSize:9,color:"var(--t3)",marginTop:2}}>
+                {est.id} · {est.client} · {est.date}
+              </div>
+            </div>
+            <div style={{textAlign:"right",flexShrink:0,marginRight:6}}>
+              <div className="mono" style={{fontWeight:800,fontSize:14,color:"var(--green)"}}>
+                {f$c(total)}
+              </div>
+              <div style={{fontSize:9,color:"var(--t3)",marginTop:1}}>
+                {tier?.items?.length||0} line item{(tier?.items?.length||0)!==1?"s":""}
+              </div>
+            </div>
+            <button className="btn btn-xs" style={{fontSize:10,background:"rgba(26,217,138,.12)",
+              color:"var(--green)",border:"1px solid rgba(26,217,138,.3)",whiteSpace:"nowrap"}}
+              onClick={()=>{ if(window.confirm(`Convert "${est.name}" (${tier?.label} — ${f$c(total)}) into an invoice?`)) convert(est); }}>
+              Convert to Invoice
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    FINANCIAL TAB  (exported)
 ───────────────────────────────────────────────────────────────────────────── */
 export function FinancialTab({ proj, companyId, laborCost=0, invoices: _invoicesProp=[], onInvoiceVoid }) {
@@ -2106,12 +2214,18 @@ export function FinancialTab({ proj, companyId, laborCost=0, invoices: _invoices
 
         {/* ── AR ── */}
         {subTab==="ar" && (
-          <ARPanel
-            transactions={allTransactions}
-            invoices={invoices}
-            onAdd={openAdd}
-            onInvoiceChange={handleInvoiceChange}
-          />
+          <>
+            <ARPanel
+              transactions={allTransactions}
+              invoices={invoices}
+              onAdd={openAdd}
+              onInvoiceChange={handleInvoiceChange}
+            />
+            <ApprovedEstimatesPanel proj={proj} invoices={invoices} onInvoiceCreated={(inv)=>{
+              lsSaveAll([...lsGetInvoices(), inv]);
+              setInvoices(lsGetInvoices(proj.id));
+            }}/>
+          </>
         )}
 
         {/* ── AP ── */}
