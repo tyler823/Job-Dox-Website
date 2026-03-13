@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { DocumentsTab, LogoUploadSection, DocumentTemplateCenter } from "./JobDoxDocuments.jsx";
 import { FinancialTab, FinancialHealthBadge, FinancialDashboard } from "./JobDoxFinance.jsx";
 import ContentsDox from "./ContentsDox.jsx";
+import AdjusterResponseModal from "./AdjusterResponseBot.jsx";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
          doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where } from "firebase/firestore";
@@ -447,7 +448,8 @@ const LS_OFFICES_KEY = "jd_company_offices";
 function loadOfficesLS()  { try { return JSON.parse(localStorage.getItem(LS_OFFICES_KEY)) || []; } catch { return []; } }
 function saveOfficesToLS(offices) { try { localStorage.setItem(LS_OFFICES_KEY, JSON.stringify(offices)); } catch {} }
 
-const DEFAULT_CO_INFO = { name:"", address:"", city:"", state:"", zip:"", phone:"", email:"", website:"", logo:"" };
+const DEFAULT_CO_INFO = { name:"", address:"", city:"", state:"", zip:"", phone:"", email:"", website:"", logo:"", industry:"Restoration" };
+const INDUSTRY_OPTIONS = ["Restoration","Roofing","General Contractor","Plumbing","HVAC","Electrical","Landscaping","Construction","Other"];
 function loadCoInfo() {
   try { return JSON.parse(localStorage.getItem(LS_CO_KEY)) || DEFAULT_CO_INFO; } catch { return DEFAULT_CO_INFO; }
 }
@@ -5333,9 +5335,10 @@ function InvoicePreviewPortalModal({ inv, onClose }) {
   );
 }
 
-function MessagesTab({ proj, contacts=[] }) {
+function MessagesTab({ proj, contacts=[], dailyNotes=[], currentUser=null }) {
   const [msgs, setMsgs] = useState(() => loadProjMsgs(proj?.id||""));
   const [refresh, setRefresh] = useState(0);
+  const [aiMsg, setAiMsg] = useState(null);   // message selected for AI response
 
   useEffect(()=>{ setMsgs(loadProjMsgs(proj?.id||"")); }, [proj?.id, refresh]);
 
@@ -5385,10 +5388,33 @@ function MessagesTab({ proj, contacts=[] }) {
               <div style={{fontSize:10,color:"var(--t2)",lineHeight:1.6,whiteSpace:"pre-wrap",borderTop:"1px solid var(--br)",paddingTop:6}}>
                 {m.body}
               </div>
+              {/* Formulate Response button — for inbound messages */}
+              {m.direction!=="outbound" && (
+                <button className="btn btn-ghost btn-xs" onClick={()=>setAiMsg(m)}
+                  style={{marginTop:8,gap:4,fontSize:10,color:"var(--blue)",border:"1px solid color-mix(in srgb, var(--blue) 25%, transparent)"}}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M11.5 2C6.81 2 3 5.81 3 10.5S6.81 19 11.5 19h.5v3c4.86-2.34 8-7 8-11.5C20 5.81 16.19 2 11.5 2zm1 14.5h-2v-2h2v2zm0-4h-2c0-3.25 3-3 3-5 0-1.1-.9-2-2-2s-2 .9-2 2h-2c0-2.21 1.79-4 4-4s4 1.79 4 4c0 2.5-3 2.75-3 5z"/></svg>
+                  Formulate Response
+                </button>
+              )}
             </div>
           </div>
         </div>
       ))}
+      {aiMsg && (
+        <AdjusterResponseModal
+          message={aiMsg}
+          proj={proj}
+          dailyNotes={dailyNotes}
+          companyInfo={co}
+          currentUser={currentUser}
+          threadMessages={msgs}
+          onClose={()=>setAiMsg(null)}
+          onInsertDraft={(text)=>{
+            // Copy to clipboard as fallback since there's no active composer
+            navigator.clipboard.writeText(text).catch(()=>{});
+          }}
+        />
+      )}
     </div></div>
   );
 }
@@ -7874,7 +7900,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       {tab==="finance"        && <FinancialTab proj={proj} companyId={companyId} laborCost={laborCost} invoices={loadProjInvoices(proj.id)} onInvoiceVoid={id=>{const all=loadAllInvoices().map(i=>i.id===id?{...i,status:"void"}:i);saveAllInvoices(all);}}/>}
       {tab==="shifts"         && <ShiftsTab projId={proj.id} externalShifts={myShifts} canViewRates={canViewRates}/>}
       {tab==="scope"          && <ScopeTab proj={proj} scopeItems={scopeItems} setScopeItems={setScopeItems} contacts={contacts} onDocGenerated={()=>{ setDocRefreshKey(k=>k+1); }}/>}
-      {tab==="messages"       && <MessagesTab proj={proj} contacts={contacts}/>}
+      {tab==="messages"       && <MessagesTab proj={proj} contacts={contacts} dailyNotes={dailyNotes} currentUser={currentUser}/>}
       {tab==="calls"          && <CallLogTab proj={proj} companyId={companyId} globalStaff={globalStaff} currentUser={currentUser} phoneSettings={phoneSettings}/>}
       {tab==="project-report" && <ProjectReportTab proj={proj} dailyNotes={dailyNotes} mediaFolders={mediaFolders} mediaUploads={mediaUploads} docs={projDocs}/>}
     </>
@@ -8159,6 +8185,14 @@ function GeneralSettingsTab() {
                   style={{width:"100%",fontSize:13}}/>
               </div>
             ))}
+            <div style={{gridColumn:"1/-1"}}>
+              <div style={{fontSize:11,color:"var(--t3)",marginBottom:3}}>Industry</div>
+              <select className="sel" value={coInfo.industry||"Restoration"} onChange={e=>setCoInfo(c=>({...c,industry:e.target.value}))}
+                style={{width:"100%",fontSize:13,height:38}}>
+                {INDUSTRY_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}
+              </select>
+              <div style={{fontSize:9,color:"var(--t3)",marginTop:3}}>Used by the AI Response Bot to tailor industry-specific rebuttals and best practices.</div>
+            </div>
           </div>
           <LogoUploadSection coInfo={coInfo} setCoInfo={setCoInfo} />
           <button className="btn btn-p btn-sm" style={{marginTop:16}} onClick={saveCompany}>
