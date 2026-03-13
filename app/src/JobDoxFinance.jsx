@@ -1265,9 +1265,22 @@ function BudgetBuilder({ budgets, setBudgets, worktypes=[], transactions=[] }) {
 function ARPanel({ transactions, invoices=[], onAdd, onInvoiceChange }) {
   const [previewInv, setPreviewInv] = useState(null);
 
-  // Only show non-voided invoices unless explicitly looking
+  // Sort all invoices chronologically to assign version numbers (v1, v2, v3…)
+  const invChron = useMemo(() =>
+    [...invoices].sort((a,b) => new Date(a.createdAt||a.date) - new Date(b.createdAt||b.date)),
+    [invoices]
+  );
+  const versionOf = useMemo(() => {
+    const map = {};
+    invChron.forEach((inv, i) => { map[inv.id] = i + 1; });
+    return map;
+  }, [invChron]);
+
+  // Only show non-voided invoices in the main list
   const visInvoices = invoices.filter(inv => inv.status !== "void");
-  const voidedInvoices = invoices.filter(inv => inv.status === "void");
+  const voidedInvoices = [...invoices]
+    .filter(inv => inv.status === "void")
+    .sort((a,b) => new Date(b.voidedAt||b.createdAt||b.date) - new Date(a.voidedAt||a.createdAt||a.date));
 
   // Manual AR entries (exclude synthetic __inv__ entries — shown in invoice cards)
   const manualAR = transactions.filter(t => TX_SIDE[t.type]==="ar" && !t._isGenerated)
@@ -1292,8 +1305,9 @@ function ARPanel({ transactions, invoices=[], onAdd, onInvoiceChange }) {
   const markPaid = (inv) => {
     onInvoiceChange(inv.id, { status:"paid", paidAt: new Date().toISOString() });
   };
-  const voidInv = (inv) => {
-    onInvoiceChange(inv.id, { status:"void" });
+  // reason: "void" (clerical cancellation) | "revised" (superseded by a newer invoice)
+  const voidInv = (inv, reason="void") => {
+    onInvoiceChange(inv.id, { status:"void", voidReason: reason, voidedAt: new Date().toISOString() });
   };
 
   return (
@@ -1314,88 +1328,149 @@ function ARPanel({ transactions, invoices=[], onAdd, onInvoiceChange }) {
             <button className="btn btn-primary btn-xs" onClick={()=>onAdd("invoice")}>+ Manual Invoice</button>
           }>Generated Invoices</SectionHead>
 
-          {visInvoices.map(inv => (
-            <div key={inv.id} style={{display:"flex",alignItems:"center",gap:10,
-              padding:"10px 13px",background:"var(--s2)",border:"1px solid var(--br)",
-              borderRadius:9,marginBottom:5,borderLeft:`3px solid ${STATUS_C[inv.status]||"var(--amber)"}`}}>
-              {/* Invoice icon */}
-              <div style={{width:38,height:38,borderRadius:9,flexShrink:0,display:"flex",alignItems:"center",
-                justifyContent:"center",background:"rgba(91,163,245,.12)",fontSize:16}}>🧾</div>
+          {visInvoices.map(inv => {
+            const ver = versionOf[inv.id];
+            return (
+              <div key={inv.id} style={{display:"flex",alignItems:"center",gap:10,
+                padding:"10px 13px",background:"var(--s2)",border:"1px solid var(--br)",
+                borderRadius:9,marginBottom:5,borderLeft:`3px solid ${STATUS_C[inv.status]||"var(--amber)"}`}}>
+                {/* Invoice icon + version badge */}
+                <div style={{position:"relative",flexShrink:0}}>
+                  <div style={{width:38,height:38,borderRadius:9,display:"flex",alignItems:"center",
+                    justifyContent:"center",background:"rgba(91,163,245,.12)",fontSize:16}}>🧾</div>
+                  {invoices.length > 1 && (
+                    <div style={{position:"absolute",bottom:-4,right:-4,fontSize:8,fontWeight:800,
+                      background:"var(--s3)",border:"1px solid var(--br)",borderRadius:3,
+                      padding:"1px 4px",fontFamily:"var(--mono)",color:"var(--blue)",lineHeight:1}}>
+                      v{ver}
+                    </div>
+                  )}
+                </div>
 
-              {/* Info */}
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
-                  <span style={{fontSize:12,fontWeight:700,color:"var(--t1)"}}>{inv.number||"Invoice"}</span>
-                  <span style={{fontSize:9,fontWeight:700,fontFamily:"var(--mono)",
-                    color:STATUS_C[inv.status]||"var(--amber)",
-                    background:`${STATUS_C[inv.status]||"var(--amber)"}18`,
-                    border:`1px solid ${STATUS_C[inv.status]||"var(--amber)"}40`,
-                    borderRadius:4,padding:"1px 6px"}}>
-                    {(inv.status||"unpaid").toUpperCase()}
-                  </span>
-                </div>
-                <div className="mono" style={{fontSize:9,color:"var(--t3)",marginTop:2}}>
-                  {inv.date ? new Date(inv.date).toLocaleDateString() : ""}
-                  {inv.dueDate ? ` · Due ${new Date(inv.dueDate).toLocaleDateString()}` : ""}
-                  {inv.clientName ? ` · ${inv.clientName}` : ""}
-                </div>
-                {inv.summary && (
-                  <div style={{fontSize:10,color:"var(--t3)",marginTop:2,
-                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:380}}>
-                    {inv.summary}
+                {/* Info */}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
+                    <span style={{fontSize:12,fontWeight:700,color:"var(--t1)"}}>{inv.number||"Invoice"}</span>
+                    <span style={{fontSize:9,fontWeight:700,fontFamily:"var(--mono)",
+                      color:STATUS_C[inv.status]||"var(--amber)",
+                      background:`${STATUS_C[inv.status]||"var(--amber)"}18`,
+                      border:`1px solid ${STATUS_C[inv.status]||"var(--amber)"}40`,
+                      borderRadius:4,padding:"1px 6px"}}>
+                      {(inv.status||"unpaid").toUpperCase()}
+                    </span>
                   </div>
-                )}
-              </div>
-
-              {/* Amount */}
-              <div style={{textAlign:"right",flexShrink:0,marginRight:6}}>
-                <div className="mono" style={{fontWeight:800,fontSize:14,color:"var(--blue)"}}>
-                  {f$c(inv.total||0)}
+                  <div className="mono" style={{fontSize:9,color:"var(--t3)",marginTop:2}}>
+                    {inv.date ? new Date(inv.date).toLocaleDateString() : ""}
+                    {inv.dueDate ? ` · Due ${new Date(inv.dueDate).toLocaleDateString()}` : ""}
+                    {inv.clientName ? ` · ${inv.clientName}` : ""}
+                  </div>
+                  {inv.summary && (
+                    <div style={{fontSize:10,color:"var(--t3)",marginTop:2,
+                      overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:380}}>
+                      {inv.summary}
+                    </div>
+                  )}
                 </div>
-                <div style={{fontSize:9,color:"var(--t3)",marginTop:1}}>
-                  {(inv.lineItems||[]).length} line item{(inv.lineItems||[]).length!==1?"s":""}
+
+                {/* Amount */}
+                <div style={{textAlign:"right",flexShrink:0,marginRight:6}}>
+                  <div className="mono" style={{fontWeight:800,fontSize:14,color:"var(--blue)"}}>
+                    {f$c(inv.total||0)}
+                  </div>
+                  <div style={{fontSize:9,color:"var(--t3)",marginTop:1}}>
+                    {(inv.lineItems||[]).length} line item{(inv.lineItems||[]).length!==1?"s":""}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
+                  <button className="btn btn-secondary btn-xs" style={{fontSize:10}}
+                    onClick={()=>setPreviewInv(inv)}>
+                    View
+                  </button>
+                  {inv.status==="unpaid" && (
+                    <button className="btn btn-xs" style={{fontSize:10,background:"rgba(26,217,138,.12)",
+                      color:"var(--green)",border:"1px solid rgba(26,217,138,.3)"}}
+                      onClick={()=>markPaid(inv)}>
+                      Mark Paid
+                    </button>
+                  )}
+                  {inv.status!=="void" && (
+                    <>
+                      <button className="btn btn-ghost btn-xs" style={{fontSize:10,color:"var(--amber)"}}
+                        onClick={()=>{ if(window.confirm("Mark this invoice as Revised?\n\nThis voids it and flags it as superseded — use this when you've updated the scope and will generate a new invoice to replace it.")) voidInv(inv,"revised"); }}>
+                        Mark Revised
+                      </button>
+                      <button className="btn btn-ghost btn-xs" style={{fontSize:10,color:"var(--t3)"}}
+                        onClick={()=>{ if(window.confirm("Void this invoice? Use this for clerical cancellations.\n\nTo flag a superseded invoice, use 'Mark Revised' instead.")) voidInv(inv,"void"); }}>
+                        Void
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
+            );
+          })}
 
-              {/* Actions */}
-              <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
-                <button className="btn btn-secondary btn-xs" style={{fontSize:10}}
-                  onClick={()=>setPreviewInv(inv)}>
-                  View
-                </button>
-                {inv.status==="unpaid" && (
-                  <button className="btn btn-xs" style={{fontSize:10,background:"rgba(26,217,138,.12)",
-                    color:"var(--green)",border:"1px solid rgba(26,217,138,.3)"}}
-                    onClick={()=>markPaid(inv)}>
-                    Mark Paid
-                  </button>
-                )}
-                {inv.status!=="void" && (
-                  <button className="btn btn-ghost btn-xs" style={{fontSize:10,color:"var(--t3)"}}
-                    onClick={()=>{ if(window.confirm("Void this invoice?")) voidInv(inv); }}>
-                    Void
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-
-          {/* Voided — collapsed */}
+          {/* Revision History — shows voided invoices with context */}
           {voidedInvoices.length > 0 && (
-            <details style={{marginTop:4}}>
-              <summary style={{fontSize:10,color:"var(--t3)",cursor:"pointer",padding:"4px 0"}}>
-                {voidedInvoices.length} voided invoice{voidedInvoices.length!==1?"s":""}
+            <details style={{marginTop:8}}>
+              <summary style={{fontSize:10,color:"var(--t3)",cursor:"pointer",padding:"5px 0",
+                display:"flex",alignItems:"center",gap:6,userSelect:"none"}}>
+                <span style={{fontSize:9,background:"rgba(255,255,255,.06)",border:"1px solid var(--br)",
+                  borderRadius:3,padding:"1px 5px",fontFamily:"var(--mono)"}}>HISTORY</span>
+                {voidedInvoices.filter(i=>i.voidReason==="revised").length > 0
+                  ? `${voidedInvoices.filter(i=>i.voidReason==="revised").length} revised · ${voidedInvoices.filter(i=>i.voidReason!=="revised").length} voided`
+                  : `${voidedInvoices.length} voided invoice${voidedInvoices.length!==1?"s":""}`
+                }
               </summary>
-              <div style={{marginTop:4,opacity:.6}}>
-                {voidedInvoices.map(inv=>(
-                  <div key={inv.id} style={{display:"flex",alignItems:"center",gap:10,
-                    padding:"6px 11px",background:"var(--s2)",border:"1px solid var(--br)",
-                    borderRadius:7,marginBottom:3}}>
-                    <span style={{fontSize:11,color:"var(--t3)",flex:1}}>{inv.number} — {inv.clientName||""}</span>
-                    <span className="mono" style={{fontSize:10,color:"var(--t3)"}}>{f$c(inv.total||0)}</span>
-                    <button className="btn btn-ghost btn-xs" style={{fontSize:9}} onClick={()=>setPreviewInv(inv)}>View</button>
-                  </div>
-                ))}
+              <div style={{marginTop:6,paddingLeft:8,borderLeft:"2px solid var(--br)"}}>
+                {/* Timeline legend */}
+                <div style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",marginBottom:6,paddingLeft:4}}>
+                  INVOICE REVISION HISTORY — oldest first
+                </div>
+                {[...voidedInvoices].reverse().map(inv => {
+                  const ver = versionOf[inv.id];
+                  const isRevised = inv.voidReason === "revised";
+                  const badgeColor = isRevised ? "var(--amber)" : "var(--t3)";
+                  const badgeLabel = isRevised ? "REVISED" : "VOID";
+                  return (
+                    <div key={inv.id} style={{display:"flex",alignItems:"center",gap:8,
+                      padding:"7px 10px",background:"var(--s2)",border:"1px solid var(--br)",
+                      borderRadius:7,marginBottom:4,opacity:0.7,
+                      borderLeft:`3px solid ${badgeColor}40`}}>
+                      {/* Version badge */}
+                      {invoices.length > 1 && (
+                        <div style={{fontSize:9,fontWeight:800,fontFamily:"var(--mono)",
+                          color:"var(--t3)",background:"var(--s3)",border:"1px solid var(--br)",
+                          borderRadius:3,padding:"2px 5px",flexShrink:0,minWidth:22,textAlign:"center"}}>
+                          v{ver}
+                        </div>
+                      )}
+                      {/* Number + status */}
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                          <span style={{fontSize:11,fontWeight:600,color:"var(--t2)",
+                            textDecoration:"line-through"}}>{inv.number||"Invoice"}</span>
+                          <span style={{fontSize:8,fontWeight:800,fontFamily:"var(--mono)",color:badgeColor,
+                            background:`${badgeColor}15`,border:`1px solid ${badgeColor}35`,
+                            borderRadius:3,padding:"1px 5px"}}>
+                            {badgeLabel}
+                          </span>
+                        </div>
+                        <div className="mono" style={{fontSize:9,color:"var(--t3)",marginTop:1}}>
+                          Created {inv.date ? new Date(inv.date).toLocaleDateString() : "—"}
+                          {inv.voidedAt ? ` · ${isRevised?"Revised":"Voided"} ${new Date(inv.voidedAt).toLocaleDateString()}` : ""}
+                          {inv.clientName ? ` · ${inv.clientName}` : ""}
+                        </div>
+                      </div>
+                      <span className="mono" style={{fontSize:11,color:"var(--t3)",flexShrink:0,
+                        textDecoration:"line-through"}}>{f$c(inv.total||0)}</span>
+                      <button className="btn btn-ghost btn-xs" style={{fontSize:9,flexShrink:0}}
+                        onClick={()=>setPreviewInv(inv)}>View</button>
+                    </div>
+                  );
+                })}
               </div>
             </details>
           )}
@@ -2056,6 +2131,9 @@ export function FinancialDashboard({ projects=[], companyId, onNavigate }) {
   const [filter, setFilter]     = useState("all");
   const [aiReport, setAiReport] = useState("");
   const [aiLoading, setAiLoad]  = useState(false);
+  // Read all generated invoices from localStorage (jd_invoices) — these are written by the
+  // portal's scope/invoice builder and are NOT stored in Firestore transactions.
+  const [allLsInvoices, setAllLsInvoices] = useState(() => lsGetInvoices());
 
   // Load financials for all projects
   useEffect(() => {
@@ -2088,12 +2166,24 @@ export function FinancialDashboard({ projects=[], companyId, onNavigate }) {
     const watch    = projects.filter(p=>healthMap[p.id]?.status==="watch");
     const ok       = projects.filter(p=>healthMap[p.id]?.status==="ok");
     const noData   = projects.filter(p=>!healthMap[p.id]);
-    const totalAR  = Object.values(jobData).reduce((s,d)=>{
+
+    // AR from Firestore manual transactions
+    const firestoreAR = Object.values(jobData).reduce((s,d)=>{
       if (!d?.transactions) return s;
       const inv = d.transactions.filter(t=>t.type==="invoice").reduce((ss,t)=>ss+t.amount,0);
       const pay = d.transactions.filter(t=>t.type==="payment_in").reduce((ss,t)=>ss+t.amount,0);
       return s+(inv-pay);
     },0);
+
+    // AR from jd_invoices localStorage — generated invoices from scope/invoice builder.
+    // Outstanding = non-void invoices that haven't been fully paid.
+    const lsAR = allLsInvoices.reduce((s,inv)=>{
+      if (inv.status==="void" || inv.status==="paid") return s;
+      return s+(inv.total||0);
+    },0);
+
+    const totalAR  = firestoreAR + lsAR;
+
     const totalAP  = Object.values(jobData).reduce((s,d)=>{
       if (!d?.transactions) return s;
       const bills = d.transactions.filter(t=>t.type==="bill").reduce((ss,t)=>ss+t.amount,0);
@@ -2101,7 +2191,7 @@ export function FinancialDashboard({ projects=[], companyId, onNavigate }) {
       return s+(bills-paid);
     },0);
     return { critical, warning, watch, ok, noData, totalAR, totalAP };
-  }, [healthMap, jobData, projects]);
+  }, [healthMap, jobData, projects, allLsInvoices]);
 
   // Filter projects
   const vis = useMemo(() => {
@@ -2204,7 +2294,10 @@ Give a 3-4 sentence executive summary, then bullet-point the top 3 actions for t
             {vis.map(proj => {
               const h = healthMap[proj.id];
               const d = jobData[proj.id];
-              const inv = d?.transactions?.filter(t=>t.type==="invoice").reduce((s,t)=>s+t.amount,0)||0;
+              const lsInvForProj = allLsInvoices
+                .filter(i => i.projId === proj.id && i.status !== "void")
+                .reduce((s,i)=>s+(i.total||0),0);
+              const inv = (d?.transactions?.filter(t=>t.type==="invoice").reduce((s,t)=>s+t.amount,0)||0) + lsInvForProj;
               const costs = d?.transactions?.filter(t=>TX_SIDE[t.type]==="cost"||TX_SIDE[t.type]==="ap").reduce((s,t)=>s+t.amount,0)||0;
               const budget = Object.values(d?.budgets||{}).reduce((s,b)=>s+(b.budgeted||0),0);
 
