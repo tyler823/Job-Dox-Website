@@ -2885,7 +2885,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                 const sp = pct(proj.spent, proj.budget);
                 const isClocked = clockInState?.projId === proj.id;
                 return (
-                  <div key={proj.id} className="proj-list-row anim" style={{borderLeft:`3px solid ${proj.archived?"var(--t3)":isClocked?"var(--green)":tc}`,opacity:proj.archived?.75:1}}>
+                  <div key={proj.id} className="proj-list-row anim" style={{borderLeft:`3px solid ${proj.archived?"var(--t3)":isClocked?"var(--green)":tc}`,opacity:proj.archived?0.75:1}}>
                     <div className="proj-list-body" onClick={()=>onSelect(proj)}>
                       <div style={{minWidth:0,flex:"2"}}>
                         <div style={{display:"flex",alignItems:"center",gap:6}}>
