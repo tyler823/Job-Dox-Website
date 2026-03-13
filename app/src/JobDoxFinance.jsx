@@ -50,6 +50,19 @@ function lsUpdateInvoice(id, patch) {
   return all.filter(i => i.projId === (all.find(x=>x.id===id)?.projId));
 }
 
+/* ── Vendor bills mirror (shared with portal VendorManagerTab) ── */
+const LS_VENDOR_BILLS = "jd_vendor_bills";
+function lsLoadVendorBills()       { try { return JSON.parse(localStorage.getItem(LS_VENDOR_BILLS)) || []; } catch { return []; } }
+function lsUpsertVendorBill(bill)  { const all = lsLoadVendorBills().filter(b => b.id !== bill.id); try { localStorage.setItem(LS_VENDOR_BILLS, JSON.stringify([...all, bill])); } catch {} }
+function lsMarkVendorBillPaid(id, paid) {
+  const all = lsLoadVendorBills().map(b => b.id === id ? {...b, status: paid ? "paid" : "approved"} : b);
+  try { localStorage.setItem(LS_VENDOR_BILLS, JSON.stringify(all)); } catch {}
+}
+
+/* ── Vendor registry read (shared key with portal jd_vendors) ── */
+function lsLoadVendors() { try { return JSON.parse(localStorage.getItem("jd_vendors")) || []; } catch { return []; } }
+}
+
 /* ── Budget Templates (global, mirrors Settings → Budget Categories) ── */
 const LS_BUDGET_TEMPLATES = "jd_budget_templates";
 const DEFAULT_BUDGET_TEMPLATES = [
@@ -354,12 +367,13 @@ export function FinancialHealthBadge({ projId, companyId }) {
 function AddTransactionModal({ onSave, onClose, worktypes=[], defaultType, budgetCategories=[] }) {
   const [f, setF] = useState({
     type: defaultType || "invoice", date:today(), amount:"", description:"",
-    category:"", budgetCatId:"", vendor:"", status:"open", notes:"", receipts:[]
+    category:"", budgetCatId:"", vendor:"", vendorId:"", status:"open", notes:"", receipts:[]
   });
   const u = (k,v) => setF(p=>({...p,[k]:v}));
   const wtOptions = worktypes.map(w=>w.type||w).filter(Boolean);
   const isCost = ["bill","payment_out","expense","payroll"].includes(f.type);
   const activeBudgetCats = budgetCategories.filter(c=>c.active);
+  const vendorList = lsLoadVendors().filter(v => v.status !== "inactive");
 
   const handleReceipts = (e) => {
     const files = Array.from(e.target.files);
@@ -424,7 +438,32 @@ function AddTransactionModal({ onSave, onClose, worktypes=[], defaultType, budge
             {(f.type==="bill"||f.type==="payment_out"||f.type==="expense") && (
               <div>
                 <label className="lbl">Vendor / Payee</label>
-                <input className="inp" value={f.vendor} onChange={e=>u("vendor",e.target.value)} placeholder="Company or person…"/>
+                {vendorList.length > 0 ? (
+                  <>
+                    <select className="sel" style={{marginBottom:5}}
+                      value={f.vendorId}
+                      onChange={e=>{
+                        const vRec = vendorList.find(v=>v.id===e.target.value);
+                        u("vendorId", e.target.value);
+                        if (vRec) {
+                          const name = [vRec.firstName, vRec.lastName].filter(Boolean).join(" ") || vRec.company || "";
+                          u("vendor", name);
+                        } else if (!e.target.value) {
+                          // cleared — don't wipe manual text
+                        }
+                      }}>
+                      <option value="">— Select from registry or type below —</option>
+                      {vendorList.map(v=>{
+                        const name = [v.firstName,v.lastName].filter(Boolean).join(" ")||(v.company||"");
+                        return <option key={v.id} value={v.id}>{name}{v.company&&name!==v.company?` (${v.company})`:""}</option>;
+                      })}
+                    </select>
+                    <input className="inp" value={f.vendor} onChange={e=>{u("vendor",e.target.value);u("vendorId","");}}
+                      placeholder="Or type vendor name manually…" style={{fontSize:11}}/>
+                  </>
+                ) : (
+                  <input className="inp" value={f.vendor} onChange={e=>u("vendor",e.target.value)} placeholder="Company or person…"/>
+                )}
               </div>
             )}
             {(f.type==="invoice"||f.type==="bill") && (
@@ -1410,6 +1449,7 @@ function APPanel({ transactions, onAdd }) {
   const totalBilled = apTxs.filter(t=>t.type==="bill").reduce((s,t)=>s+t.amount,0);
   const paid        = apTxs.filter(t=>t.type==="payment_out").reduce((s,t)=>s+t.amount,0);
   const apBalance   = totalBilled - paid;
+  const [, forceRefresh] = useState(0);
 
   const STATUS_C = { received:"var(--blue)",approved:"var(--purple)",scheduled:"var(--amber)",paid:"var(--green)" };
 
@@ -1428,51 +1468,74 @@ function APPanel({ transactions, onAdd }) {
 
       {apTxs.length === 0
         ? <EmptyState icon="📬" msg="No vendor bills yet — add a bill to track AP"/>
-        : apTxs.map(tx => (
-          <div key={tx.id} className="row" style={{display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:36,height:36,borderRadius:9,flexShrink:0,display:"flex",alignItems:"center",
-              justifyContent:"center",background:TX_TYPES[tx.type]?.bg,color:TX_TYPES[tx.type]?.color,fontSize:14}}>
-              {tx.type==="bill"?"📬":"💸"}
-            </div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                <span style={{fontSize:12,fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tx.description}</span>
-                {/* Receipt thumbnails */}
-                {(tx.receipts||[]).length > 0 && (
-                  <div style={{display:"flex",gap:3,flexShrink:0}}>
-                    {tx.receipts.slice(0,3).map((r,i)=>(
-                      <a key={i} href={r.dataUrl} target="_blank" rel="noreferrer" title={r.name}>
-                        {r.type?.startsWith("image/")
-                          ? <img src={r.dataUrl} alt="" style={{width:22,height:22,borderRadius:4,objectFit:"cover",border:"1px solid var(--br)"}}/>
-                          : <span style={{fontSize:8,padding:"2px 4px",background:"var(--s3)",borderRadius:4,
-                              border:"1px solid var(--br)",color:"var(--acc)",fontFamily:"var(--mono)"}}>PDF</span>
-                        }
-                      </a>
-                    ))}
-                    {tx.receipts.length > 3 && <span style={{fontSize:9,color:"var(--t3)"}}>+{tx.receipts.length-3}</span>}
-                  </div>
-                )}
+        : apTxs.map(tx => {
+          const isPaid    = tx.status === "paid";
+          const isLinked  = !!tx.vendorId;
+          return (
+            <div key={tx.id} className="row" style={{display:"flex",alignItems:"center",gap:10,
+              opacity:isPaid?0.65:1}}>
+              <div style={{width:36,height:36,borderRadius:9,flexShrink:0,display:"flex",alignItems:"center",
+                justifyContent:"center",background:TX_TYPES[tx.type]?.bg,color:TX_TYPES[tx.type]?.color,fontSize:14}}>
+                {tx.type==="bill"?"📬":"💸"}
               </div>
-              <div style={{fontSize:10,color:"var(--t3)",marginTop:1,fontFamily:"var(--mono)"}}>
-                {tx.date}{tx.vendor?` · ${tx.vendor}`:""}{tx.category?` · ${tx.category}`:""}
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                  <span style={{fontSize:12,fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",
+                    whiteSpace:"nowrap",textDecoration:isPaid?"line-through":"none"}}>{tx.description}</span>
+                  {isLinked && (
+                    <span style={{fontSize:8,padding:"1px 5px",borderRadius:3,fontFamily:"var(--mono)",fontWeight:700,
+                      background:"rgba(232,156,24,.15)",color:"#e89c18",flexShrink:0}}>LINKED</span>
+                  )}
+                  {(tx.receipts||[]).length > 0 && (
+                    <div style={{display:"flex",gap:3,flexShrink:0}}>
+                      {tx.receipts.slice(0,3).map((r,i)=>(
+                        <a key={i} href={r.dataUrl} target="_blank" rel="noreferrer" title={r.name}>
+                          {r.type?.startsWith("image/")
+                            ? <img src={r.dataUrl} alt="" style={{width:22,height:22,borderRadius:4,objectFit:"cover",border:"1px solid var(--br)"}}/>
+                            : <span style={{fontSize:8,padding:"2px 4px",background:"var(--s3)",borderRadius:4,
+                                border:"1px solid var(--br)",color:"var(--acc)",fontFamily:"var(--mono)"}}>PDF</span>
+                          }
+                        </a>
+                      ))}
+                      {tx.receipts.length > 3 && <span style={{fontSize:9,color:"var(--t3)"}}>+{tx.receipts.length-3}</span>}
+                    </div>
+                  )}
+                </div>
+                <div style={{fontSize:10,color:"var(--t3)",marginTop:1,fontFamily:"var(--mono)"}}>
+                  {tx.date}{tx.vendor?` · ${tx.vendor}`:""}{tx.category?` · ${tx.category}`:""}
+                </div>
+              </div>
+              {tx.status && (
+                <span style={{fontSize:9,fontWeight:700,fontFamily:"var(--mono)",
+                  color:STATUS_C[tx.status]||"var(--t3)",background:`${STATUS_C[tx.status]||"var(--t3)"}18`,
+                  border:`1px solid ${STATUS_C[tx.status]||"var(--t3)"}40`,borderRadius:4,padding:"2px 6px"}}>
+                  {tx.status.toUpperCase()}
+                </span>
+              )}
+              {/* Quick Mark Paid button for bills */}
+              {tx.type === "bill" && (
+                <button className={`btn btn-xs ${isPaid?"btn-ghost":""}`}
+                  style={isPaid?{}:{background:"var(--green)",borderColor:"var(--green)",color:"#fff"}}
+                  onClick={()=>{
+                    // Update status in Firestore transactions is handled by parent but we mirror to LS
+                    if (tx.vendorId) lsMarkVendorBillPaid(tx.id, !isPaid);
+                    forceRefresh(n=>n+1);
+                    // Note: full Firestore status update requires parent save — show visual immediately
+                  }}
+                  title={isPaid?"Marked Paid":"Mark as Paid"}>
+                  {isPaid ? "✓ Paid" : "Mark Paid"}
+                </button>
+              )}
+              <div style={{textAlign:"right",flexShrink:0}}>
+                <div className="mono" style={{fontWeight:700,fontSize:13,
+                  color:tx.type==="payment_out"?"var(--green)":"var(--acc)"}}>
+                  {f$(tx.amount)}
+                </div>
+                <div style={{fontSize:9,color:"var(--t3)",marginTop:1}}>{TX_TYPES[tx.type]?.label}</div>
               </div>
             </div>
-            {tx.status && (
-              <span style={{fontSize:9,fontWeight:700,fontFamily:"var(--mono)",
-                color:STATUS_C[tx.status]||"var(--t3)",background:`${STATUS_C[tx.status]||"var(--t3)"}18`,
-                border:`1px solid ${STATUS_C[tx.status]||"var(--t3)"}40`,borderRadius:4,padding:"2px 6px"}}>
-                {tx.status.toUpperCase()}
-              </span>
-            )}
-            <div style={{textAlign:"right",flexShrink:0}}>
-              <div className="mono" style={{fontWeight:700,fontSize:13,
-                color:tx.type==="payment_out"?"var(--green)":"var(--acc)"}}>
-                {f$(tx.amount)}
-              </div>
-              <div style={{fontSize:9,color:"var(--t3)",marginTop:1}}>{TX_TYPES[tx.type]?.label}</div>
-            </div>
-          </div>
-        ))
+          );
+        })
       }
     </div>
   );
@@ -1765,7 +1828,24 @@ export function FinancialTab({ proj, companyId, laborCost=0, invoices: _invoices
   const addTransaction = useCallback((tx) => {
     const newTxs = [...(data.transactions||[]), tx].filter(t=>t.id!=="__labor__"||!tx.auto);
     save({ transactions: newTxs });
-  }, [data.transactions, save]);
+    // Mirror bill to vendor bills LS so VendorManagerTab can show it without Firestore subscription
+    if (tx.type === "bill" && (tx.vendorId || tx.vendor)) {
+      lsUpsertVendorBill({
+        id:          tx.id,
+        projId:      proj.id,
+        projName:    proj.name || "",
+        vendorId:    tx.vendorId || "",
+        vendorName:  tx.vendor  || "",
+        date:        tx.date,
+        amount:      tx.amount,
+        description: tx.description,
+        status:      tx.status || "received",
+        budgetCatId: tx.budgetCatId || "",
+        category:    tx.category || "",
+        notes:       tx.notes || "",
+      });
+    }
+  }, [data.transactions, save, proj.id, proj.name]);
 
   const setBudgets = useCallback((fn) => {
     const newBudgets = typeof fn==="function" ? fn(data.budgets||{}) : fn;
