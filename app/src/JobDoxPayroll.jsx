@@ -84,14 +84,44 @@ const LS_PAYROLL_RATES = "jd_payroll_rates";
 
 /* Default rate table — mirrors the RATE_TABLE in portal */
 const DEFAULT_RATES = [
-  { id:"pr1", position:"Lead Technician",  payRate:28, chargeRate:85  },
-  { id:"pr2", position:"Field Technician", payRate:22, chargeRate:65  },
-  { id:"pr3", position:"Project Manager",  payRate:42, chargeRate:95  },
-  { id:"pr4", position:"Estimator",        payRate:35, chargeRate:75  },
-  { id:"pr5", position:"Subcontractor",    payRate:0,  chargeRate:55  },
-  { id:"pr6", position:"Office Admin",     payRate:30, chargeRate:70  },
-  { id:"pr7", position:"Sales",            payRate:25, chargeRate:60  },
+  { id:"pr1", position:"Lead Technician",  payRate:28, chargeRate:85,  qboPayrollItemRef:null },
+  { id:"pr2", position:"Field Technician", payRate:22, chargeRate:65,  qboPayrollItemRef:null },
+  { id:"pr3", position:"Project Manager",  payRate:42, chargeRate:95,  qboPayrollItemRef:null },
+  { id:"pr4", position:"Estimator",        payRate:35, chargeRate:75,  qboPayrollItemRef:null },
+  { id:"pr5", position:"Subcontractor",    payRate:0,  chargeRate:55,  qboPayrollItemRef:null },
+  { id:"pr6", position:"Office Admin",     payRate:30, chargeRate:70,  qboPayrollItemRef:null },
+  { id:"pr7", position:"Sales",            payRate:25, chargeRate:60,  qboPayrollItemRef:null },
 ];
+
+/* ── Per-employee rate overrides (optional — falls back to position rate) ── */
+const LS_EMPLOYEE_RATES = "jd_employee_rate_overrides";
+function loadEmployeeRates() {
+  try { return JSON.parse(localStorage.getItem(LS_EMPLOYEE_RATES)) || {}; } catch { return {}; }
+}
+function saveEmployeeRates(map) {
+  try { localStorage.setItem(LS_EMPLOYEE_RATES, JSON.stringify(map)); } catch {}
+}
+
+/* ── QBO Integration Settings ── */
+const LS_QBO_SETTINGS = "jd_qbo_settings";
+function loadQboSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(LS_QBO_SETTINGS)) || {
+      connected: false,
+      realmId: "",
+      companyName: "",
+      lastSyncAt: null,
+      autoSyncEnabled: false,
+      defaultBillableStatus: "Billable",        // Billable | NotBillable
+      defaultPayType: "Regular",                 // Regular | Overtime | Holiday | PTO
+      employeeIdMap: {},                         // { staffMemberId: qboEmployeeRefValue }
+      customerIdMap: {},                         // { projectId: qboCustomerRefValue }
+    };
+  } catch { return { connected: false, realmId: "", companyName: "", lastSyncAt: null, autoSyncEnabled: false, defaultBillableStatus: "Billable", defaultPayType: "Regular", employeeIdMap: {}, customerIdMap: {} }; }
+}
+function saveQboSettings(settings) {
+  try { localStorage.setItem(LS_QBO_SETTINGS, JSON.stringify(settings)); } catch {}
+}
 
 function loadRates() {
   try { return JSON.parse(localStorage.getItem(LS_PAYROLL_RATES)) || DEFAULT_RATES; } catch { return DEFAULT_RATES; }
@@ -111,12 +141,16 @@ function ratesLookup(rates) {
    CSV EXPORT
 ───────────────────────────────────────────────────────────────────────────── */
 function exportPayrollCSV(rows, filename) {
-  const headers = ["Employee","Position","Project","Task","Clock In","Clock Out","Hours","Pay Rate","Pay Cost","Billing Rate","Billing Cost"];
+  const headers = ["Employee","Position","Project","Task","Date (YYYY-MM-DD)","Clock In","Clock Out","Clock In (ISO)","Clock Out (ISO)","Hours","Hours (Int)","Minutes","Pay Type","Billable","Pay Rate","Pay Cost","Billing Rate","Billing Cost","QBO Sync Status"];
   const csvRows = rows.map(r => [
     r.tech, r.position||"", r.projName||"", r.task||"",
-    r.clockIn||"", r.clockOut||"", (r.hours||0).toFixed(2),
+    r.txnDate||"", r.clockIn||"", r.clockOut||"",
+    r.clockInIso||"", r.clockOutIso||"",
+    (r.hours||0).toFixed(2), r.hoursInt??Math.floor(r.hours||0), r.minutes??Math.round(((r.hours||0)-Math.floor(r.hours||0))*60),
+    r.payType||"Regular", r.billableStatus||"Billable",
     (r.payRate||0).toFixed(2), (r.payCost||0).toFixed(2),
     (r.rate||0).toFixed(2), (r.laborCost||0).toFixed(2),
+    r.qboSyncStatus||"not synced",
   ]);
   const csv = [headers, ...csvRows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
   const blob = new Blob([csv], { type:"text/csv" });
@@ -138,6 +172,7 @@ const Ic = {
   people:   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>,
   clock:    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5z"/></svg>,
   dollar:   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>,
+  link:     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>,
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -181,12 +216,22 @@ function PayrollReportTab({ projects, globalStaff, projectShifts }) {
         rows.push({
           ...sh,
           projId,
-          projName:   projMap[projId] || projId,
+          projName:       projMap[projId] || projId,
           payRate,
           rate,
-          payCost:    Math.round(hours * payRate * 100) / 100,
-          laborCost:  sh.laborCost ?? Math.round(hours * rate * 100) / 100,
-          _date:      parseShiftDate(sh.clockIn),
+          payCost:        Math.round(hours * payRate * 100) / 100,
+          laborCost:      sh.laborCost ?? Math.round(hours * rate * 100) / 100,
+          // QBO-ready fields (preserve from shift or derive)
+          clockInIso:     sh.clockInIso || null,
+          clockOutIso:    sh.clockOutIso || null,
+          txnDate:        sh.txnDate || (sh.clockInIso ? sh.clockInIso.split("T")[0] : null),
+          hoursInt:       sh.hoursInt ?? Math.floor(hours),
+          minutes:        sh.minutes ?? Math.round((hours - Math.floor(hours)) * 60),
+          payType:        sh.payType || "Regular",
+          billableStatus: sh.billableStatus || "Billable",
+          qboSyncStatus:  sh.qboSyncStatus || null,
+          qboTimeActivityId: sh.qboTimeActivityId || null,
+          _date:          sh.clockInIso ? new Date(sh.clockInIso) : parseShiftDate(sh.clockIn),
         });
       });
     });
@@ -398,11 +443,13 @@ function PayrollReportTab({ projects, globalStaff, projectShifts }) {
                   <th style={{...thStyle,textAlign:"right",cursor:"pointer"}} onClick={()=>toggleSort("payCost")}>Pay Cost<SortArrow col="payCost"/></th>
                   <th style={{...thStyle,textAlign:"right"}}>Bill Rate</th>
                   <th style={{...thStyle,textAlign:"right",cursor:"pointer"}} onClick={()=>toggleSort("laborCost")}>Bill Total<SortArrow col="laborCost"/></th>
+                  <th style={thStyle}>Type</th>
+                  <th style={thStyle}>Sync</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={11} style={{...tdStyle,textAlign:"center",color:"var(--t3)",padding:30}}>No shifts found for the selected filters.</td></tr>
+                  <tr><td colSpan={13} style={{...tdStyle,textAlign:"center",color:"var(--t3)",padding:30}}>No shifts found for the selected filters.</td></tr>
                 ) : filtered.map(r => (
                   <tr key={r.id+r.projId} style={trStyle}>
                     <td style={tdStyle}>
@@ -421,6 +468,18 @@ function PayrollReportTab({ projects, globalStaff, projectShifts }) {
                     <td style={{...tdStyle,textAlign:"right",fontFamily:"var(--mono)",fontSize:12,color:"var(--amber)"}}>{f$(r.payCost)}</td>
                     <td style={{...tdStyle,textAlign:"right",fontFamily:"var(--mono)",fontSize:11,color:"var(--t2)"}}>${(r.rate||0).toFixed(0)}/hr</td>
                     <td style={{...tdStyle,textAlign:"right",fontFamily:"var(--mono)",fontSize:12,color:"var(--green)"}}>{f$(r.laborCost)}</td>
+                    <td style={tdStyle}>
+                      <span style={{fontSize:9,padding:"2px 6px",borderRadius:4,fontFamily:"var(--mono)",
+                        background: r.payType==="Overtime" ? "rgba(232,156,24,.12)" : r.payType==="Holiday" ? "rgba(167,139,250,.12)" : r.payType==="PTO" ? "rgba(91,163,245,.12)" : "rgba(26,217,138,.08)",
+                        color:      r.payType==="Overtime" ? "var(--amber)" : r.payType==="Holiday" ? "var(--purple)" : r.payType==="PTO" ? "var(--blue)" : "var(--green)",
+                      }}>{r.payType||"Regular"}</span>
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={{fontSize:9,padding:"2px 6px",borderRadius:4,fontFamily:"var(--mono)",
+                        background: r.qboSyncStatus==="synced" ? "rgba(26,217,138,.1)" : r.qboSyncStatus==="error" ? "rgba(228,53,49,.1)" : "rgba(255,255,255,.06)",
+                        color:      r.qboSyncStatus==="synced" ? "var(--green)" : r.qboSyncStatus==="error" ? "var(--acc)" : "var(--t3)",
+                      }}>{r.qboSyncStatus==="synced" ? "Synced" : r.qboSyncStatus==="error" ? "Error" : "—"}</span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -433,6 +492,7 @@ function PayrollReportTab({ projects, globalStaff, projectShifts }) {
                     <td style={{...tdStyle,textAlign:"right",fontFamily:"var(--mono)",fontSize:12,fontWeight:700,color:"var(--amber)"}}>{f$(totals.totalPayCost)}</td>
                     <td style={tdStyle}/>
                     <td style={{...tdStyle,textAlign:"right",fontFamily:"var(--mono)",fontSize:12,fontWeight:700,color:"var(--green)"}}>{f$(totals.totalBilling)}</td>
+                    <td colSpan={2} style={tdStyle}/>
                   </tr>
                 </tfoot>
               )}
@@ -622,6 +682,221 @@ function RateSettingsTab({ canEditRates }) {
 
 
 /* ═════════════════════════════════════════════════════════════════════════════
+   QBO INTEGRATION SETTINGS TAB
+═════════════════════════════════════════════════════════════════════════════ */
+function QboSettingsTab({ globalStaff, projects, canEditRates }) {
+  const [settings, setSettings] = useState(() => loadQboSettings());
+  const [empRates, setEmpRates] = useState(() => loadEmployeeRates());
+  const [editingEmp, setEditingEmp] = useState(null);
+  const [editPayRate, setEditPayRate] = useState("");
+  const [editChargeRate, setEditChargeRate] = useState("");
+
+  const rates = useMemo(() => loadRates(), []);
+  const lookup = useMemo(() => ratesLookup(rates), [rates]);
+
+  const persistSettings = useCallback((updated) => {
+    setSettings(updated);
+    saveQboSettings(updated);
+  }, []);
+
+  const updateEmpQboId = (staffId, qboId) => {
+    const next = { ...settings, employeeIdMap: { ...settings.employeeIdMap, [staffId]: qboId } };
+    persistSettings(next);
+  };
+
+  const updateProjQboId = (projId, qboId) => {
+    const next = { ...settings, customerIdMap: { ...settings.customerIdMap, [projId]: qboId } };
+    persistSettings(next);
+  };
+
+  const saveEmpRateOverride = (staffName) => {
+    const updated = { ...empRates, [staffName]: { payRate: parseFloat(editPayRate)||0, chargeRate: parseFloat(editChargeRate)||0 } };
+    setEmpRates(updated);
+    saveEmployeeRates(updated);
+    setEditingEmp(null);
+  };
+
+  const clearEmpRateOverride = (staffName) => {
+    const updated = { ...empRates };
+    delete updated[staffName];
+    setEmpRates(updated);
+    saveEmployeeRates(updated);
+  };
+
+  return (
+    <div style={{padding:20,overflow:"auto",flex:1}}>
+      <div style={{maxWidth:800,margin:"0 auto"}}>
+
+        {/* Connection Status */}
+        <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,padding:16,marginBottom:18}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <div>
+              <div style={{fontSize:14,fontWeight:700,color:"var(--t1)"}}>QuickBooks Online Connection</div>
+              <div style={{fontSize:11,color:"var(--t2)",marginTop:2}}>
+                {settings.connected
+                  ? `Connected to ${settings.companyName || "QBO"} (Realm: ${settings.realmId})`
+                  : "Not connected — configure your QBO integration to sync time activities for payroll."}
+              </div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{width:8,height:8,borderRadius:"50%",background:settings.connected?"var(--green)":"var(--t3)"}}/>
+              <span style={{fontSize:11,fontFamily:"var(--mono)",color:settings.connected?"var(--green)":"var(--t3)"}}>
+                {settings.connected ? "CONNECTED" : "DISCONNECTED"}
+              </span>
+            </div>
+          </div>
+          {settings.lastSyncAt && (
+            <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>
+              Last sync: {new Date(settings.lastSyncAt).toLocaleString()}
+            </div>
+          )}
+          <div style={{marginTop:12,padding:"9px 12px",background:"var(--s3)",borderRadius:7,fontSize:11,color:"var(--t2)"}}>
+            QBO OAuth2 connection will be configured via Settings when the integration is activated. This tab lets you pre-map your employees and projects to QBO entities so sync is seamless on day one.
+          </div>
+        </div>
+
+        {/* Default Settings */}
+        <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,padding:16,marginBottom:18}}>
+          <div style={{fontSize:12,fontWeight:700,color:"var(--t1)",marginBottom:10}}>Sync Defaults</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <div>
+              <label style={lblStyle}>Default Pay Type</label>
+              <select value={settings.defaultPayType} disabled={!canEditRates}
+                onChange={e => persistSettings({...settings, defaultPayType: e.target.value})} style={selectStyle}>
+                <option value="Regular">Regular</option>
+                <option value="Overtime">Overtime</option>
+                <option value="Holiday">Holiday</option>
+                <option value="PTO">PTO</option>
+              </select>
+            </div>
+            <div>
+              <label style={lblStyle}>Default Billable Status</label>
+              <select value={settings.defaultBillableStatus} disabled={!canEditRates}
+                onChange={e => persistSettings({...settings, defaultBillableStatus: e.target.value})} style={selectStyle}>
+                <option value="Billable">Billable</option>
+                <option value="NotBillable">Not Billable</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Employee ID Mapping + Per-Employee Rate Overrides */}
+        <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,padding:16,marginBottom:18}}>
+          <div style={{fontSize:12,fontWeight:700,color:"var(--t1)",marginBottom:4}}>Employee Mapping</div>
+          <div style={{fontSize:11,color:"var(--t2)",marginBottom:12}}>Map each staff member to their QBO Employee ID. Optionally set per-employee rate overrides that take priority over position-based rates.</div>
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Employee</th>
+                <th style={thStyle}>Position</th>
+                <th style={{...thStyle,width:120}}>QBO Employee ID</th>
+                <th style={{...thStyle,textAlign:"right"}}>Pay Rate</th>
+                <th style={{...thStyle,textAlign:"right"}}>Bill Rate</th>
+                {canEditRates && <th style={{...thStyle,textAlign:"right",width:80}}>Override</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {globalStaff.length === 0 ? (
+                <tr><td colSpan={canEditRates?6:5} style={{...tdStyle,textAlign:"center",color:"var(--t3)",padding:20}}>No staff members found.</td></tr>
+              ) : globalStaff.map(s => {
+                const name = `${s.firstName||""} ${s.lastName||""}`.trim() || s.email || s.id;
+                const pos = s.systemRole || "Field Technician";
+                const posRate = lookup[pos] || { payRate: 0, chargeRate: 0 };
+                const override = empRates[name];
+                const effectivePay = override ? override.payRate : posRate.payRate;
+                const effectiveCharge = override ? override.chargeRate : posRate.chargeRate;
+                const isEditing = editingEmp === name;
+                return (
+                  <tr key={s.id} style={trStyle}>
+                    <td style={tdStyle}>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <Av name={name} size={22}/>
+                        <span style={{fontWeight:600,fontSize:11}}>{name}</span>
+                      </div>
+                    </td>
+                    <td style={{...tdStyle,fontSize:11,color:"var(--t2)"}}>{pos}</td>
+                    <td style={tdStyle}>
+                      <input type="text" value={settings.employeeIdMap?.[s.id]||""} disabled={!canEditRates}
+                        onChange={e => updateEmpQboId(s.id, e.target.value)}
+                        placeholder="QBO Ref ID" style={{...fieldStyle,fontSize:10,padding:"4px 7px",fontFamily:"var(--mono)"}}/>
+                    </td>
+                    <td style={{...tdStyle,textAlign:"right"}}>
+                      {isEditing ? (
+                        <input type="number" value={editPayRate} onChange={e=>setEditPayRate(e.target.value)} style={{...fieldStyle,width:65,textAlign:"right",fontSize:11,padding:"3px 6px"}}/>
+                      ) : (
+                        <span style={{fontFamily:"var(--mono)",fontSize:12,color:override?"var(--amber)":"var(--t2)"}}>${effectivePay.toFixed(0)}/hr{override ? " *" : ""}</span>
+                      )}
+                    </td>
+                    <td style={{...tdStyle,textAlign:"right"}}>
+                      {isEditing ? (
+                        <input type="number" value={editChargeRate} onChange={e=>setEditChargeRate(e.target.value)} style={{...fieldStyle,width:65,textAlign:"right",fontSize:11,padding:"3px 6px"}}/>
+                      ) : (
+                        <span style={{fontFamily:"var(--mono)",fontSize:12,color:override?"var(--green)":"var(--t2)"}}>${effectiveCharge.toFixed(0)}/hr{override ? " *" : ""}</span>
+                      )}
+                    </td>
+                    {canEditRates && (
+                      <td style={{...tdStyle,textAlign:"right"}}>
+                        {isEditing ? (
+                          <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
+                            <button onClick={()=>setEditingEmp(null)} style={{...btnXs,background:"var(--s3)",border:"1px solid var(--br)",color:"var(--t2)"}}>X</button>
+                            <button onClick={()=>saveEmpRateOverride(name)} style={{...btnXs,background:"var(--acc)",color:"#fff"}}>OK</button>
+                          </div>
+                        ) : (
+                          <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
+                            <button onClick={()=>{setEditingEmp(name);setEditPayRate(String(effectivePay));setEditChargeRate(String(effectiveCharge));}}
+                              style={{...btnXs,background:"var(--s3)",border:"1px solid var(--br)",color:"var(--t2)"}}>{Ic.edit}</button>
+                            {override && <button onClick={()=>clearEmpRateOverride(name)} style={{...btnXs,background:"rgba(228,53,49,.08)",border:"1px solid rgba(228,53,49,.2)",color:"var(--acc)"}}>{Ic.trash}</button>}
+                          </div>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div style={{marginTop:8,fontSize:10,color:"var(--t3)",fontStyle:"italic"}}>* = per-employee override (takes priority over position rate)</div>
+        </div>
+
+        {/* Project → QBO Customer Mapping */}
+        <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,padding:16}}>
+          <div style={{fontSize:12,fontWeight:700,color:"var(--t1)",marginBottom:4}}>Project → QBO Customer Mapping</div>
+          <div style={{fontSize:11,color:"var(--t2)",marginBottom:12}}>Map projects to QBO Customer/Job references. When shifts are synced, they'll be associated with the correct QBO customer for billing.</div>
+          <div style={{maxHeight:300,overflowY:"auto"}}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Project</th>
+                  <th style={thStyle}>Status</th>
+                  <th style={{...thStyle,width:150}}>QBO Customer Ref</th>
+                </tr>
+              </thead>
+              <tbody>
+                {projects.filter(p => p.status !== "closed").slice(0, 50).map(p => (
+                  <tr key={p.id} style={trStyle}>
+                    <td style={{...tdStyle,fontSize:11,fontWeight:500}}>{p.name || p.address || p.id}</td>
+                    <td style={tdStyle}>
+                      <span style={{fontSize:9,padding:"2px 6px",borderRadius:4,fontFamily:"var(--mono)",background:"rgba(255,255,255,.06)",color:"var(--t2)"}}>{p.status||"—"}</span>
+                    </td>
+                    <td style={tdStyle}>
+                      <input type="text" value={settings.customerIdMap?.[p.id]||""} disabled={!canEditRates}
+                        onChange={e => updateProjQboId(p.id, e.target.value)}
+                        placeholder="QBO Ref ID" style={{...fieldStyle,fontSize:10,padding:"4px 7px",fontFamily:"var(--mono)"}}/>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+
+/* ═════════════════════════════════════════════════════════════════════════════
    PAYROLL DASHBOARD (main export)
 ═════════════════════════════════════════════════════════════════════════════ */
 export function PayrollDashboard({ projects=[], globalStaff=[], projectShifts={}, permissionLevel=1, companyId="" }) {
@@ -647,6 +922,7 @@ export function PayrollDashboard({ projects=[], globalStaff=[], projectShifts={}
         {[
           { key:"report", label:"Payroll Report", icon:Ic.clock },
           { key:"rates",  label:"Rate Settings",  icon:Ic.dollar },
+          { key:"qbo",    label:"QBO Integration", icon:Ic.link },
         ].map(t => (
           <button
             key={t.key}
@@ -667,8 +943,10 @@ export function PayrollDashboard({ projects=[], globalStaff=[], projectShifts={}
       {/* Tab Content */}
       {tab === "report" ? (
         <PayrollReportTab projects={projects} globalStaff={globalStaff} projectShifts={projectShifts}/>
-      ) : (
+      ) : tab === "rates" ? (
         <RateSettingsTab canEditRates={canEditRates}/>
+      ) : (
+        <QboSettingsTab globalStaff={globalStaff} projects={projects} canEditRates={canEditRates}/>
       )}
     </>
   );

@@ -1189,6 +1189,7 @@ function ClockInModal({ proj, clockInState, onClockIn, onClockOut, onClose, curr
     onClockIn({ projId: proj.id, projName: proj.name, startTime: Date.now(), mode, label,
       rate: effectiveRate, payRate: autoRates.payRate,
       position: user.position, tech: user.name,
+      startIso: new Date().toISOString(),  // QBO-ready: ISO timestamp for sync
     });
     onClose();
   }
@@ -1196,6 +1197,7 @@ function ClockInModal({ proj, clockInState, onClockIn, onClockOut, onClose, curr
   function doClockOut() {
     const durationSec = Math.floor((Date.now() - clockInState.startTime) / 1000);
     const hours = Math.round((durationSec / 3600) * 100) / 100;
+    const nowIso = new Date().toISOString();
     const shift = {
       id: uid(),
       tech: user.name,
@@ -1206,9 +1208,19 @@ function ClockInModal({ proj, clockInState, onClockIn, onClockOut, onClose, curr
       payRate: clockInState.payRate,
       clockIn:  new Date(clockInState.startTime).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}),
       clockOut: new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}),
+      // QBO-ready: ISO 8601 timestamps for accurate date math & sync
+      clockInIso:  clockInState.startIso || new Date(clockInState.startTime).toISOString(),
+      clockOutIso: nowIso,
+      txnDate:     nowIso.split("T")[0],  // YYYY-MM-DD date for QBO TimeActivity
       hours,
+      hoursInt:    Math.floor(hours),                                   // QBO Hours field (integer)
+      minutes:     Math.round((hours - Math.floor(hours)) * 60),       // QBO Minutes field (integer)
+      payType:     "Regular",             // QBO PayrollItemRef: Regular | Overtime | Holiday | PTO
+      billableStatus: "Billable",         // QBO BillableStatus: Billable | NotBillable | HasBeenBilled
       notes: "",
       laborCost: Math.round(hours * clockInState.rate * 100) / 100,
+      qboSyncStatus: null,                // null = not synced, "synced" = pushed, "error" = failed
+      qboTimeActivityId: null,            // QBO TimeActivity ID once synced
     };
     onClockOut(shift);
     onClose();
@@ -11191,13 +11203,25 @@ export default function JobDoxPortal() {
     if (clockInState && clockInState.projId !== state.projId) {
       const durationSec = Math.floor((Date.now() - clockInState.startTime) / 1000);
       const hours = Math.round((durationSec / 3600) * 100) / 100;
+      const nowIso = new Date().toISOString();
       const autoShift = {
         id: uid(), tech: currentUser?.name||"Staff", task: clockInState.label, mode: "auto",
         position: clockInState.position, rate: clockInState.rate,
+        payRate: clockInState.payRate,
         clockIn: new Date(clockInState.startTime).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}),
         clockOut: new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}),
-        hours, notes: "Auto clocked out — switched to another project",
+        clockInIso:  clockInState.startIso || new Date(clockInState.startTime).toISOString(),
+        clockOutIso: nowIso,
+        txnDate:     nowIso.split("T")[0],
+        hours,
+        hoursInt:    Math.floor(hours),
+        minutes:     Math.round((hours - Math.floor(hours)) * 60),
+        payType:     "Regular",
+        billableStatus: "Billable",
+        notes: "Auto clocked out — switched to another project",
         laborCost: Math.round(hours * clockInState.rate * 100) / 100,
+        qboSyncStatus: null,
+        qboTimeActivityId: null,
       };
       setProjectShifts(ps=>({ ...ps, [clockInState.projId]: [...(ps[clockInState.projId]||[]), autoShift] }));
     }
