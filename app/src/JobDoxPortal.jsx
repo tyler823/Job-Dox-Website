@@ -577,9 +577,10 @@ const COI_STATUS = {
 
 function getJobEmail(proj, coInfo) {
   if (proj?.jobEmail) return proj.jobEmail;
-  // Auto-generate from proj id + company domain
+  // Auto-generate from proj id + dedicated cortex subdomain
   const slug = (proj?.name || proj?.id || "job").toLowerCase().replace(/[^a-z0-9]/g,"-").slice(0,20);
-  const domain = coInfo?.email ? coInfo.email.split("@")[1] : "jobdox.com";
+  const companySlug = (coInfo?.name || "jobdox").toLowerCase().replace(/[^a-z0-9]/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"");
+  const domain = `cortex.${companySlug}.com`;
   return `job-${slug}@${domain}`;
 }
 
