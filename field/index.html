@@ -315,75 +315,409 @@ function ProjectsScreen({ fieldUser, onSelect, clockedProjId }) {
   );
 }
 
-/* ── DryDox ───────────────────────────────────────────── */
+/* ── DryDox (Enhanced) ───────────────────────────────── */
+/* Full mobile-optimized DryDox with rooms, moisture points,
+   equipment tracking, psychrometric data — syncs to Firestore */
+
+const EQUIP_TYPES_F = [
+  {v:"fan",l:"Air Mover",i:"🌀"},{v:"dehu",l:"Dehumidifier",i:"💧"},
+  {v:"scrubber",l:"Air Scrubber",i:"🌬️"},{v:"injectidry",l:"InjectiDry",i:"💉"},
+  {v:"mat",l:"Drying Mat",i:"🟫"},{v:"other",l:"Other",i:"🔧"},
+];
+const getETF = v => EQUIP_TYPES_F.find(t=>t.v===v)||EQUIP_TYPES_F[5];
+const calcGPPF = (t,r) => { if(!t||!r)return 0; const c=(t-32)*5/9; const es=6.112*Math.exp((17.67*c)/(c+243.5)); const ea=es*(r/100); return Math.round(0.622*(ea/(1013.25-ea))*7000*10)/10; };
+const calcDPF = (t,r) => { if(!t||!r)return 0; const c=(t-32)*5/9; const g=(17.27*c)/(237.7+c)+Math.log(r/100); return Math.round(((237.7*g)/(17.27-g))*9/5+32); };
+
+// S500 equipment recommendation formulas (IICRC)
+const S500_FACTORS = {class1:100,class2:50,class3:40,class4:40};
+const S500_ACH_F = {cat1:0,cat2:4,cat3:6};
+function calcS500F(rooms) {
+  let fan=0, dehu=0, scrub=0;
+  (rooms||[]).forEach(r=>{
+    const sf=(parseFloat(r.widthFt)||0)*(parseFloat(r.depthFt)||0);
+    const lf=2*((parseFloat(r.widthFt)||0)+(parseFloat(r.depthFt)||0));
+    fan+=Math.max(Math.ceil(sf/50),Math.ceil(lf/14),1);
+    const cf=sf*(parseFloat(r.ceilingFt)||8);
+    dehu+=Math.max(Math.ceil((cf/(S500_FACTORS[r.materialClass||"class2"]||50))/80),sf>0?1:0);
+    const ach=S500_ACH_F[r.category||"cat1"]||0;
+    if(ach>0) scrub+=Math.max(Math.ceil((cf*ach/60)/500),1);
+  });
+  return {fan,dehu,scrub};
+}
+
 function DryDoxScreen({ proj, fieldUser }) {
-  const [logs,  setLogs]  = useState([]);
-  const [show,  setShow]  = useState(false);
-  const [f, setF]         = useState({temp:"",rh:"",gpp:"",notes:""});
-  const [saving,setSaving]= useState(false);
+  const [sub, setSub] = useState("readings");
+  const [logs, setLogs] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [equip, setEquip] = useState([]);
+  const [show, setShow] = useState(null); // "reading","room","equip"
+  const [saving, setSaving] = useState(false);
+  const [expandLog, setExpandLog] = useState(null);
+  const [f, setF] = useState({temp:"",rh:"",gpp:"",notes:"",roomId:"",surface:"",moistureContent:""});
+  const [rf, setRF] = useState({label:"",widthFt:"12",depthFt:"10",ceilingFt:"8",category:"cat1",materialClass:"class2"});
+  const [ef, setEF] = useState({type:"fan",brand:"",serial:"",roomId:"",notes:""});
 
+  const projRef = fieldUser?.companyId && proj?.id
+    ? db.collection("companies").doc(fieldUser.companyId).collection("projects").doc(proj.id)
+    : null;
+
+  // Firestore listeners
   useEffect(()=>{
-    if (!fieldUser?.companyId||!proj?.id) return;
-    return db.collection("companies").doc(fieldUser.companyId)
-      .collection("projects").doc(proj.id).collection("dryingLogs")
-      .orderBy("createdAt","desc")
-      .onSnapshot(snap=>setLogs(snap.docs.map(d=>({id:d.id,...d.data()}))),()=>{});
-  },[fieldUser?.companyId,proj?.id]);
+    if (!projRef) return;
+    const unsubs = [
+      projRef.collection("dryingLogs").orderBy("createdAt","desc")
+        .onSnapshot(s=>setLogs(s.docs.map(d=>({id:d.id,...d.data()}))),()=>{}),
+      projRef.collection("dryingRooms").orderBy("createdAt","asc")
+        .onSnapshot(s=>setRooms(s.docs.map(d=>({id:d.id,...d.data()}))),()=>{}),
+      projRef.collection("dryingEquipment").orderBy("deployedAt","desc")
+        .onSnapshot(s=>setEquip(s.docs.map(d=>({id:d.id,...d.data()}))),()=>{}),
+    ];
+    return ()=>unsubs.forEach(u=>u&&u());
+  },[fieldUser?.companyId, proj?.id]);
 
-  const save = async()=>{
-    if (!f.rh&&!f.temp) return;
-    setSaving(true);
-    await db.collection("companies").doc(fieldUser.companyId)
-      .collection("projects").doc(proj.id).collection("dryingLogs").add({
-        day:`Day ${logs.length+1}`, techName:fieldUser.name, techMsId:fieldUser.memberstackId,
-        temp:parseFloat(f.temp)||0, rh:parseFloat(f.rh)||0, gpp:parseFloat(f.gpp)||0,
-        notes:f.notes, createdAt:firebase.firestore.FieldValue.serverTimestamp(),
-      });
-    setF({temp:"",rh:"",gpp:"",notes:""}); setShow(false); setSaving(false);
+  // Save reading
+  const saveReading = async()=>{
+    if (!f.rh&&!f.temp) return; setSaving(true);
+    const temp=parseFloat(f.temp)||0, rh=parseFloat(f.rh)||0;
+    const gpp = f.gpp ? parseFloat(f.gpp) : calcGPPF(temp,rh);
+    const dewPoint = calcDPF(temp,rh);
+    await projRef.collection("dryingLogs").add({
+      day:`Day ${logs.length+1}`, techName:fieldUser.name, techMsId:fieldUser.memberstackId,
+      temp, rh, gpp, dewPoint, roomId:f.roomId||null, surface:f.surface||"",
+      moistureContent:parseFloat(f.moistureContent)||null,
+      notes:f.notes, createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    setF({temp:"",rh:"",gpp:"",notes:"",roomId:"",surface:"",moistureContent:""});
+    setShow(null); setSaving(false);
+  };
+
+  // Save room
+  const saveRoom = async()=>{
+    if (!rf.label.trim()) return; setSaving(true);
+    await projRef.collection("dryingRooms").add({
+      label:rf.label.trim(), widthFt:parseFloat(rf.widthFt)||12,
+      depthFt:parseFloat(rf.depthFt)||10, ceilingFt:parseFloat(rf.ceilingFt)||8,
+      category:rf.category||"cat1", materialClass:rf.materialClass||"class2",
+      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    setRF({label:"",widthFt:"12",depthFt:"10",ceilingFt:"8",category:"cat1",materialClass:"class2"});
+    setShow(null); setSaving(false);
+  };
+
+  // Deploy equipment
+  const saveEquip = async()=>{
+    if (!ef.type) return; setSaving(true);
+    await projRef.collection("dryingEquipment").add({
+      type:ef.type, brand:ef.brand, serial:ef.serial,
+      roomId:ef.roomId||null, notes:ef.notes,
+      deployedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      removedAt:null, techName:fieldUser.name,
+    });
+    setEF({type:"fan",brand:"",serial:"",roomId:"",notes:""});
+    setShow(null); setSaving(false);
+  };
+
+  // Remove equipment
+  const removeEquip = async(eqId)=>{
+    await projRef.collection("dryingEquipment").doc(eqId).update({
+      removedAt:firebase.firestore.FieldValue.serverTimestamp(),
+    });
   };
 
   const rhCls = rh=>rh<=55?"good":rh<=65?"warn":"bad";
   const lat = logs[0];
+  const activeEquip = equip.filter(e=>!e.removedAt);
+
   return (
-    <div className="scroll-pad">
-      <div className="kpi-row">
-        <div className="kpi-box"><div className="kpi-val" style={{color:"var(--blue)"}}>{logs.length}</div><div className="kpi-lbl">Days</div></div>
-        <div className="kpi-box"><div className="kpi-val" style={{color:lat?(lat.rh<=55?"var(--green)":lat.rh<=65?"var(--amber)":"var(--acc)"):"var(--t3)"}}>{lat?`${lat.rh}%`:"—"}</div><div className="kpi-lbl">Latest RH</div></div>
-        <div className="kpi-box"><div className="kpi-val" style={{color:lat?.rh<=55?"var(--green)":"var(--amber)"}}>{lat?(lat.rh<=55?"DRY":"DRYING"):"—"}</div><div className="kpi-lbl">Status</div></div>
+    <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+      {/* Sub-tabs */}
+      <div className="subtabs">
+        {[["readings","Readings"],["rooms","Rooms"],["equipment","Equipment"]].map(([k,l])=>(
+          <button key={k} className={`subtab${sub===k?" active":""}`} onClick={()=>setSub(k)}>
+            {l}
+            {k==="readings"&&logs.length>0&&<span style={{marginLeft:4,fontSize:8,background:"var(--acc)",color:"#fff",borderRadius:9,padding:"1px 5px",fontFamily:"var(--mono)"}}>{logs.length}</span>}
+            {k==="equipment"&&activeEquip.length>0&&<span style={{marginLeft:4,fontSize:8,background:"var(--green)",color:"#fff",borderRadius:9,padding:"1px 5px",fontFamily:"var(--mono)"}}>{activeEquip.length}</span>}
+          </button>
+        ))}
       </div>
-      <button className="btn btn-primary btn-full" style={{marginBottom:14}} onClick={()=>setShow(true)}>{I.plus} Log Today's Readings</button>
-      {logs.length===0
-        ?<div className="empty"><div className="empty-ico">{I.drop}</div><div style={{fontSize:12,color:"var(--t3)"}}>No readings yet.</div></div>
-        :logs.map(l=>(
-          <div key={l.id} className="reading-row">
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-              <div style={{fontWeight:700,fontSize:13}}>{l.day} — {fmtDate(l.createdAt)}</div>
-              <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>{l.techName}</div>
+
+      <div className="main">
+        {/* ── READINGS TAB ── */}
+        {sub==="readings"&&(
+          <div className="scroll-pad">
+            <div className="kpi-row">
+              <div className="kpi-box"><div className="kpi-val" style={{color:"var(--blue)"}}>{logs.length}</div><div className="kpi-lbl">Days</div></div>
+              <div className="kpi-box"><div className="kpi-val" style={{color:lat?(lat.rh<=55?"var(--green)":lat.rh<=65?"var(--amber)":"var(--acc)"):"var(--t3)"}}>{lat?`${lat.rh}%`:"—"}</div><div className="kpi-lbl">Latest RH</div></div>
+              <div className="kpi-box"><div className="kpi-val" style={{color:lat?.rh<=55?"var(--green)":"var(--amber)"}}>{lat?(lat.rh<=55?"DRY":"DRYING"):"—"}</div><div className="kpi-lbl">Status</div></div>
             </div>
-            <div className="reading-chips">
-              {l.temp>0&&<span className="reading-chip">{l.temp}°F</span>}
-              {l.rh>0&&<span className={`reading-chip ${rhCls(l.rh)}`}>{l.rh}% RH</span>}
-              {l.gpp>0&&<span className="reading-chip">{l.gpp} GPP</span>}
-            </div>
-            {l.notes&&<div style={{fontSize:11,color:"var(--t2)",marginTop:7,lineHeight:1.5}}>{l.notes}</div>}
+
+            {/* Psychrometric summary */}
+            {lat&&(
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:12}}>
+                {[["Temp",`${lat.temp||0}°F`,"var(--t1)"],["RH",`${lat.rh||0}%`,lat.rh<=55?"var(--green)":lat.rh<=65?"var(--amber)":"var(--acc)"],
+                  ["GPP",`${lat.gpp||calcGPPF(lat.temp,lat.rh)}`,"var(--teal)"],["Dew Pt",`${lat.dewPoint||calcDPF(lat.temp,lat.rh)}°F`,"var(--blue)"]
+                ].map(([l,v,c])=>(
+                  <div key={l} style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:8,padding:"8px 6px",textAlign:"center"}}>
+                    <div style={{fontFamily:"var(--mono)",fontSize:14,fontWeight:700,color:c}}>{v}</div>
+                    <div style={{fontSize:7,color:"var(--t3)",textTransform:"uppercase",fontFamily:"var(--mono)",letterSpacing:".06em",marginTop:2}}>{l}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button className="btn btn-primary btn-full" style={{marginBottom:14}} onClick={()=>setShow("reading")}>{I.plus} Log Reading</button>
+
+            {logs.length===0
+              ?<div className="empty"><div className="empty-ico">{I.drop}</div><div style={{fontSize:12,color:"var(--t3)"}}>No readings yet.</div></div>
+              :logs.map(l=>{
+                const room = rooms.find(r=>r.id===l.roomId);
+                return (
+                  <div key={l.id} className="reading-row" onClick={()=>setExpandLog(expandLog===l.id?null:l.id)} style={{cursor:"pointer"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                      <div style={{fontWeight:700,fontSize:13}}>{l.day} — {fmtDate(l.createdAt)}</div>
+                      <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>{l.techName}</div>
+                    </div>
+                    {room&&<div style={{fontSize:9,color:"var(--blue)",marginBottom:3}}>{room.label}{l.surface?` · ${l.surface}`:""}</div>}
+                    <div className="reading-chips">
+                      {l.temp>0&&<span className="reading-chip">{l.temp}°F</span>}
+                      {l.rh>0&&<span className={`reading-chip ${rhCls(l.rh)}`}>{l.rh}% RH</span>}
+                      {l.gpp>0&&<span className="reading-chip">{l.gpp} GPP</span>}
+                      {l.dewPoint>0&&<span className="reading-chip">{l.dewPoint}°F DP</span>}
+                      {l.moistureContent>0&&<span className="reading-chip">{l.moistureContent} %MC</span>}
+                    </div>
+                    {expandLog===l.id&&l.notes&&<div style={{fontSize:11,color:"var(--t2)",marginTop:7,lineHeight:1.5,padding:"8px 0",borderTop:"1px solid var(--br)"}}>{l.notes}</div>}
+                  </div>
+                );
+              })
+            }
           </div>
-        ))
-      }
-      {show&&(
-        <div className="sheet-overlay" onClick={e=>{if(e.target===e.currentTarget)setShow(false);}}>
+        )}
+
+        {/* ── ROOMS TAB ── */}
+        {sub==="rooms"&&(
+          <div className="scroll-pad">
+            <button className="btn btn-primary btn-full" style={{marginBottom:14}} onClick={()=>setShow("room")}>{I.plus} Add Room</button>
+            {rooms.length===0
+              ?<div className="empty"><div className="empty-ico" style={{opacity:.12,fontSize:24}}>🏠</div><div style={{fontSize:12,color:"var(--t3)"}}>No rooms added yet. Add rooms to track moisture by area.</div></div>
+              :rooms.map(room=>{
+                const roomLogs = logs.filter(l=>l.roomId===room.id);
+                const latestRH = roomLogs.length>0?roomLogs[0].rh:null;
+                const roomEquip = equip.filter(e=>e.roomId===room.id&&!e.removedAt);
+                return (
+                  <div key={room.id} className="card">
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:14}}>{room.label}</div>
+                        <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",marginTop:2}}>
+                          {room.widthFt}' × {room.depthFt}' × {room.ceilingFt||8}' · {Math.round((room.widthFt||12)*(room.depthFt||10))} SF
+                        </div>
+                      </div>
+                      {latestRH!==null&&(
+                        <span style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:5,
+                          background:latestRH<=55?"rgba(26,217,138,.1)":latestRH<=65?"rgba(232,156,24,.1)":"rgba(228,53,49,.1)",
+                          color:latestRH<=55?"var(--green)":latestRH<=65?"var(--amber)":"var(--acc)",
+                        }}>{latestRH}% RH</span>
+                      )}
+                    </div>
+                    <div style={{display:"flex",gap:8,marginTop:8}}>
+                      <div style={{fontSize:10,color:"var(--t2)"}}><span style={{color:"var(--blue)",fontWeight:700}}>{roomLogs.length}</span> readings</div>
+                      <div style={{fontSize:10,color:"var(--t2)"}}><span style={{color:"var(--green)",fontWeight:700}}>{roomEquip.length}</span> equipment</div>
+                    </div>
+                    {roomEquip.length>0&&(
+                      <div style={{marginTop:6,paddingTop:6,borderTop:"1px solid var(--br)"}}>
+                        {roomEquip.map(eq=>{
+                          const et=getETF(eq.type);
+                          return <div key={eq.id} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 0",fontSize:11,color:"var(--t2)"}}>
+                            <span>{et.i}</span><span>{eq.brand||et.l}</span>
+                          </div>;
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            }
+          </div>
+        )}
+
+        {/* ── EQUIPMENT TAB ── */}
+        {sub==="equipment"&&(()=>{
+          const rec = calcS500F(rooms);
+          const dep = {fan:0,dehu:0,scrub:0};
+          activeEquip.forEach(eq=>{
+            if(eq.type==="fan")dep.fan++;
+            else if(eq.type==="dehu")dep.dehu++;
+            else if(eq.type==="scrubber")dep.scrub++;
+          });
+          const ok = dep.fan>=rec.fan && dep.dehu>=rec.dehu && dep.scrub>=rec.scrub;
+          return (
+          <div className="scroll-pad">
+            <div className="kpi-row">
+              <div className="kpi-box"><div className="kpi-val" style={{color:"var(--green)"}}>{activeEquip.length}</div><div className="kpi-lbl">Active</div></div>
+              <div className="kpi-box"><div className="kpi-val" style={{color:"var(--t3)"}}>{equip.length-activeEquip.length}</div><div className="kpi-lbl">Removed</div></div>
+              <div className="kpi-box"><div className="kpi-val" style={{color:"var(--blue)"}}>{[...new Set(equip.map(e=>e.type))].length}</div><div className="kpi-lbl">Types</div></div>
+            </div>
+
+            {/* S500 Recommendations Banner */}
+            {rooms.length>0&&(
+              <div style={{
+                background:ok?"rgba(26,217,138,.06)":"rgba(228,53,49,.06)",
+                border:`1px solid ${ok?"rgba(26,217,138,.2)":"rgba(228,53,49,.2)"}`,
+                borderRadius:10,padding:"10px 12px",marginBottom:12,
+              }}>
+                <div style={{fontSize:11,fontWeight:700,color:ok?"var(--green)":"var(--acc)",marginBottom:6}}>
+                  {ok?"✓ S500 Compliant":"⚠ S500 Equipment Shortfall"}
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
+                  {[
+                    ["🌀 AM",dep.fan,rec.fan],
+                    ["💧 DH",dep.dehu,rec.dehu],
+                    ["🌬️ AS",dep.scrub,rec.scrub],
+                  ].map(([l,d,r])=>(
+                    <div key={l} style={{textAlign:"center",background:"var(--s2)",borderRadius:6,padding:"6px 4px",border:`1px solid ${d>=r?"rgba(26,217,138,.2)":"rgba(228,53,49,.2)"}`}}>
+                      <div style={{fontFamily:"var(--mono)",fontSize:14,fontWeight:700,color:r===0?"var(--t3)":d>=r?"var(--green)":"var(--acc)"}}>{d}/{r}</div>
+                      <div style={{fontSize:8,color:"var(--t3)",fontFamily:"var(--mono)"}}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button className="btn btn-primary btn-full" style={{marginBottom:14}} onClick={()=>setShow("equip")}>{I.plus} Deploy Equipment</button>
+            {equip.length===0
+              ?<div className="empty"><div className="empty-ico" style={{opacity:.12,fontSize:24}}>🔧</div><div style={{fontSize:12,color:"var(--t3)"}}>No equipment deployed yet.</div></div>
+              :equip.map(eq=>{
+                const et=getETF(eq.type);
+                const room=rooms.find(r=>r.id===eq.roomId);
+                const active=!eq.removedAt;
+                return (
+                  <div key={eq.id} className="row" style={{opacity:active?1:.55}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <span style={{fontSize:22}}>{et.i}</span>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:600,fontSize:13}}>{eq.brand||et.l}</div>
+                        <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>
+                          {eq.serial||"N/A"} · {room?.label||"Unassigned"}
+                        </div>
+                        <div style={{fontSize:9,color:active?"var(--green)":"var(--t3)",fontWeight:700,marginTop:2}}>
+                          {active?"ACTIVE":"REMOVED"} · {eq.techName}
+                        </div>
+                      </div>
+                      {active&&(
+                        <button className="btn btn-danger btn-xs" onClick={()=>removeEquip(eq.id)}>Pull</button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            }
+          </div>
+          );
+        })()}
+      </div>
+
+      {/* ── READING SHEET ── */}
+      {show==="reading"&&(
+        <div className="sheet-overlay" onClick={e=>{if(e.target===e.currentTarget)setShow(null);}}>
           <div className="sheet">
             <div className="sheet-handle"/>
-            <div className="sheet-title">Log Drying Readings</div>
-            <div style={{fontFamily:"var(--mono)",fontSize:9,color:"var(--t3)",marginBottom:16}}>TECH: {fieldUser.name.toUpperCase()}</div>
+            <div className="sheet-title">Log Drying Reading</div>
+            <div style={{fontFamily:"var(--mono)",fontSize:9,color:"var(--t3)",marginBottom:12}}>TECH: {fieldUser.name.toUpperCase()}</div>
+            {rooms.length>0&&(
+              <div style={{marginBottom:12}}>
+                <label className="lbl">Room / Chamber</label>
+                <select className="sel" value={f.roomId} onChange={e=>setF(p=>({...p,roomId:e.target.value}))}>
+                  <option value="">— All / General —</option>
+                  {rooms.map(r=><option key={r.id} value={r.id}>{r.label}</option>)}
+                </select>
+              </div>
+            )}
             <div className="g3" style={{marginBottom:12}}>
               <div><label className="lbl">Temp °F</label><input className="inp" type="number" value={f.temp} onChange={e=>setF(p=>({...p,temp:e.target.value}))} placeholder="72" inputMode="decimal"/></div>
               <div><label className="lbl">RH %</label><input className="inp" type="number" value={f.rh} onChange={e=>setF(p=>({...p,rh:e.target.value}))} placeholder="55" inputMode="decimal"/></div>
-              <div><label className="lbl">GPP</label><input className="inp" type="number" value={f.gpp} onChange={e=>setF(p=>({...p,gpp:e.target.value}))} placeholder="72" inputMode="decimal"/></div>
+              <div><label className="lbl">GPP</label><input className="inp" type="number" value={f.gpp||((f.temp&&f.rh)?calcGPPF(parseFloat(f.temp),parseFloat(f.rh)):"")} onChange={e=>setF(p=>({...p,gpp:e.target.value}))} placeholder="Auto" inputMode="decimal"/></div>
+            </div>
+            <div className="g2" style={{marginBottom:12}}>
+              <div><label className="lbl">Surface</label><input className="inp" value={f.surface} onChange={e=>setF(p=>({...p,surface:e.target.value}))} placeholder="Drywall, Baseboard…"/></div>
+              <div><label className="lbl">%MC (pin meter)</label><input className="inp" type="number" value={f.moistureContent} onChange={e=>setF(p=>({...p,moistureContent:e.target.value}))} placeholder="0" inputMode="decimal"/></div>
             </div>
             <div style={{marginBottom:16}}><label className="lbl">Notes / Equipment</label><textarea className="txa" value={f.notes} onChange={e=>setF(p=>({...p,notes:e.target.value}))} placeholder="Equipment in place, observations…"/></div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10}}>
-              <button className="btn btn-ghost" onClick={()=>setShow(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={save} disabled={saving}>{saving?<span className="spin">⟳</span>:<>{I.check} Save Reading</>}</button>
+              <button className="btn btn-ghost" onClick={()=>setShow(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveReading} disabled={saving}>{saving?<span className="spin">⟳</span>:<>{I.check} Save Reading</>}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ROOM SHEET ── */}
+      {show==="room"&&(
+        <div className="sheet-overlay" onClick={e=>{if(e.target===e.currentTarget)setShow(null);}}>
+          <div className="sheet">
+            <div className="sheet-handle"/>
+            <div className="sheet-title">Add Room / Area</div>
+            <div style={{marginBottom:12}}><label className="lbl">Room Name *</label><input className="inp" value={rf.label} onChange={e=>setRF(p=>({...p,label:e.target.value}))} placeholder="e.g. Living Room, Suite 101"/></div>
+            <div className="g3" style={{marginBottom:12}}>
+              <div><label className="lbl">Width (ft)</label><input className="inp" type="number" value={rf.widthFt} onChange={e=>setRF(p=>({...p,widthFt:e.target.value}))} inputMode="decimal"/></div>
+              <div><label className="lbl">Depth (ft)</label><input className="inp" type="number" value={rf.depthFt} onChange={e=>setRF(p=>({...p,depthFt:e.target.value}))} inputMode="decimal"/></div>
+              <div><label className="lbl">Ceiling (ft)</label><input className="inp" type="number" value={rf.ceilingFt} onChange={e=>setRF(p=>({...p,ceilingFt:e.target.value}))} inputMode="decimal"/></div>
+            </div>
+            <div className="g2" style={{marginBottom:12}}>
+              <div>
+                <label className="lbl">Water Category</label>
+                <select className="sel" value={rf.category} onChange={e=>setRF(p=>({...p,category:e.target.value}))}>
+                  <option value="cat1">Cat 1 — Clean</option>
+                  <option value="cat2">Cat 2 — Gray</option>
+                  <option value="cat3">Cat 3 — Black</option>
+                </select>
+              </div>
+              <div>
+                <label className="lbl">Material Class</label>
+                <select className="sel" value={rf.materialClass} onChange={e=>setRF(p=>({...p,materialClass:e.target.value}))}>
+                  <option value="class1">Class 1 — Low</option>
+                  <option value="class2">Class 2 — Medium</option>
+                  <option value="class3">Class 3 — Fast</option>
+                  <option value="class4">Class 4 — Specialty</option>
+                </select>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10}}>
+              <button className="btn btn-ghost" onClick={()=>setShow(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveRoom} disabled={saving}>{saving?<span className="spin">⟳</span>:<>{I.check} Add Room</>}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── EQUIPMENT SHEET ── */}
+      {show==="equip"&&(
+        <div className="sheet-overlay" onClick={e=>{if(e.target===e.currentTarget)setShow(null);}}>
+          <div className="sheet">
+            <div className="sheet-handle"/>
+            <div className="sheet-title">Deploy Equipment</div>
+            <div style={{marginBottom:12}}>
+              <label className="lbl">Type</label>
+              <select className="sel" value={ef.type} onChange={e=>setEF(p=>({...p,type:e.target.value}))}>
+                {EQUIP_TYPES_F.map(et=><option key={et.v} value={et.v}>{et.i} {et.l}</option>)}
+              </select>
+            </div>
+            <div className="g2" style={{marginBottom:12}}>
+              <div><label className="lbl">Brand / Model</label><input className="inp" value={ef.brand} onChange={e=>setEF(p=>({...p,brand:e.target.value}))} placeholder="e.g. LGR 7000"/></div>
+              <div><label className="lbl">Serial #</label><input className="inp" value={ef.serial} onChange={e=>setEF(p=>({...p,serial:e.target.value}))} placeholder="SN-0000"/></div>
+            </div>
+            {rooms.length>0&&(
+              <div style={{marginBottom:12}}>
+                <label className="lbl">Room</label>
+                <select className="sel" value={ef.roomId} onChange={e=>setEF(p=>({...p,roomId:e.target.value}))}>
+                  <option value="">— Unassigned —</option>
+                  {rooms.map(r=><option key={r.id} value={r.id}>{r.label}</option>)}
+                </select>
+              </div>
+            )}
+            <div style={{marginBottom:16}}><label className="lbl">Placement Notes</label><input className="inp" value={ef.notes} onChange={e=>setEF(p=>({...p,notes:e.target.value}))} placeholder="NE corner, facing wall…"/></div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10}}>
+              <button className="btn btn-ghost" onClick={()=>setShow(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveEquip} disabled={saving}>{saving?<span className="spin">⟳</span>:<>{I.check} Deploy</>}</button>
             </div>
           </div>
         </div>

@@ -3,6 +3,7 @@ import { DocumentsTab, LogoUploadSection, DocumentTemplateCenter } from "./JobDo
 import { FinancialTab, FinancialHealthBadge, FinancialDashboard } from "./JobDoxFinance.jsx";
 import { ReportsDashboard } from "./JobDoxReports.jsx";
 import ContentsDox from "./ContentsDox.jsx";
+import DryDoxModule from "./DryDox.jsx";
 import AdjusterResponseModal from "./AdjusterResponseBot.jsx";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
@@ -938,6 +939,55 @@ function TypeTag({ type, customProjectTypes=[] }) {
   const cpt = customProjectTypes.find(t=>t.name===type);
   const c = cpt?.color || TYPE_C[type]||"var(--t2)";
   return <span style={{borderRadius:20,padding:"2px 8px",fontSize:10,background:c+"18",color:c,fontWeight:600}}>{type}</span>;
+}
+// S500 compliance badge — reads DryDox localStorage to show flag on project cards
+function S500ComplianceBadge({ projId }) {
+  const [status, setStatus] = useState(null); // null=no data, true=ok, false=flagged
+  useEffect(() => {
+    try {
+      const rooms = JSON.parse(localStorage.getItem(`dd_${projId}_rooms`) || "[]");
+      if (rooms.length === 0) return; // No DryDox data
+      const equip = JSON.parse(localStorage.getItem(`dd_${projId}_equipment`) || "[]");
+      const overrides = JSON.parse(localStorage.getItem(`dd_${projId}_s500Overrides`) || "{}");
+      const comments = JSON.parse(localStorage.getItem(`dd_${projId}_s500Comments`) || "{}");
+      // Quick S500 check inline (avoid importing full module)
+      const active = equip.filter(e => !e.removedAt);
+      const dep = { fan: 0, dehu: 0, scrubber: 0 };
+      active.forEach(eq => {
+        if (eq.type === "fan") dep.fan++;
+        else if (eq.type === "dehu" || eq.type === "dehu-des") dep.dehu++;
+        else if (eq.type === "scrubber" || eq.type === "negair") dep.scrubber++;
+      });
+      let recFan = 0, recDehu = 0, recScrub = 0;
+      const factors = { class1:100, class2:50, class3:40, class4:40 };
+      const achMap = { cat1:0, cat2:4, cat3:6 };
+      const dPPD = overrides.dehuPPD || 80;
+      const sCFM = overrides.scrubberCFM || 500;
+      rooms.forEach(r => {
+        const sf = (parseFloat(r.widthFt)||0) * (parseFloat(r.depthFt)||0);
+        const lf = 2 * ((parseFloat(r.widthFt)||0) + (parseFloat(r.depthFt)||0));
+        recFan += Math.max(Math.ceil(sf/50), Math.ceil(lf/14), 1);
+        const cf = sf * (parseFloat(r.ceilingFt)||8);
+        recDehu += Math.max(Math.ceil((cf / (factors[r.materialClass||"class2"]||50)) / dPPD), sf > 0 ? 1 : 0);
+        const ach = achMap[r.category||"cat1"] || 0;
+        if (ach > 0) recScrub += Math.max(Math.ceil((cf * ach / 60) / sCFM), 1);
+      });
+      const short = (dep.fan < recFan) || (dep.dehu < recDehu) || (dep.scrubber < recScrub);
+      if (short) {
+        // Check if all mismatches have comments
+        const needsComment = (dep.fan < recFan && !comments.fan) || (dep.dehu < recDehu && !comments.dehu) || (dep.scrubber < recScrub && !comments.scrubber);
+        setStatus(needsComment ? "flagged" : "commented");
+      } else {
+        setStatus("ok");
+      }
+    } catch { /* ignore */ }
+  }, [projId]);
+  if (!status || status === "ok") return null;
+  return (
+    <span style={{fontSize:8,background:status==="flagged"?"rgba(228,53,49,.15)":"rgba(232,156,24,.12)",color:status==="flagged"?"var(--acc)":"var(--amber)",borderRadius:4,padding:"1px 5px",fontFamily:"var(--mono)",flexShrink:0,fontWeight:700}}>
+      {status === "flagged" ? "⚠ S500" : "⚠ S500*"}
+    </span>
+  );
 }
 function F({ label, value, onChange, type="text", placeholder, options, span, rows }) {
   const style = span ? {gridColumn:`span ${span}`} : {};
@@ -2889,6 +2939,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                             {isClocked && <span style={{fontSize:8,background:"rgba(26,217,138,.15)",color:"var(--green)",borderRadius:4,padding:"1px 5px",fontFamily:"var(--mono)",flexShrink:0}}>ACTIVE</span>}
                             {proj.archived && <span style={{fontSize:8,background:"rgba(232,156,24,.12)",color:"var(--amber)",borderRadius:4,padding:"1px 5px",fontFamily:"var(--mono)",flexShrink:0}}>ARCHIVED</span>}
                             <FinancialHealthBadge projId={proj.id} companyId={companyId}/>
+                            <S500ComplianceBadge projId={proj.id}/>
                           </div>
                           <div className="mono" style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{proj.projectNumber||proj.id}</div>
                         </div>
@@ -2959,6 +3010,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                           {isClocked && <span style={{fontSize:8,background:"rgba(26,217,138,.15)",color:"var(--green)",borderRadius:4,padding:"1px 5px",fontFamily:"var(--mono)",flexShrink:0}}>ACTIVE</span>}
                           {proj.archived && <span style={{fontSize:8,background:"rgba(232,156,24,.12)",color:"var(--amber)",borderRadius:4,padding:"1px 5px",fontFamily:"var(--mono)",flexShrink:0}}>ARCHIVED</span>}
                           <FinancialHealthBadge projId={proj.id} companyId={companyId}/>
+                          <S500ComplianceBadge projId={proj.id}/>
                         </div>
                         <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{proj.projectNumber||proj.id} · {proj.client}</div>
                       </div>
@@ -7788,7 +7840,7 @@ const PROJ_TABS = [
 
 
 
-function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists, companyId="", phoneSettings={}, isVendor=false, currentMemberId="", onNavigate, canArchive=false, onArchive }) {
+function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists, companyId="", phoneSettings={}, isVendor=false, currentMemberId="", onNavigate, canArchive=false, onArchive, coInfo={} }) {
   const [tab,setTab]           = useState(initialTab||"overview");
   // Sync when initialTab prop changes (e.g. user clicks a nav button while project is already open)
   const prevInitialTab = useRef(initialTab);
@@ -7892,7 +7944,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
         ))}
       </div>
       {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff} worktypes={worktypes} setWorktypes={setWorktypes} currentUser={currentUser} assignedStaff={assignedStaff} setAssignedStaff={setAssignedStaff} canArchive={canArchive} onArchive={onArchive} onBack={onBack}/>}
-      {tab==="drydox"         && <DryDoxTab      proj={proj} priceLists={priceLists} onPushToScope={handlePushToScope}/>}
+      {tab==="drydox"         && <DryDoxModule    proj={proj} priceLists={priceLists} onPushToScope={handlePushToScope} companyLogo={coInfo?.logo}/>}
       {tab==="contentsdox"    && <ContentsDox proj={proj} companyId={companyId} db={db}/>}
       {tab==="estimatedox"    && <EstimateDoxTab proj={proj}/>}
       {tab==="contacts"       && <ContactsTab contacts={contacts} setContacts={setContacts}/>}
@@ -11396,6 +11448,7 @@ export default function JobDoxPortal() {
             onNavigate={handleNavigate}
             canArchive={canArchiveProject}
             onArchive={handleArchiveProject}
+            coInfo={coInfo}
           />
         ) : (
           <PortfolioPage
