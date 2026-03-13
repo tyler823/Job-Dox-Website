@@ -895,7 +895,7 @@ function onWorkTypeChange() {
 
 function loadBuiltinTemplate(name) {
   if (name === 'Water Mitigation') {
-    PHASES = WATER_PHASES.map(p=>({...p}));
+    PHASES = WATER_PHASES.map(p=>({...p, items: p.items.map(t=>({...t, tags:[...t.tags], cl:[...t.cl]}))}));
     openPh = new Set([PHASES[0].name]);
     openTk = new Set();
     updateStats();
@@ -1030,7 +1030,7 @@ function generateWorkflow() {
 
   if (hasBuiltin && (!PHASES || PHASES.length === 0)) {
     // Load the builtin template if not already loaded
-    PHASES = WATER_PHASES.map(p=>({...p}));
+    PHASES = WATER_PHASES.map(p=>({...p, items: p.items.map(t=>({...t, tags:[...t.tags], cl:[...t.cl]}))}));
   } else if (!hasBuiltin) {
     // Build a blank scaffold for this work type
     PHASES = buildBlankScaffold(wt);
@@ -1813,7 +1813,7 @@ function mmPopulateFromPhases() {
 mmRender();
 mmUpdatePanel();
 
-
+function pollStaff() {
   try {
     const raw = localStorage.getItem('jd_staff');
     const latest = raw ? JSON.parse(raw) : null;
