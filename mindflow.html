@@ -235,59 +235,28 @@ body{background:var(--bg);color:var(--t1);font-family:'Outfit',sans-serif;height
       </div>
     </div>
 
-    <!-- Canvas -->
-    <div class="canvas">
-      <div class="canvas-hint">drag · dbl-click to rename · select → add child</div>
-      <svg width="100%" height="100%">
+    <!-- Canvas — interactive mindmap -->
+    <div class="canvas" id="mm-canvas" style="position:relative;overflow:hidden;">
+      <!-- Grid + edge SVG layer (sits behind nodes) -->
+      <svg id="mm-svg" width="100%" height="100%" style="position:absolute;inset:0;pointer-events:none;overflow:visible;">
         <defs>
           <pattern id="g" width="28" height="28" patternUnits="userSpaceOnUse">
             <path d="M28 0L0 0 0 28" fill="none" stroke="var(--line)" stroke-width="0.5"/>
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill="url(#g)"/>
-        <!-- Edges phase -->
-        <path d="M490 295 C350 295,350 150,210 150" fill="none" stroke="#5ba3f5" stroke-width="1.5" stroke-opacity=".3"/>
-        <path d="M490 295 C475 295,475 95,460 95" fill="none" stroke="#5ba3f5" stroke-width="1.5" stroke-opacity=".3"/>
-        <path d="M490 295 C610 295,610 135,730 135" fill="none" stroke="#5ba3f5" stroke-width="1.5" stroke-opacity=".3"/>
-        <path d="M490 295 C665 295,665 305,840 305" fill="none" stroke="#5ba3f5" stroke-width="1.5" stroke-opacity=".3"/>
-        <path d="M490 295 C615 295,615 465,740 465" fill="none" stroke="#5ba3f5" stroke-width="1.5" stroke-opacity=".3"/>
-        <path d="M490 295 C365 295,365 450,240 450" fill="none" stroke="#5ba3f5" stroke-width="1.5" stroke-opacity=".3"/>
-        <!-- Edges task -->
-        <path d="M210 150 C142 150,142 75,75 75" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
-        <path d="M210 150 C200 150,200 55,190 55" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
-        <path d="M460 95 C422 95,422 28,385 28" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
-        <path d="M460 95 C492 95,492 18,525 18" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
-        <path d="M730 135 C724 135,724 52,718 52" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
-        <path d="M730 135 C791 135,791 62,852 62" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
-        <path d="M840 305 C867 305,867 220,895 220" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
-        <path d="M740 465 C775 465,775 385,810 385" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
-        <path d="M240 450 C195 450,195 368,150 368" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
-        <path d="M240 450 C262 450,262 358,285 358" fill="none" stroke="#1ad98a" stroke-width="1.2" stroke-opacity=".25"/>
-        <!-- Root -->
-        <g transform="translate(414,271)">
-          <rect width="152" height="48" rx="5" fill="var(--s2)" stroke="#e43531" stroke-width="1.5" style="filter:drop-shadow(0 0 8px rgba(228,53,49,.35))"/>
-          <rect width="3" height="48" rx="1.5" fill="#e43531"/>
-          <text x="79" y="25" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="12" font-family="Outfit,sans-serif" font-weight="700" style="pointer-events:none">Water Damage SOP</text>
-        </g>
-        <!-- Phases -->
-        <g transform="translate(145,131)"><rect width="130" height="38" rx="5" fill="var(--s2)" stroke="#5ba3f5" stroke-width="1.5" style="filter:drop-shadow(0 0 6px rgba(91,163,245,.2))"/><rect width="3" height="38" rx="1.5" fill="#5ba3f5"/><text x="67" y="20" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" font-weight="500" style="pointer-events:none">Emergency Response</text></g>
-        <g transform="translate(395,76)"><rect width="130" height="38" rx="5" fill="var(--s2)" stroke="#5ba3f5" stroke-width="1"/><rect width="3" height="38" rx="1.5" fill="#5ba3f5"/><text x="67" y="20" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" font-weight="500" style="pointer-events:none">Assessment &amp; Docs</text></g>
-        <g transform="translate(665,116)"><rect width="130" height="38" rx="5" fill="var(--s2)" stroke="#5ba3f5" stroke-width="1"/><rect width="3" height="38" rx="1.5" fill="#5ba3f5"/><text x="67" y="20" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" font-weight="500" style="pointer-events:none">Mitigation &amp; Drying</text></g>
-        <g transform="translate(775,286)"><rect width="130" height="38" rx="5" fill="var(--s2)" stroke="#5ba3f5" stroke-width="1"/><rect width="3" height="38" rx="1.5" fill="#5ba3f5"/><text x="67" y="20" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" font-weight="500" style="pointer-events:none">Daily Monitoring</text></g>
-        <g transform="translate(675,446)"><rect width="130" height="38" rx="5" fill="var(--s2)" stroke="#5ba3f5" stroke-width="1"/><rect width="3" height="38" rx="1.5" fill="#5ba3f5"/><text x="67" y="20" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" font-weight="500" style="pointer-events:none">Billing &amp; Closeout</text></g>
-        <g transform="translate(175,431)"><rect width="130" height="38" rx="5" fill="var(--s2)" stroke="#5ba3f5" stroke-width="1"/><rect width="3" height="38" rx="1.5" fill="#5ba3f5"/><text x="67" y="20" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" font-weight="500" style="pointer-events:none">Insurance Coord.</text></g>
-        <!-- Tasks (sample) -->
-        <g transform="translate(17,58)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Initial Call Intake</text></g>
-        <g transform="translate(132,38)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Dispatch Crew</text></g>
-        <g transform="translate(327,11)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Safety Assessment</text></g>
-        <g transform="translate(467,1)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Moisture Mapping</text></g>
-        <g transform="translate(660,35)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Equipment Setup</text></g>
-        <g transform="translate(794,45)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Psychrometric Log</text></g>
-        <g transform="translate(837,203)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Daily Readings</text></g>
-        <g transform="translate(752,368)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Final Clearance</text></g>
-        <g transform="translate(92,351)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Claim Submission</text></g>
-        <g transform="translate(227,341)"><rect width="116" height="34" rx="5" fill="var(--s2)" stroke="var(--br)" stroke-width="1"/><rect width="3" height="34" rx="1.5" fill="#1ad98a"/><text x="60" y="18" text-anchor="middle" dominant-baseline="middle" fill="var(--t1)" font-size="10" font-family="Outfit,sans-serif" style="pointer-events:none">Adjuster Update</text></g>
+        <g id="mm-edges"></g>
       </svg>
+      <!-- Draggable node divs -->
+      <div id="mm-nodes-layer" style="position:absolute;inset:0;overflow:hidden;"></div>
+      <!-- Empty state -->
+      <div id="mm-empty" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;pointer-events:none;">
+        <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--t3);letter-spacing:.1em;text-align:center;line-height:2;text-transform:uppercase;">
+          Select a work type →  Generate Scaffold<br/>or start by adding a root node
+        </div>
+        <button onclick="mmAddRoot()" style="pointer-events:all;background:var(--s2);border:1px solid var(--br-hi);border-radius:8px;padding:8px 20px;font-size:11px;font-weight:600;color:var(--t1);cursor:pointer;font-family:'Outfit',sans-serif;transition:all .15s;" onmouseover="this.style.borderColor='var(--acc)';this.style.color='var(--acc)'" onmouseout="this.style.borderColor='var(--br-hi)';this.style.color='var(--t1)'">+ Add Root Node</button>
+      </div>
+      <div class="canvas-hint">drag nodes · dbl-click to rename · select → add child in panel</div>
     </div>
 
     <!-- Right Panel -->
@@ -298,36 +267,44 @@ body{background:var(--bg);color:var(--t1);font-family:'Outfit',sans-serif;height
         <button class="rtab" onclick="switchRtab(this,'cortex')">⬡ Cortex</button>
       </div>
 
-      <!-- Node tab -->
-      <div class="rpanel-body" id="rtab-node">
-        <div>
-          <span class="fl">Selected</span>
-          <div class="node-card">
-            <div style="font-size:12px;font-weight:600;color:#e43531;margin-bottom:3px;">Water Damage SOP</div>
-            <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--t3);">TYPE:root · ID:1</div>
-          </div>
+      <!-- Node tab — fully wired to mindmap state -->
+      <div class="rpanel-body" id="rtab-node" style="display:flex;flex-direction:column;gap:11px;">
+        <!-- Nothing selected -->
+        <div id="mm-no-sel" style="font-size:11px;color:var(--t3);line-height:1.8;text-align:center;padding:14px 6px;">
+          Click a node on the canvas to select it, or add a root node to get started.
         </div>
-        <div>
-          <span class="fl">Rename</span>
-          <input class="fi" style="font-size:11px;" value="Water Damage SOP"/>
+        <!-- Selected node info (hidden until selection) -->
+        <div id="mm-sel-card" class="node-card" style="display:none;"></div>
+        <!-- Rename -->
+        <div id="mm-rename-sec">
+          <span class="fl">Label</span>
+          <input class="fi" style="font-size:11px;" id="mm-rename-inp" placeholder="Node label" oninput="mmApplyRename()"/>
         </div>
+        <!-- Type -->
         <div>
           <span class="fl">Type</span>
-          <div class="type-btns">
-            <button class="type-btn" style="background:rgba(228,53,49,.2);border:1px solid #e43531;color:#e43531;">root</button>
-            <button class="type-btn" style="background:transparent;border:1px solid var(--br);color:var(--t2);">phase</button>
-            <button class="type-btn" style="background:transparent;border:1px solid var(--br);color:var(--t2);">task</button>
-            <button class="type-btn" style="background:transparent;border:1px solid var(--br);color:var(--t2);">note</button>
+          <div class="type-btns" id="mm-type-btns"></div>
+        </div>
+        <!-- Add child + Delete -->
+        <div id="mm-add-child-sec" style="display:none;flex-direction:column;gap:5px;">
+          <span class="fl">Add Child</span>
+          <div style="display:flex;gap:4px;">
+            <button class="btn-s" style="flex:1;font-size:10px;color:var(--blue);border-color:rgba(91,163,245,.3);" onclick="mmAddChildFromPanel('phase')">+ Phase</button>
+            <button class="btn-s" style="flex:1;font-size:10px;color:var(--green);border-color:rgba(26,217,138,.3);" onclick="mmAddChildFromPanel('task')">+ Task</button>
+            <button class="btn-s" style="flex:1;font-size:10px;color:var(--purple);border-color:rgba(167,139,250,.3);" onclick="mmAddChildFromPanel('note')">+ Note</button>
           </div>
+          <button class="btn-s" style="width:100%;font-size:10px;color:var(--acc);border-color:rgba(228,53,49,.3);margin-top:3px;" onclick="mmDeleteSelected()">✕ Delete Node + Children</button>
         </div>
-        <div style="display:flex;gap:6px;">
-          <button class="btn-s" style="flex:1;">+ Child</button>
-        </div>
+        <!-- Add root (always available) -->
+        <button class="btn-s" style="width:100%;font-size:11px;" onclick="mmAddRoot()">+ Add Root Node</button>
+        <!-- Clear canvas -->
+        <button class="btn-s" style="width:100%;font-size:10px;color:var(--t3);" onclick="mmClearCanvas()">⌫ Clear Canvas</button>
+        <!-- Counts -->
         <div style="margin-top:auto;padding-top:12px;border-top:1px solid var(--br);">
           <span class="fl">Counts</span>
-          <div class="counts-row"><span style="font-size:11px;color:var(--t2);">root</span><span style="font-family:'Space Mono',monospace;font-size:11px;color:#e43531;font-weight:700;">1</span></div>
-          <div class="counts-row"><span style="font-size:11px;color:var(--t2);">phase</span><span style="font-family:'Space Mono',monospace;font-size:11px;color:#5ba3f5;font-weight:700;">6</span></div>
-          <div class="counts-row"><span style="font-size:11px;color:var(--t2);">task</span><span style="font-family:'Space Mono',monospace;font-size:11px;color:#1ad98a;font-weight:700;">10</span></div>
+          <div class="counts-row"><span style="font-size:11px;color:var(--t2);">root</span><span style="font-family:'Space Mono',monospace;font-size:11px;color:#e43531;font-weight:700;" id="mm-count-root">0</span></div>
+          <div class="counts-row"><span style="font-size:11px;color:var(--t2);">phase</span><span style="font-family:'Space Mono',monospace;font-size:11px;color:#5ba3f5;font-weight:700;" id="mm-count-phase">0</span></div>
+          <div class="counts-row"><span style="font-size:11px;color:var(--t2);">task</span><span style="font-family:'Space Mono',monospace;font-size:11px;color:#1ad98a;font-weight:700;" id="mm-count-task">0</span></div>
         </div>
       </div>
 
@@ -922,6 +899,7 @@ function loadBuiltinTemplate(name) {
     openPh = new Set([PHASES[0].name]);
     openTk = new Set();
     updateStats();
+    mmPopulateFromPhases();
     showToast(`Loaded: ${name} SOP template — ${PHASES.reduce((s,p)=>s+p.tasks,0)} tasks`);
   }
 }
@@ -1080,6 +1058,7 @@ function generateWorkflow() {
 
   const wtype = !hasBuiltin ? 'scaffold' : 'SOP';
   showToast(`⚡ ${wt} ${wtype} generated — ${total} tasks across ${PHASES.length} phases`);
+  mmPopulateFromPhases();
   setView('results');
 }
 
@@ -1268,6 +1247,7 @@ function loadTemplateIntoBuilder(wt) {
   updateStats();
   updateOverwriteWarning();
   switchPtab(document.getElementById('ptab-save'), 'save');
+  mmPopulateFromPhases();
   setView('results');
   showToast(`↺ Loaded "${tpl.name}" — edit and re-save to update`);
 }
@@ -1425,6 +1405,7 @@ async function aiGenerateWorkflow() {
     if (nameField) nameField.value = `${wt} — AI Generated SOP`;
 
     showToast(`\u2736 AI generated ${wt} workflow — ${total} tasks`);
+    mmPopulateFromPhases();
     setView('results');
 
   } catch(err) {
@@ -1440,8 +1421,399 @@ async function aiGenerateWorkflow() {
   }
 }
 
-// Poll localStorage every 2s so staff AND company config sync from portal is live
-function pollStaff() {
+/* ══════════════════════════════════════════════
+   MINDMAP ENGINE — interactive canvas
+   Nodes are absolutely-positioned divs.
+   Edges are SVG paths in the layer behind them.
+   All state lives in MM_NODES / MM_SEL.
+══════════════════════════════════════════════ */
+let MM_NODES   = [];   // {id, label, type, x, y, parentId}
+let MM_SEL     = null; // selected node id
+let MM_NEXT_ID = 1;
+let MM_DRAG    = null; // {id, startMouseX, startMouseY, startNodeX, startNodeY}
+
+const MM_COLORS = {
+  root:  '#e43531',
+  phase: '#5ba3f5',
+  task:  '#1ad98a',
+  note:  '#a78bfa',
+};
+
+// Node dimensions by type
+function mmDims(type) {
+  if (type === 'root')  return { w: 158, h: 48 };
+  if (type === 'task')  return { w: 134, h: 34 };
+  if (type === 'note')  return { w: 122, h: 34 };
+  return { w: 138, h: 38 }; // phase
+}
+
+/* ── Add / Delete ─────────────────────────── */
+function mmAddRoot(label) {
+  const cvs = document.getElementById('mm-canvas');
+  const W   = cvs ? cvs.offsetWidth  : 900;
+  const H   = cvs ? cvs.offsetHeight : 500;
+  const d   = mmDims('root');
+  const node = { id: MM_NEXT_ID++, label: label || 'New Workflow', type: 'root', x: W/2 - d.w/2, y: H/2 - d.h/2, parentId: null };
+  MM_NODES.push(node);
+  mmRender();
+  mmSelect(node.id);
+  return node;
+}
+
+function mmAddChild(parentId, label, type) {
+  const parent = MM_NODES.find(n => n.id === parentId);
+  if (!parent) return null;
+  const pd     = mmDims(parent.type);
+  const nd     = mmDims(type);
+  const siblings = MM_NODES.filter(n => n.parentId === parentId);
+  const count    = siblings.length;
+  // Spread children in a fan around parent
+  const baseAngle = (parent.parentId === null) ? 0 : Math.atan2(parent.y - (MM_NODES.find(n=>n.id===parent.parentId)?.y||0), parent.x - (MM_NODES.find(n=>n.id===parent.parentId)?.x||0));
+  const spread    = Math.PI * 0.7;
+  const fanAngle  = count === 0 ? baseAngle + Math.PI*0.5 : baseAngle + spread * ((count % 2 === 0 ? 1 : -1) * Math.ceil(count/2) / Math.max(2, count));
+  const dist      = type === 'phase' ? 190 : 155;
+  const cx        = parent.x + pd.w/2 + Math.cos(fanAngle) * dist - nd.w/2;
+  const cy        = parent.y + pd.h/2 + Math.sin(fanAngle) * dist - nd.h/2;
+  const defaultLabel = type === 'phase' ? 'New Phase' : type === 'task' ? 'New Task' : 'Note';
+  const node = { id: MM_NEXT_ID++, label: label || defaultLabel, type, x: cx, y: cy, parentId };
+  MM_NODES.push(node);
+  mmRender();
+  mmSelect(node.id);
+  return node;
+}
+
+function mmAddChildFromPanel(type) {
+  if (!MM_SEL) { showToast('Select a node first'); return; }
+  mmAddChild(MM_SEL, null, type);
+}
+
+function mmDeleteSelected() {
+  if (!MM_SEL) return;
+  // Collect this node and all descendants
+  const toDelete = new Set();
+  function collect(id) {
+    toDelete.add(id);
+    MM_NODES.filter(n => n.parentId === id).forEach(n => collect(n.id));
+  }
+  collect(MM_SEL);
+  MM_NODES = MM_NODES.filter(n => !toDelete.has(n.id));
+  MM_SEL   = null;
+  mmRender();
+  mmUpdatePanel();
+}
+
+function mmClearCanvas() {
+  if (MM_NODES.length === 0) return;
+  if (!confirm('Clear the entire canvas? This cannot be undone.')) return;
+  MM_NODES   = [];
+  MM_SEL     = null;
+  MM_NEXT_ID = 1;
+  mmRender();
+  mmUpdatePanel();
+}
+
+/* ── Selection ───────────────────────────── */
+function mmSelect(id) {
+  MM_SEL = id;
+  mmRender();
+  mmUpdatePanel();
+}
+
+/* ── Render ──────────────────────────────── */
+function mmRender() {
+  const layer   = document.getElementById('mm-nodes-layer');
+  const edgesG  = document.getElementById('mm-edges');
+  const emptyEl = document.getElementById('mm-empty');
+  if (!layer || !edgesG) return;
+
+  // Empty state visibility
+  if (emptyEl) emptyEl.style.display = MM_NODES.length === 0 ? 'flex' : 'none';
+
+  // ── Edges ──
+  edgesG.innerHTML = MM_NODES
+    .filter(n => n.parentId !== null)
+    .map(n => {
+      const parent = MM_NODES.find(p => p.id === n.parentId);
+      if (!parent) return '';
+      const pd  = mmDims(parent.type);
+      const nd  = mmDims(n.type);
+      const x1  = parent.x + pd.w / 2;
+      const y1  = parent.y + pd.h / 2;
+      const x2  = n.x + nd.w / 2;
+      const y2  = n.y + nd.h / 2;
+      // Cubic bezier — control points at the horizontal midpoint
+      const mx  = (x1 + x2) / 2;
+      const color   = MM_COLORS[n.type] || '#5ba3f5';
+      const opacity = n.type === 'task' ? '.35' : '.5';
+      const width   = n.type === 'task' ? 1.2 : 1.6;
+      return `<path d="M${x1} ${y1} C${mx} ${y1},${mx} ${y2},${x2} ${y2}" fill="none" stroke="${color}" stroke-width="${width}" stroke-opacity="${opacity}"/>`;
+    }).join('');
+
+  // ── Nodes ──
+  layer.innerHTML = MM_NODES.map(n => {
+    const color  = MM_COLORS[n.type] || '#5ba3f5';
+    const d      = mmDims(n.type);
+    const sel    = MM_SEL === n.id;
+    const isRoot = n.type === 'root';
+    const fs     = isRoot ? 12 : 10;
+    const fw     = isRoot ? 700 : 500;
+    const borderStyle = sel
+      ? `border:2px solid ${color};box-shadow:0 0 0 3px ${color}33,0 4px 16px ${color}44;`
+      : isRoot
+        ? `border:1.5px solid ${color};box-shadow:0 0 10px ${color}44;`
+        : `border:1px solid var(--br);`;
+    return `<div
+      data-mmid="${n.id}"
+      style="position:absolute;left:${Math.round(n.x)}px;top:${Math.round(n.y)}px;
+        width:${d.w}px;height:${d.h}px;
+        background:var(--s2);${borderStyle}border-radius:6px;
+        border-left:3px solid ${color};
+        display:flex;align-items:center;justify-content:center;
+        cursor:grab;user-select:none;transition:box-shadow .12s;z-index:${sel?10:1};"
+      onmousedown="mmMouseDown(event,${n.id})"
+      ondblclick="mmStartRename(event,${n.id})"
+      onclick="mmSelect(${n.id})">
+      <span style="font-size:${fs}px;font-weight:${fw};color:var(--t1);font-family:'Outfit',sans-serif;
+        padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+        max-width:${d.w - 18}px;pointer-events:none;">
+        ${mmEscape(n.label)}
+      </span>
+    </div>`;
+  }).join('');
+
+  mmUpdateCounts();
+}
+
+function mmEscape(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── Right panel wiring ───────────────────── */
+function mmUpdatePanel() {
+  const node        = MM_NODES.find(n => n.id === MM_SEL);
+  const selCard     = document.getElementById('mm-sel-card');
+  const noSel       = document.getElementById('mm-no-sel');
+  const renameInp   = document.getElementById('mm-rename-inp');
+  const typeBtns    = document.getElementById('mm-type-btns');
+  const addChildSec = document.getElementById('mm-add-child-sec');
+
+  if (!node) {
+    if (selCard)     selCard.style.display     = 'none';
+    if (noSel)       noSel.style.display       = 'block';
+    if (addChildSec) addChildSec.style.display = 'none';
+    if (typeBtns)    typeBtns.innerHTML = '';
+    if (renameInp)   renameInp.value = '';
+    return;
+  }
+
+  if (selCard)     selCard.style.display     = 'block';
+  if (noSel)       noSel.style.display       = 'none';
+  if (addChildSec) addChildSec.style.display = 'flex';
+
+  if (selCard) {
+    const color = MM_COLORS[node.type] || '#5ba3f5';
+    selCard.innerHTML = `
+      <div style="font-size:12px;font-weight:600;color:${color};margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${mmEscape(node.label)}</div>
+      <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--t3);">TYPE:${node.type} · ID:${node.id}</div>`;
+  }
+  if (renameInp) renameInp.value = node.label;
+  if (typeBtns) {
+    typeBtns.innerHTML = ['root','phase','task','note'].map(t => {
+      const c  = MM_COLORS[t];
+      const on = node.type === t;
+      return `<button class="type-btn" style="${on ? `background:${c}33;border:1px solid ${c};color:${c};` : 'background:transparent;border:1px solid var(--br);color:var(--t2);'}" onclick="mmSetType('${t}')">${t}</button>`;
+    }).join('');
+  }
+}
+
+function mmUpdateCounts() {
+  const counts = { root:0, phase:0, task:0, note:0 };
+  MM_NODES.forEach(n => { counts[n.type] = (counts[n.type]||0) + 1; });
+  const rootEl  = document.getElementById('mm-count-root');
+  const phaseEl = document.getElementById('mm-count-phase');
+  const taskEl  = document.getElementById('mm-count-task');
+  if (rootEl)  rootEl.textContent  = counts.root;
+  if (phaseEl) phaseEl.textContent = counts.phase;
+  if (taskEl)  taskEl.textContent  = counts.task;
+}
+
+/* ── Inline rename (double-click) ─────────── */
+function mmStartRename(e, id) {
+  e.stopPropagation();
+  const el   = document.querySelector(`[data-mmid="${id}"]`);
+  const node = MM_NODES.find(n => n.id === id);
+  if (!el || !node) return;
+  const d  = mmDims(node.type);
+  const fs = node.type === 'root' ? 12 : 10;
+  const fw = node.type === 'root' ? 700 : 500;
+  el.innerHTML = `<input id="mm-inline-inp"
+    style="width:${d.w - 20}px;background:transparent;border:none;outline:none;
+      color:var(--t1);font-family:'Outfit',sans-serif;font-size:${fs}px;font-weight:${fw};
+      text-align:center;"
+    value="${mmEscape(node.label)}" autofocus/>`;
+  const inp = document.getElementById('mm-inline-inp');
+  if (inp) {
+    inp.focus(); inp.select();
+    inp.addEventListener('mousedown', ev => ev.stopPropagation());
+    const commit = () => { mmFinishRename(id, inp.value); };
+    inp.addEventListener('blur',    commit);
+    inp.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter')  { inp.blur(); }
+      if (ev.key === 'Escape') { inp.removeEventListener('blur', commit); mmRender(); }
+    });
+  }
+}
+
+function mmFinishRename(id, val) {
+  const node = MM_NODES.find(n => n.id === id);
+  if (node && val && val.trim()) node.label = val.trim();
+  mmRender();
+  mmUpdatePanel();
+}
+
+/* ── Panel rename input ───────────────────── */
+function mmApplyRename() {
+  const inp  = document.getElementById('mm-rename-inp');
+  const node = MM_NODES.find(n => n.id === MM_SEL);
+  if (!inp || !node) return;
+  node.label = inp.value;
+  // Live-update just the node's span without full re-render (avoids losing focus)
+  const span = document.querySelector(`[data-mmid="${node.id}"] span`);
+  if (span) span.textContent = node.label;
+  // Update edges (they don't change) and counts
+  mmUpdateCounts();
+  // Also refresh the sel card label
+  const selCard = document.getElementById('mm-sel-card');
+  if (selCard) {
+    const color = MM_COLORS[node.type] || '#5ba3f5';
+    selCard.querySelector('div').textContent = node.label;
+  }
+}
+
+/* ── Type change ──────────────────────────── */
+function mmSetType(type) {
+  const node = MM_NODES.find(n => n.id === MM_SEL);
+  if (!node) return;
+  node.type = type;
+  mmRender();
+  mmUpdatePanel();
+}
+
+/* ── Drag ─────────────────────────────────── */
+function mmMouseDown(e, id) {
+  if (e.target.tagName === 'INPUT') return;
+  e.preventDefault();
+  e.stopPropagation();
+  MM_SEL  = id;
+  const node = MM_NODES.find(n => n.id === id);
+  if (!node) return;
+  MM_DRAG = { id, startMouseX: e.clientX, startMouseY: e.clientY, startNodeX: node.x, startNodeY: node.y };
+  mmUpdatePanel();
+  // Update selected ring without full render for performance
+  document.querySelectorAll('[data-mmid]').forEach(el => {
+    const nid = parseInt(el.getAttribute('data-mmid'));
+    const n   = MM_NODES.find(x => x.id === nid);
+    if (!n) return;
+    const c = MM_COLORS[n.type] || '#5ba3f5';
+    if (nid === id) {
+      el.style.border      = `2px solid ${c}`;
+      el.style.boxShadow   = `0 0 0 3px ${c}33,0 4px 16px ${c}44`;
+      el.style.zIndex      = '10';
+    } else {
+      el.style.border      = n.type === 'root' ? `1.5px solid ${c}` : `1px solid var(--br)`;
+      el.style.boxShadow   = n.type === 'root' ? `0 0 10px ${c}44` : '';
+      el.style.zIndex      = '1';
+    }
+    el.style.borderLeft = `3px solid ${c}`;
+  });
+}
+
+document.addEventListener('mousemove', e => {
+  if (!MM_DRAG) return;
+  const node = MM_NODES.find(n => n.id === MM_DRAG.id);
+  if (!node) return;
+  node.x = MM_DRAG.startNodeX + (e.clientX - MM_DRAG.startMouseX);
+  node.y = MM_DRAG.startNodeY + (e.clientY - MM_DRAG.startMouseY);
+  // Move the div directly for smooth drag
+  const el = document.querySelector(`[data-mmid="${MM_DRAG.id}"]`);
+  if (el) { el.style.left = node.x + 'px'; el.style.top = node.y + 'px'; }
+  // Redraw edges only
+  const edgesG  = document.getElementById('mm-edges');
+  if (edgesG) {
+    edgesG.innerHTML = MM_NODES
+      .filter(n => n.parentId !== null)
+      .map(n => {
+        const parent = MM_NODES.find(p => p.id === n.parentId);
+        if (!parent) return '';
+        const pd = mmDims(parent.type), nd = mmDims(n.type);
+        const x1 = parent.x + pd.w/2, y1 = parent.y + pd.h/2;
+        const x2 = n.x + nd.w/2,     y2 = n.y + nd.h/2;
+        const mx = (x1+x2)/2;
+        const color   = MM_COLORS[n.type] || '#5ba3f5';
+        const opacity = n.type === 'task' ? '.35' : '.5';
+        const width   = n.type === 'task' ? 1.2 : 1.6;
+        return `<path d="M${x1} ${y1} C${mx} ${y1},${mx} ${y2},${x2} ${y2}" fill="none" stroke="${color}" stroke-width="${width}" stroke-opacity="${opacity}"/>`;
+      }).join('');
+  }
+});
+
+document.addEventListener('mouseup', () => { MM_DRAG = null; });
+
+/* ── Populate from PHASES ─────────────────── */
+function mmPopulateFromPhases() {
+  MM_NODES   = [];
+  MM_SEL     = null;
+  MM_NEXT_ID = 1;
+
+  if (!PHASES || PHASES.length === 0) { mmRender(); mmUpdatePanel(); return; }
+
+  const cvs  = document.getElementById('mm-canvas');
+  const W    = cvs ? cvs.offsetWidth  : 900;
+  const H    = cvs ? cvs.offsetHeight : 500;
+  const wt   = ACTIVE_WORK_TYPE || 'Workflow';
+
+  // Root node centered
+  const rd   = mmDims('root');
+  const root = { id: MM_NEXT_ID++, label: wt + ' SOP', type: 'root',
+                 x: W/2 - rd.w/2, y: H/2 - rd.h/2, parentId: null };
+  MM_NODES.push(root);
+
+  const phCount  = PHASES.length;
+  const radius   = Math.min(W, H) * 0.33;
+
+  PHASES.forEach((ph, pi) => {
+    const angle  = (pi / phCount) * 2 * Math.PI - Math.PI / 2;
+    const pd     = mmDims('phase');
+    const px     = root.x + rd.w/2 + Math.cos(angle) * radius - pd.w/2;
+    const py     = root.y + rd.h/2 + Math.sin(angle) * radius - pd.h/2;
+    const label  = ph.name.length > 24 ? ph.name.substring(0,24)+'…' : ph.name;
+    const phase  = { id: MM_NEXT_ID++, label, type: 'phase', x: px, y: py, parentId: root.id };
+    MM_NODES.push(phase);
+
+    // Show first 3 tasks branching off each phase
+    const sample = ph.items.slice(0, 3);
+    sample.forEach((t, ti) => {
+      const td      = mmDims('task');
+      const total   = sample.length;
+      const spread  = 0.55;
+      const ta      = angle + spread * (ti - (total-1)/2);
+      const tdist   = 160;
+      const tx      = phase.x + pd.w/2 + Math.cos(ta) * tdist - td.w/2;
+      const ty      = phase.y + pd.h/2 + Math.sin(ta) * tdist - td.h/2;
+      const tlabel  = t.title.length > 20 ? t.title.substring(0,20)+'…' : t.title;
+      MM_NODES.push({ id: MM_NEXT_ID++, label: tlabel, type: 'task', x: tx, y: ty, parentId: phase.id });
+    });
+  });
+
+  mmRender();
+  mmUpdatePanel();
+}
+
+// Initial render (blank canvas on load)
+mmRender();
+mmUpdatePanel();
+
+
   try {
     const raw = localStorage.getItem('jd_staff');
     const latest = raw ? JSON.parse(raw) : null;
