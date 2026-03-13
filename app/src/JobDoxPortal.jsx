@@ -1319,6 +1319,8 @@ function NotifyModal({ proj, onClose, globalStaff=[] }) {
   const techName  = selectedStaff ? `${selectedStaff.firstName||""} ${selectedStaff.lastName||""}`.trim() : "Crew";
   const photoUrl  = selectedStaff?.photoUrl || "";
 
+  const companyName = loadCoInfo().name || "our team";
+
   // ── ETA state: "loading" | "ready" | "denied" | "error" | "manual" ──
   const [eta,       setEta]       = useState("30");
   const [etaState,  setEtaState]  = useState("loading"); // drives the UI indicator
@@ -1327,7 +1329,7 @@ function NotifyModal({ proj, onClose, globalStaff=[] }) {
   const [sendError, setSendError] = useState("");
 
   const firstName = (proj.client || "there").split(" ")[0];
-  const msg = `Hi ${firstName}! Your Job-Dox crew is on the way. ${techName} will arrive in approx. ${eta} min. They are IICRC certified with photo ID. Questions? Reply here or call us. — Job-Dox`;
+  const msg = `Hi ${firstName}! Your ${companyName} crew is on the way. ${techName} will arrive in approx. ${eta} min. They are IICRC certified with photo ID. Questions? Reply here or call us. — ${companyName}`;
 
   // ── Geolocation + Distance Matrix on mount ──
   useEffect(() => {
@@ -1336,26 +1338,34 @@ function NotifyModal({ proj, onClose, globalStaff=[] }) {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          const origin = `${pos.coords.latitude},${pos.coords.longitude}`;
-          const dest   = encodeURIComponent(proj.address || "");
-          if (!dest) { setEtaState("manual"); return; }
+          const origin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          const destAddr = proj.address || "";
+          if (!destAddr) { setEtaState("manual"); return; }
 
-          const url = `https://maps.googleapis.com/maps/api/distancematrix/json` +
-            `?origins=${origin}&destinations=${dest}` +
-            `&departure_time=now&traffic_model=best_guess` +
-            `&key=${GMAPS_KEY}`;
-
-          const res  = await fetch(url);
-          const data = await res.json();
-          const el   = data?.rows?.[0]?.elements?.[0];
-
-          if (el?.status === "OK" && el.duration_in_traffic?.value) {
-            const mins = Math.ceil(el.duration_in_traffic.value / 60);
-            setEta(String(mins));
-            setEtaState("ready");
-          } else {
-            setEtaState("manual");
-          }
+          // Use Google Maps JavaScript API (DistanceMatrixService) — works client-side without CORS issues
+          if (!window.google?.maps?.DistanceMatrixService) { setEtaState("manual"); return; }
+          const service = new window.google.maps.DistanceMatrixService();
+          service.getDistanceMatrix({
+            origins:            [origin],
+            destinations:       [destAddr],
+            travelMode:         window.google.maps.TravelMode.DRIVING,
+            drivingOptions:     { departureTime: new Date(), trafficModel: "bestGuess" },
+            unitSystem:         window.google.maps.UnitSystem.IMPERIAL,
+          }, (response, status) => {
+            if (status === "OK") {
+              const el = response?.rows?.[0]?.elements?.[0];
+              if (el?.status === "OK" && (el.duration_in_traffic?.value || el.duration?.value)) {
+                const secs = el.duration_in_traffic?.value || el.duration.value;
+                const mins = Math.ceil(secs / 60);
+                setEta(String(mins));
+                setEtaState("ready");
+              } else {
+                setEtaState("manual");
+              }
+            } else {
+              setEtaState("manual");
+            }
+          });
         } catch {
           setEtaState("manual");
         }
@@ -1528,19 +1538,36 @@ function CommModal({ proj, onClose, currentUser, phoneSettings={}, companyId="" 
   const [sending,   setSending]   = useState(false);
   const [sent,      setSent]      = useState(false);
   const [sendError, setSendError] = useState("");
-  const senderName = currentUser?.name || "your Job-Dox team";
+  const coName = loadCoInfo().name;
+  const senderName = currentUser?.name || (coName ? `your ${coName} team` : "your team");
   const quick = ["On our way!","Running ~15 min late","Please call us back","Crew arriving tomorrow 8am"];
 
+  // Build a combined contacts list: client first, then project contacts
+  const projContacts = _lsRead(proj.id, "contacts", []);
+  const allContacts = useMemo(() => {
+    const list = [];
+    if (proj.client || proj.clientPhone) {
+      list.push({ id: "__client__", name: proj.client || "Client", role: "Client", phone: proj.clientPhone || "", email: proj.clientEmail || "", color: "var(--blue)" });
+    }
+    for (const c of projContacts) {
+      if (c.phone || c.email) list.push(c);
+    }
+    return list;
+  }, [proj.client, proj.clientPhone, proj.clientEmail, projContacts]);
+
+  const [selContact, setSelContact] = useState(allContacts[0] || null);
+  const activePhone = selContact?.phone || "";
+
   const doSend = async () => {
-    if (!msg.trim() || !proj.clientPhone) return;
+    if (!msg.trim() || !activePhone) return;
     setSending(true);
     setSendError("");
     try {
       await sendSMS({
-        to:          proj.clientPhone,
+        to:          activePhone,
         messageBody: msg.trim(),
         from:        phoneSettings?.twilioNumber || "",
-        contactName: proj.client || proj.clientPhone,
+        contactName: selContact?.name || activePhone,
         companyId,
         projectId:   proj.id,
       });
@@ -1559,7 +1586,7 @@ function CommModal({ proj, onClose, currentUser, phoneSettings={}, companyId="" 
         <div className="modal-hd">
           <div>
             <div className="modal-ttl">{sent ? "Sent!" : "Quick Contact"}</div>
-            <div style={{fontSize:11,color:"var(--t3)",marginTop:1}}>{proj.client} · {proj.clientPhone}</div>
+            <div style={{fontSize:11,color:"var(--t3)",marginTop:1}}>{proj.name || proj.address}</div>
           </div>
           <button className="btn btn-ghost btn-xs" onClick={onClose}>{Ic.close}</button>
         </div>
@@ -1568,34 +1595,72 @@ function CommModal({ proj, onClose, currentUser, phoneSettings={}, companyId="" 
             <div style={{textAlign:"center",padding:"20px 0"}}>
               <div style={{width:44,height:44,borderRadius:"50%",background:"rgba(26,217,138,.12)",border:"2px solid var(--green)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px",color:"var(--green)"}}>{Ic.check}</div>
               <div style={{fontWeight:700,fontSize:14}}>Message delivered</div>
-              <div style={{fontSize:11,color:"var(--t2)",marginTop:3}}>{proj.clientPhone}</div>
+              <div style={{fontSize:11,color:"var(--t2)",marginTop:3}}>{activePhone}</div>
             </div>
           ) : (
             <>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                <a href={`tel:${proj.clientPhone}`} className="btn btn-green btn-lg" style={{justifyContent:"center",textDecoration:"none"}} onClick={onClose}>{Ic.phone} Call</a>
-                <a href={`sms:${proj.clientPhone}`} className="btn btn-blue btn-lg"  style={{justifyContent:"center",textDecoration:"none"}} onClick={onClose}>{Ic.sms} Open SMS</a>
-              </div>
-              <div>
-                <label className="lbl">Custom Message</label>
-                <textarea className="txa" value={msg} onChange={e=>setMsg(e.target.value)}
-                  placeholder={`Hi ${(proj.client||"").split(" ")[0]}, this is ${senderName} from Job-Dox…`}
-                  style={{minHeight:72}}/>
-              </div>
-              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                {quick.map(q=><button key={q} className="chip" onClick={()=>setMsg(q)}>{q}</button>)}
-              </div>
+              {/* Contact picker */}
+              {allContacts.length > 1 && (
+                <div>
+                  <label className="lbl">Contact</label>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    {allContacts.map(c => (
+                      <button key={c.id} className={`chip${selContact?.id===c.id?" on":""}`}
+                        onClick={()=>setSelContact(c)}
+                        style={{fontSize:10,padding:"3px 10px",display:"flex",alignItems:"center",gap:4}}>
+                        <Av name={c.name} color={c.color||"var(--t3)"} size={18}/>
+                        <span>{c.name}</span>
+                        {c.role && <span style={{fontSize:8,color:"var(--t3)"}}>({c.role})</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Selected contact info */}
+              {selContact && (
+                <div style={{background:"var(--s3)",borderRadius:8,padding:"8px 12px",display:"flex",alignItems:"center",gap:10}}>
+                  <Av name={selContact.name} color={selContact.color||"var(--blue)"} size={32}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12,fontWeight:700,color:"var(--t1)"}}>{selContact.name}</div>
+                    {selContact.role && <div style={{fontSize:10,color:"var(--t3)"}}>{selContact.role}</div>}
+                  </div>
+                  <div style={{display:"flex",gap:6}}>
+                    {selContact.phone && <a href={`tel:${selContact.phone}`} className="btn btn-green btn-xs" style={{textDecoration:"none"}} onClick={onClose}>{Ic.phone} Call</a>}
+                    {selContact.phone && <a href={`sms:${selContact.phone}`} className="btn btn-blue btn-xs" style={{textDecoration:"none"}} onClick={onClose}>{Ic.sms} Text</a>}
+                  </div>
+                </div>
+              )}
+
+              {!selContact && !allContacts.length && (
+                <div style={{textAlign:"center",padding:"16px 0",color:"var(--t3)",fontSize:11}}>No contacts on this project. Add contacts inside the project's Contacts tab.</div>
+              )}
+
+              {/* Custom SMS section */}
+              {activePhone && (
+                <>
+                  <div>
+                    <label className="lbl">Custom Message</label>
+                    <textarea className="txa" value={msg} onChange={e=>setMsg(e.target.value)}
+                      placeholder={`Hi ${(selContact?.name||"").split(" ")[0]}, this is ${senderName}${coName ? ` from ${coName}` : ""}…`}
+                      style={{minHeight:72}}/>
+                  </div>
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                    {quick.map(q=><button key={q} className="chip" onClick={()=>setMsg(q)}>{q}</button>)}
+                  </div>
+                </>
+              )}
               {sendError && (
                 <div style={{fontSize:11,color:"var(--acc)",background:"var(--acc-lo)",borderRadius:7,padding:"7px 10px",border:"1px solid rgba(228,53,49,.2)"}}>{sendError}</div>
               )}
             </>
           )}
         </div>
-        {!sent && (
+        {!sent && activePhone && (
           <div className="modal-ft">
             <button className="btn btn-ghost" onClick={onClose}>Close</button>
             {msg.trim() && (
-              <button className="btn btn-primary" onClick={doSend} disabled={sending || !proj.clientPhone}>
+              <button className="btn btn-primary" onClick={doSend} disabled={sending}>
                 {sending
                   ? <><span style={{width:11,height:11,border:"2px solid rgba(255,255,255,.3)",borderTopColor:"#fff",borderRadius:"50%",animation:"jd-spin .7s linear infinite",display:"inline-block"}}/> Sending…</>
                   : <>{Ic.sms} Send SMS</>}
@@ -2851,12 +2916,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                           </button>
                           <button className="pab pab-blue" onClick={()=>setNotify(proj)}>{Ic.notify} Notify</button>
                           <button className="pab" onClick={()=>openMaps(proj)}>{Ic.map} Navigate</button>
-                          {canArchive
-                            ? <button className="pab pab-amber" onClick={()=>setArchiveTarget({proj,action:"archive"})}>
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg> Archive
-                              </button>
-                            : <button className="pab pab-amber" onClick={()=>setComm(proj)}>{Ic.phone} Contact</button>
-                          }
+                          <button className="pab pab-amber" onClick={()=>setComm(proj)}>{Ic.phone} Contact</button>
                         </>
                       ) : (
                         <>
@@ -2932,12 +2992,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                           </button>
                           <button className="btn btn-blue btn-xs" onClick={()=>setNotify(proj)}>{Ic.notify}</button>
                           <button className="btn btn-ghost btn-xs" onClick={()=>openMaps(proj)}>{Ic.map}</button>
-                          {canArchive
-                            ? <button className="btn btn-amber btn-xs" title="Archive project" onClick={()=>setArchiveTarget({proj,action:"archive"})}>
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
-                              </button>
-                            : <button className="btn btn-xs" onClick={()=>setComm(proj)} style={{background:"rgba(232,156,24,.1)",border:"1px solid rgba(232,156,24,.25)",color:"var(--amber)"}}>{Ic.phone}</button>
-                          }
+                          <button className="btn btn-xs" onClick={()=>setComm(proj)} style={{background:"rgba(232,156,24,.1)",border:"1px solid rgba(232,156,24,.25)",color:"var(--amber)"}} title="Contact">{Ic.phone}</button>
                         </>
                       ) : (
                         <>
@@ -2961,7 +3016,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
   );
 }
 
-function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emailSchedule="weekly", setEmailSchedule=()=>{}, clientPortal=false, setClientPortal=()=>{}, globalStaff=[], worktypes=[], setWorktypes=()=>{}, currentUser=null, assignedStaff=[], setAssignedStaff=()=>{} }) {
+function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emailSchedule="weekly", setEmailSchedule=()=>{}, clientPortal=false, setClientPortal=()=>{}, globalStaff=[], worktypes=[], setWorktypes=()=>{}, currentUser=null, assignedStaff=[], setAssignedStaff=()=>{}, canArchive=false, onArchive, onBack }) {
   const [attrs, setAttrs]           = useState({});
   const assigned    = assignedStaff;
   const setAssigned = setAssignedStaff;
@@ -2969,6 +3024,8 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
   const [noteText, setNoteText]     = useState("");
   const [assignPick, setAssignPick] = useState(false);
   const [coiWarn,   setCoiWarn]     = useState(null); // { staff, vendor, status } — pending assignment blocked by COI
+  const [archiveConfirm, setArchiveConfirm] = useState(false);
+  const [archiveBusy, setArchiveBusy]       = useState(false);
 
   const unassigned = globalStaff.filter(s => !assigned.find(a => a.id === s.id));
 
@@ -3349,6 +3406,51 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
             </div>
           ))}
         </div>
+
+        {/* ── Archive / Restore Project ── */}
+        {canArchive && (
+          <div className="card" style={{gridColumn:"1/-1",borderColor: proj.archived ? "rgba(26,217,138,.25)" : "rgba(232,156,24,.25)",background: proj.archived ? "rgba(26,217,138,.04)" : "rgba(232,156,24,.04)"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color: proj.archived ? "var(--green)" : "var(--amber)"}}>
+                  {proj.archived ? "Restore Project" : "Archive Project"}
+                </div>
+                <div style={{fontSize:11,color:"var(--t2)",marginTop:3,maxWidth:520,lineHeight:1.5}}>
+                  {proj.archived
+                    ? "This project is archived and hidden from the active portfolio. Restoring it will make it visible and active again."
+                    : "Archiving moves this project out of the active portfolio. It can be restored later. Make sure all work is complete and final payments have been collected before archiving."}
+                </div>
+              </div>
+              {!archiveConfirm ? (
+                <button className={`btn ${proj.archived ? "btn-green" : "btn-amber"}`} onClick={()=>setArchiveConfirm(true)}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d={proj.archived
+                    ? "M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 6.5l5.5 5.5H14v2h-4v-2H6.5L12 6.5zM5.12 5l.81-1h12l.94 1H5.12z"
+                    : "M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"}/></svg>
+                  {proj.archived ? " Restore" : " Archive"}
+                </button>
+              ) : (
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <span style={{fontSize:11,color:"var(--t2)",fontWeight:600}}>Are you sure?</span>
+                  <button className="btn btn-ghost btn-xs" onClick={()=>setArchiveConfirm(false)} disabled={archiveBusy}>Cancel</button>
+                  <button className={`btn ${proj.archived ? "btn-green" : "btn-danger"} btn-xs`} disabled={archiveBusy}
+                    onClick={async ()=>{
+                      setArchiveBusy(true);
+                      try {
+                        await onArchive(proj.id, !proj.archived);
+                        setArchiveConfirm(false);
+                        if (onBack) onBack();
+                      } catch(e) { console.error(e); }
+                      setArchiveBusy(false);
+                    }}>
+                    {archiveBusy
+                      ? <><span style={{width:10,height:10,border:"2px solid rgba(255,255,255,.3)",borderTopColor:"#fff",borderRadius:"50%",animation:"jd-spin .7s linear infinite",display:"inline-block"}}/> Processing…</>
+                      : proj.archived ? "Yes, Restore" : "Yes, Archive"}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -3555,7 +3657,8 @@ function TaskCommentModal({ task, onClose, currentUserName="You", globalStaff=[]
         : [];
 
       if (toNumbers.length) {
-        const msgBody = `[Job-Dox] ${currentUserName} commented on "${task.title}"${task.proj ? ` (${task.proj})` : ""}:\n"${text.trim()}"`;
+        const taskCoName = loadCoInfo().name || "Job-Dox";
+        const msgBody = `[${taskCoName}] ${currentUserName} commented on "${task.title}"${task.proj ? ` (${task.proj})` : ""}:\n"${text.trim()}"`;
         try {
           await sendSMS({
             to:          toNumbers,
@@ -7788,7 +7891,7 @@ const PROJ_TABS = [
 
 
 
-function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists, companyId="", phoneSettings={}, isVendor=false, currentMemberId="", onNavigate }) {
+function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists, companyId="", phoneSettings={}, isVendor=false, currentMemberId="", onNavigate, canArchive=false, onArchive }) {
   const [tab,setTab]           = useState(initialTab||"overview");
   // Sync when initialTab prop changes (e.g. user clicks a nav button while project is already open)
   const prevInitialTab = useRef(initialTab);
@@ -7891,7 +7994,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
           </button>
         ))}
       </div>
-      {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff} worktypes={worktypes} setWorktypes={setWorktypes} currentUser={currentUser} assignedStaff={assignedStaff} setAssignedStaff={setAssignedStaff}/>}
+      {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff} worktypes={worktypes} setWorktypes={setWorktypes} currentUser={currentUser} assignedStaff={assignedStaff} setAssignedStaff={setAssignedStaff} canArchive={canArchive} onArchive={onArchive} onBack={onBack}/>}
       {tab==="drydox"         && <DryDoxTab      proj={proj} priceLists={priceLists} onPushToScope={handlePushToScope}/>}
       {tab==="contentsdox"    && <ContentsDoxTab proj={proj} onPushToScope={handlePushToScope}/>}
       {tab==="estimatedox"    && <EstimateDoxTab proj={proj}/>}
@@ -10902,6 +11005,8 @@ export default function JobDoxPortal() {
             isVendor={caps.isVendorPerm}
             currentMemberId={currentMember?.id || ""}
             onNavigate={handleNavigate}
+            canArchive={canArchiveProject}
+            onArchive={handleArchiveProject}
           />
         ) : (
           <PortfolioPage
