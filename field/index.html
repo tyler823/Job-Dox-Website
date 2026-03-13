@@ -993,7 +993,21 @@ function FieldApp() {
       setMember(m);
       // company-id is the same custom field the portal writes when a staff
       // member accepts a portal invite, or that we write via invite code below
-      const companyId = m.customFields?.["company-id"] || null;
+      let companyId = m.customFields?.["company-id"] || null;
+
+      // If no stored company-id, check whether this user is the account owner.
+      // The portal uses member.id as the companyId for owners, so look for a
+      // matching company doc. This mirrors the portal's initMember() logic.
+      if (!companyId) {
+        try {
+          const ownerDoc = await db.collection("companies").doc(m.id).get();
+          if (ownerDoc.exists()) {
+            companyId = m.id;
+            // Persist so future logins skip this check
+            ms.updateMember({ customFields: { "company-id": companyId } }).catch(()=>{});
+          }
+        } catch(e) { /* offline or permissions — fall through to invite screen */ }
+      }
       if (!companyId) { setAuthState("invite"); return; }
 
       const name = getMemberName(m);
