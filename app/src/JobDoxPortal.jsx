@@ -1912,7 +1912,7 @@ function PortfolioSidebar({ onNavigate }) {
   );
 }
 
-function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[], currentMemberId="", companyId="" }) {
+function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[], currentMemberId="", companyId="", projects=[] }) {
   const canViewAllStaff = permissionLevel >= 5;
 
   // ── Staff picker: default to signed-in user, L5+ can toggle ──
@@ -1935,6 +1935,35 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
     try { return JSON.parse(localStorage.getItem(tasksKey)) || MY_TASKS; } catch { return MY_TASKS; }
   });
   const saveTasks = (tasks) => { if (tasksKey) { try { localStorage.setItem(tasksKey, JSON.stringify(tasks)); } catch {} } };
+
+  // ── Pull in project tasks assigned to the current user ──
+  const projTasks = useMemo(() => {
+    if (!currentMemberId || !projects.length) return [];
+    const result = [];
+    for (const proj of projects) {
+      const stored = _lsRead(proj.id, "tasks", null);
+      if (!Array.isArray(stored)) continue;
+      for (const t of stored) {
+        if (!t.due) continue;
+        if (!Array.isArray(t.assignedUserIds) || !t.assignedUserIds.includes(currentMemberId)) continue;
+        result.push({
+          ...t,
+          date:   t.due,
+          done:   t.status === "done",
+          proj:   proj.name || proj.address || proj.id,
+          projId: proj.id,
+          _fromProject: true,
+        });
+      }
+    }
+    return result;
+  }, [projects, currentMemberId]);
+
+  // Merged list for display — My Day personal tasks + assigned project tasks, de-duped by id
+  const allDisplayTasks = useMemo(() => {
+    const ids = new Set(allTasks.map(t => t.id));
+    return [...allTasks, ...projTasks.filter(t => !ids.has(t.id))];
+  }, [allTasks, projTasks]);
   const [selDate, setSelDate]   = useState(TODAY_ISO);
   const [calYear,  setCalYear]  = useState(() => new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
@@ -1946,6 +1975,15 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
   const [commentTask, setCommentTask] = useState(null);
 
   const toggleTask = id => {
+    // If the task came from a project, toggle its status in project localStorage
+    const projTask = projTasks.find(t => t.id === id);
+    if (projTask && projTask.projId) {
+      const stored = _lsRead(projTask.projId, "tasks", []);
+      const updated = stored.map(x => x.id === id ? { ...x, status: x.status === "done" ? "open" : "done" } : x);
+      _lsWrite(projTask.projId, "tasks", updated);
+      return;
+    }
+    // Otherwise update My Day personal tasks
     const updated = allTasks.map(x => x.id===id ? {...x, done:!x.done} : x);
     setAllTasks(updated);
     saveTasks(updated);
@@ -1988,12 +2026,12 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
   const DAYS   = ["Su","Mo","Tu","We","Th","Fr","Sa"];
   const firstDay    = new Date(calYear, calMonth, 1).getDay();
   const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
-  const taskDates   = new Set(allTasks.map(t => t.date));
+  const taskDates   = new Set(allDisplayTasks.map(t => t.date));
   const prevMonth = () => { if(calMonth===0){setCalYear(y=>y-1);setCalMonth(11);}else setCalMonth(m=>m-1); };
   const nextMonth = () => { if(calMonth===11){setCalYear(y=>y+1);setCalMonth(0);}else setCalMonth(m=>m+1); };
 
-  const dayAppts = allTasks.filter(t => t.date===selDate && t.type==="appointment").sort((a,b)=>a.time.localeCompare(b.time));
-  const dayTasks = allTasks.filter(t => t.date===selDate && t.type!=="appointment");
+  const dayAppts = allDisplayTasks.filter(t => t.date===selDate && t.type==="appointment").sort((a,b)=>a.time.localeCompare(b.time));
+  const dayTasks = allDisplayTasks.filter(t => t.date===selDate && t.type!=="appointment");
   const HOURS    = Array.from({length:12}, (_,i) => i+7);
   const priC     = {high:"var(--acc)", med:"var(--amber)", low:"var(--t3)"};
   const apptAt   = h => dayAppts.filter(a => parseInt(a.time.split(":")[0])===h);
@@ -3265,6 +3303,7 @@ function TasksTab({ projId="", initialTasks=[], globalStaff=[], companyId="", ph
     if (!f.title) return;
     const newTask = {
       id: uid(),
+      projId: projId || null,
       title: f.title,
       assignedUserIds: f.assignedUserIds,
       // Legacy single-string assigned for backwards compat
@@ -4405,13 +4444,13 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
 
 /* Simple inline invoice preview (portal side, doesn't require finance file import) */
 function InvoicePreviewPortalModal({ inv, onClose }) {
-  if (!inv) return null;
-  const isComplex = inv.invoiceMode === "complex";
-  const hasRooms  = inv.hasRooms && isComplex;
+  // useMemo MUST come before any conditional return to satisfy Rules of Hooks
+  const isComplex = inv?.invoiceMode === "complex";
+  const hasRooms  = !!(inv?.hasRooms && isComplex);
 
   // Group by room if applicable
   const roomGroups = useMemo(() => {
-    if (!hasRooms) return null;
+    if (!hasRooms || !inv) return null;
     const groups = {};
     (inv.lineItems||[]).forEach(li => {
       const room = li.room || "General";
@@ -4420,6 +4459,8 @@ function InvoicePreviewPortalModal({ inv, onClose }) {
     });
     return groups;
   }, [inv, hasRooms]);
+
+  if (!inv) return null;
 
   return (
     <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()} style={{alignItems:"flex-start",paddingTop:32,overflowY:"auto"}}>
@@ -7089,7 +7130,7 @@ const PROJ_TABS = [
 
 
 
-function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists, companyId="", phoneSettings={}, isVendor=false, currentMemberId="" }) {
+function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists, companyId="", phoneSettings={}, isVendor=false, currentMemberId="", onNavigate }) {
   const [tab,setTab]           = useState(initialTab||"overview");
   const [notifyModal,setNotify]= useState(false);
   const [commModal,setComm]    = useState(false);
@@ -10150,6 +10191,7 @@ export default function JobDoxPortal() {
             globalStaff={globalStaff}
             currentMemberId={currentMember?.id||""}
             companyId={companyId}
+            projects={projects}
           />
         ) : page==="finance" ? (
           <FinancialDashboard
@@ -10180,6 +10222,7 @@ export default function JobDoxPortal() {
             phoneSettings={phoneSettings}
             isVendor={caps.isVendorPerm}
             currentMemberId={currentMember?.id || ""}
+            onNavigate={handleNavigate}
           />
         ) : (
           <PortfolioPage
