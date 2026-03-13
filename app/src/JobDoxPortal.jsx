@@ -459,6 +459,29 @@ const DEFAULT_BILLING = {
 function loadBilling()     { try { return { ...DEFAULT_BILLING, ...JSON.parse(localStorage.getItem(LS_BILLING)) }; } catch { return DEFAULT_BILLING; } }
 function saveBilling(b)    { try { localStorage.setItem(LS_BILLING, JSON.stringify(b)); } catch {} }
 
+/* ── Budget Category Templates ── */
+const LS_BUDGET_TEMPLATES = "jd_budget_templates";
+const DEFAULT_BUDGET_TEMPLATES = [
+  { id:"bc1",  name:"General Demo / Tear-out", color:"#f59e0b", workTypes:[], active:true },
+  { id:"bc2",  name:"Structural / Framing",    color:"#8b5cf6", workTypes:[], active:true },
+  { id:"bc3",  name:"Drywall",                 color:"#06b6d4", workTypes:[], active:true },
+  { id:"bc4",  name:"Painting",                color:"#84cc16", workTypes:[], active:true },
+  { id:"bc5",  name:"Flooring",                color:"#f97316", workTypes:[], active:true },
+  { id:"bc6",  name:"Electrical",              color:"#eab308", workTypes:[], active:true },
+  { id:"bc7",  name:"Plumbing",                color:"#3b82f6", workTypes:[], active:true },
+  { id:"bc8",  name:"HVAC / Mechanical",       color:"#10b981", workTypes:[], active:true },
+  { id:"bc9",  name:"Equipment",               color:"#ec4899", workTypes:[], active:true },
+  { id:"bc10", name:"Contents",                color:"#6366f1", workTypes:[], active:true },
+  { id:"bc11", name:"Labor",                   color:"#14b8a6", workTypes:[], active:true },
+  { id:"bc12", name:"General Cleanup",         color:"#a3a3a3", workTypes:[], active:true },
+  { id:"bc13", name:"Roofing",                 color:"#dc2626", workTypes:[], active:true },
+  { id:"bc14", name:"Windows / Doors",         color:"#7c3aed", workTypes:[], active:true },
+  { id:"bc15", name:"Insulation",              color:"#059669", workTypes:[], active:true },
+  { id:"bc16", name:"Mitigation",              color:"#0891b2", workTypes:[], active:true },
+];
+function loadBudgetTemplates() { try { return JSON.parse(localStorage.getItem(LS_BUDGET_TEMPLATES)) || DEFAULT_BUDGET_TEMPLATES; } catch { return DEFAULT_BUDGET_TEMPLATES; } }
+function saveBudgetTemplates(t){ try { localStorage.setItem(LS_BUDGET_TEMPLATES, JSON.stringify(t)); } catch {} }
+
 /* ── Invoice storage ── */
 const LS_INVOICES = "jd_invoices";
 function loadAllInvoices() { try { return JSON.parse(localStorage.getItem(LS_INVOICES)) || []; } catch { return []; } }
@@ -6443,9 +6466,34 @@ function GeneralSettingsTab() {
     setBillingCfg(b=>({...b, pinnedItems:{...(b.pinnedItems||{}),[wt]:(b.pinnedItems?.[wt]||[]).filter(pi=>pi.id!==id)}}));
   };
 
+  /* ── BUDGET CATEGORY TEMPLATES ── */
+  const [budgetTpls,  setBudgetTpls]  = useState(loadBudgetTemplates);
+  const [budgetSaved, setBudgetSaved] = useState(false);
+  const saveBudgetTpls = () => { saveBudgetTemplates(budgetTpls); setBudgetSaved(true); setTimeout(()=>setBudgetSaved(false),2000); };
+  const addBudgetCat = () => {
+    const n = { id:`bc-${Date.now()}`, name:"New Category", color:"#5ba3f5", workTypes:[], active:true };
+    setBudgetTpls(t=>[...t,n]);
+  };
+  const updBudgetCat = (id, k, v) => setBudgetTpls(t=>t.map(c=>c.id===id?{...c,[k]:v}:c));
+  const delBudgetCat = (id) => setBudgetTpls(t=>t.filter(c=>c.id!==id));
+  const toggleBudgetCatWT = (id, wt) => setBudgetTpls(t=>t.map(c=>{
+    if (c.id!==id) return c;
+    const has = (c.workTypes||[]).includes(wt);
+    return {...c, workTypes: has ? c.workTypes.filter(w=>w!==wt) : [...(c.workTypes||[]),wt]};
+  }));
+  const moveBudgetCat = (id, dir) => setBudgetTpls(t=>{
+    const i = t.findIndex(c=>c.id===id);
+    if (i<0) return t;
+    const j = i+dir;
+    if (j<0||j>=t.length) return t;
+    const n=[...t]; [n[i],n[j]]=[n[j],n[i]]; return n;
+  });
+  const resetBudgetDefaults = () => { if(window.confirm("Reset to default categories? Custom changes will be lost.")) setBudgetTpls(DEFAULT_BUDGET_TEMPLATES); };
+
   const SECTIONS = [
     {id:"company",    label:"Company Info"},
     {id:"billing",    label:"Billing"},
+    {id:"budget",     label:"Budget Categories"},
     {id:"worktypes",  label:"Work Types"},
     {id:"statuses",   label:"Statuses"},
     {id:"projtypes",  label:"Project Types"},
@@ -6595,6 +6643,102 @@ function GeneralSettingsTab() {
           <button className="btn btn-primary" onClick={saveBillingSettings}>
             {billingSaved?"✓ Saved":"Save Billing Settings"}
           </button>
+        </div>
+      )}
+
+      {/* ── BUDGET CATEGORIES ── */}
+      {sec==="budget" && (
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <div className="card" style={{padding:18}}>
+            <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:12}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>Budget Category Templates</div>
+                <div style={{fontSize:11,color:"var(--t3)",marginTop:3,lineHeight:1.65,maxWidth:560}}>
+                  Define reusable budget categories for tracking project costs. In the Finance tab, you can
+                  apply these to a project or import them directly from an Xactimate PDF. Set which Work Types
+                  each category applies to (leave blank = applies to all projects).
+                </div>
+              </div>
+              <button className="btn btn-primary btn-xs" onClick={addBudgetCat}>{Ic.plus} Add Category</button>
+            </div>
+
+            {/* Column headers */}
+            <div style={{display:"grid",gridTemplateColumns:"18px 1fr 160px 56px 36px 36px",gap:8,
+              padding:"4px 10px",marginBottom:4}}>
+              {["","Category Name","Applies to Work Types","Active","",""].map((h,i)=>(
+                <div key={i} style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)"}}>{h}</div>
+              ))}
+            </div>
+
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              {budgetTpls.map((cat, idx) => (
+                <div key={cat.id} style={{display:"grid",gridTemplateColumns:"18px 1fr 160px 56px 36px 36px",
+                  gap:8,padding:"8px 10px",background:"var(--s2)",borderRadius:8,border:"1px solid var(--br)",alignItems:"center"}}>
+                  {/* Color picker */}
+                  <input type="color" value={cat.color} onChange={e=>updBudgetCat(cat.id,"color",e.target.value)}
+                    style={{width:18,height:18,border:"none",borderRadius:4,cursor:"pointer",padding:0,background:"none"}}/>
+                  {/* Name */}
+                  <input className="inp" value={cat.name} style={{fontSize:12,height:28}}
+                    onChange={e=>updBudgetCat(cat.id,"name",e.target.value)}/>
+                  {/* Work type multi-select pills */}
+                  <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                    {workTypes.length===0 && <span style={{fontSize:9,color:"var(--t3)"}}>All projects</span>}
+                    {workTypes.map(wt=>{
+                      const on = (cat.workTypes||[]).includes(wt.name);
+                      return (
+                        <button key={wt.id} onClick={()=>toggleBudgetCatWT(cat.id,wt.name)}
+                          style={{padding:"1px 6px",fontSize:9,borderRadius:4,cursor:"pointer",
+                            background: on?`${wt.color}25`:"var(--s3)",
+                            border: on?`1.5px solid ${wt.color}`:"1px solid var(--br)",
+                            color: on?wt.color:"var(--t3)",fontWeight:on?700:400,transition:"all .1s"}}>
+                          {wt.name}
+                        </button>
+                      );
+                    })}
+                    {(cat.workTypes||[]).length===0 && workTypes.length>0 && (
+                      <span style={{fontSize:9,color:"var(--t3)",alignSelf:"center"}}>All</span>
+                    )}
+                  </div>
+                  {/* Active toggle */}
+                  <div style={{display:"flex",justifyContent:"center"}}>
+                    <input type="checkbox" checked={!!cat.active} onChange={e=>updBudgetCat(cat.id,"active",e.target.checked)}
+                      style={{width:14,height:14,accentColor:"var(--blue)",cursor:"pointer"}}/>
+                  </div>
+                  {/* Move up/down */}
+                  <div style={{display:"flex",flexDirection:"column",gap:1}}>
+                    <button className="btn btn-ghost btn-xs" disabled={idx===0}
+                      style={{padding:"1px 5px",fontSize:9,lineHeight:1}}
+                      onClick={()=>moveBudgetCat(cat.id,-1)}>▲</button>
+                    <button className="btn btn-ghost btn-xs" disabled={idx===budgetTpls.length-1}
+                      style={{padding:"1px 5px",fontSize:9,lineHeight:1}}
+                      onClick={()=>moveBudgetCat(cat.id,1)}>▼</button>
+                  </div>
+                  {/* Delete */}
+                  <button className="btn btn-ghost btn-xs" style={{color:"var(--acc)"}}
+                    onClick={()=>delBudgetCat(cat.id)}>{Ic.close}</button>
+                </div>
+              ))}
+            </div>
+
+            {budgetTpls.length===0 && (
+              <div style={{padding:"20px",textAlign:"center",color:"var(--t3)",fontSize:12}}>
+                No categories defined. Click "Add Category" or{" "}
+                <button onClick={resetBudgetDefaults}
+                  style={{background:"none",border:"none",color:"var(--blue)",cursor:"pointer",fontSize:12,textDecoration:"underline"}}>
+                  load defaults
+                </button>.
+              </div>
+            )}
+          </div>
+
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <button className="btn btn-ghost btn-sm" style={{fontSize:11,color:"var(--t3)"}} onClick={resetBudgetDefaults}>
+              ↺ Reset to Defaults
+            </button>
+            <button className="btn btn-primary" onClick={saveBudgetTpls}>
+              {budgetSaved?"✓ Saved":"Save Budget Categories"}
+            </button>
+          </div>
         </div>
       )}
 
