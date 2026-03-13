@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { DocumentsTab, LogoUploadSection, DocumentTemplateCenter } from "./JobDoxDocuments.jsx";
 import { FinancialTab, FinancialHealthBadge, FinancialDashboard } from "./JobDoxFinance.jsx";
+import { ReportsDashboard } from "./JobDoxReports.jsx";
 import ContentsDox from "./ContentsDox.jsx";
 import DryDoxModule from "./DryDox.jsx";
+import AdjusterResponseModal from "./AdjusterResponseBot.jsx";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
          doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where } from "firebase/firestore";
@@ -448,7 +450,8 @@ const LS_OFFICES_KEY = "jd_company_offices";
 function loadOfficesLS()  { try { return JSON.parse(localStorage.getItem(LS_OFFICES_KEY)) || []; } catch { return []; } }
 function saveOfficesToLS(offices) { try { localStorage.setItem(LS_OFFICES_KEY, JSON.stringify(offices)); } catch {} }
 
-const DEFAULT_CO_INFO = { name:"", address:"", city:"", state:"", zip:"", phone:"", email:"", website:"", logo:"" };
+const DEFAULT_CO_INFO = { name:"", address:"", city:"", state:"", zip:"", phone:"", email:"", website:"", logo:"", industry:"Restoration" };
+const INDUSTRY_OPTIONS = ["Restoration","Roofing","General Contractor","Plumbing","HVAC","Electrical","Landscaping","Construction","Other"];
 function loadCoInfo() {
   try { return JSON.parse(localStorage.getItem(LS_CO_KEY)) || DEFAULT_CO_INFO; } catch { return DEFAULT_CO_INFO; }
 }
@@ -578,9 +581,10 @@ const COI_STATUS = {
 
 function getJobEmail(proj, coInfo) {
   if (proj?.jobEmail) return proj.jobEmail;
-  // Auto-generate from proj id + company domain
+  // Auto-generate from proj id + dedicated cortex subdomain
   const slug = (proj?.name || proj?.id || "job").toLowerCase().replace(/[^a-z0-9]/g,"-").slice(0,20);
-  const domain = coInfo?.email ? coInfo.email.split("@")[1] : "jobdox.com";
+  const companySlug = (coInfo?.name || "jobdox").toLowerCase().replace(/[^a-z0-9]/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"");
+  const domain = `cortex.${companySlug}.com`;
   return `job-${slug}@${domain}`;
 }
 
@@ -5384,9 +5388,10 @@ function InvoicePreviewPortalModal({ inv, onClose }) {
   );
 }
 
-function MessagesTab({ proj, contacts=[] }) {
+function MessagesTab({ proj, contacts=[], dailyNotes=[], currentUser=null, companyId="" }) {
   const [msgs, setMsgs] = useState(() => loadProjMsgs(proj?.id||""));
   const [refresh, setRefresh] = useState(0);
+  const [aiMsg, setAiMsg] = useState(null);   // message selected for AI response
 
   useEffect(()=>{ setMsgs(loadProjMsgs(proj?.id||"")); }, [proj?.id, refresh]);
 
@@ -5436,10 +5441,34 @@ function MessagesTab({ proj, contacts=[] }) {
               <div style={{fontSize:10,color:"var(--t2)",lineHeight:1.6,whiteSpace:"pre-wrap",borderTop:"1px solid var(--br)",paddingTop:6}}>
                 {m.body}
               </div>
+              {/* Formulate Response button — for inbound messages */}
+              {m.direction!=="outbound" && (
+                <button className="btn btn-ghost btn-xs" onClick={()=>setAiMsg(m)}
+                  style={{marginTop:8,gap:4,fontSize:10,color:"var(--blue)",border:"1px solid color-mix(in srgb, var(--blue) 25%, transparent)"}}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M11.5 2C6.81 2 3 5.81 3 10.5S6.81 19 11.5 19h.5v3c4.86-2.34 8-7 8-11.5C20 5.81 16.19 2 11.5 2zm1 14.5h-2v-2h2v2zm0-4h-2c0-3.25 3-3 3-5 0-1.1-.9-2-2-2s-2 .9-2 2h-2c0-2.21 1.79-4 4-4s4 1.79 4 4c0 2.5-3 2.75-3 5z"/></svg>
+                  Formulate Response
+                </button>
+              )}
             </div>
           </div>
         </div>
       ))}
+      {aiMsg && (
+        <AdjusterResponseModal
+          message={aiMsg}
+          proj={proj}
+          dailyNotes={dailyNotes}
+          companyInfo={co}
+          currentUser={currentUser}
+          threadMessages={msgs}
+          companyId={companyId}
+          onClose={()=>setAiMsg(null)}
+          onInsertDraft={(text)=>{
+            // Copy to clipboard as fallback since there's no active composer
+            navigator.clipboard.writeText(text).catch(()=>{});
+          }}
+        />
+      )}
     </div></div>
   );
 }
@@ -7925,7 +7954,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       {tab==="finance"        && <FinancialTab proj={proj} companyId={companyId} laborCost={laborCost} invoices={loadProjInvoices(proj.id)} onInvoiceVoid={id=>{const all=loadAllInvoices().map(i=>i.id===id?{...i,status:"void"}:i);saveAllInvoices(all);}}/>}
       {tab==="shifts"         && <ShiftsTab projId={proj.id} externalShifts={myShifts} canViewRates={canViewRates}/>}
       {tab==="scope"          && <ScopeTab proj={proj} scopeItems={scopeItems} setScopeItems={setScopeItems} contacts={contacts} onDocGenerated={()=>{ setDocRefreshKey(k=>k+1); }}/>}
-      {tab==="messages"       && <MessagesTab proj={proj} contacts={contacts}/>}
+      {tab==="messages"       && <MessagesTab proj={proj} contacts={contacts} dailyNotes={dailyNotes} currentUser={currentUser} companyId={companyId}/>}
       {tab==="calls"          && <CallLogTab proj={proj} companyId={companyId} globalStaff={globalStaff} currentUser={currentUser} phoneSettings={phoneSettings}/>}
       {tab==="project-report" && <ProjectReportTab proj={proj} dailyNotes={dailyNotes} mediaFolders={mediaFolders} mediaUploads={mediaUploads} docs={projDocs}/>}
     </>
@@ -8028,6 +8057,193 @@ function ColorPicker({ value, onChange }) {
       <input type="color" value={value} onChange={e=>onChange(e.target.value)}
         style={{width:18,height:18,border:"none",background:"none",cursor:"pointer",padding:0}}
         title="Custom color"/>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   CORTEX COINS TAB — AI Usage Tracker
+   Shows balance, usage ring, cycle info, and recent usage log.
+══════════════════════════════════════════════════════════════════ */
+function CortexCoinsTab({ companyId }) {
+  const [data, setData]       = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState("");
+
+  const fetchStatus = useCallback(async () => {
+    if (!companyId) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/.netlify/functions/cortex-coins", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId, action: "status" }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load");
+      setData(json);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId]);
+
+  useEffect(() => { fetchStatus(); }, [fetchStatus]);
+
+  if (loading) {
+    return (
+      <div className="card" style={{padding:40,textAlign:"center"}}>
+        <div style={{width:20,height:20,border:"2px solid var(--br)",borderTopColor:"var(--acc)",
+          borderRadius:"50%",animation:"jd-spin .7s linear infinite",margin:"0 auto 12px"}}/>
+        <div style={{fontSize:12,color:"var(--t3)"}}>Loading Cortex Coins...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="card" style={{padding:28,textAlign:"center"}}>
+        <div style={{fontSize:13,fontWeight:600,color:"var(--acc)",marginBottom:6}}>Error loading Cortex Coins</div>
+        <div style={{fontSize:11,color:"var(--t3)",marginBottom:12}}>{error}</div>
+        <button className="btn btn-ghost btn-sm" onClick={fetchStatus}>Retry</button>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const pct = data.usagePercent || 0;
+  const remaining = data.remaining || 0;
+  const total = data.totalAvailable || 0;
+  const used = data.used || 0;
+  const rollover = data.rolloverCoins || 0;
+  const resetDate = data.cycleResetDate || "—";
+  const cycleStart = data.cycleStart ? new Date(data.cycleStart).toLocaleDateString() : "—";
+
+  // Ring chart SVG values
+  const radius = 58;
+  const circumference = 2 * Math.PI * radius;
+  const usedStroke = (pct / 100) * circumference;
+  const ringColor = pct >= 90 ? "var(--acc)" : pct >= 80 ? "var(--amber)" : "var(--green)";
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      {/* ── Alert banner if ≥ 80% ── */}
+      {pct >= 80 && (
+        <div style={{
+          background: pct >= 100 ? "rgba(228,53,49,.12)" : "rgba(232,156,24,.12)",
+          border: `1px solid ${pct >= 100 ? "rgba(228,53,49,.3)" : "rgba(232,156,24,.3)"}`,
+          borderRadius: 10, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12,
+        }}>
+          <div style={{fontSize:20,flexShrink:0}}>{pct >= 100 ? "\u26A0" : "\u26A0"}</div>
+          <div>
+            <div style={{fontSize:13,fontWeight:700,color: pct >= 100 ? "var(--acc)" : "var(--amber)"}}>
+              {pct >= 100
+                ? "Cortex Coins Exhausted"
+                : `You've used ${pct}% of your Cortex Coins for this billing cycle.`}
+            </div>
+            <div style={{fontSize:11,color:"var(--t2)",marginTop:2}}>
+              Cycle resets on <strong style={{color:"var(--t1)"}}>{resetDate}</strong>.
+              {pct >= 100 && " AI features are paused until your next cycle begins."}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Main balance card ── */}
+      <div className="card" style={{padding:0,overflow:"hidden"}}>
+        <div style={{padding:"22px 24px",display:"flex",alignItems:"center",gap:28,flexWrap:"wrap"}}>
+          {/* Usage ring */}
+          <div style={{position:"relative",width:140,height:140,flexShrink:0}}>
+            <svg width="140" height="140" viewBox="0 0 140 140" style={{transform:"rotate(-90deg)"}}>
+              <circle cx="70" cy="70" r={radius} fill="none" stroke="var(--br)" strokeWidth="10"/>
+              <circle cx="70" cy="70" r={radius} fill="none" stroke={ringColor} strokeWidth="10"
+                strokeDasharray={circumference} strokeDashoffset={circumference - usedStroke}
+                strokeLinecap="round" style={{transition:"stroke-dashoffset .6s ease, stroke .3s"}}/>
+            </svg>
+            <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",
+              alignItems:"center",justifyContent:"center"}}>
+              <div style={{fontSize:28,fontWeight:800,color:"var(--t1)",lineHeight:1}}>{remaining}</div>
+              <div style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",letterSpacing:".06em",
+                textTransform:"uppercase",marginTop:3}}>Coins Left</div>
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div style={{flex:1,minWidth:200}}>
+            <div style={{fontSize:16,fontWeight:800,color:"var(--t1)",marginBottom:2}}>Cortex Coins</div>
+            <div style={{fontSize:11,color:"var(--t3)",marginBottom:16}}>
+              AI usage credits for your workspace
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              {[
+                ["Used This Cycle",  used,      "var(--t1)"],
+                ["Total Available",  total,     "var(--blue)"],
+                ["Base Allowance",   data.baseAllowance || 300, "var(--teal)"],
+                ["Rollover Bonus",   rollover,  "var(--purple)"],
+              ].map(([label, val, color]) => (
+                <div key={label} style={{background:"var(--s2)",borderRadius:8,padding:"10px 12px",
+                  border:"1px solid var(--br)"}}>
+                  <div style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",letterSpacing:".05em",
+                    textTransform:"uppercase",marginBottom:3}}>{label}</div>
+                  <div style={{fontSize:20,fontWeight:800,color}}>{val}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Cycle info footer */}
+        <div style={{padding:"12px 24px",background:"var(--s2)",borderTop:"1px solid var(--br)",
+          display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+          <div style={{fontSize:11,color:"var(--t3)"}}>
+            Cycle started <strong style={{color:"var(--t2)"}}>{cycleStart}</strong>
+          </div>
+          <div style={{fontSize:11,color:"var(--t3)"}}>
+            Resets on <strong style={{color:"var(--t1)"}}>{resetDate}</strong>
+          </div>
+          <button className="btn btn-ghost btn-xs" onClick={fetchStatus} style={{gap:4,fontSize:10}}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* ── How it works card ── */}
+      <div className="card" style={{padding:20}}>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",marginBottom:8}}>How Cortex Coins Work</div>
+        <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.9}}>
+          <strong style={{color:"var(--t1)"}}>1.</strong> Each workspace receives <strong style={{color:"var(--blue)"}}>300 Cortex Coins</strong> per 28-day billing cycle.<br/>
+          <strong style={{color:"var(--t1)"}}>2.</strong> Every AI-powered action (Adjuster Response Bot, CortexAI Workflows, Financial Analysis) costs <strong style={{color:"var(--t1)"}}>1 coin</strong>.<br/>
+          <strong style={{color:"var(--t1)"}}>3.</strong> Unused coins <strong style={{color:"var(--purple)"}}>roll over</strong> to your next cycle automatically.<br/>
+          <strong style={{color:"var(--t1)"}}>4.</strong> You'll be notified when you reach <strong style={{color:"var(--amber)"}}>80%</strong> usage so you can plan accordingly.<br/>
+          <strong style={{color:"var(--t1)"}}>5.</strong> When coins are exhausted, AI features pause until the next cycle begins.
+        </div>
+      </div>
+
+      {/* ── Usage breakdown card ── */}
+      <div className="card" style={{padding:20}}>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",marginBottom:4}}>Usage Breakdown</div>
+        <div style={{fontSize:11,color:"var(--t3)",marginBottom:14}}>Coins consumed by feature this cycle</div>
+        <UsageBar label="Adjuster Response Bot" feature="adjuster-response" total={total} used={used} color="var(--blue)" pct={pct}/>
+        <UsageBar label="CortexAI Workflows" feature="cortex-generate" total={total} used={used} color="var(--purple)" pct={pct}/>
+        <UsageBar label="Financial Analysis" feature="finance-analyze" total={total} used={used} color="var(--teal)" pct={pct}/>
+        <div style={{marginTop:12,fontSize:10,color:"var(--t3)",fontStyle:"italic"}}>
+          Detailed per-feature breakdown is available in your usage logs.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UsageBar({ label, color }) {
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+      <div style={{width:8,height:8,borderRadius:"50%",background:color,flexShrink:0}}/>
+      <div style={{flex:1,fontSize:12,color:"var(--t2)"}}>{label}</div>
+      <div style={{width:6,height:6,borderRadius:"50%",background:"var(--green)",flexShrink:0}} title="Active"/>
     </div>
   );
 }
@@ -8210,6 +8426,14 @@ function GeneralSettingsTab() {
                   style={{width:"100%",fontSize:13}}/>
               </div>
             ))}
+            <div style={{gridColumn:"1/-1"}}>
+              <div style={{fontSize:11,color:"var(--t3)",marginBottom:3}}>Industry</div>
+              <select className="sel" value={coInfo.industry||"Restoration"} onChange={e=>setCoInfo(c=>({...c,industry:e.target.value}))}
+                style={{width:"100%",fontSize:13,height:38}}>
+                {INDUSTRY_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}
+              </select>
+              <div style={{fontSize:9,color:"var(--t3)",marginTop:3}}>Used by the AI Response Bot to tailor industry-specific rebuttals and best practices.</div>
+            </div>
           </div>
           <LogoUploadSection coInfo={coInfo} setCoInfo={setCoInfo} />
           <button className="btn btn-p btn-sm" style={{marginTop:16}} onClick={saveCompany}>
@@ -8584,6 +8808,7 @@ function CallLogTab({ proj, companyId, globalStaff=[], currentUser, phoneSetting
   const [calling,  setCalling]  = useState(false);
   const [callErr,  setCallErr]  = useState("");
   const [playing,  setPlaying]  = useState(null);   // recordingUrl currently playing
+  const [expandedTranscript, setExpandedTranscript] = useState(null); // callId with transcript open
   const audioRef   = useRef(null);
 
   // ── Stream calls for this project ──
@@ -8691,8 +8916,14 @@ function CallLogTab({ proj, companyId, globalStaff=[], currentUser, phoneSetting
         </div>
       ) : (
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          {calls.map(call => (
-            <div key={call.id} className="card" style={{padding:"12px 14px",display:"flex",alignItems:"center",gap:12}}>
+          {calls.map(call => {
+            const hasTranscript = !!call.transcript;
+            const isExpanded = expandedTranscript === call.id;
+            const ext = call.transcriptExtracted || {};
+            const kws = ext.detectedKeywords || [];
+            return (
+            <div key={call.id} className="card" style={{padding:0,overflow:"hidden"}}>
+              <div style={{padding:"12px 14px",display:"flex",alignItems:"center",gap:12}}>
               {/* Direction icon */}
               <div style={{
                 width:34,height:34,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",
@@ -8717,28 +8948,142 @@ function CallLogTab({ proj, companyId, globalStaff=[], currentUser, phoneSetting
                   {call.type === "inbound" && call.callGroupName && (
                     <span style={{fontSize:10,color:"var(--t3)"}}>→ {call.callGroupName}</span>
                   )}
+                  {hasTranscript && (
+                    <span style={{fontSize:9,fontWeight:600,fontFamily:"var(--mono)",padding:"2px 6px",borderRadius:4,
+                      background:"rgba(34,211,238,.1)",color:"var(--teal)"}}>TRANSCRIBED</span>
+                  )}
+                  {call.autoCreatedProject && (
+                    <span style={{fontSize:9,fontWeight:600,fontFamily:"var(--mono)",padding:"2px 6px",borderRadius:4,
+                      background:"rgba(26,217,138,.1)",color:"var(--green)"}}>AUTO-PROJECT</span>
+                  )}
+                  {call.autoLinkedToExisting && (
+                    <span style={{fontSize:9,fontWeight:600,fontFamily:"var(--mono)",padding:"2px 6px",borderRadius:4,
+                      background:"rgba(232,156,24,.1)",color:"var(--amber)"}}>LINKED</span>
+                  )}
                 </div>
                 <div style={{fontSize:11,color:"var(--t3)",marginTop:2,display:"flex",gap:10,flexWrap:"wrap"}}>
                   {call.staffName && <span>{call.staffName}</span>}
                   <span>{fmtTs(call.createdAt)}</span>
                   {call.duration > 0 && <span>{fmtDur(call.duration)}</span>}
                 </div>
+                {hasTranscript && call.transcriptSummary && (
+                  <div style={{fontSize:11,color:"var(--t2)",marginTop:4,fontStyle:"italic",
+                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:isExpanded?"normal":"nowrap"}}>
+                    {call.transcriptSummary}
+                  </div>
+                )}
               </div>
 
-              {/* Recording playback */}
-              {call.recordingUrl ? (
-                <button className="btn btn-ghost btn-xs" onClick={() => togglePlay(call.recordingUrl)}
-                  style={{gap:5,fontSize:11,flexShrink:0}}>
-                  {playing === call.recordingUrl ? Ic.pause : Ic.play}
-                  {playing === call.recordingUrl ? "Pause" : "Play"}
-                </button>
-              ) : (
-                call.status === "completed" && (
-                  <span style={{fontSize:10,color:"var(--t3)",fontStyle:"italic"}}>Processing…</span>
-                )
+              {/* Action buttons */}
+              <div style={{display:"flex",gap:6,flexShrink:0,alignItems:"center"}}>
+                {hasTranscript && (
+                  <button className="btn btn-ghost btn-xs" onClick={() => setExpandedTranscript(isExpanded ? null : call.id)}
+                    style={{gap:4,fontSize:11}}>
+                    {isExpanded ? "Hide" : "Transcript"}
+                  </button>
+                )}
+                {call.recordingUrl ? (
+                  <button className="btn btn-ghost btn-xs" onClick={() => togglePlay(call.recordingUrl)}
+                    style={{gap:5,fontSize:11}}>
+                    {playing === call.recordingUrl ? Ic.pause : Ic.play}
+                    {playing === call.recordingUrl ? "Pause" : "Play"}
+                  </button>
+                ) : (
+                  call.status === "completed" && (
+                    <span style={{fontSize:10,color:"var(--t3)",fontStyle:"italic"}}>Processing…</span>
+                  )
+                )}
+              </div>
+              </div>
+
+              {/* Expanded transcript panel */}
+              {isExpanded && hasTranscript && (
+                <div style={{borderTop:"1px solid var(--br)",padding:"14px 16px",background:"var(--s2)"}}>
+                  {/* Extracted details */}
+                  {(ext.customerName || ext.customerPhone || ext.eventType || ext.projectAddress) && (
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:8,marginBottom:12}}>
+                      {ext.customerName && (
+                        <div style={{fontSize:11}}>
+                          <span style={{fontWeight:600,color:"var(--t2)"}}>Customer: </span>
+                          <span style={{color:"var(--t1)"}}>{ext.customerName}</span>
+                        </div>
+                      )}
+                      {ext.customerPhone && (
+                        <div style={{fontSize:11}}>
+                          <span style={{fontWeight:600,color:"var(--t2)"}}>Phone: </span>
+                          <span style={{color:"var(--t1)",fontFamily:"var(--mono)"}}>{ext.customerPhone}</span>
+                        </div>
+                      )}
+                      {ext.eventType && (
+                        <div style={{fontSize:11}}>
+                          <span style={{fontWeight:600,color:"var(--t2)"}}>Event Type: </span>
+                          <span style={{color:"var(--t1)"}}>{ext.eventType}</span>
+                        </div>
+                      )}
+                      {ext.projectAddress && (
+                        <div style={{fontSize:11}}>
+                          <span style={{fontWeight:600,color:"var(--t2)"}}>Address: </span>
+                          <span style={{color:"var(--t1)"}}>{ext.projectAddress}{ext.projectCity ? `, ${ext.projectCity}` : ""}{ext.projectState ? ` ${ext.projectState}` : ""}{ext.projectZip ? ` ${ext.projectZip}` : ""}</span>
+                        </div>
+                      )}
+                      {ext.insuranceCarrier && (
+                        <div style={{fontSize:11}}>
+                          <span style={{fontWeight:600,color:"var(--t2)"}}>Insurance: </span>
+                          <span style={{color:"var(--t1)"}}>{ext.insuranceCarrier}</span>
+                        </div>
+                      )}
+                      {ext.insuranceClaim && (
+                        <div style={{fontSize:11}}>
+                          <span style={{fontWeight:600,color:"var(--t2)"}}>Claim #: </span>
+                          <span style={{color:"var(--t1)",fontFamily:"var(--mono)"}}>{ext.insuranceClaim}</span>
+                        </div>
+                      )}
+                      {ext.confidence && (
+                        <div style={{fontSize:11}}>
+                          <span style={{fontWeight:600,color:"var(--t2)"}}>Confidence: </span>
+                          <span style={{
+                            fontWeight:600,fontSize:10,padding:"1px 6px",borderRadius:4,
+                            color: ext.confidence==="high"?"var(--green)":ext.confidence==="medium"?"var(--amber)":"var(--acc)",
+                            background: ext.confidence==="high"?"rgba(26,217,138,.1)":ext.confidence==="medium"?"rgba(232,156,24,.1)":"rgba(228,53,49,.1)",
+                          }}>{ext.confidence.toUpperCase()}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Detected keywords */}
+                  {kws.length > 0 && (
+                    <div style={{marginBottom:12}}>
+                      <div style={{fontSize:10,fontWeight:600,color:"var(--t2)",marginBottom:4}}>Detected Keywords</div>
+                      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                        {kws.map((kw, i) => (
+                          <span key={i} style={{fontSize:10,background:"rgba(228,53,49,.1)",border:"1px solid rgba(228,53,49,.2)",
+                            color:"var(--acc)",borderRadius:10,padding:"2px 8px",fontWeight:600}}>{kw}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Full transcript */}
+                  <div>
+                    <div style={{fontSize:10,fontWeight:600,color:"var(--t2)",marginBottom:4}}>Full Transcript</div>
+                    <div style={{fontSize:11,color:"var(--t1)",lineHeight:1.7,whiteSpace:"pre-wrap",
+                      maxHeight:300,overflow:"auto",padding:"8px 10px",background:"var(--s3)",
+                      borderRadius:6,border:"1px solid var(--br)"}}>
+                      {call.transcript}
+                    </div>
+                  </div>
+
+                  {ext.notes && (
+                    <div style={{marginTop:8,fontSize:11,color:"var(--t3)",fontStyle:"italic"}}>
+                      {ext.notes}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -8770,6 +9115,12 @@ function PhoneSettingsTab({ companyId, globalStaff=[], permLevel=1 }) {
   const [groupMembers,  setGroupMembers]  = useState([]);
   const [editGroupId,   setEditGroupId]   = useState(null);
 
+  // Call Transcriber settings
+  const [transcriberEnabled,     setTranscriberEnabled]     = useState(false);
+  const [transcriberAutoCreate,  setTranscriberAutoCreate]  = useState(false);
+  const [transcriberKeywords,    setTranscriberKeywords]    = useState([]);
+  const [newKeyword,             setNewKeyword]             = useState("");
+
   useEffect(() => {
     if (!companyId) return;
     getDoc(doc(db, `companies/${companyId}/settings/phone`)).then(snap => {
@@ -8779,6 +9130,10 @@ function PhoneSettingsTab({ companyId, globalStaff=[], permLevel=1 }) {
         setDisclosure(d.disclosureMessage || disclosure);
         setCallGroups(d.callGroups || []);
         setActiveGroupId(d.activeCallGroupId || null);
+        // Call Transcriber
+        setTranscriberEnabled(d.callTranscriberEnabled || false);
+        setTranscriberAutoCreate(d.transcriberAutoCreateProject || false);
+        setTranscriberKeywords(d.transcriberKeywords || []);
       }
       setSettings(snap.exists() ? snap.data() : {});
     }).catch(() => setSettings({}));
@@ -8788,7 +9143,12 @@ function PhoneSettingsTab({ companyId, globalStaff=[], permLevel=1 }) {
     if (!companyId) return;
     setSaving(true); setSaveErr(""); setSaved(false);
     try {
-      await savePhoneSettings({ companyId, twilioNumber: twilioNum, disclosureMessage: disclosure, callGroups, activeCallGroupId: activeGroupId });
+      await savePhoneSettings({
+        companyId, twilioNumber: twilioNum, disclosureMessage: disclosure, callGroups, activeCallGroupId: activeGroupId,
+        callTranscriberEnabled: transcriberEnabled,
+        transcriberAutoCreateProject: transcriberAutoCreate,
+        transcriberKeywords,
+      });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e) {
@@ -8960,6 +9320,114 @@ function PhoneSettingsTab({ companyId, globalStaff=[], permLevel=1 }) {
               <button className="btn btn-primary btn-xs" onClick={saveGroup} disabled={!groupName.trim()}>
                 {editGroupId ? "Save Changes" : "Add Group"}
               </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Call Transcriber ── */}
+      <div className="card" style={{padding:20}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>Call Transcriber</div>
+            <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>
+              AI-powered call transcription with keyword detection and automatic project creation.
+              Each transcription uses 1 Cortex Coin.
+            </div>
+          </div>
+          <button onClick={() => setTranscriberEnabled(e => !e)} style={{
+            width:44,height:24,borderRadius:12,border:"none",cursor:"pointer",position:"relative",
+            background: transcriberEnabled ? "var(--green)" : "var(--s3)",
+            transition:"background .2s",
+          }}>
+            <div style={{
+              width:18,height:18,borderRadius:"50%",background:"#fff",position:"absolute",top:3,
+              left: transcriberEnabled ? 23 : 3,
+              transition:"left .2s",boxShadow:"0 1px 3px rgba(0,0,0,.2)",
+            }}/>
+          </button>
+        </div>
+
+        {transcriberEnabled && (
+          <div style={{marginTop:16,display:"flex",flexDirection:"column",gap:14}}>
+            {/* Auto-create project toggle */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+              padding:"10px 14px",borderRadius:8,background:"var(--s2)",border:"1px solid var(--br)"}}>
+              <div>
+                <div style={{fontSize:12,fontWeight:600,color:"var(--t1)"}}>Auto-Create Projects</div>
+                <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>
+                  Automatically create a new project when a new customer calls about a service request.
+                  Checks existing records by customer name, phone number, and address to avoid duplicates.
+                </div>
+              </div>
+              <button onClick={() => setTranscriberAutoCreate(e => !e)} style={{
+                width:38,height:20,borderRadius:10,border:"none",cursor:"pointer",position:"relative",flexShrink:0,
+                background: transcriberAutoCreate ? "var(--green)" : "var(--s3)",
+                transition:"background .2s",marginLeft:12,
+              }}>
+                <div style={{
+                  width:14,height:14,borderRadius:"50%",background:"#fff",position:"absolute",top:3,
+                  left: transcriberAutoCreate ? 21 : 3,
+                  transition:"left .2s",boxShadow:"0 1px 3px rgba(0,0,0,.2)",
+                }}/>
+              </button>
+            </div>
+
+            {/* Keywords */}
+            <div>
+              <div style={{fontSize:12,fontWeight:600,color:"var(--t1)",marginBottom:6}}>Keywords to Listen For</div>
+              <div style={{fontSize:10,color:"var(--t3)",marginBottom:8}}>
+                Add keywords or phrases the transcriber should flag when detected in calls (e.g. "water damage", "emergency", "insurance claim").
+              </div>
+              <div style={{display:"flex",gap:6,marginBottom:8}}>
+                <input className="inp" placeholder="Add a keyword…" value={newKeyword}
+                  onChange={e => setNewKeyword(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter" && newKeyword.trim()) {
+                      setTranscriberKeywords(prev => [...prev, newKeyword.trim()]);
+                      setNewKeyword("");
+                    }
+                  }}
+                  style={{flex:1,fontSize:12}}/>
+                <button className="btn btn-ghost btn-xs" onClick={() => {
+                  if (newKeyword.trim()) {
+                    setTranscriberKeywords(prev => [...prev, newKeyword.trim()]);
+                    setNewKeyword("");
+                  }
+                }} style={{fontSize:11}}>Add</button>
+              </div>
+              {transcriberKeywords.length > 0 && (
+                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                  {transcriberKeywords.map((kw, i) => (
+                    <span key={i} style={{
+                      display:"inline-flex",alignItems:"center",gap:5,fontSize:11,
+                      background:"rgba(91,163,245,.1)",border:"1px solid rgba(91,163,245,.25)",
+                      color:"var(--blue)",borderRadius:12,padding:"3px 10px",
+                    }}>
+                      {kw}
+                      <span onClick={() => setTranscriberKeywords(prev => prev.filter((_,j) => j !== i))}
+                        style={{cursor:"pointer",opacity:.6,fontWeight:700,fontSize:13,lineHeight:1}}>&times;</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Info box */}
+            <div style={{background:"rgba(34,211,238,0.07)",border:"1px solid rgba(34,211,238,0.18)",
+              borderRadius:9,padding:"12px 16px",display:"flex",gap:12,alignItems:"flex-start"}}>
+              <div style={{color:"var(--teal)",flexShrink:0,marginTop:1}}>{Ic.mindflow}</div>
+              <div>
+                <div style={{fontSize:12,fontWeight:700,color:"var(--teal)",marginBottom:4}}>How Call Transcriber Works</div>
+                <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.8}}>
+                  1. When a call recording is ready, the AI transcribes the conversation and extracts customer details.<br/>
+                  2. It listens for your configured keywords and flags them in the transcript.<br/>
+                  3. If <strong style={{color:"var(--t1)"}}>Auto-Create Projects</strong> is on, it checks for existing customers by name, phone, and address.<br/>
+                  4. New customers with service requests get a project created automatically as a "New Lead".<br/>
+                  5. Existing customers are linked to their active project instead of creating duplicates.<br/>
+                  6. Each transcription costs <strong style={{color:"var(--t1)"}}>1 Cortex Coin</strong> from your billing cycle.
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -9833,7 +10301,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     </div>
   );
 
-  const TABS = [["staff","Staff"],["vendors","Vendors"],["offices","Offices"],["phone","Phone & Calls"],["cortex","CortexAI"],["general","General"],["roadmap","Roadmap"]];
+  const TABS = [["staff","Staff"],["vendors","Vendors"],["offices","Offices"],["phone","Phone & Calls"],["cortex","CortexAI"],["coins","Cortex Coins"],["general","General"],["roadmap","Roadmap"]];
 
   return (
     <div className="scroll" style={{flex:1,overflow:"auto"}}>
@@ -10459,6 +10927,10 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
           </div>
         )}
 
+        {tab==="coins" && (
+          <CortexCoinsTab companyId={companyId} />
+        )}
+
         {tab==="general" && (permLevel >= 8 ? (
           <GeneralSettingsTab/>
         ) : (
@@ -10499,6 +10971,8 @@ export default function JobDoxPortal() {
   const [customStatuses,   setCustomStatuses]  = useState(loadCST);
   const [customProjectTypes,setCustomProjectTypes] = useState(loadCPT);
   const [phoneSettings,     setPhoneSettings]      = useState({});  // loaded from Firestore on companyId resolve
+  const [cortexAlert,        setCortexAlert]        = useState(null);  // Cortex Coins usage alert
+  const [cortexAlertDismissed, setCortexAlertDismissed] = useState(false);
   const attrDefs = DEFAULT_ATTR_DEFS;
 
   // Re-sync if another tab updates localStorage config
@@ -10634,6 +11108,18 @@ export default function JobDoxPortal() {
       // ── Load phone settings (one-time, not a stream — changes rarely) ──
       getDoc(doc(db, `companies/${cid}/settings/phone`)).then(snap => {
         if (snap.exists()) setPhoneSettings(snap.data());
+      }).catch(() => {});
+
+      // ── Load Cortex Coins status for usage alert ──
+      fetch("/.netlify/functions/cortex-coins", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: cid, action: "status" }),
+      }).then(r => r.json()).then(coins => {
+        if (coins.usagePercent >= 80) {
+          setCortexAlert(coins);
+          setCortexAlertDismissed(false);
+        }
       }).catch(() => {});
 
       // ── Stream pending invites (admin only, but harmless to load) ──
@@ -10787,7 +11273,7 @@ export default function JobDoxPortal() {
         </button>
         <button className="rail-btn" data-tip="All Tasks">{Ic.tasks}</button>
         <button className="rail-btn" data-tip="Messages">{Ic.msg}</button>
-        <button className="rail-btn" data-tip="Reports">{Ic.chart}</button>
+        <button className={`rail-btn${page==="reports"?" active":""}`} data-tip="Reports" onClick={()=>navTo("reports")}>{Ic.chart}</button>
         <button className={`rail-btn${page==="finance"?" active":""}`} data-tip="Financial Dashboard"
           onClick={()=>navTo("finance")}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>
@@ -10859,6 +11345,31 @@ export default function JobDoxPortal() {
       </nav>
 
       <div className="jdp-main">
+        {/* ── Cortex Coins Usage Alert Banner ── */}
+        {cortexAlert && !cortexAlertDismissed && cortexAlert.usagePercent >= 80 && (
+          <div style={{
+            background: cortexAlert.exhausted ? "rgba(228,53,49,.10)" : "rgba(232,156,24,.10)",
+            borderBottom: `1px solid ${cortexAlert.exhausted ? "rgba(228,53,49,.25)" : "rgba(232,156,24,.25)"}`,
+            padding: "8px 18px",
+            display: "flex", alignItems: "center", gap: 10, flexShrink: 0,
+            fontSize: 12, color: cortexAlert.exhausted ? "var(--acc)" : "var(--amber)",
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{flexShrink:0}}>
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            </svg>
+            <span style={{flex:1}}>
+              {cortexAlert.exhausted
+                ? <>Your Cortex Coins are exhausted for this billing cycle. AI features are paused until cycle resets on <strong>{cortexAlert.cycleResetDate}</strong>.</>
+                : <>You've used <strong>{cortexAlert.usagePercent}%</strong> of your Cortex Coins for this billing cycle. Cycle resets on <strong>{cortexAlert.cycleResetDate}</strong>.</>
+              }
+            </span>
+            <button onClick={() => setCortexAlertDismissed(true)}
+              style={{background:"none",border:"none",color:"inherit",cursor:"pointer",fontSize:14,padding:"2px 4px",flexShrink:0,opacity:.7}}>
+              ✕
+            </button>
+          </div>
+        )}
+
         {page==="settings" ? (
           <>
             <div className="topbar">
@@ -10894,6 +11405,16 @@ export default function JobDoxPortal() {
             currentMemberId={currentMember?.id||""}
             companyId={companyId}
             projects={projects}
+          />
+        ) : page==="reports" ? (
+          <ReportsDashboard
+            projects={projects}
+            companyId={companyId}
+            onNavigate={handleNavigate}
+            globalStaff={globalStaff}
+            customWorkTypes={customWorkTypes}
+            customStatuses={customStatuses}
+            customProjectTypes={customProjectTypes}
           />
         ) : page==="finance" ? (
           <FinancialDashboard
