@@ -292,6 +292,41 @@ export const deleteStaffMember = (companyId, memberId) =>
   deleteDoc(doc(db, "companies", companyId, "staff", memberId));
 
 // ════════════════════════════════════════════════════════════════
+//  CORTEX COINS — AI Usage Tracking
+//  /companies/{companyId}/billing/cortexCoins
+//  Managed server-side by netlify/functions/cortex-coins.js
+//  These helpers call the Netlify function from the frontend.
+// ════════════════════════════════════════════════════════════════
+
+const NETLIFY_FN = "/.netlify/functions";
+
+/**
+ * Get current Cortex Coins status for a company.
+ * Returns { totalAvailable, used, remaining, usagePercent, cycleResetDate, alert80, exhausted, ... }
+ */
+export const getCortexCoinsStatus = async (companyId) => {
+  const res = await fetch(`${NETLIFY_FN}/cortex-coins`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ companyId, action: "status" }),
+  });
+  return res.json();
+};
+
+/**
+ * Check if a company can make an AI call (dry-run, no deduction).
+ * Returns { allowed, remaining, usagePercent, alert80, cycleResetDate, message? }
+ */
+export const checkCortexCoins = async (companyId) => {
+  const res = await fetch(`${NETLIFY_FN}/cortex-coins`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ companyId, action: "check" }),
+  });
+  return res.json();
+};
+
+// ════════════════════════════════════════════════════════════════
 //  AUTOMATIONS
 //  /companies/{companyId}/automations/{automationId}
 // ════════════════════════════════════════════════════════════════

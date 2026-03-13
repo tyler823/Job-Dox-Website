@@ -42,6 +42,7 @@ export default function AdjusterResponseModal({
   threadMessages = [],
   onClose,
   onInsertDraft,
+  companyId = "",
 }) {
   const [loading, setLoading]       = useState(false);
   const [response, setResponse]     = useState("");
@@ -51,6 +52,7 @@ export default function AdjusterResponseModal({
   const [copied, setCopied]         = useState(false);
   const [customInstr, setCustomInstr] = useState("");
   const [senderRole, setSenderRole] = useState("adjuster");
+  const [coinWarning, setCoinWarning] = useState("");
   const textRef = useRef(null);
 
   const senderName = message?.from || message?.contact || "Unknown";
@@ -88,11 +90,23 @@ export default function AdjusterResponseModal({
           })),
           userName:            currentUser?.name || currentUser?.email || "",
           customInstructions:  customInstr.trim() || undefined,
+          companyId:           companyId || "",
+          userId:              currentUser?.email || "",
         }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `Server error ${res.status}`);
+      if (!res.ok) {
+        if (data.error === "cortex_coins_exhausted") {
+          setError(data.message || "You've used all of your Cortex Coins for this billing cycle.");
+          return;
+        }
+        throw new Error(data.error || `Server error ${res.status}`);
+      }
+      // Check for Cortex Coins alert
+      if (data.cortexCoins?.alert80 && data.cortexCoins?.alertMessage) {
+        setCoinWarning(data.cortexCoins.alertMessage);
+      }
       setResponse(data.response || "");
       setEditText(data.response || "");
     } catch (err) {
@@ -229,6 +243,19 @@ export default function AdjusterResponseModal({
               <button className="btn btn-ghost btn-xs" onClick={generate} style={{ marginTop: 8, gap: 4 }}>
                 {BotIc.refresh} Try again
               </button>
+            </div>
+          )}
+
+          {coinWarning && !loading && (
+            <div style={{
+              padding: "10px 14px", borderRadius: 8, marginBottom: 10,
+              background: "rgba(232,156,24,.1)", border: "1px solid rgba(232,156,24,.25)",
+              fontSize: 11, color: "#e89c18", display: "flex", alignItems: "center", gap: 8,
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{flexShrink:0}}>
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+              </svg>
+              {coinWarning}
             </div>
           )}
 

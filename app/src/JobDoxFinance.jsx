@@ -1689,7 +1689,7 @@ function TransactionsPanel({ transactions, onAdd }) {
 /* ─────────────────────────────────────────────────────────────────────────────
    AI ANALYST PANEL
 ───────────────────────────────────────────────────────────────────────────── */
-function AIAnalystPanel({ proj, data, health }) {
+function AIAnalystPanel({ proj, data, health, companyId="" }) {
   const [analysis, setAnalysis] = useState("");
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState("");
@@ -1736,12 +1736,17 @@ Be direct and specific. Flag anything that needs immediate attention.`;
       const json = await fetch("/.netlify/functions/finance-analyze", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ prompt, mode:"job" })
+        body: JSON.stringify({ prompt, mode:"job", companyId })
       }).then(r=>r.json());
+      if (json.error === "cortex_coins_exhausted") {
+        setError(json.message || "You've used all of your Cortex Coins for this billing cycle.");
+        setLoading(false);
+        return;
+      }
       if (json.error) throw new Error(json.error);
       setAnalysis(json.text || "No analysis returned.");
     } catch(e) {
-      setError("Unable to reach AI analyst. Check your connection.");
+      setError(e.message || "Unable to reach AI analyst. Check your connection.");
     }
     setLoading(false);
   };
@@ -2116,7 +2121,7 @@ export function FinancialTab({ proj, companyId, laborCost=0, invoices: _invoices
         {subTab==="txns" && <TransactionsPanel transactions={allTransactions} onAdd={openAdd}/>}
 
         {/* ── AI ── */}
-        {subTab==="ai" && <AIAnalystPanel proj={proj} data={{...data,transactions:allTransactions}} health={health}/>}
+        {subTab==="ai" && <AIAnalystPanel proj={proj} data={{...data,transactions:allTransactions}} health={health} companyId={companyId}/>}
       </div>
     </div>
   );
@@ -2223,9 +2228,13 @@ Give a 3-4 sentence executive summary, then bullet-point the top 3 actions for t
       const json = await fetch("/.netlify/functions/finance-analyze", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ prompt, mode:"portfolio" })
+        body: JSON.stringify({ prompt, mode:"portfolio", companyId })
       }).then(r=>r.json());
-      setAiReport(json.text||"");
+      if (json.error === "cortex_coins_exhausted") {
+        setAiReport(json.message || "You've used all of your Cortex Coins for this billing cycle.");
+      } else {
+        setAiReport(json.text||"");
+      }
     } catch { setAiReport("AI analysis unavailable."); }
     setAiLoad(false);
   };

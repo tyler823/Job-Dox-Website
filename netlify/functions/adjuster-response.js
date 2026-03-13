@@ -9,7 +9,33 @@
  * Env var required: ANTHROPIC_API_KEY
  */
 
+const { getDb } = require("./_firebase");
+
 const ALLOWED_ORIGIN = process.env.SITE_URL || 'https://job-dox.ai';
+
+/**
+ * Check & deduct a Cortex Coin for this company.
+ * Returns { allowed, message, coinData } or throws.
+ */
+async function deductCortexCoin(companyId, feature, userId) {
+  if (!companyId) return { allowed: true, coinData: null }; // Skip if no companyId
+  try {
+    const baseUrl = process.env.URL || process.env.SITE_URL || 'https://job-dox.ai';
+    const res = await fetch(`${baseUrl}/.netlify/functions/cortex-coins`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companyId, action: 'deduct', feature, userId }),
+    });
+    const data = await res.json();
+    if (res.status === 403 || data.error === 'insufficient_coins') {
+      return { allowed: false, message: data.message, coinData: data };
+    }
+    return { allowed: true, coinData: data };
+  } catch (err) {
+    console.warn('[adjuster-response] Cortex Coins check failed, allowing call:', err.message);
+    return { allowed: true, coinData: null }; // Fail open so AI still works
+  }
+}
 
 exports.handler = async (event) => {
   const headers = {
@@ -46,10 +72,26 @@ exports.handler = async (event) => {
     conversationHistory,   // Previous messages in thread (optional)
     userName,              // The user composing the response
     customInstructions,    // Any additional user instructions for the AI
+    companyId,             // Company ID for Cortex Coins tracking
+    userId,                // User ID for usage logging
   } = body;
 
   if (!incomingMessage || typeof incomingMessage !== 'string') {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'incomingMessage is required' }) };
+  }
+
+  // ── Cortex Coins gate ──
+  const coinCheck = await deductCortexCoin(companyId, 'adjuster-response', userId);
+  if (!coinCheck.allowed) {
+    return {
+      statusCode: 403,
+      headers,
+      body: JSON.stringify({
+        error: 'cortex_coins_exhausted',
+        message: coinCheck.message,
+        coinData: coinCheck.coinData,
+      }),
+    };
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -224,7 +266,7 @@ Craft a response that professionally addresses their points, defends the company
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ response: responseText }),
+      body: JSON.stringify({ response: responseText, cortexCoins: coinCheck.coinData }),
     };
 
   } catch (err) {
