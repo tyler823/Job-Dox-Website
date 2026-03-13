@@ -7924,7 +7924,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
         <div style={{display:"flex",alignItems:"center",gap:11}}>
           <button className="back-btn" onClick={onBack}>{Ic.back} Projects</button>
           <span style={{color:"var(--br-hi)"}}>›</span>
-          <div><div className="topbar-ttl">{proj.name}</div><div className="topbar-sub">{proj.projectNumber||proj.id} · {proj.type.toUpperCase()}</div></div>
+          <div><div className="topbar-ttl">{proj.name}</div><div className="topbar-sub">{proj.projectNumber||proj.id} · {(proj.type||"").toUpperCase()}</div></div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:5}}>
           <Badge status={proj.status}/>
@@ -10998,6 +10998,7 @@ export default function JobDoxPortal() {
   const [phoneSettings,     setPhoneSettings]      = useState({});  // loaded from Firestore on companyId resolve
   const [cortexAlert,        setCortexAlert]        = useState(null);  // Cortex Coins usage alert
   const [cortexAlertDismissed, setCortexAlertDismissed] = useState(false);
+  const [coInfo,               setCoInfo]              = useState(loadCoInfo);
   const attrDefs = DEFAULT_ATTR_DEFS;
 
   // Re-sync if another tab updates localStorage config
