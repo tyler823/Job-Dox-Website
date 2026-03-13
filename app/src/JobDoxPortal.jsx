@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { DocumentsTab, LogoUploadSection, DocumentTemplateCenter } from "./JobDoxDocuments.jsx";
 import { FinancialTab, FinancialHealthBadge, FinancialDashboard } from "./JobDoxFinance.jsx";
 import { ReportsDashboard } from "./JobDoxReports.jsx";
+import { PayrollDashboard } from "./JobDoxPayroll.jsx";
 import ContentsDox from "./ContentsDox.jsx";
 import DryDoxModule from "./DryDox.jsx";
 import AdjusterResponseModal from "./AdjusterResponseBot.jsx";
@@ -1115,9 +1116,9 @@ const PERM_DESCRIPTIONS = {
   5:  { title:"Coordinator",  desc:"Cross-office project visibility. Can create new projects. Can view budget totals and spent amounts, but not individual billing line items or pay rates." },
   6:  { title:"Project Lead",  desc:"Full cross-office project visibility and creation. Sees full budget, DryDox equipment logs, and scope line items. Cannot see client billing rates or staff pay rates." },
   7:  { title:"Manager",      desc:"Full financial visibility including client-facing billing rates on scope/invoices. Can see Shift Reports with billing figures. Cannot view staff pay rates." },
-  8:  { title:"Sr. Manager",  desc:"All Level 7 access plus staff pay rate visibility in Shift Reports. Can access General Settings for config changes." },
-  9:  { title:"Director",     desc:"All Level 8 access plus full Settings access. Can manage staff records. Cannot change permission levels of other users." },
-  10: { title:"Admin",        desc:"Full system access across all offices. Can set permission levels for all staff, manage company configuration, and view all financial data including pay rates." },
+  8:  { title:"Sr. Manager",  desc:"All Level 7 access plus staff pay rate visibility in Shift Reports. Can view Payroll reports. Can access General Settings for config changes." },
+  9:  { title:"Director",     desc:"All Level 8 access plus full Settings access. Can manage staff records and edit Payroll rate settings. Cannot change permission levels of other users." },
+  10: { title:"Admin",        desc:"Full system access across all offices. Can set permission levels for all staff, manage company configuration, edit Payroll rates, and view all financial data including pay rates." },
 };
 
 // Normalise legacy string permissions to numbers
@@ -1155,6 +1156,7 @@ function permCaps(level) {
     canManagePermissions:lv >= 10,               // 10 only: change permission levels
     // convenience alias kept for existing canViewRates call sites
     canViewRates:        lv >= 7,
+    canViewPayroll:      lv >= 8,                // 8+: view payroll reports (9+ to edit rates)
     canArchiveProject:   lv >= 7,                // 7+: archive/unarchive completed projects
   };
 }
@@ -1196,6 +1198,7 @@ function ClockInModal({ proj, clockInState, onClockIn, onClockOut, onClose, curr
     onClockIn({ projId: proj.id, projName: proj.name, startTime: Date.now(), mode, label,
       rate: effectiveRate, payRate: autoRates.payRate,
       position: user.position, tech: user.name,
+      startIso: new Date().toISOString(),  // QBO-ready: ISO timestamp for sync
     });
     onClose();
   }
@@ -1203,6 +1206,7 @@ function ClockInModal({ proj, clockInState, onClockIn, onClockOut, onClose, curr
   function doClockOut() {
     const durationSec = Math.floor((Date.now() - clockInState.startTime) / 1000);
     const hours = Math.round((durationSec / 3600) * 100) / 100;
+    const nowIso = new Date().toISOString();
     const shift = {
       id: uid(),
       tech: user.name,
@@ -1213,9 +1217,19 @@ function ClockInModal({ proj, clockInState, onClockIn, onClockOut, onClose, curr
       payRate: clockInState.payRate,
       clockIn:  new Date(clockInState.startTime).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}),
       clockOut: new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}),
+      // QBO-ready: ISO 8601 timestamps for accurate date math & sync
+      clockInIso:  clockInState.startIso || new Date(clockInState.startTime).toISOString(),
+      clockOutIso: nowIso,
+      txnDate:     nowIso.split("T")[0],  // YYYY-MM-DD date for QBO TimeActivity
       hours,
+      hoursInt:    Math.floor(hours),                                   // QBO Hours field (integer)
+      minutes:     Math.round((hours - Math.floor(hours)) * 60),       // QBO Minutes field (integer)
+      payType:     "Regular",             // QBO PayrollItemRef: Regular | Overtime | Holiday | PTO
+      billableStatus: "Billable",         // QBO BillableStatus: Billable | NotBillable | HasBeenBilled
       notes: "",
       laborCost: Math.round(hours * clockInState.rate * 100) / 100,
+      qboSyncStatus: null,                // null = not synced, "synced" = pushed, "error" = failed
+      qboTimeActivityId: null,            // QBO TimeActivity ID once synced
     };
     onClockOut(shift);
     onClose();
@@ -10998,7 +11012,7 @@ export default function JobDoxPortal() {
   }, []);
 
   const caps = permCaps(permission);
- const { canViewRates, canViewBudget, canViewBillingScope, canViewPayRates, canAddProject, canManageStaff, canManagePermissions, canAccessSettings, canViewOwnJobsOnly, canViewOfficeJobs, canViewAllJobs, canArchiveProject } = caps;
+ const { canViewRates, canViewBudget, canViewBillingScope, canViewPayRates, canAddProject, canManageStaff, canManagePermissions, canAccessSettings, canViewOwnJobsOnly, canViewOfficeJobs, canViewAllJobs, canArchiveProject, canViewPayroll } = caps;
   const currentUser  = currentMember
     ? { name: `${currentMember.customFields?.firstName||""} ${currentMember.customFields?.lastName||""}`.trim() || currentMember.auth?.email || "User",
         position: currentMember.customFields?.systemRole || "Project Manager" }
@@ -11200,13 +11214,25 @@ export default function JobDoxPortal() {
     if (clockInState && clockInState.projId !== state.projId) {
       const durationSec = Math.floor((Date.now() - clockInState.startTime) / 1000);
       const hours = Math.round((durationSec / 3600) * 100) / 100;
+      const nowIso = new Date().toISOString();
       const autoShift = {
         id: uid(), tech: currentUser?.name||"Staff", task: clockInState.label, mode: "auto",
         position: clockInState.position, rate: clockInState.rate,
+        payRate: clockInState.payRate,
         clockIn: new Date(clockInState.startTime).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}),
         clockOut: new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}),
-        hours, notes: "Auto clocked out — switched to another project",
+        clockInIso:  clockInState.startIso || new Date(clockInState.startTime).toISOString(),
+        clockOutIso: nowIso,
+        txnDate:     nowIso.split("T")[0],
+        hours,
+        hoursInt:    Math.floor(hours),
+        minutes:     Math.round((hours - Math.floor(hours)) * 60),
+        payType:     "Regular",
+        billableStatus: "Billable",
+        notes: "Auto clocked out — switched to another project",
         laborCost: Math.round(hours * clockInState.rate * 100) / 100,
+        qboSyncStatus: null,
+        qboTimeActivityId: null,
       };
       setProjectShifts(ps=>({ ...ps, [clockInState.projId]: [...(ps[clockInState.projId]||[]), autoShift] }));
     }
@@ -11285,6 +11311,12 @@ export default function JobDoxPortal() {
         <button className="rail-btn" data-tip="All Tasks">{Ic.tasks}</button>
         <button className="rail-btn" data-tip="Messages">{Ic.msg}</button>
         <button className={`rail-btn${page==="reports"?" active":""}`} data-tip="Reports" onClick={()=>navTo("reports")}>{Ic.chart}</button>
+        {canViewPayroll && (
+          <button className={`rail-btn${page==="payroll"?" active":""}`} data-tip="Payroll"
+            onClick={()=>navTo("payroll")}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05.82 1.87 2.65 1.87 1.96 0 2.4-.98 2.4-1.59 0-.83-.44-1.61-2.67-2.14-2.48-.6-4.18-1.62-4.18-3.67 0-1.72 1.39-2.84 3.11-3.21V4h2.67v1.95c1.86.45 2.79 1.86 2.85 3.39H14.3c-.05-1.11-.64-1.87-2.22-1.87-1.5 0-2.4.68-2.4 1.64 0 .84.65 1.39 2.67 1.94s4.18 1.36 4.18 3.87c0 1.89-1.44 2.93-3.12 3.17z"/></svg>
+          </button>
+        )}
         <button className={`rail-btn${page==="finance"?" active":""}`} data-tip="Financial Dashboard"
           onClick={()=>navTo("finance")}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>
@@ -11475,6 +11507,14 @@ export default function JobDoxPortal() {
             projects={projects}
             companyId={companyId}
             onNavigate={handleNavigate}
+          />
+        ) : page==="payroll" && canViewPayroll ? (
+          <PayrollDashboard
+            projects={projects}
+            globalStaff={globalStaff}
+            projectShifts={projectShifts}
+            permissionLevel={permission}
+            companyId={companyId}
           />
         ) : selected ? (
           <ProjectDetail
