@@ -1091,6 +1091,7 @@ function permCaps(level) {
     canManagePermissions:lv >= 10,               // 10 only: change permission levels
     // convenience alias kept for existing canViewRates call sites
     canViewRates:        lv >= 7,
+    canArchiveProject:   lv >= 7,                // 7+: archive/unarchive completed projects
   };
 }
 
@@ -2617,16 +2618,347 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
   );
 }
 
-function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, canViewBudget=false, canAddProject=false, currentMemberId="", globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[], companyId="", phoneSettings={} }) {
-  const [search, setSearch]   = useState("");
-  const [fType, setFType]     = useState("All");
-  const [fStatus, setFStatus] = useState("All");
-  const [fOffice, setFOffice] = useState("All");
-  const [showAdd, setShowAdd] = useState(false);
-  const [clockProj, setClock] = useState(null);
-  const [notifyProj, setNotify]= useState(null);
-  const [commProj, setComm]   = useState(null);
-  const [viewMode, setViewMode]= useState("card");
+function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, canViewBudget=false, canAddProject=false, canArchive=false, onArchive, currentMemberId="", globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[], companyId="", phoneSettings={} }) {
+  const [search, setSearch]         = useState("");
+  const [fType, setFType]           = useState("All");
+  const [fStatus, setFStatus]       = useState("All");
+  const [fOffice, setFOffice]       = useState("All");
+  const [showAdd, setShowAdd]       = useState(false);
+  const [clockProj, setClock]       = useState(null);
+  const [notifyProj, setNotify]     = useState(null);
+  const [commProj, setComm]         = useState(null);
+  const [viewMode, setViewMode]     = useState("card");
+  const [showArchived, setShowArchived] = useState(false);
+  const [archiveTarget, setArchiveTarget] = useState(null); // { proj, action:"archive"|"unarchive" }
+  const [archiveBusy, setArchiveBusy]   = useState(false);
+
+  const statusFilterOpts = ["All", ...customStatuses.map(s=>s.name)];
+  const typeFilterOpts   = ["All", ...customProjectTypes.map(t=>t.name)];
+
+  const filtered = projects.filter(p => {
+    // Show only archived or only active
+    if (showArchived ? !p.archived : p.archived) return false;
+    if (!canViewBudget && !canAddProject) {
+      const inMyOffice = !p.officeId || (globalStaff.find(s=>s.id===currentMemberId)?.officeIds||[]).some(oid=>oid===p.officeId);
+      if (!inMyOffice && !canAddProject) return false;
+    }
+    const q = search.toLowerCase();
+    return (!q || [p.name,p.address,p.client||""].join(" ").toLowerCase().includes(q))
+      && (fType==="All"   || p.type===fType)
+      && (fStatus==="All" || p.status===fStatus)
+      && (fOffice==="All" || p.officeId===fOffice);
+  });
+
+  const openMaps = (proj) => window.open(`https://maps.google.com/?q=${encodeURIComponent(proj.address)}`,"_blank");
+
+  const confirmArchive = async () => {
+    if (!archiveTarget || archiveBusy) return;
+    setArchiveBusy(true);
+    try {
+      await onArchive(archiveTarget.proj.id, archiveTarget.action === "archive");
+    } catch(e) { console.error(e); }
+    setArchiveBusy(false);
+    setArchiveTarget(null);
+  };
+
+  const archivedCount = projects.filter(p => p.archived).length;
+
+  return (
+    <>
+      {showAdd    && <AddProjModal onClose={()=>setShowAdd(false)} onAdd={onAdd} customWorkTypes={customWorkTypes} customStatuses={customStatuses} customProjectTypes={customProjectTypes} offices={offices}/>}
+      {clockProj  && <ClockInModal proj={clockProj} clockInState={clockInState} onClockIn={onClockIn} onClockOut={onClockOut} onClose={()=>setClock(null)} currentUser={currentUser} canViewRates={canViewRates}/>}
+      {notifyProj && <NotifyModal proj={notifyProj} onClose={()=>setNotify(null)} globalStaff={globalStaff}/>}
+      {commProj   && <CommModal    proj={commProj}   onClose={()=>setComm(null)} currentUser={currentUser} phoneSettings={phoneSettings} companyId={companyId}/>}
+
+      {/* ── Archive confirmation modal ── */}
+      {archiveTarget && (
+        <div className="overlay" onClick={()=>!archiveBusy&&setArchiveTarget(null)}>
+          <div className="modal modal-sm anim" onClick={e=>e.stopPropagation()}>
+            <div className="modal-hd">
+              <span className="modal-ttl" style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{width:28,height:28,borderRadius:7,background:archiveTarget.action==="archive"?"rgba(232,156,24,.12)":"rgba(26,217,138,.12)",display:"flex",alignItems:"center",justifyContent:"center",color:archiveTarget.action==="archive"?"var(--amber)":"var(--green)",flexShrink:0}}>
+                  {archiveTarget.action==="archive"
+                    ? <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
+                    : <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 6.5l5.5 5.5H14v2h-4v-2H6.5L12 6.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
+                  }
+                </span>
+                {archiveTarget.action==="archive" ? "Archive Project?" : "Restore Project?"}
+              </span>
+              <button className="btn btn-ghost btn-xs" onClick={()=>setArchiveTarget(null)} disabled={archiveBusy}>✕</button>
+            </div>
+            <div className="modal-body" style={{gap:10}}>
+              {archiveTarget.action==="archive" ? (
+                <>
+                  <div style={{fontSize:13,color:"var(--t1)",lineHeight:1.5}}>
+                    You are about to archive <strong>{archiveTarget.proj.name}</strong>. This project will be hidden from your active portfolio.
+                  </div>
+                  <div style={{background:"rgba(232,156,24,.07)",border:"1px solid rgba(232,156,24,.2)",borderRadius:8,padding:"10px 13px",fontSize:12,color:"var(--amber)",lineHeight:1.6}}>
+                    Before archiving, make sure the project is fully closed out and payment has been received. Archived projects can be restored at any time.
+                  </div>
+                </>
+              ) : (
+                <div style={{fontSize:13,color:"var(--t1)",lineHeight:1.5}}>
+                  Restore <strong>{archiveTarget.proj.name}</strong> back to your active portfolio?
+                </div>
+              )}
+            </div>
+            <div className="modal-ft">
+              <button className="btn btn-secondary" onClick={()=>setArchiveTarget(null)} disabled={archiveBusy}>Cancel</button>
+              <button
+                className={`btn ${archiveTarget.action==="archive"?"btn-amber":"btn-green"}`}
+                onClick={confirmArchive}
+                disabled={archiveBusy}
+                style={archiveTarget.action==="archive"?{background:"rgba(232,156,24,.15)"}:{}}
+              >
+                {archiveBusy
+                  ? <><span className="btn-spinner"/> Working…</>
+                  : archiveTarget.action==="archive" ? "Archive Project" : "Restore to Active"
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="topbar">
+        <div>
+          <div className="topbar-ttl">{showArchived ? "Archived Projects" : "Projects"}</div>
+          <div className="topbar-sub">JOB-DOX · PORTFOLIO</div>
+        </div>
+        <div className="search" style={{flex:1,maxWidth:400,margin:"0 14px"}}>{Ic.search}<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search projects, clients, addresses…"/></div>
+        <div style={{display:"flex",alignItems:"center",gap:5,marginRight:8}}>
+          <span className="mono" style={{fontSize:9,color:"var(--t3)",letterSpacing:".06em"}}>VIEW</span>
+          <div className="view-toggle">
+            <button className={`view-toggle-btn${viewMode==="card"?" on":""}`} title="Card view" onClick={()=>setViewMode("card")}>{Ic.ic_grid}</button>
+            <button className={`view-toggle-btn${viewMode==="list"?" on":""}`} title="List view" onClick={()=>setViewMode("list")}>{Ic.ic_list}</button>
+          </div>
+        </div>
+        {canArchive && (
+          <button
+            className={`btn ${showArchived?"btn-amber":"btn-ghost"}`}
+            onClick={()=>{setShowArchived(v=>!v);setSearch("");setFType("All");setFStatus("All");setFOffice("All");}}
+            style={showArchived?{background:"rgba(232,156,24,.12)",border:"1px solid rgba(232,156,24,.25)"}:{}}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
+            {showArchived ? "Back to Active" : `Archived${archivedCount>0?` (${archivedCount})`:""}`}
+          </button>
+        )}
+        {canAddProject && !showArchived && <button className="btn btn-primary btn-lg" onClick={()=>setShowAdd(true)}>{Ic.plus} New Project</button>}
+      </div>
+
+      <div className="kpi-bar">
+        {showArchived ? (
+          <>
+            <div className="kpi"><div className="kpi-val" style={{color:"var(--amber)"}}>{archivedCount}</div><div className="kpi-lbl">Archived</div></div>
+            <div className="kpi"><div className="kpi-val" style={{color:"var(--t2)"}}>{filtered.length}</div><div className="kpi-lbl">Matching Filter</div></div>
+          </>
+        ) : (
+          [["Active",projects.filter(p=>!p.archived&&p.status==="In Progress").length,"var(--blue)"],...(canViewBudget?[["Total Budget",fmt$(projects.filter(p=>!p.archived).reduce((s,p)=>s+p.budget,0)),"var(--green)"]]:[[]]),...[["Open Tasks",projects.filter(p=>!p.archived).reduce((s,p)=>s+p.tasksOpen,0),"var(--amber)"],["Completed",projects.filter(p=>!p.archived&&p.status==="Completed").length,"var(--t2)"]]].map(([l,v,c])=>(
+            <div key={l} className="kpi"><div className="kpi-val" style={{color:c}}>{v}</div><div className="kpi-lbl">{l}</div></div>
+          ))
+        )}
+      </div>
+
+      <div className="port-body">
+        <div className="port-projects">
+          {/* ── Filter chips ── */}
+          {!showArchived && (
+            <div style={{display:"flex",gap:5,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+              <span className="mono" style={{fontSize:9,color:"var(--t3)"}}>TYPE</span>
+              {typeFilterOpts.map(t=><button key={t} className={`chip${fType===t?" on":""}`} onClick={()=>setFType(t)}>{t}</button>)}
+              <span style={{width:1,height:15,background:"var(--br)",margin:"0 3px"}}/>
+              <span className="mono" style={{fontSize:9,color:"var(--t3)"}}>STATUS</span>
+              {statusFilterOpts.map(s=>{
+                const stConf = customStatuses.find(c=>c.name===s);
+                return <button key={s} className={`chip${fStatus===s?" on":""}`} onClick={()=>setFStatus(s)}
+                  style={fStatus===s && stConf ? {borderColor:stConf.color,color:stConf.color,background:`${stConf.color}18`} : {}}>{s}</button>;
+              })}
+              {offices.length > 0 && <>
+                <span style={{width:1,height:15,background:"var(--br)",margin:"0 3px"}}/>
+                <span className="mono" style={{fontSize:9,color:"var(--t3)"}}>OFFICE</span>
+                <button className={`chip${fOffice==="All"?" on":""}`} onClick={()=>setFOffice("All")}>All</button>
+                {offices.map(o=>{
+                  const oc = o.color||"var(--teal)";
+                  return <button key={o.id} className={`chip${fOffice===o.id?" on":""}`} onClick={()=>setFOffice(o.id)}
+                    style={fOffice===o.id?{borderColor:oc,color:oc,background:`${oc}18`}:{}}>{o.name}</button>;
+                })}
+              </>}
+            </div>
+          )}
+          {showArchived && (
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,padding:"9px 12px",background:"rgba(232,156,24,.06)",border:"1px solid rgba(232,156,24,.18)",borderRadius:8}}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="var(--amber)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+              <span style={{fontSize:11,color:"var(--amber)"}}>Viewing archived projects. These are closed out and hidden from the active portfolio. Use the Restore button to reactivate any project.</span>
+            </div>
+          )}
+
+          {filtered.length === 0 && (
+            <div className="empty">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="var(--t3)"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
+              <div style={{color:"var(--t2)",fontSize:13}}>{showArchived ? "No archived projects found." : "No projects match the current filters."}</div>
+            </div>
+          )}
+
+          {viewMode === "card" && (
+            <div className="proj-grid">
+              {filtered.map(proj => {
+                const ptConf = customProjectTypes.find(t=>t.name===proj.type);
+                const tc = ptConf?.color || TYPE_C[proj.type]||"var(--t3)";
+                const stConf2 = customStatuses.find(s=>s.name===proj.status);
+                const sp = pct(proj.spent, proj.budget);
+                const isClocked = clockInState?.projId === proj.id;
+                return (
+                  <div key={proj.id} className="proj-card anim" style={proj.archived?{opacity:.75,filter:"saturate(.6)"}:{}}>
+                    <div className="proj-accent" style={{background:proj.archived?"var(--t3)":tc}}/>
+                    <div className="proj-body" onClick={()=>onSelect(proj)}>
+                      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:7,marginBottom:4}}>
+                        <div style={{minWidth:0}}>
+                          <div style={{display:"flex",alignItems:"center",gap:6}}>
+                            <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",lineHeight:1.3}}>{proj.name}</div>
+                            {isClocked && <span style={{fontSize:8,background:"rgba(26,217,138,.15)",color:"var(--green)",borderRadius:4,padding:"1px 5px",fontFamily:"var(--mono)",flexShrink:0}}>ACTIVE</span>}
+                            {proj.archived && <span style={{fontSize:8,background:"rgba(232,156,24,.12)",color:"var(--amber)",borderRadius:4,padding:"1px 5px",fontFamily:"var(--mono)",flexShrink:0}}>ARCHIVED</span>}
+                            <FinancialHealthBadge projId={proj.id} companyId={companyId}/>
+                          </div>
+                          <div className="mono" style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{proj.projectNumber||proj.id}</div>
+                        </div>
+                        <Badge status={proj.status} customStatuses={customStatuses}/>
+                      </div>
+                      <div style={{fontSize:11,color:"var(--t2)",marginBottom:8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.address}</div>
+                      <WorkTypePills worktypes={proj.worktypes} customWorkTypes={customWorkTypes}/>
+                      {proj.budget > 0 && (
+                        <div style={{marginBottom:7}}>
+                          <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--t3)",marginBottom:2}}><span>Budget</span><span className="mono">{sp}%</span></div>
+                          <div className="bar-track"><div className="bar-fill" style={{width:`${sp}%`,background:sp>85?"var(--acc)":sp>60?"var(--amber)":"var(--green)"}}/></div>
+                        </div>
+                      )}
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--t2)"}}>
+                        <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.client}</span>
+                        {proj.tasksOpen>0 && <span className="mono" style={{fontSize:10,color:"var(--amber)",flexShrink:0,marginLeft:8}}>{proj.tasksOpen} open</span>}
+                      </div>
+                    </div>
+                    {isClocked && (
+                      <div className="clocked-banner">
+                        <span style={{width:6,height:6,borderRadius:"50%",background:"var(--green)",display:"block",animation:"jd-ping 1.5s ease infinite"}}/>
+                        You are clocked in to this project
+                      </div>
+                    )}
+                    <div className="proj-actions" onClick={e=>e.stopPropagation()}>
+                      {!showArchived ? (
+                        <>
+                          <button className={`pab ${isClocked?"pab-danger":"pab-green"}`} onClick={()=>setClock(proj)}>
+                            {isClocked ? <>{Ic.stopwatch} Clock Out</> : <>{Ic.clock} Clock In</>}
+                          </button>
+                          <button className="pab pab-blue" onClick={()=>setNotify(proj)}>{Ic.notify} Notify</button>
+                          <button className="pab" onClick={()=>openMaps(proj)}>{Ic.map} Navigate</button>
+                          {canArchive
+                            ? <button className="pab pab-amber" onClick={()=>setArchiveTarget({proj,action:"archive"})}>
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg> Archive
+                              </button>
+                            : <button className="pab pab-amber" onClick={()=>setComm(proj)}>{Ic.phone} Contact</button>
+                          }
+                        </>
+                      ) : (
+                        <>
+                          <button className="pab" onClick={()=>onSelect(proj)} style={{flex:2}}>{Ic.eye||"👁"} View Project</button>
+                          {canArchive && (
+                            <button className="pab pab-green" onClick={()=>setArchiveTarget({proj,action:"unarchive"})} style={{flex:1}}>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 6.5l5.5 5.5H14v2h-4v-2H6.5L12 6.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
+                              Restore
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {viewMode === "list" && (
+            <div className="proj-list">
+              <div style={{display:"grid",gridTemplateColumns:"4px 2fr 1.2fr 110px 120px 80px",gap:0,padding:"3px 13px 3px 4px",marginBottom:2}}>
+                {["","Project","Work Types","Status","Budget",""].map((h,i)=><div key={i} className="mono" style={{fontSize:9,color:"var(--t3)",padding:"0 8px"}}>{h}</div>)}
+              </div>
+              {filtered.map(proj=>{
+                const tc = TYPE_C[proj.type]||"var(--t3)";
+                const sp = pct(proj.spent, proj.budget);
+                const isClocked = clockInState?.projId === proj.id;
+                return (
+                  <div key={proj.id} className="proj-list-row anim" style={{borderLeft:`3px solid ${proj.archived?"var(--t3)":isClocked?"var(--green)":tc}`,opacity:proj.archived?.75:1}}>
+                    <div className="proj-list-body" onClick={()=>onSelect(proj)}>
+                      <div style={{minWidth:0,flex:"2"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:6}}>
+                          <span style={{fontSize:12,fontWeight:700,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.name}</span>
+                          {isClocked && <span style={{fontSize:8,background:"rgba(26,217,138,.15)",color:"var(--green)",borderRadius:4,padding:"1px 5px",fontFamily:"var(--mono)",flexShrink:0}}>ACTIVE</span>}
+                          {proj.archived && <span style={{fontSize:8,background:"rgba(232,156,24,.12)",color:"var(--amber)",borderRadius:4,padding:"1px 5px",fontFamily:"var(--mono)",flexShrink:0}}>ARCHIVED</span>}
+                          <FinancialHealthBadge projId={proj.id} companyId={companyId}/>
+                        </div>
+                        <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{proj.projectNumber||proj.id} · {proj.client}</div>
+                      </div>
+                      <div style={{flex:"1.2",minWidth:0,display:"flex",flexDirection:"column",gap:3}}>
+                        {(proj.worktypes||[]).slice(0,2).map((wt,i)=>{
+                          const meta  = WT_META[wt.type]||{color:"var(--t3)",icon:null};
+                          const phase = WT_PHASE_C[wt.status]||WT_PHASE_C.pending;
+                          return (
+                            <div key={i} style={{display:"flex",alignItems:"center",gap:4,background:phase.bg,border:`1px solid ${phase.border}`,borderRadius:5,padding:"2px 6px",borderLeft:`2px solid ${meta.color}`}}>
+                              <span style={{color:meta.color,display:"flex",alignItems:"center",flexShrink:0}}>{meta.icon}</span>
+                              <span style={{fontSize:9,fontWeight:700,color:meta.color,flexShrink:0}}>{wt.type}</span>
+                              <span style={{fontSize:8,color:phase.text,fontFamily:"var(--mono)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wt.phase}</span>
+                            </div>
+                          );
+                        })}
+                        {(proj.worktypes||[]).length > 2 && <span style={{fontSize:9,color:"var(--t3)"}}>+{proj.worktypes.length-2} more</span>}
+                      </div>
+                      <div style={{width:110,flexShrink:0}}><Badge status={proj.status}/></div>
+                      <div style={{width:120,flexShrink:0}}>
+                        {proj.budget>0 ? (
+                          <>
+                            <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"var(--t3)",marginBottom:2}}><span>{fmt$(proj.spent)}</span><span>{sp}%</span></div>
+                            <div className="bar-track" style={{height:4}}><div className="bar-fill" style={{width:`${sp}%`,background:sp>85?"var(--acc)":sp>60?"var(--amber)":"var(--green)"}}/></div>
+                          </>
+                        ) : <span style={{fontSize:10,color:"var(--t3)"}}>—</span>}
+                      </div>
+                      <div style={{width:60,flexShrink:0,textAlign:"right"}}>
+                        {proj.tasksOpen>0 && <span className="mono" style={{fontSize:10,color:"var(--amber)"}}>{proj.tasksOpen} open</span>}
+                      </div>
+                    </div>
+                    <div className="proj-list-actions" onClick={e=>e.stopPropagation()}>
+                      {!showArchived ? (
+                        <>
+                          <button className={`btn btn-xs ${isClocked?"btn-danger":"btn-green"}`} style={isClocked?{background:"var(--acc)",color:"#fff",border:"none"}:{}} onClick={()=>setClock(proj)}>
+                            {isClocked ? Ic.stopwatch : Ic.clock}
+                          </button>
+                          <button className="btn btn-blue btn-xs" onClick={()=>setNotify(proj)}>{Ic.notify}</button>
+                          <button className="btn btn-ghost btn-xs" onClick={()=>openMaps(proj)}>{Ic.map}</button>
+                          {canArchive
+                            ? <button className="btn btn-amber btn-xs" title="Archive project" onClick={()=>setArchiveTarget({proj,action:"archive"})}>
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
+                              </button>
+                            : <button className="btn btn-xs" onClick={()=>setComm(proj)} style={{background:"rgba(232,156,24,.1)",border:"1px solid rgba(232,156,24,.25)",color:"var(--amber)"}}>{Ic.phone}</button>
+                          }
+                        </>
+                      ) : (
+                        <>
+                          {canArchive && (
+                            <button className="btn btn-green btn-xs" title="Restore project" onClick={()=>setArchiveTarget({proj,action:"unarchive"})}>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 6.5l5.5 5.5H14v2h-4v-2H6.5L12 6.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <PortfolioSidebar onNavigate={onNavigate}/>
+      </div>
+    </>
+  );
+}
 
   // Dynamic filter options from company config
   const statusFilterOpts = ["All", ...customStatuses.map(s=>s.name)];
@@ -10350,7 +10682,7 @@ export default function JobDoxPortal() {
   }, []);
 
   const caps = permCaps(permission);
-  const { canViewRates, canViewBudget, canViewBillingScope, canViewPayRates, canAddProject, canManageStaff, canManagePermissions, canAccessSettings, canViewOwnJobsOnly, canViewOfficeJobs, canViewAllJobs } = caps;
+ const { canViewRates, canViewBudget, canViewBillingScope, canViewPayRates, canAddProject, canManageStaff, canManagePermissions, canAccessSettings, canViewOwnJobsOnly, canViewOfficeJobs, canViewAllJobs, canArchiveProject } = caps;
   const currentUser  = currentMember
     ? { name: `${currentMember.customFields?.firstName||""} ${currentMember.customFields?.lastName||""}`.trim() || currentMember.auth?.email || "User",
         position: currentMember.customFields?.systemRole || "Project Manager" }
@@ -10522,6 +10854,15 @@ export default function JobDoxPortal() {
     });
   };
 
+         const handleArchiveProject = async (projId, archive = true) => {
+    if (!companyId) return;
+    await updateDoc(doc(db, "companies", companyId, "projects", projId), {
+      archived:   archive,
+      archivedAt: archive ? new Date().toISOString() : null,
+      updatedAt:  serverTimestamp(),
+    });
+  };
+         
   const handleNavigate = (projId, tab) => {
     const proj = projects.find(p=>p.id===projId);
     if (proj) { setSelected(proj); setSelTab(tab||"overview"); setPage("portfolio"); }
@@ -10773,9 +11114,12 @@ export default function JobDoxPortal() {
             customStatuses={customStatuses}
             customProjectTypes={customProjectTypes}
             offices={offices}
-            companyId={companyId}
+           companyId={companyId}
             phoneSettings={phoneSettings}
+            onArchive={handleArchiveProject}
+            canArchive={canArchiveProject}
           />
+        )}
         )}
       </div>
     </div>
