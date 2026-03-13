@@ -679,6 +679,7 @@ const PROJECTS = [];
 const LS_ACTIVITY = "jd_activity_log";
 const ACTIVITY_COLORS = {
   task:     "var(--amber)",
+  comment:  "var(--purple)",
   invoice:  "var(--green)",
   document: "var(--blue)",
   call:     "var(--purple)",
@@ -689,7 +690,7 @@ const ACTIVITY_COLORS = {
 function loadActivity() {
   try { return JSON.parse(localStorage.getItem(LS_ACTIVITY)) || []; } catch { return []; }
 }
-function pushActivity({ actionType, action, proj, projId, user }) {
+function pushActivity({ actionType, action, proj, projId, user, docName }) {
   try {
     const existing = loadActivity();
     const entry = {
@@ -698,6 +699,7 @@ function pushActivity({ actionType, action, proj, projId, user }) {
       action,
       proj:       proj || "",
       projId:     projId || null,
+      docName:    docName || null,
       user:       user || "Staff",
       color:      ACTIVITY_COLORS[actionType] || "var(--t2)",
       time:       new Date().toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit" }),
@@ -1878,6 +1880,10 @@ function FeedActionPopup({ item, pos, onClose, onNavigate }) {
     actions.push({ icon:Ic.tasks,   label:"View task",                         color:"var(--green)",  action:()=>{ onNavigate(item.projId, "tasks"); onClose(); }});
     actions.push({ icon:Ic.comment, label:"Add comment",                       color:"var(--purple)", action:()=>{ onNavigate(item.projId, "tasks"); onClose(); }});
   }
+  if (item.actionType==="comment") {
+    actions.push({ icon:Ic.tasks,   label:"View task thread",                  color:"var(--purple)", action:()=>{ onNavigate(item.projId, "tasks"); onClose(); }});
+    actions.push({ icon:Ic.comment, label:"Open Tasks tab",                    color:"var(--amber)",  action:()=>{ onNavigate(item.projId, "tasks"); onClose(); }});
+  }
   if (item.actionType==="scope")   actions.push({ icon:Ic.scope,   label:"Open Scope / Invoice",  color:"var(--amber)",  action:()=>{ onNavigate(item.projId, "scope"); onClose(); }});
   if (item.actionType==="message") {
     actions.push({ icon:Ic.msg, label:"View message thread", color:"var(--acc)", action:()=>{ onNavigate(item.projId, "messages"); onClose(); }});
@@ -2293,7 +2299,20 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
       {commentTask && (
         <TaskCommentModal
           task={commentTask}
-          onClose={() => setCommentTask(null)}
+          onClose={(updatedThread) => {
+            if (updatedThread) {
+              // Save back to project tasks LS or personal tasks
+              if (commentTask._fromProject && commentTask.projId) {
+                const stored = _lsRead(commentTask.projId, "tasks", []);
+                _lsWrite(commentTask.projId, "tasks", stored.map(x => x.id===commentTask.id ? {...x, commentThread: updatedThread} : x));
+                bumpProjTasks();
+              } else {
+                const updated = allTasks.map(x => x.id===commentTask.id ? {...x, commentThread: updatedThread} : x);
+                setAllTasks(updated); saveTasks(updated);
+              }
+            }
+            setCommentTask(null);
+          }}
           currentUserName={viewingName}
           globalStaff={globalStaff}
           companyId={companyId}
@@ -2698,7 +2717,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                             {isClocked && <span style={{fontSize:8,background:"rgba(26,217,138,.15)",color:"var(--green)",borderRadius:4,padding:"1px 5px",fontFamily:"var(--mono)",flexShrink:0}}>ACTIVE</span>}
                             <FinancialHealthBadge projId={proj.id} companyId={companyId}/>
                           </div>
-                          <div className="mono" style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{proj.id}</div>
+                          <div className="mono" style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{proj.projectNumber||proj.id}</div>
                         </div>
                         <Badge status={proj.status} customStatuses={customStatuses}/>
                       </div>
@@ -2753,7 +2772,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                           {isClocked && <span style={{fontSize:8,background:"rgba(26,217,138,.15)",color:"var(--green)",borderRadius:4,padding:"1px 5px",fontFamily:"var(--mono)",flexShrink:0}}>ACTIVE</span>}
                           <FinancialHealthBadge projId={proj.id} companyId={companyId}/>
                         </div>
-                        <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{proj.id} · {proj.client}</div>
+                        <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{proj.projectNumber||proj.id} · {proj.client}</div>
                       </div>
                       <div style={{flex:"1.2",minWidth:0,display:"flex",flexDirection:"column",gap:3}}>
                         {(proj.worktypes||[]).slice(0,2).map((wt,i)=>{
@@ -2874,7 +2893,7 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
       <div style={{maxWidth:980,margin:"0 auto",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,420px),1fr))",gap:13}}>
         <div className="card" style={{gridColumn:"1/-1"}}>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:13}}>
-            {[["Project ID",proj.id],["Loss Type",proj.type],["Status",proj.status],["Created",proj.created],["Client",proj.client||"—"],["Phone",proj.clientPhone||"—"],["Carrier",proj.carrier||"—"],["Claim #",proj.claim||"—"]].map(([l,v])=>(
+            {[["Project ID",proj.projectNumber||proj.id],["Loss Type",proj.type],["Status",proj.status],["Created",proj.created],["Client",proj.client||"—"],["Phone",proj.clientPhone||"—"],["Carrier",proj.carrier||"—"],["Claim #",proj.claim||"—"]].map(([l,v])=>(
               <div key={l}><div className="lbl">{l}</div><div style={{fontSize:12,color:"var(--t1)",fontWeight:500}}>{v}</div></div>
             ))}
           </div>
@@ -3369,8 +3388,19 @@ function TaskCommentModal({ task, onClose, currentUserName="You", globalStaff=[]
       at: new Date().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}) + " · " +
           new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),
     };
-    setComments(c => [...c, newComment]);
+    const updatedComments = [...comments, newComment];
+    setComments(updatedComments);
     setText("");
+
+    // Push to activity feed so the newsfeed shows task comments
+    pushActivity({
+      actionType: "comment",
+      action:     `Comment on "${task.title}": ${newComment.text.length > 60 ? newComment.text.slice(0,60)+"…" : newComment.text}`,
+      proj:       task.proj || task.projId || "",
+      projId:     task.projId || null,
+      user:       currentUserName,
+      docName:    task.title,
+    });
 
     // ── Send real texts to all other assignees who have a phone number ──
     if (othersToNotify.length) {
@@ -3410,7 +3440,7 @@ function TaskCommentModal({ task, onClose, currentUserName="You", globalStaff=[]
   const priC = {high:"var(--acc)", med:"var(--amber)", low:"var(--t3)", undefined:"var(--t3)"};
 
   return (
-    <div className="overlay" onClick={e => e.target===e.currentTarget && onClose()}>
+    <div className="overlay" onClick={e => e.target===e.currentTarget && onClose(comments)}>
       <div className="modal anim" style={{maxWidth:520}}>
         <div className="modal-hd">
           <div style={{flex:1,minWidth:0}}>
@@ -3420,7 +3450,7 @@ function TaskCommentModal({ task, onClose, currentUserName="You", globalStaff=[]
             </div>
             {task.proj && <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>{task.proj}</div>}
           </div>
-          <button className="btn btn-ghost btn-xs" onClick={onClose}>{Ic.close}</button>
+          <button className="btn btn-ghost btn-xs" onClick={()=>onClose(comments)}>{Ic.close}</button>
         </div>
         <div className="modal-body" style={{gap:10}}>
           {/* Assignees */}
@@ -3495,7 +3525,7 @@ function TaskCommentModal({ task, onClose, currentUserName="You", globalStaff=[]
           </div>
         </div>
         <div className="modal-ft">
-          <button className="btn btn-ghost" onClick={onClose}>Close</button>
+          <button className="btn btn-ghost" onClick={()=>onClose(comments)}>Close</button>
           <button className="btn btn-primary" onClick={postComment} disabled={!text.trim()}>
             {othersToNotify.length > 0 ? <>{Ic.comment} Post & Text {othersToNotify.length}</> : <>{Ic.comment} Post Comment</>}
           </button>
@@ -3589,9 +3619,14 @@ function TasksTab({ projId="", projName="", initialTasks=[], globalStaff=[], com
       {commentTask && (
         <TaskCommentModal
           task={commentTask}
-          onClose={() => {
+          onClose={(updatedThread) => {
+            // Persist the updated comment thread back into the task list
+            if (updatedThread) {
+              setTasks(t => t.map(x => x.id === commentTask.id ? { ...x, commentThread: updatedThread } : x));
+            }
             setCommentTask(null);
           }}
+          currentUserName={currentUser?.name || "Staff"}
           globalStaff={globalStaff}
           companyId={companyId}
           phoneSettings={phoneSettings}
@@ -4731,18 +4766,44 @@ function DocEmailModal({ docs=[], contacts=[], proj, assignedStaff=[], onSend, o
 /* ══════════════════════════════════════════════════════════════════
    PROJECT DOCUMENTS TAB  — shows invoices + signed docs, email sending
 ══════════════════════════════════════════════════════════════════ */
-function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate }) {
+function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate, docRefreshKey=0 }) {
   const [docs,      setDocs]      = useState(() => loadProjDocs(proj?.id||""));
   const [emailModal,setEmailModal]= useState(false);
   const [selInv,    setSelInv]    = useState(null);   // invoice preview
+  const [uploadModal, setUploadModal] = useState(false);
+  const [uploadForm,  setUploadForm]  = useState({ name:"", type:"contract" });
 
-  // Re-load if proj changes
-  useEffect(()=>{ setDocs(loadProjDocs(proj?.id||"")); }, [proj?.id]);
+  // Re-load if proj changes OR if an invoice was just generated (docRefreshKey bumped)
+  useEffect(()=>{ setDocs(loadProjDocs(proj?.id||"")); }, [proj?.id, docRefreshKey]);
 
   const removeDoc = (id) => {
     const updated = docs.filter(d=>d.id!==id);
     saveProjDocs(proj?.id||"", updated);
     setDocs(updated);
+  };
+
+  // Upload a named document (contract, auth form, etc.) without a file — just a record
+  const handleUploadDoc = () => {
+    if (!uploadForm.name.trim()) return;
+    const doc = {
+      id:   `doc-${Date.now()}`,
+      type: uploadForm.type || "contract",
+      name: uploadForm.name.trim(),
+      date: new Date().toISOString(),
+      status: "on-file",
+    };
+    pushProjDoc(proj?.id||"", doc, proj?.name, "Staff");
+    setDocs(loadProjDocs(proj?.id||""));
+    setUploadForm({ name:"", type:"contract" });
+    setUploadModal(false);
+  };
+
+  const DOC_TYPE_LABELS = {
+    invoice:  { icon:"🧾", label:"Invoice" },
+    contract: { icon:"📝", label:"Contract" },
+    auth:     { icon:"✍️",  label:"Authorization" },
+    report:   { icon:"📋", label:"Report" },
+    other:    { icon:"📑", label:"Document" },
   };
 
   const jobEmail = getJobEmail(proj, loadCoInfo());
@@ -4756,6 +4817,9 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
           <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>Job email: {jobEmail}</div>
         </div>
         <div style={{display:"flex",gap:7}}>
+          <button className="btn btn-secondary btn-xs" onClick={()=>setUploadModal(true)}>
+            + Add Document
+          </button>
           <button className="btn btn-secondary btn-xs" onClick={()=>onNavigate&&onNavigate(proj?.id,"scope")}>
             + Generate Invoice
           </button>
@@ -4767,35 +4831,82 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
         </div>
       </div>
 
+      {/* Upload/Add Document Modal */}
+      {uploadModal && (
+        <div className="overlay" onClick={e=>e.target===e.currentTarget&&setUploadModal(false)}>
+          <div className="modal modal-sm anim">
+            <div className="modal-hd">
+              <div className="modal-ttl">Add Document Record</div>
+              <button className="btn btn-ghost btn-xs" onClick={()=>setUploadModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{fontSize:11,color:"var(--t3)",marginBottom:4}}>
+                Log a contract, authorization form, or other document that belongs to this project.
+              </div>
+              <div>
+                <label className="lbl">Document Type</label>
+                <select className="sel" value={uploadForm.type} onChange={e=>setUploadForm(p=>({...p,type:e.target.value}))}>
+                  <option value="contract">Contract</option>
+                  <option value="auth">Authorization / Scope Auth</option>
+                  <option value="report">Report</option>
+                  <option value="other">Other Document</option>
+                </select>
+              </div>
+              <div>
+                <label className="lbl">Document Name *</label>
+                <input className="inp" placeholder="e.g. Signed Work Authorization" value={uploadForm.name} onChange={e=>setUploadForm(p=>({...p,name:e.target.value}))}/>
+              </div>
+            </div>
+            <div className="modal-ft">
+              <button className="btn btn-ghost" onClick={()=>setUploadModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleUploadDoc} disabled={!uploadForm.name.trim()}>Add to Documents</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Document list */}
       {docs.length===0 ? (
         <div style={{padding:"36px 20px",textAlign:"center",background:"var(--s2)",borderRadius:12,border:"1px dashed var(--br)"}}>
           <div style={{fontSize:28,opacity:.25,marginBottom:10}}>📄</div>
           <div style={{fontSize:13,color:"var(--t2)",marginBottom:6}}>No documents yet</div>
-          <div style={{fontSize:11,color:"var(--t3)",marginBottom:16}}>Generate an invoice from the Scope/Invoice tab — it'll appear here automatically.</div>
-          <button className="btn btn-secondary btn-sm" onClick={()=>onNavigate&&onNavigate(proj?.id,"scope")}>
-            Go to Scope/Invoice
-          </button>
+          <div style={{fontSize:11,color:"var(--t3)",marginBottom:16}}>Generate an invoice from the Scope tab, or add contracts and other documents here.</div>
+          <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+            <button className="btn btn-secondary btn-sm" onClick={()=>setUploadModal(true)}>
+              + Add Document
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={()=>onNavigate&&onNavigate(proj?.id,"scope")}>
+              Go to Scope / Invoice
+            </button>
+          </div>
         </div>
       ) : (
         <div style={{display:"flex",flexDirection:"column",gap:7}}>
-          {[...docs].reverse().map(doc=>(
+          {[...docs].reverse().map(doc=>{
+            const dt = DOC_TYPE_LABELS[doc.type] || DOC_TYPE_LABELS.other;
+            return (
             <div key={doc.id} className="card" style={{padding:"12px 15px",display:"flex",alignItems:"center",gap:12}}>
-              <div style={{fontSize:22,flexShrink:0}}>{doc.type==="invoice"?"🧾":"📑"}</div>
+              <div style={{fontSize:22,flexShrink:0}}>{dt.icon}</div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                   <span style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>{doc.name}</span>
+                  <span style={{fontSize:9,background:"var(--s3)",color:"var(--t3)",borderRadius:4,padding:"1px 6px",fontFamily:"var(--mono)"}}>
+                    {dt.label.toUpperCase()}
+                  </span>
                   {doc.invoiceMode && (
                     <span style={{fontSize:9,background:doc.invoiceMode==="complex"?"rgba(139,92,246,.15)":"rgba(91,163,245,.15)",
                       color:doc.invoiceMode==="complex"?"var(--purple)":"var(--blue)",borderRadius:4,padding:"1px 6px",fontFamily:"var(--mono)"}}>
                       {doc.invoiceMode.toUpperCase()}
                     </span>
                   )}
-                  {doc.status && (
+                  {doc.status && doc.type==="invoice" && (
                     <span style={{fontSize:9,background:doc.status==="paid"?"rgba(26,217,138,.15)":"rgba(245,158,11,.15)",
                       color:doc.status==="paid"?"var(--green)":"var(--amber)",borderRadius:4,padding:"1px 6px",fontFamily:"var(--mono)"}}>
                       {doc.status.toUpperCase()}
                     </span>
+                  )}
+                  {doc.status==="on-file" && (
+                    <span style={{fontSize:9,background:"rgba(91,163,245,.12)",color:"var(--blue)",borderRadius:4,padding:"1px 6px",fontFamily:"var(--mono)"}}>ON FILE</span>
                   )}
                 </div>
                 <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>
@@ -4819,7 +4930,8 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -7538,6 +7650,14 @@ const PROJ_TABS = [
 
 function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists, companyId="", phoneSettings={}, isVendor=false, currentMemberId="", onNavigate }) {
   const [tab,setTab]           = useState(initialTab||"overview");
+  // Sync when initialTab prop changes (e.g. user clicks a nav button while project is already open)
+  const prevInitialTab = useRef(initialTab);
+  useEffect(() => {
+    if (initialTab && initialTab !== prevInitialTab.current) {
+      prevInitialTab.current = initialTab;
+      setTab(initialTab);
+    }
+  }, [initialTab]);
   const [notifyModal,setNotify]= useState(false);
   const [commModal,setComm]    = useState(false);
   const [clockModal,setClock]  = useState(false);
@@ -7561,6 +7681,8 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
   const [worktypes,    setWorktypes]   = useProjState(proj.id, "worktypes",    proj.worktypes || []);
   // projDocs state kept for legacy ProjectReportTab compatibility; canonical source is lsProj.docs (loadProjDocs)
   const [projDocs, setProjDocs]        = useState(DOCS_SEED);
+  // Increment to force ProjectDocumentsPanel to re-read LS after an invoice is generated
+  const [docRefreshKey, setDocRefreshKey] = useState(0);
 
   const openMaps = () => window.open(`https://maps.google.com/?q=${encodeURIComponent(proj.address)}`,"_blank");
   const isClocked = clockInState?.projId === proj.id;
@@ -7587,7 +7709,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
         <div style={{display:"flex",alignItems:"center",gap:11}}>
           <button className="back-btn" onClick={onBack}>{Ic.back} Projects</button>
           <span style={{color:"var(--br-hi)"}}>›</span>
-          <div><div className="topbar-ttl">{proj.name}</div><div className="topbar-sub">{proj.id} · {proj.type.toUpperCase()}</div></div>
+          <div><div className="topbar-ttl">{proj.name}</div><div className="topbar-sub">{proj.projectNumber||proj.id} · {proj.type.toUpperCase()}</div></div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:5}}>
           <Badge status={proj.status}/>
@@ -7635,11 +7757,11 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       {tab==="estimatedox"    && <EstimateDoxTab proj={proj}/>}
       {tab==="contacts"       && <ContactsTab contacts={contacts} setContacts={setContacts}/>}
       {tab==="media"          && <MediaTab       folders={mediaFolders} setFolders={setMediaFolders} uploads={mediaUploads} setUploads={setMediaUploads}/>}
-      {tab==="documents"      && <ProjectDocumentsPanel proj={proj} contacts={contacts} assignedStaff={assignedStaff} onNavigate={onNavigate}/>}
+      {tab==="documents"      && <ProjectDocumentsPanel proj={proj} contacts={contacts} assignedStaff={assignedStaff} onNavigate={onNavigate} docRefreshKey={docRefreshKey}/>}
       {tab==="tasks"          && <TasksTab projId={proj.id} projName={proj.name} initialTasks={proj.templateTasks||[]} globalStaff={globalStaff} companyId={companyId} phoneSettings={phoneSettings} currentMemberId={currentMemberId} isVendor={isVendor} currentUser={currentUser}/>}
       {tab==="finance"        && <FinancialTab proj={proj} companyId={companyId} laborCost={laborCost} invoices={loadProjInvoices(proj.id)} onInvoiceVoid={id=>{const all=loadAllInvoices().map(i=>i.id===id?{...i,status:"void"}:i);saveAllInvoices(all);}}/>}
       {tab==="shifts"         && <ShiftsTab projId={proj.id} externalShifts={myShifts} canViewRates={canViewRates}/>}
-      {tab==="scope"          && <ScopeTab proj={proj} scopeItems={scopeItems} setScopeItems={setScopeItems} contacts={contacts}/>}
+      {tab==="scope"          && <ScopeTab proj={proj} scopeItems={scopeItems} setScopeItems={setScopeItems} contacts={contacts} onDocGenerated={()=>{ setDocRefreshKey(k=>k+1); }}/>}
       {tab==="messages"       && <MessagesTab proj={proj} contacts={contacts}/>}
       {tab==="calls"          && <CallLogTab proj={proj} companyId={companyId} globalStaff={globalStaff} currentUser={currentUser} phoneSettings={phoneSettings}/>}
       {tab==="project-report" && <ProjectReportTab proj={proj} dailyNotes={dailyNotes} mediaFolders={mediaFolders} mediaUploads={mediaUploads} docs={projDocs}/>}
@@ -7987,7 +8109,7 @@ function GeneralSettingsTab() {
           <div className="card" style={{padding:18}}>
             <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",marginBottom:4}}>Pinned Line Items by Work Type</div>
             <div style={{fontSize:11,color:"var(--t3)",marginBottom:14,lineHeight:1.6}}>
-              Line items pinned here will appear as quick-add options in the Scope/Invoice tab for projects matching that work type.
+              Line items added here will appear as quick-add suggestions in the Scope tab for projects matching that work type. You must click "+ Add" to apply them — they are never added automatically.
             </div>
             {workTypes.length===0 && <div style={{fontSize:11,color:"var(--t3)"}}>No work types defined yet. Add them in the Work Types tab first.</div>}
             {workTypes.map(wt=>{
@@ -10387,8 +10509,14 @@ export default function JobDoxPortal() {
   // ── Add project ──
   const handleAddProject = async (p) => {
     if (!companyId) throw new Error("Not authenticated — company ID missing.");
+    // IMPORTANT: Firestore's addDoc generates the document ID automatically.
+    // The human-readable "JD-YYYY-NNN" value must be stored as projectNumber (display only),
+    // NOT as the "id" field — otherwise it collides with d.id from onSnapshot and causes
+    // cross-project localStorage data bleed (wrong scope, tasks, worktypes loading across projects).
+    const { id: projectNumber, ...rest } = p;
     await addDoc(collection(db, "companies", companyId, "projects"), {
-      ...p,
+      ...rest,
+      projectNumber,            // human-readable display number e.g. "JD-2025-301"
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
