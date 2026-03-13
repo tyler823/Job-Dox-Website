@@ -12,11 +12,16 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 
-  <!-- Firebase compat (no build step needed) -->
+  <!-- Memberstack v2 — same app as portal, same session, same credentials -->
+  <script data-memberstack-app="app_cmmm8x9fr00dg0utoabyje7x9"
+          src="https://static.memberstack.com/scripts/v2/memberstack.js"
+          type="text/javascript" async></script>
+
+  <!-- Firebase compat (Firestore only — NO Firebase Auth) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <!-- React 18 + Babel (same pattern as mindflow.html) -->
+
+  <!-- React 18 + Babel -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -26,386 +31,280 @@
 html,body,#root{height:100%;background:#06070d;color:#eef1f8;font-family:'Outfit',sans-serif;overflow:hidden;}
 ::-webkit-scrollbar{width:3px;background:transparent;}
 ::-webkit-scrollbar-thumb{background:rgba(128,128,128,.2);border-radius:2px;}
-
-/* ── tokens ── */
 :root{
-  --bg:#06070d; --s1:#0c0e18; --s2:#10121e; --s3:#161929; --s4:#1c2035;
-  --acc:#e43531; --acc-lo:rgba(228,53,49,.09); --acc-glo:rgba(228,53,49,.28);
-  --t1:#eef1f8; --t2:#8b95b0; --t3:#404866;
-  --green:#1ad98a; --amber:#e89c18; --blue:#5ba3f5; --purple:#a78bfa; --teal:#22d3ee;
-  --br:rgba(255,255,255,.10); --br-hi:rgba(255,255,255,.18);
+  --bg:#06070d;--s1:#0c0e18;--s2:#10121e;--s3:#161929;--s4:#1c2035;
+  --acc:#e43531;--acc-lo:rgba(228,53,49,.09);--acc-glo:rgba(228,53,49,.28);
+  --t1:#eef1f8;--t2:#8b95b0;--t3:#404866;
+  --green:#1ad98a;--amber:#e89c18;--blue:#5ba3f5;--purple:#a78bfa;--teal:#22d3ee;
+  --br:rgba(255,255,255,.10);--br-hi:rgba(255,255,255,.18);
   --mono:'Space Mono',monospace;
   --safe-bottom:env(safe-area-inset-bottom,0px);
+  --safe-top:env(safe-area-inset-top,0px);
 }
-
-/* ── layout ── */
 .shell{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden;background:var(--bg);}
 .main{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;}
 .scroll-pad{padding:14px 14px calc(14px + var(--safe-bottom));}
-
-/* ── topbar ── */
-.topbar{background:var(--s1);border-bottom:1px solid var(--br);padding:0 14px;
-  display:flex;align-items:center;justify-content:space-between;
-  height:54px;flex-shrink:0;padding-top:env(safe-area-inset-top,0);}
+.topbar{background:var(--s1);border-bottom:1px solid var(--br);padding:0 14px;padding-top:var(--safe-top);display:flex;align-items:center;justify-content:space-between;min-height:54px;flex-shrink:0;}
 .topbar-ttl{font-weight:700;font-size:15px;color:var(--t1);}
 .topbar-sub{font-size:9px;color:var(--t3);font-family:var(--mono);margin-top:1px;letter-spacing:.05em;}
-.back-btn{display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--t2);
-  font-size:13px;background:none;border:none;font-family:'Outfit',sans-serif;padding:6px 0;}
-.back-btn:active{color:var(--t1);}
-
-/* ── bottom nav ── */
-.bottom-nav{background:var(--s1);border-top:1px solid var(--br);display:flex;align-items:stretch;
-  flex-shrink:0;padding-bottom:var(--safe-bottom);}
-.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:3px;padding:8px 4px;background:none;border:none;cursor:pointer;
-  color:var(--t3);font-family:'Outfit',sans-serif;font-size:9px;font-weight:600;
-  letter-spacing:.04em;text-transform:uppercase;transition:color .12s;min-height:56px;}
+.back-btn{display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--t2);font-size:13px;background:none;border:none;font-family:'Outfit',sans-serif;padding:6px 0;}
+.bottom-nav{background:var(--s1);border-top:1px solid var(--br);display:flex;align-items:stretch;flex-shrink:0;padding-bottom:var(--safe-bottom);}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:8px 4px;background:none;border:none;cursor:pointer;color:var(--t3);font-family:'Outfit',sans-serif;font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;transition:color .12s;min-height:56px;}
 .nav-btn.active{color:var(--acc);}
-.nav-btn svg{flex-shrink:0;}
-
-/* ── cards / rows ── */
 .card{background:var(--s2);border:1px solid var(--br);border-radius:12px;padding:14px;}
 .card+.card{margin-top:8px;}
-.row{background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:12px 14px;
-  margin-bottom:6px;transition:border-color .12s;}
-.row:active{border-color:var(--br-hi);}
-
-/* ── project card ── */
-.proj-card{background:var(--s2);border:1px solid var(--br);border-radius:12px;
-  overflow:hidden;margin-bottom:10px;display:flex;}
+.row{background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:12px 14px;margin-bottom:6px;}
+.proj-card{background:var(--s2);border:1px solid var(--br);border-radius:12px;overflow:hidden;margin-bottom:10px;display:flex;}
 .proj-accent{width:4px;flex-shrink:0;}
 .proj-body{flex:1;padding:13px 14px;cursor:pointer;}
-
-/* ── tabs (sub-screen tabs) ── */
-.subtabs{background:var(--s1);border-bottom:1px solid var(--br);
-  display:flex;overflow-x:auto;flex-shrink:0;-webkit-overflow-scrolling:touch;}
-.subtab{background:none;border:none;font-family:'Outfit',sans-serif;font-size:12px;
-  padding:11px 14px;cursor:pointer;border-bottom:2px solid transparent;
-  color:var(--t2);white-space:nowrap;transition:all .12s;flex-shrink:0;}
+.subtabs{background:var(--s1);border-bottom:1px solid var(--br);display:flex;overflow-x:auto;flex-shrink:0;-webkit-overflow-scrolling:touch;}
+.subtab{background:none;border:none;font-family:'Outfit',sans-serif;font-size:12px;padding:11px 14px;cursor:pointer;border-bottom:2px solid transparent;color:var(--t2);white-space:nowrap;transition:all .12s;flex-shrink:0;}
 .subtab.active{color:var(--t1);font-weight:700;border-bottom-color:var(--acc);}
-
-/* ── inputs ── */
-.inp{width:100%;background:var(--s3);border:1px solid var(--br);border-radius:8px;
-  padding:11px 13px;font-size:14px;color:var(--t1);outline:none;
-  font-family:'Outfit',sans-serif;-webkit-appearance:none;}
+.inp{width:100%;background:var(--s3);border:1px solid var(--br);border-radius:8px;padding:11px 13px;font-size:14px;color:var(--t1);outline:none;font-family:'Outfit',sans-serif;-webkit-appearance:none;}
 .inp:focus{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc-lo);}
 .inp::placeholder{color:var(--t3);}
-.sel{width:100%;background:var(--s3);border:1px solid var(--br);border-radius:8px;
-  padding:11px 13px;font-size:14px;color:var(--t1);outline:none;cursor:pointer;
-  font-family:'Outfit',sans-serif;-webkit-appearance:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='%23404866'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;}
-.txa{width:100%;background:var(--s3);border:1px solid var(--br);border-radius:8px;
-  padding:11px 13px;font-size:14px;color:var(--t1);outline:none;resize:none;
-  font-family:'Outfit',sans-serif;min-height:80px;}
-.lbl{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:.08em;
-  text-transform:uppercase;display:block;margin-bottom:5px;}
+.sel{width:100%;background:var(--s3);border:1px solid var(--br);border-radius:8px;padding:11px 13px;font-size:14px;color:var(--t1);outline:none;cursor:pointer;font-family:'Outfit',sans-serif;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='%23404866'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;}
+.txa{width:100%;background:var(--s3);border:1px solid var(--br);border-radius:8px;padding:11px 13px;font-size:14px;color:var(--t1);outline:none;resize:none;font-family:'Outfit',sans-serif;min-height:80px;}
+.lbl{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:5px;}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
-
-/* ── buttons ── */
-.btn{border:none;border-radius:8px;padding:12px 18px;font-size:13px;font-weight:600;
-  cursor:pointer;font-family:'Outfit',sans-serif;display:inline-flex;align-items:center;
-  gap:6px;transition:all .15s;white-space:nowrap;-webkit-tap-highlight-color:transparent;}
+.btn{border:none;border-radius:8px;padding:12px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;display:inline-flex;align-items:center;gap:6px;transition:all .15s;white-space:nowrap;-webkit-tap-highlight-color:transparent;}
 .btn-primary{background:var(--acc);color:#fff;box-shadow:0 0 12px var(--acc-glo);}
-.btn-primary:active{filter:brightness(1.15);}
 .btn-secondary{background:var(--s3);border:1px solid var(--br);color:var(--t1);}
-.btn-secondary:active{background:var(--s4);}
 .btn-ghost{background:transparent;border:1px solid var(--br);color:var(--t2);}
 .btn-green{background:rgba(26,217,138,.12);border:1px solid rgba(26,217,138,.25);color:var(--green);}
 .btn-danger{background:var(--acc-lo);border:1px solid rgba(228,53,49,.25);color:var(--acc);}
 .btn-full{width:100%;justify-content:center;}
 .btn-lg{padding:15px 20px;font-size:15px;border-radius:12px;}
-.btn-sm{padding:7px 13px;font-size:12px;border-radius:7px;}
 .btn-xs{padding:5px 10px;font-size:11px;border-radius:6px;}
-
-/* ── badges / chips ── */
-.badge{display:inline-flex;align-items:center;gap:4px;border-radius:20px;
-  padding:3px 9px;font-size:10px;font-weight:600;}
-.chip{border-radius:20px;padding:4px 12px;font-size:11px;cursor:pointer;
-  border:1px solid var(--br);background:transparent;color:var(--t3);
-  font-family:'Outfit',sans-serif;transition:all .12s;white-space:nowrap;}
-.chip.on{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700;}
-
-/* ── status dot ── */
-.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;display:inline-block;}
-
-/* ── offline banner ── */
-.offline-bar{background:rgba(232,156,24,.12);border-bottom:1px solid rgba(232,156,24,.25);
-  padding:5px 14px;display:flex;align-items:center;gap:6px;
-  font-size:10px;color:var(--amber);font-weight:700;letter-spacing:.04em;font-family:var(--mono);}
-
-/* ── clock-in banner ── */
-.clocked-bar{background:rgba(26,217,138,.1);border-bottom:1px solid rgba(26,217,138,.2);
-  padding:6px 14px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--green);}
-
-/* ── auth screen ── */
-.auth-shell{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;padding:24px;background:var(--bg);}
-.auth-logo{width:52px;height:52px;border-radius:14px;background:var(--acc);
-  display:flex;align-items:center;justify-content:center;
-  font-family:var(--mono);font-size:18px;font-weight:700;color:#fff;
-  box-shadow:0 0 24px var(--acc-glo);margin-bottom:18px;}
-.auth-card{background:var(--s2);border:1px solid var(--br);border-radius:16px;
-  padding:24px;width:100%;max-width:400px;}
+.offline-bar{background:rgba(232,156,24,.12);border-bottom:1px solid rgba(232,156,24,.25);padding:5px 14px;display:flex;align-items:center;gap:6px;font-size:10px;color:var(--amber);font-weight:700;letter-spacing:.04em;font-family:var(--mono);}
+.clocked-bar{background:rgba(26,217,138,.1);border-bottom:1px solid rgba(26,217,138,.2);padding:6px 14px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--green);}
+.auth-shell{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:var(--bg);}
+.auth-logo{width:52px;height:52px;border-radius:14px;background:var(--acc);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:18px;font-weight:700;color:#fff;box-shadow:0 0 24px var(--acc-glo);margin-bottom:18px;}
+.auth-card{background:var(--s2);border:1px solid var(--br);border-radius:16px;padding:24px;width:100%;max-width:400px;}
 .auth-title{font-size:20px;font-weight:800;margin-bottom:4px;color:var(--t1);}
 .auth-sub{font-size:13px;color:var(--t2);margin-bottom:20px;line-height:1.5;}
 .field-group{margin-bottom:14px;}
-
-/* ── reading row ── */
-.reading-row{background:var(--s2);border:1px solid var(--br);border-radius:10px;
-  padding:12px 14px;margin-bottom:6px;cursor:pointer;transition:border-color .12s;}
-.reading-row:active{border-color:var(--br-hi);}
+.reading-row{background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:12px 14px;margin-bottom:6px;}
 .reading-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
-.reading-chip{background:var(--s3);border-radius:6px;padding:3px 9px;font-size:11px;
-  font-family:var(--mono);color:var(--t2);}
+.reading-chip{background:var(--s3);border-radius:6px;padding:3px 9px;font-size:11px;font-family:var(--mono);color:var(--t2);}
 .reading-chip.good{color:var(--green);background:rgba(26,217,138,.1);}
 .reading-chip.warn{color:var(--amber);background:rgba(232,156,24,.1);}
 .reading-chip.bad{color:var(--acc);background:var(--acc-lo);}
-
-/* ── photo ── */
 .photo-grid{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
-.photo-thumb{position:relative;width:72px;height:72px;border-radius:8px;
-  overflow:hidden;border:1px solid var(--br);flex-shrink:0;}
-.photo-add{width:72px;height:72px;border-radius:8px;border:1.5px dashed var(--br);
-  background:transparent;color:var(--t3);cursor:pointer;display:flex;
-  flex-direction:column;align-items:center;justify-content:center;gap:4px;
-  flex-shrink:0;transition:all .15s;font-size:9px;font-family:'Outfit',sans-serif;
-  letter-spacing:.04em;}
-.photo-add:active{border-color:var(--acc);color:var(--acc);}
-
-/* ── empty state ── */
-.empty{display:flex;flex-direction:column;align-items:center;gap:10px;
-  padding:40px 20px;text-align:center;}
+.photo-thumb{position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;border:1px solid var(--br);flex-shrink:0;}
+.photo-add{width:72px;height:72px;border-radius:8px;border:1.5px dashed var(--br);background:transparent;color:var(--t3);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;flex-shrink:0;font-size:9px;font-family:'Outfit',sans-serif;letter-spacing:.04em;}
+.empty{display:flex;flex-direction:column;align-items:center;gap:10px;padding:40px 20px;text-align:center;}
 .empty-ico{opacity:.12;}
-
-/* ── kpi strip ── */
 .kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
 .kpi-box{background:var(--s2);border:1px solid var(--br);border-radius:9px;padding:11px 12px;}
 .kpi-val{font-family:var(--mono);font-size:18px;font-weight:700;margin-bottom:2px;}
 .kpi-lbl{font-family:var(--mono);font-size:8px;color:var(--t2);text-transform:uppercase;letter-spacing:.07em;}
-
-/* ── feed note ── */
-.feed-note{background:var(--s2);border:1px solid var(--br);border-radius:10px;
-  padding:12px 14px;margin-bottom:8px;}
-
-/* ── spinner ── */
+.feed-note{background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:12px 14px;margin-bottom:8px;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .spin{animation:spin .7s linear infinite;display:inline-block;}
-
-/* ── animations ── */
-@keyframes fade-up{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
-.anim{animation:fade-up .2s ease both;}
-
-/* ── form sheet (slide-up overlay for add forms) ── */
-.sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);
-  z-index:200;display:flex;align-items:flex-end;}
-.sheet{background:var(--s2);border-radius:18px 18px 0 0;border-top:1px solid var(--br);
-  width:100%;max-height:92vh;overflow-y:auto;padding:20px 16px;
-  padding-bottom:calc(20px + var(--safe-bottom));}
-.sheet-handle{width:36px;height:4px;background:var(--br-hi);border-radius:2px;
-  margin:0 auto 18px;}
+.sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);z-index:200;display:flex;align-items:flex-end;}
+.sheet{background:var(--s2);border-radius:18px 18px 0 0;border-top:1px solid var(--br);width:100%;max-height:92vh;overflow-y:auto;padding:20px 16px;padding-bottom:calc(20px + var(--safe-bottom));}
+.sheet-handle{width:36px;height:4px;background:var(--br-hi);border-radius:2px;margin:0 auto 18px;}
 .sheet-title{font-size:16px;font-weight:700;color:var(--t1);margin-bottom:16px;}
-
-/* ── status colors ── */
-.status-active{color:var(--green);}
-.status-pending{color:var(--amber);}
-.status-closed{color:var(--t3);}
 </style>
 </head>
 <body>
 <div id="root"></div>
 
 <script>
-  // ── Firebase init (same project as portal) ──────────────────────
-  const FIREBASE_CONFIG = {
-    apiKey:            "AIzaSyAFwSEDPqKgAUbwbh_2KZNwLDdGCZEiq3E",
-    authDomain:        "cortex-717c6.firebaseapp.com",
-    projectId:         "cortex-717c6",
-    storageBucket:     "cortex-717c6.firebasestorage.app",
-    messagingSenderId: "496631882511",
-    appId:             "1:496631882511:web:3f7be61bcbb83a6ab4d47a",
-  };
-  const fbApp  = firebase.initializeApp(FIREBASE_CONFIG);
-  const auth   = firebase.auth();
-  const db     = firebase.firestore();
-
-  // ── Enable offline persistence (the core of offline-first) ──────
-  db.enablePersistence({ synchronizeTabs: true })
-    .catch(e => { if (e.code !== "failed-precondition" && e.code !== "unimplemented") console.warn("Persistence:", e); });
+  // Firebase — Firestore only, NO Firebase Auth
+  firebase.initializeApp({
+    apiKey:"AIzaSyAFwSEDPqKgAUbwbh_2KZNwLDdGCZEiq3E",
+    authDomain:"cortex-717c6.firebaseapp.com",
+    projectId:"cortex-717c6",
+    storageBucket:"cortex-717c6.firebasestorage.app",
+    messagingSenderId:"496631882511",
+    appId:"1:496631882511:web:3f7be61bcbb83a6ab4d47a",
+  });
+  const db = firebase.firestore();
+  db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
 </script>
 
 <script type="text/babel">
-const { useState, useEffect, useRef, useCallback } = React;
+const { useState, useEffect, useRef } = React;
 
-/* ═══ CONSTANTS ══════════════════════════════════════════════ */
 const DISPOSITIONS = ["Non-Salvage","Salvageable","Restorable","Unknown"];
-const DISP_COLORS  = { "Non-Salvage":"var(--acc)", "Salvageable":"var(--green)", "Restorable":"var(--blue)", "Unknown":"var(--amber)" };
-const WORK_TYPE_COLORS = { water:"#5ba3f5", fire:"#e43531", mold:"#a78bfa", smoke:"#e89c18", wind:"#22d3ee", contents:"#1ad98a" };
+const DISP_COLORS  = {"Non-Salvage":"var(--acc)","Salvageable":"var(--green)","Restorable":"var(--blue)","Unknown":"var(--amber)"};
+const WORK_COLORS  = {water:"#5ba3f5",fire:"#e43531",mold:"#a78bfa",smoke:"#e89c18",wind:"#22d3ee",contents:"#1ad98a"};
 
 let _id = Date.now();
-const uid = () => `f${_id++}`;
-const fmt$ = n => new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(n||0);
-const fmtDate = ts => ts?.toDate ? ts.toDate().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
-const fmtTime = ts => ts?.toDate ? ts.toDate().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}) : "";
+const uid     = () => `f${_id++}`;
+const fmtDate = ts => ts?.toDate?ts.toDate().toLocaleDateString("en-US",{month:"short",day:"numeric"}):new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
+const fmtTime = ts => ts?.toDate?ts.toDate().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):"";
 
-/* ═══ SVG ICONS ═══════════════════════════════════════════════ */
 const I = {
-  home:    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>,
-  drop:    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8z"/></svg>,
-  box:     <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27z"/></svg>,
-  feed:    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>,
-  user:    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>,
-  plus:    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>,
-  back:    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>,
-  clock:   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>,
-  camera:  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.2A3.2 3.2 0 0 1 8.8 12 3.2 3.2 0 0 1 12 8.8 3.2 3.2 0 0 1 15.2 12 3.2 3.2 0 0 1 12 15.2M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9z"/></svg>,
-  check:   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>,
-  wifi:    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg>,
-  trash:   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>,
-  note:    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>,
-  logout:  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>,
-  offline: <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M22.99 9C19.15 5.16 13.8 3.76 8.84 4.78L11 6.94c3.73-.41 7.58.77 10.38 3.56l1.61-1.5zm-4 4c-1.29-1.29-2.84-2.17-4.49-2.62L9.45 5.33C7 5.5 4.6 6.49 2.71 8.38l1.6 1.6c1.46-1.46 3.28-2.27 5.18-2.47l7.6 7.6.9-.9-1.1-1.1.1-.11zm-18 0L2.4 11.6 4 10l1.2 1.2C4.56 11.88 4.09 12.4 3.62 13L2.99 13z"/></svg>,
+  home:  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>,
+  drop:  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-5.33 4.55-8 8.48-8 11.8 0 4.98 3.8 8.2 8 8.2s8-3.22 8-8.2c0-3.32-2.67-7.25-8-11.8z"/></svg>,
+  box:   <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27z"/></svg>,
+  feed:  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>,
+  user:  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>,
+  plus:  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>,
+  back:  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>,
+  clock: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>,
+  cam:   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.2A3.2 3.2 0 0 1 8.8 12 3.2 3.2 0 0 1 12 8.8 3.2 3.2 0 0 1 15.2 12 3.2 3.2 0 0 1 12 15.2M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9z"/></svg>,
+  check: <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>,
+  note:  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>,
+  out:   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>,
 };
 
-/* ═══ AUTH SCREEN ════════════════════════════════════════════ */
-function AuthScreen({ onAuth }) {
-  const [mode,    setMode]    = useState("login"); // login | invite
-  const [email,   setEmail]   = useState("");
-  const [pass,    setPass]    = useState("");
-  const [name,    setName]    = useState("");
+// Wait for Memberstack SDK to initialise
+function waitForMS() {
+  return new Promise(resolve => {
+    const check = () => window.$memberstackDom ? resolve(window.$memberstackDom) : setTimeout(check, 150);
+    check();
+  });
+}
+
+// Derive a display name from the Memberstack member object
+function getMemberName(m) {
+  const cf = m.customFields || {};
+  const first = cf.firstName || cf["first-name"] || "";
+  const last  = cf.lastName  || cf["last-name"]  || "";
+  if (first || last) return `${first} ${last}`.trim();
+  return m.auth?.email?.split("@")[0] || "Field Tech";
+}
+
+/* ── Splash ─────────────────────────────────────────────── */
+function Splash() {
+  return (
+    <div style={{height:"100vh",display:"flex",flexDirection:"column",
+      alignItems:"center",justifyContent:"center",gap:14,background:"var(--bg)"}}>
+      <div style={{width:44,height:44,borderRadius:12,background:"var(--acc)",display:"flex",
+        alignItems:"center",justifyContent:"center",fontFamily:"var(--mono)",
+        fontSize:16,fontWeight:700,color:"#fff",boxShadow:"0 0 20px var(--acc-glo)"}}>JD</div>
+      <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",letterSpacing:".1em"}}>LOADING…</div>
+    </div>
+  );
+}
+
+/* ── Invite Code Screen ──────────────────────────────────────────────────────
+   Shown when the Memberstack member is authenticated but has no company-id
+   custom field yet. Entering a valid code sets that field via Memberstack's
+   updateMember() — the exact same mechanism the portal uses for staff invites.
+   After this runs, both apps share the same company-id with no duplication.
+─────────────────────────────────────────────────────────────────────────── */
+function InviteCodeScreen({ member, onLinked }) {
   const [code,    setCode]    = useState("");
   const [err,     setErr]     = useState("");
   const [loading, setLoading] = useState(false);
 
-  const doLogin = async () => {
+  const submit = async () => {
+    const c = code.trim().toUpperCase();
+    if (!c) { setErr("Enter the invite code your office sent you."); return; }
     setErr(""); setLoading(true);
     try {
-      const cred = await auth.signInWithEmailAndPassword(email.trim(), pass);
-      const snap = await db.collection("fieldUsers").doc(cred.user.uid).get();
-      if (!snap.exists) { setErr("Account not linked to a company. Ask your office to resend your invite."); setLoading(false); return; }
-      onAuth(cred.user, snap.data());
-    } catch(e) { setErr(e.code === "auth/wrong-password" || e.code === "auth/user-not-found" ? "Email or password incorrect." : e.message); }
+      const snap = await db.collection("fieldInviteCodes").doc(c).get();
+      if (!snap.exists()) { setErr("Code not found — check for typos or ask your office for a new one."); setLoading(false); return; }
+      const data = snap.data();
+      if (data.used) { setErr("This code has already been used. Ask your office to generate a new one."); setLoading(false); return; }
+
+      const { companyId, companyName } = data;
+
+      // Write company-id into Memberstack custom fields.
+      // This is the SAME field the portal reads on login, so there is one
+      // source of truth and no duplicate auth records.
+      const ms = await waitForMS();
+      await ms.updateMember({ customFields: { "company-id": companyId } });
+
+      // Mark code used
+      await db.collection("fieldInviteCodes").doc(c).update({
+        used: true, usedBy: member.id,
+        usedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Write field user record so portal can list field staff
+      await db.collection("companies").doc(companyId)
+        .collection("fieldUsers").doc(member.id).set({
+          memberstackId: member.id,
+          name:        getMemberName(member),
+          email:       member.auth?.email || "",
+          companyId,   companyName: companyName || "",
+          role:        "field",
+          linkedAt:    firebase.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+      onLinked(companyId, companyName || "");
+    } catch(e) {
+      setErr(e.message || "Something went wrong. Check your connection and try again.");
+    }
     setLoading(false);
   };
 
-  const doSetup = async () => {
-    if (!name.trim() || !email.trim() || !pass || !code.trim()) { setErr("All fields are required."); return; }
-    if (pass.length < 6) { setErr("Password must be at least 6 characters."); return; }
-    setErr(""); setLoading(true);
-    try {
-      // Validate invite code
-      const codeSnap = await db.collection("fieldInviteCodes").doc(code.trim().toUpperCase()).get();
-      if (!codeSnap.exists) { setErr("Invite code not found. Check the code your office sent."); setLoading(false); return; }
-      const { companyId, companyName } = codeSnap.data();
-      // Create Firebase Auth account
-      const cred = await auth.createUserWithEmailAndPassword(email.trim(), pass);
-      const profile = { uid: cred.user.uid, name: name.trim(), email: email.trim(), companyId, companyName, role: "field", createdAt: firebase.firestore.FieldValue.serverTimestamp() };
-      // Write to global lookup + company collection
-      await db.collection("fieldUsers").doc(cred.user.uid).set(profile);
-      await db.collection("companies").doc(companyId).collection("fieldUsers").doc(cred.user.uid).set(profile);
-      // Mark code as used
-      await db.collection("fieldInviteCodes").doc(code.trim().toUpperCase()).update({ used: true, usedBy: cred.user.uid });
-      onAuth(cred.user, profile);
-    } catch(e) { setErr(e.code === "auth/email-already-in-use" ? "That email already has an account — try logging in instead." : e.message); }
-    setLoading(false);
-  };
+  const signOut = async () => { const ms = await waitForMS(); await ms.logout(); window.location.reload(); };
 
   return (
     <div className="auth-shell">
       <div className="auth-logo">JD</div>
       <div className="auth-card">
-        <div className="auth-title">Job-Dox Field</div>
-        <div className="auth-sub">{mode === "login" ? "Sign in to access your projects and field tools." : "First time? Enter the invite code your office sent you."}</div>
-
-        {mode === "invite" && (
-          <div className="field-group">
-            <label className="lbl">Invite Code (from your office)</label>
-            <input className="inp" value={code} onChange={e=>setCode(e.target.value.toUpperCase())}
-              placeholder="e.g. JDFIELD-ABC123" autoCapitalize="characters" autoCorrect="off"/>
-          </div>
-        )}
-        {mode === "invite" && (
-          <div className="field-group">
-            <label className="lbl">Your Full Name</label>
-            <input className="inp" value={name} onChange={e=>setName(e.target.value)} placeholder="First and last name"/>
-          </div>
-        )}
-        <div className="field-group">
-          <label className="lbl">Email</label>
-          <input className="inp" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@email.com" autoCapitalize="none"/>
+        <div className="auth-title">Link your account</div>
+        <div className="auth-sub">
+          Signed in as <strong style={{color:"var(--t1)"}}>{member.auth?.email}</strong>.
+          Enter the one-time invite code from your office to connect your account to your company.
         </div>
         <div className="field-group">
-          <label className="lbl">Password</label>
-          <input className="inp" type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="••••••••"/>
+          <label className="lbl">Invite Code</label>
+          <input className="inp" value={code} onChange={e=>setCode(e.target.value.toUpperCase())}
+            placeholder="e.g. JDFIELD-ABC123"
+            autoCapitalize="characters" autoCorrect="off" autoComplete="off"
+            onKeyDown={e=>e.key==="Enter"&&submit()}/>
         </div>
         {err && <div style={{fontSize:12,color:"var(--acc)",marginBottom:12,lineHeight:1.5}}>{err}</div>}
-        <button className="btn btn-primary btn-full btn-lg" onClick={mode==="login"?doLogin:doSetup} disabled={loading}>
-          {loading ? <span className="spin">⟳</span> : (mode==="login" ? "Sign In" : "Create Account & Sign In")}
+        <button className="btn btn-primary btn-full btn-lg" onClick={submit} disabled={loading}>
+          {loading?<span className="spin">⟳</span>:<>{I.check} Connect Account</>}
         </button>
-        <button onClick={()=>{setMode(m=>m==="login"?"invite":"login");setErr("");}}
-          style={{background:"none",border:"none",color:"var(--blue)",fontSize:12,cursor:"pointer",
-            display:"block",margin:"14px auto 0",fontFamily:"'Outfit',sans-serif"}}>
-          {mode==="login" ? "First time? Use an invite code →" : "← Back to sign in"}
-        </button>
+        <div style={{marginTop:16,paddingTop:16,borderTop:"1px solid var(--br)",fontSize:12,color:"var(--t3)",textAlign:"center"}}>
+          Wrong account?{" "}
+          <button onClick={signOut} style={{background:"none",border:"none",color:"var(--blue)",cursor:"pointer",fontSize:12,fontFamily:"'Outfit',sans-serif"}}>Sign out</button>
+        </div>
       </div>
     </div>
   );
 }
 
-/* ═══ PROJECTS SCREEN ════════════════════════════════════════ */
-function ProjectsScreen({ fieldUser, onSelectProject, clockedProjectId }) {
+/* ── Projects ─────────────────────────────────────────── */
+function ProjectsScreen({ fieldUser, onSelect, clockedProjId }) {
   const [projects, setProjects] = useState([]);
   const [loading,  setLoading]  = useState(true);
 
   useEffect(() => {
     if (!fieldUser?.companyId) return;
-    // Real-time listener — works offline (serves from IndexedDB cache)
-    const unsub = db.collection("companies").doc(fieldUser.companyId)
-      .collection("projects")
-      .onSnapshot(snap => {
-        setProjects(snap.docs.map(d => ({id:d.id,...d.data()})));
-        setLoading(false);
-      }, () => setLoading(false));
-    return unsub;
+    return db.collection("companies").doc(fieldUser.companyId).collection("projects")
+      .onSnapshot(snap=>{ setProjects(snap.docs.map(d=>({id:d.id,...d.data()}))); setLoading(false); }, ()=>setLoading(false));
   }, [fieldUser?.companyId]);
 
-  const statusColor = s => s==="Active"?"var(--green)":s==="Complete"?"var(--blue)":s==="On Hold"?"var(--amber)":"var(--t3)";
-
+  const stColor = s => s==="Active"?"var(--green)":s==="Complete"?"var(--blue)":s==="On Hold"?"var(--amber)":"var(--t3)";
   if (loading) return <div className="empty"><span className="spin" style={{fontSize:24,color:"var(--t3)"}}>⟳</span></div>;
 
   return (
     <div className="scroll-pad">
       <div style={{marginBottom:14}}>
-        <div style={{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)",letterSpacing:".08em",marginBottom:2}}>
-          {fieldUser?.companyName || "YOUR COMPANY"}
-        </div>
-        <div style={{fontSize:18,fontWeight:700,color:"var(--t1)"}}>Projects</div>
+        <div style={{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)",letterSpacing:".08em",marginBottom:2}}>{(fieldUser?.companyName||"YOUR COMPANY").toUpperCase()}</div>
+        <div style={{fontSize:18,fontWeight:700}}>Projects</div>
       </div>
-
-      {projects.length === 0
-        ? <div className="empty"><div className="empty-ico">{I.home}</div><div style={{fontSize:12,color:"var(--t3)"}}>No projects yet. Your office will assign projects here.</div></div>
-        : projects.map(proj => {
-            const wts = Array.isArray(proj.workTypes) ? proj.workTypes : [];
-            const isClockedIn = clockedProjectId === proj.id;
+      {projects.length===0
+        ? <div className="empty"><div className="empty-ico">{I.home}</div><div style={{fontSize:12,color:"var(--t3)"}}>No projects yet. Your office will assign work here.</div></div>
+        : projects.map(p=>{
+            const wts = Array.isArray(p.workTypes)?p.workTypes:[];
             return (
-              <div key={proj.id} className="proj-card" onClick={()=>onSelectProject(proj)}>
-                <div className="proj-accent" style={{background: wts[0] ? (WORK_TYPE_COLORS[wts[0]]||"var(--acc)") : "var(--acc)"}}/>
+              <div key={p.id} className="proj-card" onClick={()=>onSelect(p)}>
+                <div className="proj-accent" style={{background:WORK_COLORS[wts[0]]||"var(--acc)"}}/>
                 <div className="proj-body">
-                  <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,marginBottom:6}}>
-                    <div style={{fontWeight:700,fontSize:14,color:"var(--t1)",lineHeight:1.3}}>{proj.name||proj.clientName||"Unnamed Project"}</div>
-                    <span style={{fontSize:10,color:statusColor(proj.status),fontFamily:"var(--mono)",flexShrink:0,fontWeight:700}}>{proj.status||"Active"}</span>
+                  <div style={{display:"flex",justifyContent:"space-between",gap:8,marginBottom:6}}>
+                    <div style={{fontWeight:700,fontSize:14,lineHeight:1.3}}>{p.name||p.clientName||"Unnamed Project"}</div>
+                    <span style={{fontSize:10,color:stColor(p.status),fontFamily:"var(--mono)",flexShrink:0,fontWeight:700}}>{p.status||"Active"}</span>
                   </div>
-                  {proj.address && <div style={{fontSize:12,color:"var(--t3)",marginBottom:6}}>{proj.address}</div>}
-                  <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-                    {wts.slice(0,3).map(wt=>(
-                      <span key={wt} style={{background:(WORK_TYPE_COLORS[wt]||"var(--acc)")+"22",
-                        color:WORK_TYPE_COLORS[wt]||"var(--acc)",borderRadius:5,
-                        padding:"2px 8px",fontSize:10,fontWeight:700,border:`1px solid ${(WORK_TYPE_COLORS[wt]||"var(--acc)")}44`}}>
-                        {wt}
-                      </span>
+                  {p.address&&<div style={{fontSize:12,color:"var(--t3)",marginBottom:6}}>{p.address}</div>}
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    {wts.slice(0,3).map(w=>(
+                      <span key={w} style={{background:(WORK_COLORS[w]||"var(--acc)")+"22",color:WORK_COLORS[w]||"var(--acc)",borderRadius:5,padding:"2px 8px",fontSize:10,fontWeight:700,border:`1px solid ${(WORK_COLORS[w]||"var(--acc)")}44`}}>{w}</span>
                     ))}
-                    {isClockedIn && <span style={{background:"rgba(26,217,138,.12)",color:"var(--green)",borderRadius:5,padding:"2px 8px",fontSize:10,fontWeight:700}}>● Clocked In</span>}
+                    {clockedProjId===p.id&&<span style={{background:"rgba(26,217,138,.12)",color:"var(--green)",borderRadius:5,padding:"2px 8px",fontSize:10,fontWeight:700}}>● Clocked In</span>}
                   </div>
                 </div>
               </div>
@@ -416,118 +315,75 @@ function ProjectsScreen({ fieldUser, onSelectProject, clockedProjectId }) {
   );
 }
 
-/* ═══ DRYDOX SUB-SCREEN ════════════════════════════════════ */
+/* ── DryDox ───────────────────────────────────────────── */
 function DryDoxScreen({ proj, fieldUser }) {
-  const [logs,     setLogs]    = useState([]);
-  const [showForm, setForm]    = useState(false);
-  const [f, setF]              = useState({temp:"",rh:"",gpp:"",notes:""});
-  const [saving,   setSaving]  = useState(false);
+  const [logs,  setLogs]  = useState([]);
+  const [show,  setShow]  = useState(false);
+  const [f, setF]         = useState({temp:"",rh:"",gpp:"",notes:""});
+  const [saving,setSaving]= useState(false);
 
-  useEffect(() => {
-    if (!fieldUser?.companyId || !proj?.id) return;
-    const unsub = db.collection("companies").doc(fieldUser.companyId)
-      .collection("projects").doc(proj.id)
-      .collection("dryingLogs")
+  useEffect(()=>{
+    if (!fieldUser?.companyId||!proj?.id) return;
+    return db.collection("companies").doc(fieldUser.companyId)
+      .collection("projects").doc(proj.id).collection("dryingLogs")
       .orderBy("createdAt","desc")
-      .onSnapshot(snap => setLogs(snap.docs.map(d=>({id:d.id,...d.data()}))), ()=>{});
-    return unsub;
-  }, [fieldUser?.companyId, proj?.id]);
+      .onSnapshot(snap=>setLogs(snap.docs.map(d=>({id:d.id,...d.data()}))),()=>{});
+  },[fieldUser?.companyId,proj?.id]);
 
-  const saveLog = async () => {
-    if (!f.rh && !f.temp) return;
+  const save = async()=>{
+    if (!f.rh&&!f.temp) return;
     setSaving(true);
-    const log = {
-      day: `Day ${logs.length + 1}`, techName: fieldUser.name,
-      techUid: fieldUser.uid, temp: parseFloat(f.temp)||0,
-      rh: parseFloat(f.rh)||0, gpp: parseFloat(f.gpp)||0,
-      notes: f.notes, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    };
     await db.collection("companies").doc(fieldUser.companyId)
-      .collection("projects").doc(proj.id)
-      .collection("dryingLogs").add(log);
-    setF({temp:"",rh:"",gpp:"",notes:""}); setForm(false); setSaving(false);
+      .collection("projects").doc(proj.id).collection("dryingLogs").add({
+        day:`Day ${logs.length+1}`, techName:fieldUser.name, techMsId:fieldUser.memberstackId,
+        temp:parseFloat(f.temp)||0, rh:parseFloat(f.rh)||0, gpp:parseFloat(f.gpp)||0,
+        notes:f.notes, createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    setF({temp:"",rh:"",gpp:"",notes:""}); setShow(false); setSaving(false);
   };
 
-  const rhClass = rh => rh <= 55 ? "good" : rh <= 65 ? "warn" : "bad";
-  const latestLog = logs[0];
-
+  const rhCls = rh=>rh<=55?"good":rh<=65?"warn":"bad";
+  const lat = logs[0];
   return (
     <div className="scroll-pad">
-      {/* KPIs */}
       <div className="kpi-row">
-        <div className="kpi-box">
-          <div className="kpi-val" style={{color:"var(--blue)"}}>{logs.length}</div>
-          <div className="kpi-lbl">Days Logged</div>
-        </div>
-        <div className="kpi-box">
-          <div className="kpi-val" style={{color: latestLog ? (latestLog.rh<=55?"var(--green)":latestLog.rh<=65?"var(--amber)":"var(--acc)") : "var(--t3)"}}>
-            {latestLog ? `${latestLog.rh}%` : "—"}
-          </div>
-          <div className="kpi-lbl">Latest RH</div>
-        </div>
-        <div className="kpi-box">
-          <div className="kpi-val" style={{color: latestLog?.rh<=55 ? "var(--green)" : "var(--amber)"}}>
-            {latestLog ? (latestLog.rh<=55 ? "DRY STD" : "DRYING") : "—"}
-          </div>
-          <div className="kpi-lbl">Status</div>
-        </div>
+        <div className="kpi-box"><div className="kpi-val" style={{color:"var(--blue)"}}>{logs.length}</div><div className="kpi-lbl">Days</div></div>
+        <div className="kpi-box"><div className="kpi-val" style={{color:lat?(lat.rh<=55?"var(--green)":lat.rh<=65?"var(--amber)":"var(--acc)"):"var(--t3)"}}>{lat?`${lat.rh}%`:"—"}</div><div className="kpi-lbl">Latest RH</div></div>
+        <div className="kpi-box"><div className="kpi-val" style={{color:lat?.rh<=55?"var(--green)":"var(--amber)"}}>{lat?(lat.rh<=55?"DRY":"DRYING"):"—"}</div><div className="kpi-lbl">Status</div></div>
       </div>
-
-      <button className="btn btn-primary btn-full" style={{marginBottom:14}} onClick={()=>setForm(true)}>
-        {I.plus} Log Today's Readings
-      </button>
-
-      {logs.length === 0
-        ? <div className="empty"><div className="empty-ico">{I.drop}</div><div style={{fontSize:12,color:"var(--t3)"}}>No readings yet. Log your first drying measurement above.</div></div>
-        : logs.map((log, i) => (
-            <div key={log.id} className="reading-row">
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                <div style={{fontWeight:700,fontSize:13,color:"var(--t1)"}}>{log.day} — {fmtDate(log.createdAt)}</div>
-                <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>{log.techName}</div>
-              </div>
-              <div className="reading-chips">
-                {log.temp > 0 && <span className="reading-chip">{log.temp}°F</span>}
-                {log.rh > 0   && <span className={`reading-chip ${rhClass(log.rh)}`}>{log.rh}% RH</span>}
-                {log.gpp > 0  && <span className="reading-chip">{log.gpp} GPP</span>}
-              </div>
-              {log.notes && <div style={{fontSize:11,color:"var(--t2)",marginTop:7,lineHeight:1.5}}>{log.notes}</div>}
+      <button className="btn btn-primary btn-full" style={{marginBottom:14}} onClick={()=>setShow(true)}>{I.plus} Log Today's Readings</button>
+      {logs.length===0
+        ?<div className="empty"><div className="empty-ico">{I.drop}</div><div style={{fontSize:12,color:"var(--t3)"}}>No readings yet.</div></div>
+        :logs.map(l=>(
+          <div key={l.id} className="reading-row">
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+              <div style={{fontWeight:700,fontSize:13}}>{l.day} — {fmtDate(l.createdAt)}</div>
+              <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>{l.techName}</div>
             </div>
-          ))
+            <div className="reading-chips">
+              {l.temp>0&&<span className="reading-chip">{l.temp}°F</span>}
+              {l.rh>0&&<span className={`reading-chip ${rhCls(l.rh)}`}>{l.rh}% RH</span>}
+              {l.gpp>0&&<span className="reading-chip">{l.gpp} GPP</span>}
+            </div>
+            {l.notes&&<div style={{fontSize:11,color:"var(--t2)",marginTop:7,lineHeight:1.5}}>{l.notes}</div>}
+          </div>
+        ))
       }
-
-      {/* Add reading sheet */}
-      {showForm && (
-        <div className="sheet-overlay" onClick={e=>{if(e.target===e.currentTarget)setForm(false);}}>
+      {show&&(
+        <div className="sheet-overlay" onClick={e=>{if(e.target===e.currentTarget)setShow(false);}}>
           <div className="sheet">
             <div className="sheet-handle"/>
-            <div className="sheet-title">Log Drying Readings — {fmtDate(null)}</div>
-            <div style={{fontFamily:"var(--mono)",fontSize:9,color:"var(--t3)",marginBottom:16,letterSpacing:".06em"}}>
-              TECH: {fieldUser.name.toUpperCase()}
-            </div>
+            <div className="sheet-title">Log Drying Readings</div>
+            <div style={{fontFamily:"var(--mono)",fontSize:9,color:"var(--t3)",marginBottom:16}}>TECH: {fieldUser.name.toUpperCase()}</div>
             <div className="g3" style={{marginBottom:12}}>
-              <div>
-                <label className="lbl">Temp °F</label>
-                <input className="inp" type="number" value={f.temp} onChange={e=>setF(p=>({...p,temp:e.target.value}))} placeholder="72" inputMode="decimal"/>
-              </div>
-              <div>
-                <label className="lbl">RH %</label>
-                <input className="inp" type="number" value={f.rh} onChange={e=>setF(p=>({...p,rh:e.target.value}))} placeholder="55" inputMode="decimal"/>
-              </div>
-              <div>
-                <label className="lbl">GPP</label>
-                <input className="inp" type="number" value={f.gpp} onChange={e=>setF(p=>({...p,gpp:e.target.value}))} placeholder="72" inputMode="decimal"/>
-              </div>
+              <div><label className="lbl">Temp °F</label><input className="inp" type="number" value={f.temp} onChange={e=>setF(p=>({...p,temp:e.target.value}))} placeholder="72" inputMode="decimal"/></div>
+              <div><label className="lbl">RH %</label><input className="inp" type="number" value={f.rh} onChange={e=>setF(p=>({...p,rh:e.target.value}))} placeholder="55" inputMode="decimal"/></div>
+              <div><label className="lbl">GPP</label><input className="inp" type="number" value={f.gpp} onChange={e=>setF(p=>({...p,gpp:e.target.value}))} placeholder="72" inputMode="decimal"/></div>
             </div>
-            <div style={{marginBottom:16}}>
-              <label className="lbl">Observations / Equipment Notes</label>
-              <textarea className="txa" value={f.notes} onChange={e=>setF(p=>({...p,notes:e.target.value}))}
-                placeholder="Equipment in place, structural readings, observations…"/>
-            </div>
+            <div style={{marginBottom:16}}><label className="lbl">Notes / Equipment</label><textarea className="txa" value={f.notes} onChange={e=>setF(p=>({...p,notes:e.target.value}))} placeholder="Equipment in place, observations…"/></div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10}}>
-              <button className="btn btn-ghost" onClick={()=>setForm(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={saveLog} disabled={saving}>
-                {saving ? <span className="spin">⟳</span> : <>{I.check} Save Reading</>}
-              </button>
+              <button className="btn btn-ghost" onClick={()=>setShow(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={save} disabled={saving}>{saving?<span className="spin">⟳</span>:<>{I.check} Save Reading</>}</button>
             </div>
           </div>
         </div>
@@ -536,126 +392,89 @@ function DryDoxScreen({ proj, fieldUser }) {
   );
 }
 
-/* ═══ CONTENTS SUB-SCREEN ════════════════════════════════ */
+/* ── Contents ─────────────────────────────────────────── */
 function ContentsScreen({ proj, fieldUser }) {
-  const [items,    setItems]   = useState([]);
-  const [showForm, setForm]    = useState(false);
-  const [f, setF]              = useState({name:"",room:"",disposition:"Non-Salvage",quantity:1,photos:[]});
-  const [saving,   setSaving]  = useState(false);
-  const fileRef = useRef();
+  const [items,  setItems] = useState([]);
+  const [show,   setShow]  = useState(false);
+  const [f, setF]          = useState({name:"",room:"",disposition:"Non-Salvage",quantity:1,photos:[]});
+  const [saving, setSaving]= useState(false);
+  const fRef = useRef();
 
-  useEffect(() => {
-    if (!fieldUser?.companyId || !proj?.id) return;
-    const unsub = db.collection("companies").doc(fieldUser.companyId)
-      .collection("projects").doc(proj.id)
-      .collection("contentsItems")
+  useEffect(()=>{
+    if (!fieldUser?.companyId||!proj?.id) return;
+    return db.collection("companies").doc(fieldUser.companyId)
+      .collection("projects").doc(proj.id).collection("contentsItems")
       .orderBy("createdAt","desc")
-      .onSnapshot(snap => setItems(snap.docs.map(d=>({id:d.id,...d.data()}))), ()=>{});
-    return unsub;
-  }, [fieldUser?.companyId, proj?.id]);
+      .onSnapshot(snap=>setItems(snap.docs.map(d=>({id:d.id,...d.data()}))),()=>{});
+  },[fieldUser?.companyId,proj?.id]);
 
-  const handlePhoto = e => {
-    Array.from(e.target.files).forEach(file => {
-      const r = new FileReader();
-      r.onload = ev => setF(p=>({...p,photos:[...p.photos,{dataUrl:ev.target.result,name:file.name}]}));
-      r.readAsDataURL(file);
-    });
-    e.target.value = "";
+  const addPhoto = e=>{
+    Array.from(e.target.files).forEach(file=>{
+      const r=new FileReader(); r.onload=ev=>setF(p=>({...p,photos:[...p.photos,{url:ev.target.result}]})); r.readAsDataURL(file);
+    }); e.target.value="";
   };
 
-  const saveItem = async () => {
-    if (!f.name.trim()) return;
-    setSaving(true);
-    const item = {
-      name: f.name.trim(), room: f.room.trim(),
-      disposition: f.disposition, quantity: f.quantity,
-      techName: fieldUser.name, techUid: fieldUser.uid,
-      // photos stored as base64 in session only — note for user
-      category: "Other", condition: "Unknown", rcv: "", acv: "",
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    };
+  const save = async()=>{
+    if (!f.name.trim()) return; setSaving(true);
     await db.collection("companies").doc(fieldUser.companyId)
-      .collection("projects").doc(proj.id)
-      .collection("contentsItems").add(item);
-    setF({name:"",room:"",disposition:"Non-Salvage",quantity:1,photos:[]}); setForm(false); setSaving(false);
+      .collection("projects").doc(proj.id).collection("contentsItems").add({
+        name:f.name.trim(), room:f.room.trim(), disposition:f.disposition, quantity:f.quantity,
+        techName:fieldUser.name, techMsId:fieldUser.memberstackId,
+        category:"Other", condition:"Unknown",
+        createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    setF({name:"",room:"",disposition:"Non-Salvage",quantity:1,photos:[]}); setShow(false); setSaving(false);
   };
 
   return (
     <div className="scroll-pad">
-      <button className="btn btn-primary btn-full" style={{marginBottom:14}} onClick={()=>setForm(true)}>
-        {I.plus} Add Contents Item
-      </button>
-
-      {items.length === 0
-        ? <div className="empty"><div className="empty-ico">{I.box}</div><div style={{fontSize:12,color:"var(--t3)"}}>No items yet. Tap above to document contents.</div></div>
-        : items.map(item => {
-            const dc = DISP_COLORS[item.disposition]||"var(--t2)";
-            return (
-              <div key={item.id} className="row">
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
-                  <div style={{fontWeight:600,fontSize:13,color:"var(--t1)"}}>{item.name}</div>
-                  <span style={{background:dc+"22",color:dc,borderRadius:12,padding:"2px 8px",fontSize:9,fontWeight:700,flexShrink:0,fontFamily:"var(--mono)"}}>{item.disposition}</span>
-                </div>
-                <div style={{fontSize:11,color:"var(--t3)",marginTop:3}}>
-                  {item.room && <span>{item.room} · </span>}
-                  <span>Qty {item.quantity||1}</span>
-                  {item.techName && <span> · {item.techName}</span>}
-                </div>
-              </div>
-            );
-          })
+      <button className="btn btn-primary btn-full" style={{marginBottom:14}} onClick={()=>setShow(true)}>{I.plus} Add Contents Item</button>
+      {items.length===0
+        ?<div className="empty"><div className="empty-ico">{I.box}</div><div style={{fontSize:12,color:"var(--t3)"}}>No items yet.</div></div>
+        :items.map(it=>{const dc=DISP_COLORS[it.disposition]||"var(--t2)";return(
+          <div key={it.id} className="row">
+            <div style={{display:"flex",justifyContent:"space-between",gap:8}}>
+              <div style={{fontWeight:600,fontSize:13}}>{it.name}</div>
+              <span style={{background:dc+"22",color:dc,borderRadius:12,padding:"2px 8px",fontSize:9,fontWeight:700,flexShrink:0,fontFamily:"var(--mono)"}}>{it.disposition}</span>
+            </div>
+            <div style={{fontSize:11,color:"var(--t3)",marginTop:3}}>
+              {it.room&&<span>{it.room} · </span>}<span>Qty {it.quantity||1}</span>{it.techName&&<span> · {it.techName}</span>}
+            </div>
+          </div>
+        );})
       }
-
-      {showForm && (
-        <div className="sheet-overlay" onClick={e=>{if(e.target===e.currentTarget)setForm(false);}}>
+      {show&&(
+        <div className="sheet-overlay" onClick={e=>{if(e.target===e.currentTarget)setShow(false);}}>
           <div className="sheet">
             <div className="sheet-handle"/>
             <div className="sheet-title">Add Contents Item</div>
-            <div className="field-group" style={{marginBottom:12}}>
-              <label className="lbl">Item Name *</label>
-              <input className="inp" value={f.name} onChange={e=>setF(p=>({...p,name:e.target.value}))} placeholder="e.g. Samsung 65″ TV"/>
-            </div>
+            <div style={{marginBottom:12}}><label className="lbl">Item Name *</label><input className="inp" value={f.name} onChange={e=>setF(p=>({...p,name:e.target.value}))} placeholder="e.g. Samsung 65″ TV"/></div>
             <div className="g2" style={{marginBottom:12}}>
-              <div>
-                <label className="lbl">Room</label>
-                <input className="inp" value={f.room} onChange={e=>setF(p=>({...p,room:e.target.value}))} placeholder="e.g. Living Room"/>
-              </div>
-              <div>
-                <label className="lbl">Qty</label>
-                <input className="inp" type="number" value={f.quantity} onChange={e=>setF(p=>({...p,quantity:parseInt(e.target.value)||1}))} min={1} inputMode="numeric"/>
-              </div>
+              <div><label className="lbl">Room</label><input className="inp" value={f.room} onChange={e=>setF(p=>({...p,room:e.target.value}))} placeholder="Living Room"/></div>
+              <div><label className="lbl">Qty</label><input className="inp" type="number" value={f.quantity} onChange={e=>setF(p=>({...p,quantity:parseInt(e.target.value)||1}))} min={1} inputMode="numeric"/></div>
             </div>
-            <div style={{marginBottom:12}}>
-              <label className="lbl">Disposition</label>
+            <div style={{marginBottom:12}}><label className="lbl">Disposition</label>
               <select className="sel" value={f.disposition} onChange={e=>setF(p=>({...p,disposition:e.target.value}))}>
                 {DISPOSITIONS.map(d=><option key={d} value={d}>{d}</option>)}
               </select>
             </div>
-            {/* Photos */}
             <div style={{marginBottom:16}}>
               <label className="lbl">Photos</label>
               <div className="photo-grid">
-                {f.photos.map((p,pi)=>(
-                  <div key={pi} className="photo-thumb">
-                    <img src={p.dataUrl} alt={p.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-                    <button onClick={()=>setF(prev=>({...prev,photos:prev.photos.filter((_,i)=>i!==pi)}))}
-                      style={{position:"absolute",top:2,right:2,width:16,height:16,borderRadius:"50%",
-                        background:"rgba(0,0,0,.75)",border:"none",color:"#fff",fontSize:11,
-                        cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+                {f.photos.map((ph,i)=>(
+                  <div key={i} className="photo-thumb">
+                    <img src={ph.url} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                    <button onClick={()=>setF(p=>({...p,photos:p.photos.filter((_,j)=>j!==i)}))}
+                      style={{position:"absolute",top:2,right:2,width:16,height:16,borderRadius:"50%",background:"rgba(0,0,0,.75)",border:"none",color:"#fff",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
                   </div>
                 ))}
-                <button className="photo-add" onClick={()=>fileRef.current.click()}>
-                  {I.camera}<span>PHOTO</span>
-                </button>
-                <input ref={fileRef} type="file" accept="image/*" multiple capture="environment" style={{display:"none"}} onChange={handlePhoto}/>
+                <button className="photo-add" onClick={()=>fRef.current.click()}>{I.cam}<span>PHOTO</span></button>
+                <input ref={fRef} type="file" accept="image/*" multiple capture="environment" style={{display:"none"}} onChange={addPhoto}/>
               </div>
-              {f.photos.length > 0 && <div style={{fontSize:10,color:"var(--amber)",marginTop:6,lineHeight:1.5}}>⚠ Photos are session-only. Export a PDF from the portal to preserve them permanently.</div>}
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10}}>
-              <button className="btn btn-ghost" onClick={()=>setForm(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={saveItem} disabled={saving}>
-                {saving ? <span className="spin">⟳</span> : <>{I.check} Save Item</>}
-              </button>
+              <button className="btn btn-ghost" onClick={()=>setShow(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={save} disabled={saving}>{saving?<span className="spin">⟳</span>:<>{I.check} Save Item</>}</button>
             </div>
           </div>
         </div>
@@ -664,30 +483,26 @@ function ContentsScreen({ proj, fieldUser }) {
   );
 }
 
-/* ═══ NOTES SUB-SCREEN ═══════════════════════════════════ */
+/* ── Notes ────────────────────────────────────────────── */
 function NotesScreen({ proj, fieldUser }) {
-  const [notes,    setNotes]  = useState([]);
-  const [text,     setText]   = useState("");
-  const [saving,   setSaving] = useState(false);
+  const [notes, setNotes] = useState([]);
+  const [text,  setText]  = useState("");
+  const [saving,setSaving]= useState(false);
 
-  useEffect(() => {
-    if (!fieldUser?.companyId || !proj?.id) return;
-    const unsub = db.collection("companies").doc(fieldUser.companyId)
-      .collection("projects").doc(proj.id)
-      .collection("fieldNotes")
+  useEffect(()=>{
+    if (!fieldUser?.companyId||!proj?.id) return;
+    return db.collection("companies").doc(fieldUser.companyId)
+      .collection("projects").doc(proj.id).collection("fieldNotes")
       .orderBy("createdAt","desc")
-      .onSnapshot(snap => setNotes(snap.docs.map(d=>({id:d.id,...d.data()}))), ()=>{});
-    return unsub;
-  }, [fieldUser?.companyId, proj?.id]);
+      .onSnapshot(snap=>setNotes(snap.docs.map(d=>({id:d.id,...d.data()}))),()=>{});
+  },[fieldUser?.companyId,proj?.id]);
 
-  const saveNote = async () => {
-    if (!text.trim()) return;
-    setSaving(true);
+  const save=async()=>{
+    if (!text.trim()) return; setSaving(true);
     await db.collection("companies").doc(fieldUser.companyId)
-      .collection("projects").doc(proj.id)
-      .collection("fieldNotes").add({
-        text: text.trim(), techName: fieldUser.name, techUid: fieldUser.uid,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      .collection("projects").doc(proj.id).collection("fieldNotes").add({
+        text:text.trim(), techName:fieldUser.name, techMsId:fieldUser.memberstackId,
+        createdAt:firebase.firestore.FieldValue.serverTimestamp(),
       });
     setText(""); setSaving(false);
   };
@@ -695,275 +510,239 @@ function NotesScreen({ proj, fieldUser }) {
   return (
     <div className="scroll-pad">
       <div style={{marginBottom:12}}>
-        <textarea className="txa" value={text} onChange={e=>setText(e.target.value)}
-          placeholder="Log today's site observations, conversations, decisions…" style={{minHeight:100}}/>
-        <button className="btn btn-primary btn-full" style={{marginTop:8}} onClick={saveNote} disabled={saving||!text.trim()}>
-          {saving ? <span className="spin">⟳</span> : <>{I.note} Add Field Note</>}
+        <textarea className="txa" value={text} onChange={e=>setText(e.target.value)} placeholder="Log today's site observations, decisions, conversations…" style={{minHeight:100}}/>
+        <button className="btn btn-primary btn-full" style={{marginTop:8}} onClick={save} disabled={saving||!text.trim()}>
+          {saving?<span className="spin">⟳</span>:<>{I.note} Add Field Note</>}
         </button>
       </div>
-      {notes.length === 0
-        ? <div className="empty"><div className="empty-ico">{I.note}</div><div style={{fontSize:12,color:"var(--t3)"}}>No field notes yet.</div></div>
-        : notes.map(n => (
-            <div key={n.id} className="feed-note">
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
-                <span style={{fontSize:11,fontWeight:700,color:"var(--t1)"}}>{n.techName}</span>
-                <span style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>{fmtDate(n.createdAt)} {fmtTime(n.createdAt)}</span>
-              </div>
-              <div style={{fontSize:13,color:"var(--t2)",lineHeight:1.6}}>{n.text}</div>
+      {notes.length===0
+        ?<div className="empty"><div className="empty-ico">{I.note}</div><div style={{fontSize:12,color:"var(--t3)"}}>No notes yet.</div></div>
+        :notes.map(n=>(
+          <div key={n.id} className="feed-note">
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+              <span style={{fontSize:11,fontWeight:700}}>{n.techName}</span>
+              <span style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>{fmtDate(n.createdAt)} {fmtTime(n.createdAt)}</span>
             </div>
-          ))
+            <div style={{fontSize:13,color:"var(--t2)",lineHeight:1.6}}>{n.text}</div>
+          </div>
+        ))
       }
     </div>
   );
 }
 
-/* ═══ PROJECT DETAIL ════════════════════════════════════════ */
-function ProjectDetail({ proj, fieldUser, onBack, clockedProjectId, onClockAction }) {
-  const [subtab, setSubtab] = useState("overview");
-  const isClockedIn = clockedProjectId === proj.id;
-  const wts = Array.isArray(proj.workTypes) ? proj.workTypes : [];
-
-  const doClockIn = () => onClockAction("in", proj.id, proj.name||"Project");
-  const doClockOut = () => onClockAction("out", null, "");
-
+/* ── Project Detail ───────────────────────────────────── */
+function ProjectDetail({ proj, fieldUser, onBack, clockedProjId, onClockAction }) {
+  const [sub, setSub] = useState("overview");
+  const clocked = clockedProjId===proj.id;
+  const wts = Array.isArray(proj.workTypes)?proj.workTypes:[];
   return (
     <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
-      {/* Sub-tabs */}
       <div className="subtabs">
         {[["overview","Overview"],["drydox","DryDox"],["contents","Contents"],["notes","Notes"]].map(([k,l])=>(
-          <button key={k} className={`subtab${subtab===k?" active":""}`} onClick={()=>setSubtab(k)}>{l}</button>
+          <button key={k} className={`subtab${sub===k?" active":""}`} onClick={()=>setSub(k)}>{l}</button>
         ))}
       </div>
-
-      {/* Clock-in strip */}
-      {isClockedIn && (
+      {clocked&&(
         <div className="clocked-bar">
-          <span style={{fontSize:12}}>●</span>
-          <span style={{fontWeight:700,flex:1}}>Clocked in to {proj.name}</span>
-          <button className="btn btn-danger btn-xs" onClick={doClockOut}>Clock Out</button>
+          <span>●</span><span style={{fontWeight:700,flex:1}}>Clocked in to {proj.name||"this project"}</span>
+          <button className="btn btn-danger btn-xs" onClick={()=>onClockAction("out",null,"")}>Clock Out</button>
         </div>
       )}
-
-      {/* Screen body */}
       <div className="main">
-        {subtab === "overview" && (
+        {sub==="overview"&&(
           <div className="scroll-pad">
             <div className="card" style={{marginBottom:10}}>
-              <div style={{fontSize:16,fontWeight:700,color:"var(--t1)",marginBottom:4}}>{proj.name||proj.clientName||"Project"}</div>
-              {proj.address && <div style={{fontSize:13,color:"var(--t3)",marginBottom:8}}>{proj.address}</div>}
+              <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>{proj.name||proj.clientName||"Project"}</div>
+              {proj.address&&<div style={{fontSize:13,color:"var(--t3)",marginBottom:8}}>{proj.address}</div>}
               <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
-                {wts.map(wt=>(
-                  <span key={wt} style={{background:(WORK_TYPE_COLORS[wt]||"var(--acc)")+"22",color:WORK_TYPE_COLORS[wt]||"var(--acc)",
-                    borderRadius:5,padding:"3px 10px",fontSize:11,fontWeight:700,
-                    border:`1px solid ${(WORK_TYPE_COLORS[wt]||"var(--acc)")}44`}}>{wt}</span>
-                ))}
+                {wts.map(w=><span key={w} style={{background:(WORK_COLORS[w]||"var(--acc)")+"22",color:WORK_COLORS[w]||"var(--acc)",borderRadius:5,padding:"3px 10px",fontSize:11,fontWeight:700,border:`1px solid ${(WORK_COLORS[w]||"var(--acc)")}44`}}>{w}</span>)}
               </div>
-              {!isClockedIn && (
-                <button className="btn btn-green btn-full" onClick={doClockIn}>{I.clock} Clock In to this Project</button>
-              )}
+              {!clocked&&<button className="btn btn-green btn-full" onClick={()=>onClockAction("in",proj.id,proj.name||"Project")}>{I.clock} Clock In to this Project</button>}
             </div>
-            {proj.notes && (
-              <div className="card">
-                <div className="lbl" style={{marginBottom:6}}>Project Notes</div>
-                <div style={{fontSize:13,color:"var(--t2)",lineHeight:1.6}}>{proj.notes}</div>
-              </div>
-            )}
+            {proj.notes&&<div className="card"><div className="lbl" style={{marginBottom:6}}>Notes</div><div style={{fontSize:13,color:"var(--t2)",lineHeight:1.6}}>{proj.notes}</div></div>}
           </div>
         )}
-        {subtab === "drydox"   && <DryDoxScreen proj={proj} fieldUser={fieldUser}/>}
-        {subtab === "contents" && <ContentsScreen proj={proj} fieldUser={fieldUser}/>}
-        {subtab === "notes"    && <NotesScreen proj={proj} fieldUser={fieldUser}/>}
+        {sub==="drydox"   &&<DryDoxScreen   proj={proj} fieldUser={fieldUser}/>}
+        {sub==="contents" &&<ContentsScreen proj={proj} fieldUser={fieldUser}/>}
+        {sub==="notes"    &&<NotesScreen    proj={proj} fieldUser={fieldUser}/>}
       </div>
     </div>
   );
 }
 
-/* ═══ ACTIVITY FEED ═══════════════════════════════════════ */
+/* ── Team Feed ────────────────────────────────────────── */
 function FeedScreen({ fieldUser }) {
-  const [items, setItems] = useState([]);
-
-  useEffect(() => {
+  const [items,setItems]=useState([]);
+  useEffect(()=>{
     if (!fieldUser?.companyId) return;
-    const unsub = db.collection("companies").doc(fieldUser.companyId)
-      .collection("announcements")
+    return db.collection("companies").doc(fieldUser.companyId).collection("announcements")
       .orderBy("createdAt","desc").limit(30)
-      .onSnapshot(snap => setItems(snap.docs.map(d=>({id:d.id,...d.data()}))), ()=>{});
-    return unsub;
-  }, [fieldUser?.companyId]);
-
+      .onSnapshot(snap=>setItems(snap.docs.map(d=>({id:d.id,...d.data()}))),()=>{});
+  },[fieldUser?.companyId]);
   return (
     <div className="scroll-pad">
-      <div style={{fontSize:18,fontWeight:700,color:"var(--t1)",marginBottom:14}}>Team Feed</div>
-      {items.length === 0
-        ? <div className="empty"><div className="empty-ico">{I.feed}</div><div style={{fontSize:12,color:"var(--t3)"}}>No announcements from the office yet.</div></div>
-        : items.map(item => (
-            <div key={item.id} className="feed-note">
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
-                <span style={{fontSize:11,fontWeight:700,color:"var(--t1)"}}>{item.authorName||"Office"}</span>
-                <span style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>{fmtDate(item.createdAt)}</span>
-              </div>
-              {item.title && <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",marginBottom:4}}>{item.title}</div>}
-              <div style={{fontSize:13,color:"var(--t2)",lineHeight:1.6}}>{item.body}</div>
+      <div style={{fontSize:18,fontWeight:700,marginBottom:14}}>Team Feed</div>
+      {items.length===0
+        ?<div className="empty"><div className="empty-ico">{I.feed}</div><div style={{fontSize:12,color:"var(--t3)"}}>No announcements from the office yet.</div></div>
+        :items.map(it=>(
+          <div key={it.id} className="feed-note">
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+              <span style={{fontSize:11,fontWeight:700}}>{it.authorName||"Office"}</span>
+              <span style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>{fmtDate(it.createdAt)}</span>
             </div>
-          ))
+            {it.title&&<div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{it.title}</div>}
+            <div style={{fontSize:13,color:"var(--t2)",lineHeight:1.6}}>{it.body}</div>
+          </div>
+        ))
       }
     </div>
   );
 }
 
-/* ═══ PROFILE SCREEN ════════════════════════════════════ */
+/* ── Profile ──────────────────────────────────────────── */
 function ProfileScreen({ fieldUser, onSignOut }) {
   return (
     <div className="scroll-pad">
-      <div style={{fontSize:18,fontWeight:700,color:"var(--t1)",marginBottom:14}}>Profile</div>
+      <div style={{fontSize:18,fontWeight:700,marginBottom:14}}>Profile</div>
       <div className="card" style={{marginBottom:10}}>
         <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
-          <div style={{width:48,height:48,borderRadius:12,background:"var(--acc-lo)",
-            display:"flex",alignItems:"center",justifyContent:"center",
-            color:"var(--acc)",fontWeight:700,fontSize:18,flexShrink:0}}>
+          <div style={{width:48,height:48,borderRadius:12,background:"var(--acc-lo)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--acc)",fontWeight:700,fontSize:18,flexShrink:0}}>
             {(fieldUser?.name||"?")[0].toUpperCase()}
           </div>
           <div>
-            <div style={{fontWeight:700,fontSize:16,color:"var(--t1)"}}>{fieldUser?.name}</div>
+            <div style={{fontWeight:700,fontSize:16}}>{fieldUser?.name}</div>
             <div style={{fontSize:12,color:"var(--t3)"}}>{fieldUser?.email}</div>
           </div>
         </div>
         <div style={{background:"var(--s3)",borderRadius:8,padding:"10px 12px"}}>
           <div style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",letterSpacing:".06em",marginBottom:3}}>COMPANY</div>
-          <div style={{fontSize:13,color:"var(--t1)",fontWeight:600}}>{fieldUser?.companyName||"—"}</div>
+          <div style={{fontSize:13,fontWeight:600}}>{fieldUser?.companyName||"—"}</div>
         </div>
       </div>
-      <div className="card" style={{marginBottom:10}}>
-        <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.7,marginBottom:10}}>
-          <strong style={{color:"var(--t1)"}}>Offline mode:</strong> All data is cached on your device. Work without signal — everything syncs automatically when you're back online.
-        </div>
-        <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.7}}>
-          <strong style={{color:"var(--t1)"}}>Photos:</strong> Item photos are session-only until Firebase Storage is enabled. Export PDFs from the portal to preserve them.
-        </div>
+      <div className="card" style={{marginBottom:10,fontSize:11,color:"var(--t2)",lineHeight:1.8}}>
+        <strong style={{color:"var(--t1)"}}>Offline mode</strong> is active — all data is cached on your device and syncs automatically when you reconnect.
       </div>
-      <button className="btn btn-danger btn-full" onClick={onSignOut}>{I.logout} Sign Out</button>
+      <button className="btn btn-danger btn-full" onClick={onSignOut}>{I.out} Sign Out</button>
     </div>
   );
 }
 
-/* ═══ ROOT APP ══════════════════════════════════════════ */
+/* ══ ROOT ══════════════════════════════════════════════ */
 function FieldApp() {
-  const [authState, setAuthState]     = useState("checking"); // checking | unauthed | authed
-  const [fireUser,  setFireUser]      = useState(null);
-  const [fieldUser, setFieldUser]     = useState(null);
-  const [screen,    setScreen]        = useState("projects"); // projects | project | feed | profile
-  const [activeProj,setActiveProj]    = useState(null);
-  const [online,    setOnline]        = useState(navigator.onLine);
-  const [clockedProjectId, setClockedProjectId] = useState(null);
-  const [clockedProjectName, setClockedProjectName] = useState("");
+  // "checking" = waiting for Memberstack
+  // "invite"   = logged in but no company-id yet
+  // "ready"    = fully authed
+  const [authState, setAuthState] = useState("checking");
+  const [member,    setMember]    = useState(null);
+  const [fieldUser, setFieldUser] = useState(null);
+  const [screen,    setScreen]    = useState("projects");
+  const [proj,      setProj]      = useState(null);
+  const [online,    setOnline]    = useState(navigator.onLine);
+  const [clockProjId,   setClockProjId]   = useState(null);
+  const [clockProjName, setClockProjName] = useState("");
 
-  // Online/offline detection
-  useEffect(() => {
-    const on  = () => setOnline(true);
-    const off = () => setOnline(false);
-    window.addEventListener("online",  on);
-    window.addEventListener("offline", off);
-    return () => { window.removeEventListener("online",on); window.removeEventListener("offline",off); };
-  }, []);
+  useEffect(()=>{
+    const on=()=>setOnline(true), off=()=>setOnline(false);
+    window.addEventListener("online",on); window.addEventListener("offline",off);
+    return()=>{ window.removeEventListener("online",on); window.removeEventListener("offline",off); };
+  },[]);
 
-  // Firebase Auth state listener
-  useEffect(() => {
-    const unsub = auth.onAuthStateChanged(async user => {
-      if (!user) { setAuthState("unauthed"); return; }
-      const snap = await db.collection("fieldUsers").doc(user.uid).get();
-      if (snap.exists) { setFieldUser(snap.data()); setFireUser(user); setAuthState("authed"); }
-      else { setAuthState("unauthed"); }
-    });
-    return unsub;
-  }, []);
+  // ── Memberstack auth — mirrors portal's getMember() exactly ──────────
+  useEffect(()=>{
+    async function initMember(ms, m) {
+      if (!m) {
+        // Not signed in — open Memberstack's own login modal
+        ms.openModal("login");
+        return;
+      }
+      setMember(m);
+      // company-id is the same custom field the portal writes when a staff
+      // member accepts a portal invite, or that we write via invite code below
+      const companyId = m.customFields?.["company-id"] || null;
+      if (!companyId) { setAuthState("invite"); return; }
 
-  // Load clock state from Firestore
-  useEffect(() => {
-    if (!fieldUser?.companyId || !fieldUser?.uid) return;
-    db.collection("companies").doc(fieldUser.companyId)
-      .collection("fieldUsers").doc(fieldUser.uid)
-      .get().then(snap => {
-        if (snap.exists && snap.data().clockedIn) {
-          setClockedProjectId(snap.data().clockedProjectId||null);
-          setClockedProjectName(snap.data().clockedProjectName||"");
+      const name = getMemberName(m);
+      const profile = {
+        memberstackId: m.id,
+        name, email: m.auth?.email||"", companyId,
+        companyName: m.customFields?.["company-name"] || "",
+      };
+
+      // Load clock state (non-blocking)
+      db.collection("companies").doc(companyId)
+        .collection("fieldUsers").doc(m.id).get()
+        .then(s=>{ if(s.exists()&&s.data().clockedIn){ setClockProjId(s.data().clockedProjectId||null); setClockProjName(s.data().clockedProjectName||""); } })
+        .catch(()=>{});
+
+      setFieldUser(profile);
+      setAuthState("ready");
+    }
+
+    async function boot() {
+      const ms = await waitForMS();
+      const { data: m } = await ms.getCurrentMember();
+      await initMember(ms, m);
+
+      // onAuthChange handles ALL session events:
+      // - normal logout
+      // - concurrent login from another device (Memberstack kicks the old session)
+      // - token expiry
+      ms.onAuthChange(async updated => {
+        if (!updated) {
+          setAuthState("checking");
+          setMember(null); setFieldUser(null);
+          ms.openModal("login");
+          return;
         }
+        await initMember(ms, updated);
       });
-  }, [fieldUser?.companyId, fieldUser?.uid]);
+    }
+    boot();
+  },[]);
 
-  const handleAuth = (user, profile) => {
-    setFireUser(user); setFieldUser(profile); setAuthState("authed");
+  const handleLinked = (companyId, companyName) => {
+    if (!member) return;
+    setFieldUser({ memberstackId:member.id, name:getMemberName(member), email:member.auth?.email||"", companyId, companyName });
+    setAuthState("ready");
   };
 
-  const handleSignOut = () => {
-    auth.signOut();
-    setAuthState("unauthed"); setFieldUser(null); setFireUser(null);
-    setScreen("projects"); setActiveProj(null);
-  };
+  const handleSignOut = async () => { const ms=await waitForMS(); await ms.logout(); };
 
-  const handleSelectProject = proj => { setActiveProj(proj); setScreen("project"); };
-  const handleBack = () => { setActiveProj(null); setScreen("projects"); };
-
-  const handleClockAction = async (action, projId, projName) => {
-    if (!fieldUser?.companyId || !fieldUser?.uid) return;
-    const isIn = action === "in";
-    // Update field user clock state
+  const handleClock = async(action, pId, pName)=>{
+    if (!fieldUser?.companyId||!fieldUser?.memberstackId) return;
+    const isIn = action==="in";
     await db.collection("companies").doc(fieldUser.companyId)
-      .collection("fieldUsers").doc(fieldUser.uid)
-      .set({ clockedIn: isIn, clockedProjectId: projId||null, clockedProjectName: projName||"" }, { merge: true });
-    // Write clock event
+      .collection("fieldUsers").doc(fieldUser.memberstackId)
+      .set({ clockedIn:isIn, clockedProjectId:pId||null, clockedProjectName:pName||"" },{ merge:true });
     await db.collection("companies").doc(fieldUser.companyId)
       .collection("clockEvents").add({
-        uid: fieldUser.uid, name: fieldUser.name, action,
-        projectId: projId||null, projectName: projName||"",
-        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        memberstackId:fieldUser.memberstackId, name:fieldUser.name,
+        action, projectId:pId||null, projectName:pName||"",
+        timestamp:firebase.firestore.FieldValue.serverTimestamp(),
       });
-    setClockedProjectId(projId||null); setClockedProjectName(projName||"");
+    setClockProjId(pId||null); setClockProjName(pName||"");
   };
 
-  // ── Loading splash ────────────────────────────────────────
-  if (authState === "checking") {
-    return (
-      <div style={{height:"100vh",display:"flex",flexDirection:"column",
-        alignItems:"center",justifyContent:"center",gap:14,background:"var(--bg)"}}>
-        <div style={{width:44,height:44,borderRadius:12,background:"var(--acc)",
-          display:"flex",alignItems:"center",justifyContent:"center",
-          fontFamily:"var(--mono)",fontSize:16,fontWeight:700,color:"#fff",
-          boxShadow:"0 0 20px var(--acc-glo)"}}>JD</div>
-        <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",letterSpacing:".1em"}}>LOADING…</div>
-      </div>
-    );
-  }
+  if (authState==="checking") return <Splash/>;
+  if (authState==="invite")   return <InviteCodeScreen member={member} onLinked={handleLinked}/>;
 
-  if (authState === "unauthed") return <AuthScreen onAuth={handleAuth}/>;
-
-  // ── Main shell ───────────────────────────────────────────
-  const projName = activeProj?.name || activeProj?.clientName || "Project";
+  const pName = proj?.name||proj?.clientName||"Project";
 
   return (
     <div className="shell">
-      {/* Offline bar */}
-      {!online && (
-        <div className="offline-bar">{I.offline} OFFLINE — changes will sync when you're back online</div>
-      )}
-
-      {/* Top bar */}
+      {!online&&<div className="offline-bar">OFFLINE — changes will sync when back online</div>}
       <div className="topbar">
-        {screen === "project" ? (
+        {screen==="project" ? (
           <>
-            <button className="back-btn" onClick={handleBack}>{I.back} Projects</button>
-            <div style={{textAlign:"right"}}>
-              <div className="topbar-ttl" style={{fontSize:13}}>{projName.length > 22 ? projName.slice(0,22)+"…" : projName}</div>
-            </div>
+            <button className="back-btn" onClick={()=>{setProj(null);setScreen("projects");}}>{I.back} Projects</button>
+            <div style={{textAlign:"right"}}><div className="topbar-ttl" style={{fontSize:13}}>{pName.length>22?pName.slice(0,22)+"…":pName}</div></div>
           </>
         ) : (
           <>
-            <div>
-              <div className="topbar-ttl">Job-Dox Field</div>
-              <div className="topbar-sub">{fieldUser?.companyName?.toUpperCase()||"FIELD APP"}</div>
-            </div>
-            {clockedProjectId && (
-              <div style={{display:"flex",alignItems:"center",gap:5,background:"rgba(26,217,138,.1)",
-                border:"1px solid rgba(26,217,138,.2)",borderRadius:20,padding:"4px 10px"}}>
+            <div><div className="topbar-ttl">Job-Dox Field</div><div className="topbar-sub">{(fieldUser?.companyName||"FIELD APP").toUpperCase()}</div></div>
+            {clockProjId&&(
+              <div style={{display:"flex",alignItems:"center",gap:5,background:"rgba(26,217,138,.1)",border:"1px solid rgba(26,217,138,.2)",borderRadius:20,padding:"4px 10px"}}>
                 <span style={{width:6,height:6,borderRadius:"50%",background:"var(--green)",display:"block"}}/>
                 <span style={{fontSize:10,color:"var(--green)",fontWeight:700}}>CLOCKED IN</span>
               </div>
@@ -971,27 +750,16 @@ function FieldApp() {
           </>
         )}
       </div>
-
-      {/* Main content */}
       <div className="main">
-        {screen === "projects" && (
-          <ProjectsScreen fieldUser={fieldUser} onSelectProject={handleSelectProject} clockedProjectId={clockedProjectId}/>
-        )}
-        {screen === "project" && activeProj && (
-          <ProjectDetail proj={activeProj} fieldUser={fieldUser} onBack={handleBack}
-            clockedProjectId={clockedProjectId} onClockAction={handleClockAction}/>
-        )}
-        {screen === "feed" && <FeedScreen fieldUser={fieldUser}/>}
-        {screen === "profile" && <ProfileScreen fieldUser={fieldUser} onSignOut={handleSignOut}/>}
+        {screen==="projects"&&<ProjectsScreen fieldUser={fieldUser} onSelect={p=>{setProj(p);setScreen("project");}} clockedProjId={clockProjId}/>}
+        {screen==="project" &&proj&&<ProjectDetail proj={proj} fieldUser={fieldUser} onBack={()=>{setProj(null);setScreen("projects");}} clockedProjId={clockProjId} onClockAction={handleClock}/>}
+        {screen==="feed"    &&<FeedScreen    fieldUser={fieldUser}/>}
+        {screen==="profile" &&<ProfileScreen fieldUser={fieldUser} onSignOut={handleSignOut}/>}
       </div>
-
-      {/* Bottom nav (hidden in project detail — subtabs take over) */}
-      {screen !== "project" && (
+      {screen!=="project"&&(
         <nav className="bottom-nav">
-          {[["projects","Projects",I.home],["feed","Feed",I.feed],["profile","Profile",I.user]].map(([s,l,icon])=>(
-            <button key={s} className={`nav-btn${screen===s?" active":""}`} onClick={()=>setScreen(s)}>
-              {icon}<span>{l}</span>
-            </button>
+          {[["projects","Projects",I.home],["feed","Feed",I.feed],["profile","Profile",I.user]].map(([s,l,ic])=>(
+            <button key={s} className={`nav-btn${screen===s?" active":""}`} onClick={()=>setScreen(s)}>{ic}<span>{l}</span></button>
           ))}
         </nav>
       )}
