@@ -2001,6 +2001,10 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
   });
   const saveTasks = (tasks) => { if (tasksKey) { try { localStorage.setItem(tasksKey, JSON.stringify(tasks)); } catch {} } };
 
+  // Version counter — increment after any write to project task localStorage to force projTasks to re-read
+  const [projTasksVersion, setProjTasksVersion] = useState(0);
+  const bumpProjTasks = () => setProjTasksVersion(v => v + 1);
+
   // ── Pull in project tasks assigned to the current user ──
   const projTasks = useMemo(() => {
     if (!currentMemberId || !projects.length) return [];
@@ -2032,10 +2036,6 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
   const [selDate, setSelDate]   = useState(TODAY_ISO);
   const [calYear,  setCalYear]  = useState(() => new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
-
-  // Version counter — increment after any write to project task localStorage to force projTasks to re-read
-  const [projTasksVersion, setProjTasksVersion] = useState(0);
-  const bumpProjTasks = () => setProjTasksVersion(v => v + 1);
 
   // New / edit task modal
   const [addingModal,  setAddingModal]  = useState(false);
