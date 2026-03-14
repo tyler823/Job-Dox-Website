@@ -458,3 +458,68 @@ export const updateReviewRequest = (companyId, requestId, data) =>
  */
 export const deleteReviewRequest = (companyId, requestId) =>
   deleteDoc(doc(db, "companies", companyId, "reviewRequests", requestId));
+
+// ════════════════════════════════════════════════════════════════
+//  OPEN API — Key Management
+//  Admin UI calls these to manage API keys for external integrations
+//  (CRM sync, Zapier, marketing tools, etc.)
+//
+//  Actual keys are stored server-side in /apiKeys/{keyId}.
+//  These helpers call the Netlify function from the frontend.
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * Generate a new API key for the company.
+ * Only admins (permission >= 8) can call this.
+ * @returns {{ apiKey, id, name, prefix, scopes, expiresAt }}
+ *   IMPORTANT: apiKey is shown ONCE. Store it securely.
+ */
+export const generateApiKey = async (companyId, memberstackId, { name, scopes, expiresInDays } = {}) => {
+  const res = await fetch(`${NETLIFY_FN}/api-keys`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "generate",
+      companyId,
+      memberstackId,
+      name: name || "Untitled Key",
+      scopes,
+      expiresInDays,
+    }),
+  });
+  return res.json();
+};
+
+/**
+ * List all API keys for the company (no raw keys — just metadata).
+ */
+export const listApiKeys = async (companyId, memberstackId) => {
+  const res = await fetch(`${NETLIFY_FN}/api-keys`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "list", companyId, memberstackId }),
+  });
+  return res.json();
+};
+
+/**
+ * Revoke an API key so it can no longer be used.
+ */
+export const revokeApiKey = async (companyId, memberstackId, keyId) => {
+  const res = await fetch(`${NETLIFY_FN}/api-keys`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "revoke", companyId, memberstackId, keyId }),
+  });
+  return res.json();
+};
+
+// ════════════════════════════════════════════════════════════════
+//  WEBHOOKS — Frontend helpers for managing webhook subscriptions
+// ════════════════════════════════════════════════════════════════
+
+export const listenWebhooks = (companyId, callback) =>
+  onSnapshot(
+    query(collection(db, "companies", companyId, "webhooks"), orderBy("createdAt", "desc")),
+    snap => callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
