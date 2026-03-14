@@ -1,7 +1,7 @@
 {
-  "name": "Job-Dox Field",
-  "short_name": "JD Field",
-  "description": "Job-Dox field tools for technicians — DryDox, Contents, Projects",
+  "name": "Cortex Field",
+  "short_name": "Cortex Field",
+  "description": "Cortex field tools for technicians — DryDox, Contents, Projects",
   "start_url": "/field/",
   "scope": "/field/",
   "display": "standalone",
