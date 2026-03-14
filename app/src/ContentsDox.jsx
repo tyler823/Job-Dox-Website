@@ -774,7 +774,7 @@ function ItemRow({ item, index, onUpdate, onRemove, onDuplicate, companyId, proj
 /* ═══════════════════════════════════════════════════════════════
    PDF BUILDER — Schedule of Loss for adjuster
 ═══════════════════════════════════════════════════════════════ */
-function buildSOL(meta, items, companyName = "") {
+function buildSOL(meta, items, companyName = "", companyLogo = "") {
   const tPurchase = items.reduce((s, i) => s + (parseFloat(i.purchasePrice) || 0) * (i.quantity || 1), 0);
   const tRCV      = items.reduce((s, i) => s + (parseFloat(i.rcv)           || 0) * (i.quantity || 1), 0);
   const tDepAmt   = items.reduce((s, i) => {
@@ -912,16 +912,19 @@ function buildSOL(meta, items, companyName = "") {
   <!-- ── HEADER ── -->
   <div style="display:flex;justify-content:space-between;align-items:flex-start;
     margin-bottom:20px;padding-bottom:14px;border-bottom:3px solid #e43531;">
-    <div>
-      <div style="font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
-        color:#e43531;margin-bottom:5px;">JOB-DOX · CONTENTSDOX</div>
-      <div style="font-size:24px;font-weight:800;color:#0d1b2a;letter-spacing:-.4px;">
-        SCHEDULE OF LOSS
+    <div style="display:flex;align-items:flex-start;gap:14px;">
+      ${companyLogo ? `<img src="${companyLogo}" style="height:52px;max-width:120px;object-fit:contain;flex-shrink:0;" alt="Company Logo"/>` : ""}
+      <div>
+        <div style="font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+          color:#e43531;margin-bottom:5px;">CONTENTSDOX</div>
+        <div style="font-size:24px;font-weight:800;color:#0d1b2a;letter-spacing:-.4px;">
+          SCHEDULE OF LOSS
+        </div>
+        <div style="font-size:10px;color:#6b7280;margin-top:4px;">
+          REPORT DATE: ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+        </div>
+        ${companyName ? `<div style="font-size:11px;color:#374151;margin-top:3px;font-weight:600;">${companyName}</div>` : ""}
       </div>
-      <div style="font-size:10px;color:#6b7280;margin-top:4px;">
-        REPORT DATE: ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-      </div>
-      ${companyName ? `<div style="font-size:11px;color:#374151;margin-top:3px;font-weight:600;">${companyName}</div>` : ""}
     </div>
     <div style="text-align:right;">
       <div style="font-size:8px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;">Claim Number</div>
@@ -1090,7 +1093,37 @@ function buildSOL(meta, items, companyName = "") {
 /* ═══════════════════════════════════════════════════════════════
    MAIN COMPONENT
 ═══════════════════════════════════════════════════════════════ */
-export default function ContentsDox({ proj, companyId, db }) {
+// ── Read company info from localStorage (shared with portal) ──
+function loadCoInfo() {
+  try { return JSON.parse(localStorage.getItem("jd_company_info")) || {}; } catch { return {}; }
+}
+
+// ── Push document record to portal Documents tab ──
+function pushDocToPortal(projId, docRecord, projName) {
+  const LS = "jd_proj_docs";
+  try {
+    const all = JSON.parse(localStorage.getItem(LS)) || {};
+    const docs = (all[projId] || []).filter(d => d.id !== docRecord.id);
+    all[projId] = [...docs, docRecord];
+    localStorage.setItem(LS, JSON.stringify(all));
+  } catch {}
+  // Push activity
+  try {
+    const acts = JSON.parse(localStorage.getItem("jd_activities")) || [];
+    acts.unshift({
+      id: `act-${Date.now()}`,
+      actionType: "document",
+      action: `Document added: ${docRecord.name || "Schedule of Loss"}`,
+      proj: projName || projId,
+      projId: projId || null,
+      user: "ContentsDox",
+      ts: new Date().toISOString(),
+    });
+    localStorage.setItem("jd_activities", JSON.stringify(acts.slice(0, 200)));
+  } catch {}
+}
+
+export default function ContentsDox({ proj, companyId, db, onDocGenerated }) {
   // ── CSS injection ──────────────────────────────────────────────
   useEffect(() => {
     const id = "cdox-inner-styles";
@@ -1243,9 +1276,28 @@ export default function ContentsDox({ proj, companyId, db }) {
 
   // ── Export PDF ─────────────────────────────────────────────────
   const exportPDF = () => {
+    const co = loadCoInfo();
+    const html = buildSOL(meta, items, co.name || "", co.logo || "");
     const w = window.open("", "_blank");
-    w.document.write(buildSOL(meta, items));
+    w.document.write(html);
     w.document.close();
+
+    // Push a document record to the portal Documents tab
+    if (proj?.id) {
+      const docName = `Schedule of Loss${meta.claimNumber ? " — " + meta.claimNumber : ""}`;
+      pushDocToPortal(proj.id, {
+        id:     `sol-${Date.now()}`,
+        type:   "report",
+        name:   docName,
+        date:   new Date().toISOString(),
+        status: "on-file",
+        source: "ContentsDox",
+        html,
+        itemCount: items.length,
+        totalRCV: items.reduce((s, i) => s + (parseFloat(i.rcv) || 0) * (i.quantity || 1), 0),
+      }, proj.name);
+      if (onDocGenerated) onDocGenerated();
+    }
   };
 
   // ── Loading state ──────────────────────────────────────────────
