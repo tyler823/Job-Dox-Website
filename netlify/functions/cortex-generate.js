@@ -60,14 +60,20 @@ exports.handler = async (event) => {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
   }
 
-  const { workType, notes, roles = [], statuses = [], statusTriggers = [], companyId, userId } = context;
+  const { workType, notes, roles = [], statuses = [], statusTriggers = [], companyId, userId, prompt, type } = context;
 
-  if (!workType || typeof workType !== 'string' || workType.length > 100) {
-    return { statusCode: 400, headers, body: JSON.stringify({ error: 'workType is required' }) };
+  // ── Guard: API key must exist ──
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return {
+      statusCode: 503,
+      headers,
+      body: JSON.stringify({ error: 'AI generation not configured. Add ANTHROPIC_API_KEY in Netlify environment variables.' }),
+    };
   }
 
   // ── Cortex Coins gate ──
-  const coinCheck = await deductCortexCoin(companyId, 'cortex-generate', userId);
+  const coinCheck = await deductCortexCoin(companyId, type === 'comparable' ? 'comparable-lookup' : 'cortex-generate', userId);
   if (!coinCheck.allowed) {
     return {
       statusCode: 403,
@@ -80,14 +86,89 @@ exports.handler = async (event) => {
     };
   }
 
-  // ── Guard: API key must exist ──
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return {
-      statusCode: 503,
-      headers,
-      body: JSON.stringify({ error: 'AI generation not configured. Add ANTHROPIC_API_KEY in Netlify environment variables.' }),
-    };
+  /* ════════════════════════════════════════════════════════════════
+     COMPARABLE LOOKUP — ContentsDox AI item comparison
+  ════════════════════════════════════════════════════════════════ */
+  if (type === 'comparable') {
+    if (!prompt || typeof prompt !== 'string') {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'prompt is required for comparable lookups' }) };
+    }
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-5',
+          max_tokens: 2048,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
+
+      if (!response.ok) {
+        const errBody = await response.text();
+        console.error('Anthropic API error (comparable):', response.status, errBody);
+        return {
+          statusCode: 502,
+          headers,
+          body: JSON.stringify({ error: `AI service error: ${response.status}` }),
+        };
+      }
+
+      const aiData = await response.json();
+      const rawText = aiData?.content?.[0]?.text || '';
+
+      // Strip markdown fences if present
+      const cleaned = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+
+      // Extract JSON from response
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error('No JSON in comparable response. Raw:', rawText);
+        return {
+          statusCode: 502,
+          headers,
+          body: JSON.stringify({ error: 'AI returned no valid JSON. Try again.' }),
+        };
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch (parseErr) {
+        console.error('JSON parse error (comparable). Raw:', rawText);
+        return {
+          statusCode: 502,
+          headers,
+          body: JSON.stringify({ error: 'AI returned malformed JSON. Try again.' }),
+        };
+      }
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ result: JSON.stringify(parsed) }),
+      };
+
+    } catch (err) {
+      console.error('Fetch error (comparable):', err);
+      return {
+        statusCode: 502,
+        headers,
+        body: JSON.stringify({ error: 'Failed to reach AI service. Check network or API key.' }),
+      };
+    }
+  }
+
+  /* ════════════════════════════════════════════════════════════════
+     WORKFLOW GENERATION — CortexAI SOP builder (original flow)
+  ════════════════════════════════════════════════════════════════ */
+  if (!workType || typeof workType !== 'string' || workType.length > 100) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'workType is required' }) };
   }
 
   // ── Build prompt ──

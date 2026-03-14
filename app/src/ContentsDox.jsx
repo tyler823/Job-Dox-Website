@@ -32,7 +32,8 @@ const CDOX_CSS = `
 .cdox-lbl     { font-family:var(--mono)!important; font-size:9px; color:var(--t3);
                 letter-spacing:.08em; text-transform:uppercase; display:block; margin-bottom:5px; }
 .cdox-inp     { width:100%; background:var(--s3); border:1px solid var(--br); border-radius:7px;
-                padding:8px 11px; font-size:12px; color:var(--t1); outline:none; font-family:var(--ui); }
+                padding:8px 11px; font-size:12px; color:var(--t1); outline:none; font-family:var(--ui);
+                box-sizing:border-box; min-width:0; }
 .cdox-inp:focus { border-color:var(--acc); box-shadow:0 0 0 2px var(--acc-lo); }
 .cdox-inp::placeholder { color:var(--t3); }
 .cdox-sel     { width:100%; background:var(--s3); border:1px solid var(--br); border-radius:7px;
@@ -76,7 +77,8 @@ const CDOX_CSS = `
 .cdox-err-card        { background:rgba(228,53,49,.07); border:1px solid rgba(228,53,49,.2);
                         border-radius:8px; padding:10px 14px; margin-bottom:12px;
                         font-size:11px; color:var(--acc); }
-.cdox-comp-fields     { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px; }
+.cdox-comp-fields     { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px; overflow:hidden; }
+.cdox-comp-fields > div { min-width:0; }
 
 /* Photo thumbnails */
 .cdox-photo-grid   { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
@@ -322,6 +324,7 @@ function ItemRow({ item, index, onUpdate, onRemove, onDuplicate }) {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [aiResult, setAiResult]       = useState(null);
   const [aiError, setAiError]         = useState(null);
+  const [priceLoading, setPriceLoading] = useState(false);
   const fileRef = useRef();
   const set = (f, v) => onUpdate(item.id, f, v);
 
@@ -367,6 +370,34 @@ function ItemRow({ item, index, onUpdate, onRemove, onDuplicate }) {
     set("comparableDesc",  comp.name      || "");
     set("comparableValue", comp.price     || "");
     set("rcvSource",       comp.retailer  || "");
+  };
+
+  const fetchPriceFromUrl = async (url) => {
+    if (!url) return;
+    setPriceLoading(true);
+    try {
+      const res = await fetch("/.netlify/functions/extract-price", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+      if (data.price && data.price > 0) {
+        set("comparableValue", String(data.price));
+      }
+      if (data.title && !item.comparableDesc) {
+        set("comparableDesc", data.title);
+      }
+      if (data.source) {
+        set("rcvSource", data.source);
+      }
+      if (!data.price) {
+        setAiError("Could not automatically extract price from that URL. You can enter it manually below.");
+      }
+    } catch {
+      setAiError("Could not reach the price extraction service. Enter the price manually.");
+    }
+    setPriceLoading(false);
   };
 
   const useAsRcv = (val) => {
@@ -526,17 +557,35 @@ function ItemRow({ item, index, onUpdate, onRemove, onDuplicate }) {
             <div className="cdox-comp-fields">
               <div>
                 <label className="cdox-lbl">Comparable Source URL</label>
-                <input
-                  value={item.comparable}
-                  onChange={e => set("comparable", e.target.value)}
-                  placeholder="Paste product listing URL here"
-                  className="cdox-inp"
-                  style={{ fontSize: 11 }}
-                />
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input
+                    value={item.comparable}
+                    onChange={e => set("comparable", e.target.value)}
+                    placeholder="Paste product listing URL here"
+                    className="cdox-inp"
+                    style={{ fontSize: 11, flex: 1 }}
+                  />
+                  {item.comparable && (
+                    <button
+                      className="btn btn-xs"
+                      style={{ background: "rgba(90,163,245,.1)", border: "1px solid rgba(90,163,245,.28)", color: "var(--blue)", flexShrink: 0, whiteSpace: "nowrap" }}
+                      onClick={() => fetchPriceFromUrl(item.comparable)}
+                      disabled={priceLoading}
+                    >
+                      {priceLoading
+                        ? <><span className="cdox-spin" style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", border: "2px solid rgba(90,163,245,.3)", borderTopColor: "var(--blue)" }}/> Fetching…</>
+                        : <>{Ico.search} Fetch Price</>
+                      }
+                    </button>
+                  )}
+                </div>
                 {item.comparable && (
                   <a href={item.comparable} target="_blank" rel="noreferrer"
-                    style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--blue)", fontSize: 10, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {Ico.link} {item.comparable}
+                    style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--blue)", fontSize: 10, marginTop: 4, maxWidth: "100%", overflow: "hidden" }}>
+                    {Ico.link}
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block", maxWidth: "calc(100% - 18px)" }}>
+                      {(() => { try { return new URL(item.comparable).hostname; } catch { return item.comparable; } })()}
+                    </span>
                   </a>
                 )}
               </div>
@@ -660,9 +709,23 @@ function ItemRow({ item, index, onUpdate, onRemove, onDuplicate }) {
           </div>
 
           {/* ══ SECTION 8 — ACTIONS ══ */}
-          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", borderTop: "1px solid var(--br)", paddingTop: 12, marginTop: 14 }}>
-            <button className="btn btn-ghost btn-xs" onClick={() => onDuplicate(item.id)}>{Ico.copy} Duplicate</button>
-            <button className="btn btn-danger btn-xs" onClick={() => onRemove(item.id)}>{Ico.trash} Remove Item</button>
+          <div style={{ display: "flex", gap: 6, justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--br)", paddingTop: 12, marginTop: 14 }}>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button className="btn btn-ghost btn-xs" onClick={() => onDuplicate(item.id)}>{Ico.copy} Duplicate</button>
+              <button className="btn btn-danger btn-xs" onClick={() => onRemove(item.id)}>{Ico.trash} Remove Item</button>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span style={{ fontSize: 10, color: "var(--green)", fontFamily: "var(--mono)", letterSpacing: ".04em", display: "flex", alignItems: "center", gap: 4 }}>
+                {Ico.check} Auto-saved
+              </span>
+              <button
+                className="btn btn-green btn-xs"
+                style={{ fontWeight: 700, padding: "6px 18px", fontSize: 12 }}
+                onClick={() => setOpen(false)}
+              >
+                {Ico.check} Done Editing
+              </button>
+            </div>
           </div>
 
         </div>
