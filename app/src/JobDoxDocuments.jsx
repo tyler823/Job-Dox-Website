@@ -1043,6 +1043,202 @@ function PreviewModal({ doc, onClose }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PDF QUICK-SIGN MODAL — sign any PDF without a template
+// Opens a PDF, lets user draw a signature, tap to place it, and save.
+// ─────────────────────────────────────────────────────────────────────────────
+export function PdfQuickSignModal({ pdfData, docName="Document", onSave, onClose }) {
+  const [pageCount,    setPageCount]    = useState(1);
+  const [activePage,   setActivePage]   = useState(1);
+  const [dims,         setDims]         = useState({});
+  const [sigData,      setSigData]      = useState(null);
+  const [placedSigs,   setPlacedSigs]   = useState([]);   // [{ id, page, x, y, w, h, data, timestamp, lat, lng }]
+  const [placingMode,  setPlacingMode]  = useState(false);
+  const [geo,          setGeo]          = useState(null);
+  const [geoLoading,   setGeoLoading]   = useState(false);
+  const [geoAsked,     setGeoAsked]     = useState(false);
+  const wrapRef = useRef();
+
+  useEffect(() => {
+    if (!pdfData) return;
+    getPdfPageCount(pdfData).then(n => setPageCount(n)).catch(() => {});
+  }, [pdfData]);
+
+  const requestGeo = () => {
+    setGeoLoading(true);
+    if (!navigator.geolocation) { setGeo({ lat:"unavailable", lng:"unavailable" }); setGeoLoading(false); setGeoAsked(true); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => { setGeo({ lat:pos.coords.latitude.toFixed(6), lng:pos.coords.longitude.toFixed(6) }); setGeoLoading(false); setGeoAsked(true); },
+      ()  => { setGeo({ lat:"unavailable", lng:"unavailable" }); setGeoLoading(false); setGeoAsked(true); },
+      { enableHighAccuracy:true, timeout:8000 }
+    );
+  };
+
+  const handleCanvasClick = e => {
+    if (!placingMode || !sigData || !wrapRef.current) return;
+    const r   = wrapRef.current.getBoundingClientRect();
+    const pgDims = dims[activePage];
+    if (!pgDims) return;
+    const x = (e.clientX - r.left) / pgDims.w;
+    const y = (e.clientY - r.top)  / pgDims.h;
+    const sig = {
+      id:   uid(),
+      page: activePage,
+      x:    Math.max(0, Math.min(0.65, x)),
+      y:    Math.max(0, Math.min(0.92, y)),
+      w:    0.35,
+      h:    0.075,
+      data: sigData,
+      timestamp: new Date().toISOString(),
+      lat:  geo?.lat || "unavailable",
+      lng:  geo?.lng || "unavailable",
+    };
+    setPlacedSigs(prev => [...prev, sig]);
+    setPlacingMode(false);
+  };
+
+  const removeSig = id => setPlacedSigs(prev => prev.filter(s => s.id !== id));
+
+  const handleSave = () => {
+    if (placedSigs.length === 0) { alert("Please place at least one signature on the PDF."); return; }
+    onSave({
+      signatures: placedSigs,
+      signedAt:   new Date().toISOString(),
+      geo,
+    });
+  };
+
+  const pages = Array.from({ length: pageCount }, (_, i) => i + 1);
+
+  if (!pdfData) return null;
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(6,7,13,.94)", backdropFilter:"blur(6px)", zIndex:2000, display:"flex", flexDirection:"column", alignItems:"center", overflowY:"auto", padding:20 }}>
+      {/* Header */}
+      <div style={{ width:"100%", maxWidth:860, display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12, flexShrink:0 }}>
+        <div>
+          <div style={{ color:"var(--t1)", fontWeight:800, fontSize:16 }}>Sign: {docName}</div>
+          <div className="mono" style={{ fontSize:9, color:"var(--t3)", marginTop:2 }}>
+            DRAW YOUR SIGNATURE BELOW, THEN CLICK ON THE PDF TO PLACE IT
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:7 }}>
+          <button className="btn btn-ghost btn-xs" onClick={onClose}>{Di.close} Cancel</button>
+          <button className="btn btn-primary btn-xs" onClick={handleSave} disabled={placedSigs.length===0}>
+            {Di.check} Save Signed Document
+          </button>
+        </div>
+      </div>
+
+      {/* GPS prompt — ask once */}
+      {!geoAsked && (
+        <div className="card anim" style={{ maxWidth:420, width:"100%", padding:28, textAlign:"center", marginBottom:14 }}>
+          <div style={{ display:"flex", justifyContent:"center", color:"var(--t2)", marginBottom:10 }}>{Di.pin}</div>
+          <div style={{ fontWeight:700, fontSize:14, color:"var(--t1)", marginBottom:8 }}>Location Verification</div>
+          <div style={{ fontSize:11, color:"var(--t2)", lineHeight:1.75, marginBottom:20 }}>
+            Job-Dox can record GPS coordinates with your signature for verification purposes.
+          </div>
+          {geoLoading
+            ? <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, color:"var(--amber)", fontSize:11 }}><Spin color="var(--amber)"/> Requesting location...</div>
+            : <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                <button className="btn btn-primary" onClick={requestGeo}>Allow Location Access</button>
+                <button className="btn btn-ghost btn-xs" onClick={()=>{ setGeo({ lat:"unavailable", lng:"unavailable" }); setGeoAsked(true); }}>Skip — no GPS capture</button>
+              </div>}
+        </div>
+      )}
+
+      {geoAsked && (
+        <>
+          {/* Signature pad */}
+          <div style={{ width:"100%", maxWidth:860, marginBottom:14, background:"var(--s2)", borderRadius:10, border:"1px solid var(--br)", padding:16 }}>
+            <SignaturePad
+              label="Draw your signature"
+              height={100}
+              onCapture={d => setSigData(d)}
+              onClear={() => setSigData(null)}
+            />
+            {sigData && (
+              <div style={{ marginTop:10, display:"flex", gap:8, alignItems:"center" }}>
+                <button
+                  className={`btn ${placingMode?"btn-primary":"btn-secondary"} btn-xs`}
+                  onClick={() => setPlacingMode(!placingMode)}
+                >
+                  {placingMode ? "Click on PDF to place ↓" : `${Di.pen} Place Signature on PDF`}
+                </button>
+                {placingMode && (
+                  <span style={{ fontSize:10, color:"var(--amber)", fontWeight:600 }}>
+                    Click anywhere on the PDF below to place your signature
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Placed signatures summary */}
+          {placedSigs.length > 0 && (
+            <div style={{ width:"100%", maxWidth:860, marginBottom:10, display:"flex", gap:6, flexWrap:"wrap" }}>
+              {placedSigs.map((s, i) => (
+                <div key={s.id} style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(26,217,138,.08)", border:"1px solid rgba(26,217,138,.28)", borderRadius:8, padding:"5px 10px" }}>
+                  <span style={{ color:"var(--green)", fontSize:10, fontWeight:700 }}>{Di.check} Signature {i+1} — Page {s.page}</span>
+                  <button onClick={() => removeSig(s.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"var(--acc)", fontSize:10, padding:0 }}>{Di.close}</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Page tabs */}
+          {pageCount > 1 && (
+            <div style={{ display:"flex", gap:5, marginBottom:10, flexWrap:"wrap" }}>
+              {pages.map(p => (
+                <button key={p} onClick={() => setActivePage(p)} className={`chip${activePage===p?" on":""}`} style={{ fontSize:10 }}>Page {p}</button>
+              ))}
+            </div>
+          )}
+
+          {/* PDF render + signature overlay */}
+          <div style={{ width:"100%", maxWidth:860 }}>
+            {pages.map(p => (
+              <div key={p} style={{ display: activePage===p ? "block" : "none", overflowX:"auto" }}>
+                <div
+                  ref={activePage===p ? wrapRef : null}
+                  style={{ position:"relative", cursor:placingMode?"crosshair":"default", display:"inline-block", borderRadius:3, overflow:"hidden", boxShadow:"0 8px 40px rgba(0,0,0,.5)" }}
+                  onClick={activePage===p ? handleCanvasClick : undefined}
+                >
+                  <PdfPageCanvas pdfData={pdfData} pageNum={p} width={720} onDims={d => setDims(prev => ({ ...prev, [p]:d }))}/>
+                  {/* Render placed signatures on this page */}
+                  {dims[p] && placedSigs.filter(s => s.page===p).map(s => (
+                    <div
+                      key={s.id}
+                      style={{
+                        position:"absolute",
+                        left:   s.x * dims[p].w,
+                        top:    s.y * dims[p].h,
+                        width:  s.w * dims[p].w,
+                        height: s.h * dims[p].h,
+                        border:"2px solid var(--green)",
+                        borderRadius:5,
+                        background:"rgba(26,217,138,.05)",
+                        display:"flex", alignItems:"center", justifyContent:"center",
+                        overflow:"hidden",
+                      }}
+                    >
+                      <img src={s.data} alt="Signature" style={{ maxWidth:"100%", maxHeight:"100%", objectFit:"contain" }}/>
+                      <button
+                        onClick={e => { e.stopPropagation(); removeSig(s.id); }}
+                        style={{ position:"absolute", top:-8, right:-8, width:18, height:18, borderRadius:"50%", background:"var(--acc)", color:"#fff", border:"none", cursor:"pointer", fontSize:9, display:"flex", alignItems:"center", justifyContent:"center" }}
+                      >{Di.close}</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // DOCUMENT TEMPLATE CENTER  (for AdvToolsPanel)
 // ─────────────────────────────────────────────────────────────────────────────
 export function DocumentTemplateCenter({ onClose }) {
