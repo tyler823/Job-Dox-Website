@@ -3036,9 +3036,15 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
     setArchiveBusy(true);
     try {
       await onArchive(archiveTarget.proj.id, archiveTarget.action === "archive");
-    } catch(e) { console.error(e); }
-    setArchiveBusy(false);
-    setArchiveTarget(null);
+      if (archiveTarget.action === "archive") setShowArchived(false);
+      setArchiveBusy(false);
+      setArchiveTarget(null);
+    } catch(e) {
+      console.error(e);
+      setArchiveBusy(false);
+      setArchiveTarget(null);
+      alert(archiveTarget.action === "archive" ? "Failed to archive project. Please try again." : "Failed to restore project. Please try again.");
+    }
   };
 
   const archivedCount = projects.filter(p => p.archived).length;
@@ -3782,9 +3788,13 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
                       try {
                         await onArchive(proj.id, !proj.archived);
                         setArchiveConfirm(false);
+                        setArchiveBusy(false);
                         if (onBack) onBack();
-                      } catch(e) { console.error(e); }
-                      setArchiveBusy(false);
+                      } catch(e) {
+                        console.error(e);
+                        setArchiveBusy(false);
+                        alert(proj.archived ? "Failed to restore project. Please try again." : "Failed to archive project. Please try again.");
+                      }
                     }}>
                     {archiveBusy
                       ? <><span style={{width:10,height:10,border:"2px solid rgba(255,255,255,.3)",borderTopColor:"#fff",borderRadius:"50%",animation:"jd-spin .7s linear infinite",display:"inline-block"}}/> Processing…</>
@@ -10967,13 +10977,18 @@ export default function JobDoxPortal() {
     });
   };
 
-         const handleArchiveProject = async (projId, archive = true) => {
-    if (!companyId) return;
-    await updateDoc(doc(db, "companies", companyId, "projects", projId), {
-      archived:   archive,
-      archivedAt: archive ? new Date().toISOString() : null,
-      updatedAt:  serverTimestamp(),
-    });
+  const handleArchiveProject = async (projId, archive = true) => {
+    if (!companyId) throw new Error("No company ID available");
+    try {
+      await updateDoc(doc(db, "companies", companyId, "projects", projId), {
+        archived:   archive,
+        archivedAt: archive ? new Date().toISOString() : null,
+        updatedAt:  serverTimestamp(),
+      });
+    } catch (e) {
+      console.error("Failed to archive/restore project:", e);
+      throw e;
+    }
   };
          
   const handleNavigate = (projId, tab) => {
