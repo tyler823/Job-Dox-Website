@@ -955,6 +955,7 @@ document.querySelectorAll('.roi-charts').forEach(el=>{el.querySelectorAll('.ann-
               });
             } else {
               // No price — go straight to portal
+              sessionStorage.setItem('jd_portal_active', '1');
               var invite = sessionStorage.getItem('jd_invite');
               var dest = '/app/dist/';
               if (invite) dest += '?invite=' + invite;
@@ -977,6 +978,7 @@ document.querySelectorAll('.roi-charts').forEach(el=>{el.querySelectorAll('.ann-
         ms.onAuthChange(function(payload) {
           if (payload && payload.member && payload.type === 'LOGIN') {
             try { ms.closeModal(); } catch(e) {}
+            sessionStorage.setItem('jd_portal_active', '1');
             var invite = sessionStorage.getItem('jd_invite');
             var dest = '/app/dist/';
             if (invite) dest += '?invite=' + invite;

@@ -10425,8 +10425,15 @@ export default function JobDoxPortal() {
           // If Memberstack still has a member but our marker is gone,
           // the previous session ended via tab-close / force-quit.
           // Force a clean logout so Memberstack config stays consistent.
+          // Exception: skip if user just arrived from login/signup redirect
+          // (indicated by jd_portal_active already set, or referrer from
+          // same origin, or Stripe success redirect).
           const wasActive = sessionStorage.getItem("jd_portal_active");
-          if (!wasActive) {
+          const params = new URLSearchParams(window.location.search);
+          const fromLogin = document.referrer && document.referrer.startsWith(window.location.origin);
+          const fromStripe = params.has("stripe");
+          const fromInvite = params.has("invite");
+          if (!wasActive && !fromLogin && !fromStripe && !fromInvite) {
             try { await window.$memberstackDom.logout(); } catch(e) {}
             localStorage.clear();
             sessionStorage.clear();
