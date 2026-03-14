@@ -4,8 +4,9 @@
    - Track deployment dates for automatic billing calculation
    - Equipment day-in / day-out tracking
    - Links to company inventory list
+   - CSV import/export for equipment inventory
 ══════════════════════════════════════════════════════════════════ */
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { dduid, DDIc, EQUIP_TYPES, getET, fmt$c, compareS500 } from "./DryDoxConstants.jsx";
 
 // ── Equipment Inventory Sidebar (drag source) ──
@@ -170,13 +171,14 @@ function DeployEquipmentModal({ rooms, priceLists, activePLId, inventoryItem, on
 // ── Main Equipment Tab ──
 export default function DryDoxEquipment({
   rooms, equipmentPlacements, setEquipmentPlacements,
-  inventory = [], priceLists = [], activePLId,
+  inventory = [], setInventory, priceLists = [], activePLId,
   billingDays, setBillingDays, onPushToScope,
   s500Comments = {}, s500Overrides = {},
 }) {
   const [view, setView] = useState("deployed"); // deployed, inventory, billing
   const [deployModal, setDeployModal] = useState(null); // item to deploy or true for empty
   const [dragTarget, setDragTarget] = useState(null);
+  const [showCSVImport, setShowCSVImport] = useState(false);
 
   const currentPL = priceLists.find(pl => pl.id === activePLId);
 
@@ -386,11 +388,37 @@ export default function DryDoxEquipment({
         </>
       )}
 
-      {/* INVENTORY VIEW — all inventory items as drag sources */}
+      {/* INVENTORY VIEW — all inventory items as drag sources + CSV import/export */}
       {view === "inventory" && (
-        <EquipmentInventory
-          inventory={inventory.length > 0 ? inventory : generateDefaultInventory()}
-          onDeploy={item => setDeployModal(item)}
+        <>
+          {setInventory && (
+            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+              <button className="btn btn-secondary btn-xs" onClick={() => setShowCSVImport(true)}>
+                {DDIc.upload} Import CSV
+              </button>
+              <button className="btn btn-secondary btn-xs" onClick={() => {
+                const inv = inventory.length > 0 ? inventory : generateDefaultInventory();
+                const csv = exportEquipmentCSV(inv);
+                const blob = new Blob([csv], { type: "text/csv" });
+                const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+                a.download = "equipment-inventory.csv"; a.click();
+              }}>
+                {DDIc.export} Export CSV
+              </button>
+            </div>
+          )}
+          <EquipmentInventory
+            inventory={inventory.length > 0 ? inventory : generateDefaultInventory()}
+            onDeploy={item => setDeployModal(item)}
+          />
+        </>
+      )}
+
+      {/* CSV Import Modal */}
+      {showCSVImport && setInventory && (
+        <EquipmentCSVImportModal
+          onImport={items => setInventory(prev => [...(prev || []), ...items])}
+          onClose={() => setShowCSVImport(false)}
         />
       )}
 
@@ -519,6 +547,90 @@ export default function DryDoxEquipment({
   );
 }
 
+// ── CSV helpers for equipment inventory ──
+function parseCSVLine(line) {
+  const cols = []; let cur = ""; let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { if (inQ && line[i+1] === '"') { cur += '"'; i++; } else { inQ = !inQ; } }
+    else if (c === ',' && !inQ) { cols.push(cur.trim()); cur = ""; }
+    else { cur += c; }
+  }
+  cols.push(cur.trim());
+  return cols;
+}
+
+function parseCSVToEquipment(text) {
+  const lines = text.trim().split("\n").filter(Boolean);
+  if (lines.length < 2) return [];
+  const raw = parseCSVLine(lines[0]).map(h=>h.replace(/^"|"$/g,"").toLowerCase().replace(/\s+/g,""));
+  const colOf = (...names) => { for(const n of names){ const i=raw.indexOf(n); if(i>-1) return i; } return -1; };
+  const cType=colOf("type","equipmenttype","equipment_type","category");
+  const cBrand=colOf("brand","model","brandmodel","brand/model","name","description");
+  const cSerial=colOf("serial","serialnumber","serial_number","serialno","serial#","sn");
+  const lookup = {};
+  EQUIP_TYPES.forEach(et => { lookup[et.value] = et.value; lookup[et.label.toLowerCase()] = et.value; lookup[et.code.toLowerCase()] = et.value; });
+  return lines.slice(1).map(line=>{
+    const cols = parseCSVLine(line).map(v=>v.replace(/^"|"$/g,""));
+    const brand = cBrand>-1 ? cols[cBrand] : "";
+    if (!brand) return null;
+    let typeRaw = cType>-1 ? (cols[cType]||"").toLowerCase().trim() : "";
+    const type = lookup[typeRaw] || "other";
+    return { id:dduid(), type, brand, serial: cSerial>-1 ? (cols[cSerial]||"") : "" };
+  }).filter(Boolean);
+}
+
+function exportEquipmentCSV(items) {
+  const esc = v => { const s = String(v ?? ""); return s.includes(",") || s.includes('"') ? `"${s.replace(/"/g,'""')}"` : s; };
+  const rows = ["type,brand,serial"];
+  (items || []).forEach(i => rows.push([esc(getET(i.type).label), esc(i.brand), esc(i.serial)].join(",")));
+  return rows.join("\n");
+}
+
+// ── Equipment CSV Import Modal ──
+function EquipmentCSVImportModal({ onImport, onClose }) {
+  const [csvText, setCsvText] = useState("");
+  const [status, setStatus] = useState(null);
+  const fileRef = useRef();
+
+  const handleFile = e => { const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>setCsvText(ev.target.result); r.readAsText(f); e.target.value=""; };
+  const doImport = () => {
+    const items = parseCSVToEquipment(csvText);
+    if (!items.length) { setStatus("No valid items found. Check CSV format."); return; }
+    onImport(items);
+    setStatus(`Imported ${items.length} items`);
+    setCsvText("");
+    setTimeout(()=>onClose(), 1200);
+  };
+
+  return (
+    <div className="dd-modal-overlay" onClick={e=>{ if(e.target===e.currentTarget) onClose(); }}>
+      <div className="dd-modal">
+        <div className="dd-modal-title">Import Equipment CSV</div>
+        <div style={{background:"var(--s3)",borderRadius:8,padding:"10px 12px",fontSize:11,color:"var(--t2)",marginBottom:10,lineHeight:1.7}}>
+          <strong style={{color:"var(--t1)"}}>Required columns:</strong> type, brand<br/>
+          <strong style={{color:"var(--t1)"}}>Optional columns:</strong> serial<br/>
+          First row must be column headers. Comma-separated.<br/>
+          <span style={{color:"var(--t3)"}}>Valid types: Air Mover, Dehumidifier (LGR), Desiccant Dehu, HEPA Air Scrubber, Negative Air Machine, Ozone Generator, Thermal Fogger, Drying Mat, InjectiDry System, Thermal Camera, Other Equipment — or codes: AM, DH, DD, AS, NA, OZ, FG, DM, ID, TC, OT</span>
+        </div>
+        <div style={{display:"flex",gap:8,marginBottom:8}}>
+          <button className="btn btn-secondary btn-xs" onClick={()=>fileRef.current?.click()}>{DDIc.upload} Browse File...</button>
+          <input ref={fileRef} type="file" accept=".csv,.txt" style={{display:"none"}} onChange={handleFile}/>
+        </div>
+        <label style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",display:"block",marginBottom:4}}>Or paste CSV text</label>
+        <textarea style={{width:"100%",minHeight:100,fontSize:11,fontFamily:"var(--mono)",background:"var(--s1)",color:"var(--t1)",border:"1px solid var(--br)",borderRadius:6,padding:8,resize:"vertical"}}
+          value={csvText} onChange={e=>setCsvText(e.target.value)}
+          placeholder={"type,brand,serial\nAir Mover,Dri-Eaz Sahara Pro X3,SN-001\nDehumidifier (LGR),Phoenix 200 HT,SN-002\nHEPA Air Scrubber,Dri-Eaz DefendAir 500,"}/>
+        {status && <div style={{fontSize:11,color:status.startsWith("Imported")?"var(--green)":"var(--acc)",marginTop:6}}>{status}</div>}
+        <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:12}}>
+          <button className="btn btn-ghost btn-xs" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary btn-xs" onClick={doImport} disabled={!csvText.trim()}>{DDIc.plus} Import</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Generate default inventory if company has none configured
 function generateDefaultInventory() {
   return [
@@ -533,4 +645,4 @@ function generateDefaultInventory() {
   ];
 }
 
-export { EquipmentInventory, DeployEquipmentModal };
+export { EquipmentInventory, DeployEquipmentModal, EquipmentCSVImportModal, parseCSVToEquipment, exportEquipmentCSV };

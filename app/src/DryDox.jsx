@@ -53,13 +53,16 @@ function injectCSS() {
 // ══════════════════════════════════════════════════════════════════
 //  MAIN DRYDOX COMPONENT
 // ══════════════════════════════════════════════════════════════════
-export default function DryDoxTab({ proj, priceLists = [], onPushToScope, companyLogo, inventory = [] }) {
+export default function DryDoxTab({ proj, priceLists = [], onPushToScope, companyLogo, inventory: externalInventory = [] }) {
   // Inject styles
   useEffect(() => { injectCSS(); }, []);
 
   const projId = proj?.id || "default";
 
   // ── All persistent state ──
+  const [localInventory, setLocalInventory]     = useDryDoxState("company", "inventory", []);
+  const inventory = externalInventory.length > 0 ? externalInventory : localInventory;
+  const setInventory = setLocalInventory;
   const [rooms, setRooms]                       = useDryDoxState(projId, "rooms", []);
   const [floors, setFloors]                     = useDryDoxState(projId, "floors", [1]);
   const [activeFloor, setActiveFloor]           = useState(1);
@@ -223,7 +226,7 @@ export default function DryDoxTab({ proj, priceLists = [], onPushToScope, compan
             <DryDoxEquipment
               rooms={rooms}
               equipmentPlacements={equipmentPlacements} setEquipmentPlacements={setEquipmentPlacements}
-              inventory={inventory}
+              inventory={inventory} setInventory={setInventory}
               priceLists={priceLists} activePLId={activePLId}
               billingDays={billingDays} setBillingDays={setBillingDays}
               onPushToScope={handlePushToScope}
