@@ -129,6 +129,8 @@ const CDOX_CSS = `
   .cdox-val-row     { grid-template-columns:1fr 1fr!important; }
   .cdox-comp-fields { grid-template-columns:1fr!important; }
   .cdox-comp-hd     { flex-direction:column; align-items:flex-start; }
+  /* Prevent iOS auto-zoom on input focus (triggers at font-size < 16px) */
+  .cdox-inp, .cdox-sel, .cdox-txa { font-size:16px; }
 }
 @media(max-width:480px){
   .cdox-g3,.cdox-g4,.cdox-val-row { grid-template-columns:1fr!important; }
