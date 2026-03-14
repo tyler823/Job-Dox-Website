@@ -76,6 +76,8 @@ const Di = {
   text:     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"/></svg>,
   checkbox: <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.11 0-2 .89-2 2v14c0 1.11.89 2 2 2h14c1.11 0 2-.89 2-2V5c0-1.11-.89-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>,
   chev_r:   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>,
+  move:     <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>,
+  phone:    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>,
 };
 
 const FIELD_ICONS = { signature: Di.pen, initials: Di.initials, text: Di.text, date: Di.calendar, checkbox: Di.checkbox };
@@ -176,9 +178,58 @@ function PdfPageCanvas({ pdfData, pageNum=1, width=700, onDims }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// COMPANY HEADER — logo + name + address + contact above PDF pages
+// ─────────────────────────────────────────────────────────────────────────────
+function CompanyHeader({ width = 700 }) {
+  const co = loadCoInfo();
+  const hasInfo = co.name || co.logo || co.address || co.phone || co.email;
+  if (!hasInfo) return null;
+
+  const addressLine = [co.address, co.city, co.state, co.zip].filter(Boolean).join(", ");
+
+  return (
+    <div style={{
+      width, background:"#fff", borderRadius:"3px 3px 0 0", padding:"16px 24px",
+      display:"flex", alignItems:"center", gap:18,
+      borderBottom:"2px solid #e2e5ea", boxSizing:"border-box",
+      fontFamily:"'Segoe UI', Helvetica, Arial, sans-serif",
+    }}>
+      {co.logo && (
+        <img src={co.logo} alt="Company logo"
+          style={{ height:52, maxWidth:120, objectFit:"contain", flexShrink:0 }}/>
+      )}
+      <div style={{ flex:1, minWidth:0 }}>
+        {co.name && (
+          <div style={{ fontWeight:700, fontSize:15, color:"#0d1117", lineHeight:1.3, marginBottom:2 }}>
+            {co.name}
+          </div>
+        )}
+        {addressLine && (
+          <div style={{ fontSize:11, color:"#57606a", lineHeight:1.5 }}>
+            {addressLine}
+          </div>
+        )}
+        <div style={{ display:"flex", gap:14, flexWrap:"wrap", marginTop:2 }}>
+          {co.phone && (
+            <span style={{ fontSize:10, color:"#57606a", display:"flex", alignItems:"center", gap:4 }}>
+              {Di.phone} {co.phone}
+            </span>
+          )}
+          {co.email && (
+            <span style={{ fontSize:10, color:"#57606a", display:"flex", alignItems:"center", gap:4 }}>
+              {Di.mail} {co.email}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // FIELD BOX — positioned overlay element on top of a PDF page
 // ─────────────────────────────────────────────────────────────────────────────
-function FieldBox({ field, dims, value, signerIdx, onTap, highlightPending, editorMode, selected, onSelect }) {
+function FieldBox({ field, dims, value, signerIdx, onTap, highlightPending, editorMode, selected, onSelect, onMove }) {
   const left   = field.x * dims.w;
   const top    = field.y * dims.h;
   const fw     = field.w * dims.w;
@@ -187,10 +238,42 @@ function FieldBox({ field, dims, value, signerIdx, onTap, highlightPending, edit
   const done   = !!value?.data || !!value?.text || value?.checked;
   const color  = FIELD_COLORS[field.type] || "var(--t2)";
   const pending = isMine && highlightPending && !done;
+  const dragging = useRef(false);
+  const dragStart = useRef({ mx:0, my:0, ox:0, oy:0 });
+
+  const onDragStart = e => {
+    if (!editorMode || !onMove) return;
+    e.stopPropagation(); e.preventDefault();
+    const ev = e.touches ? e.touches[0] : e;
+    dragging.current = true;
+    dragStart.current = { mx:ev.clientX, my:ev.clientY, ox:field.x, oy:field.y };
+    const onDragMove = me => {
+      if (!dragging.current) return;
+      const mv = me.touches ? me.touches[0] : me;
+      const dx = (mv.clientX - dragStart.current.mx) / dims.w;
+      const dy = (mv.clientY - dragStart.current.my) / dims.h;
+      const nx = Math.max(0, Math.min(1 - field.w, dragStart.current.ox + dx));
+      const ny = Math.max(0, Math.min(1 - field.h, dragStart.current.oy + dy));
+      onMove(field.id, { x: nx, y: ny });
+    };
+    const onDragEnd = () => {
+      dragging.current = false;
+      window.removeEventListener("mousemove", onDragMove);
+      window.removeEventListener("mouseup", onDragEnd);
+      window.removeEventListener("touchmove", onDragMove);
+      window.removeEventListener("touchend", onDragEnd);
+    };
+    window.addEventListener("mousemove", onDragMove);
+    window.addEventListener("mouseup", onDragEnd);
+    window.addEventListener("touchmove", onDragMove, { passive:false });
+    window.addEventListener("touchend", onDragEnd);
+  };
 
   return (
     <div
       onClick={e => { e.stopPropagation(); editorMode ? onSelect?.(field.id) : (isMine && !done && onTap?.(field)); }}
+      onMouseDown={editorMode ? onDragStart : undefined}
+      onTouchStart={editorMode ? onDragStart : undefined}
       style={{
         position:"absolute", left, top, width:fw, height:fh, boxSizing:"border-box",
         border: done    ? `2px solid ${color}`
@@ -202,10 +285,12 @@ function FieldBox({ field, dims, value, signerIdx, onTap, highlightPending, edit
                   : `${color}05`,
         borderRadius: field.type==="checkbox" ? 3 : 5,
         display:"flex", alignItems:"center", justifyContent:"center",
-        cursor: editorMode ? "pointer" : (isMine && !done ? "pointer" : "default"),
-        transition:"border-color .12s, background .12s",
+        cursor: editorMode ? "grab" : (isMine && !done ? "pointer" : "default"),
+        transition: dragging.current ? "none" : "border-color .12s, background .12s",
         ...(pending ? { boxShadow:`0 0 0 3px ${color}25` } : {}),
         overflow:"hidden",
+        userSelect: editorMode ? "none" : undefined,
+        touchAction: editorMode ? "none" : undefined,
       }}
     >
       {/* Filled state */}
@@ -229,10 +314,10 @@ function FieldBox({ field, dims, value, signerIdx, onTap, highlightPending, edit
         </div>
       )}
 
-      {/* Editor label */}
+      {/* Editor label + drag handle */}
       {editorMode && selected && (
-        <div style={{ position:"absolute", top:-17, left:0, background:"var(--blue)", color:"#fff", fontSize:8, padding:"1px 6px", borderRadius:"3px 3px 0 0", whiteSpace:"nowrap", fontFamily:"var(--mono)" }}>
-          {field.type}{field.signerIdx!=null?` · signer ${field.signerIdx+1}`:""}
+        <div style={{ position:"absolute", top:-17, left:0, background:"var(--blue)", color:"#fff", fontSize:8, padding:"1px 6px", borderRadius:"3px 3px 0 0", whiteSpace:"nowrap", fontFamily:"var(--mono)", display:"flex", alignItems:"center", gap:4 }}>
+          {Di.move} {field.type}{field.signerIdx!=null?` · signer ${field.signerIdx+1}`:""}
         </div>
       )}
     </div>
@@ -438,11 +523,14 @@ function TemplateBuilderModal({ existing, onSave, onClose }) {
                   </div>
                 )}
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:5 }}>
-                  {[["w","Width %"],["h","Height %"]].map(([k,l])=>(
+                  {[["x","X Pos %"],["y","Y Pos %"],["w","Width %"],["h","Height %"]].map(([k,l])=>(
                     <div key={k}><label className="lbl">{l}</label>
-                      <input type="number" className="inp" step=".01" min=".01" max="1" value={(sf[k]||0).toFixed(3)} onChange={e=>upd(sf.id,{[k]:parseFloat(e.target.value)||0})} style={{ fontSize:10 }}/>
+                      <input type="number" className="inp" step=".01" min="0" max="1" value={(sf[k]||0).toFixed(3)} onChange={e=>upd(sf.id,{[k]:parseFloat(e.target.value)||0})} style={{ fontSize:10 }}/>
                     </div>
                   ))}
+                </div>
+                <div style={{ fontSize:9, color:"var(--t3)", lineHeight:1.5, display:"flex", alignItems:"center", gap:4 }}>
+                  {Di.move} Drag fields to reposition them
                 </div>
                 <button className="btn btn-ghost btn-xs" style={{ color:"var(--acc)" }} onClick={()=>del(sf.id)}>{Di.trash} Remove Field</button>
               </div>
@@ -478,7 +566,7 @@ function TemplateBuilderModal({ existing, onSave, onClose }) {
                   <PdfPageCanvas pdfData={tmpl.pdfData} pageNum={p} width={600} onDims={d=>setDims(prev=>({...prev,[p]:d}))}/>
                   {dims[p] && tmpl.fields.filter(f=>f.page===p).map(f=>(
                     <FieldBox key={f.id} field={f} dims={dims[p]||{w:600,h:776}} value={{}} signerIdx={null}
-                      editorMode selected={selFld===f.id} onSelect={setSelFld}/>
+                      editorMode selected={selFld===f.id} onSelect={setSelFld} onMove={upd}/>
                   ))}
                 </div>
               </div>
@@ -786,7 +874,8 @@ function SigningModal({ doc, signerIdx, onComplete, onClose }) {
           )}
           {pages.map(p=>(
             <div key={p} style={{ display:activePage===p?"block":"none", overflowX:"auto" }}>
-              <div style={{ position:"relative", display:"inline-block", borderRadius:3, overflow:"hidden", boxShadow:"0 8px 40px rgba(0,0,0,.5)" }}>
+              {p === 1 && <CompanyHeader width={720}/>}
+              <div style={{ position:"relative", display:"inline-block", borderRadius: p===1 ? "0 0 3px 3px" : 3, overflow:"hidden", boxShadow:"0 8px 40px rgba(0,0,0,.5)" }}>
                 <PdfPageCanvas pdfData={tmpl.pdfData} pageNum={p} width={720} onDims={d=>setDims(prev=>({...prev,[p]:d}))}/>
                 {dims[p] && tmpl.fields.filter(f=>f.page===p).map(f=>(
                   <FieldBox key={f.id} field={f} dims={dims[p]} value={values[f.id]} signerIdx={signerIdx} onTap={handleFieldTap} highlightPending={!allDone}/>
@@ -904,7 +993,8 @@ function PreviewModal({ doc, onClose }) {
             )}
             {pages.map(p=>(
               <div key={p} style={{ display:activePage===p?"block":"none", overflowX:"auto", marginBottom:14 }}>
-                <div style={{ position:"relative", display:"inline-block", borderRadius:3, overflow:"hidden", boxShadow:"0 4px 20px rgba(0,0,0,.3)" }}>
+                {p === 1 && <CompanyHeader width={740}/>}
+                <div style={{ position:"relative", display:"inline-block", borderRadius: p===1 ? "0 0 3px 3px" : 3, overflow:"hidden", boxShadow:"0 4px 20px rgba(0,0,0,.3)" }}>
                   <PdfPageCanvas pdfData={tmpl.pdfData} pageNum={p} width={740} onDims={d=>setDims(prev=>({...prev,[p]:d}))}/>
                   {dims[p] && tmpl.fields.filter(f=>f.page===p).map(f=>(
                     <FieldBox key={f.id} field={f} dims={dims[p]} value={doc.values?.[f.id]}/>

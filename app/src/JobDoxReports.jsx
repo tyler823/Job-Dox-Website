@@ -157,6 +157,7 @@ const RIc = {
   ai:       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a2 2 0 012 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 017 7h1.27c.34-.6.99-1 1.73-1a2 2 0 110 4c-.74 0-1.39-.4-1.73-1H21a7 7 0 01-7 7v1.27c.6.34 1 .99 1 1.73a2 2 0 11-4 0c0-.74.4-1.39 1-1.73V23a7 7 0 01-7-7H3.73c-.34.6-.99 1-1.73 1a2 2 0 110-4c.74 0 1.39.4 1.73 1H5a7 7 0 017-7V5.73c-.6-.34-1-.99-1-1.73a2 2 0 012-2z"/></svg>,
   download: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
   filter:   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
+  equip:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>,
 };
 
 
@@ -224,6 +225,7 @@ const REPORT_TABS = [
   { key:"pipeline", label:"Pipeline",   icon: RIc.pipeline },
   { key:"board",    label:"Whiteboard", icon: RIc.board    },
   { key:"ai",       label:"AI Insights",icon: RIc.ai       },
+  { key:"equip",    label:"Equip Mismatch",icon: RIc.equip },
 ];
 
 
@@ -1133,9 +1135,396 @@ function AIAnalytics({ data }) {
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   7. EQUIPMENT REVENUE MISMATCH
+   Compares deployed equipment revenue vs IICRC S500-recommended equipment.
+   Billing day rule: ≥4 hours on site = 1 billing day.
+   E.g. 52 hours = 3 billing days (24+24+4).
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* IICRC S500 recommendations (simplified from S500-2021 Chapter 12):
+   - Air movers: 1 per 10–16 LF of wall (approx 1 per 50 SF of affected floor)
+   - LGR Dehumidifiers: 1 per 1,000–1,200 CF (≈ 1 per ~125 SF at 8ft ceiling)
+   - Air scrubbers: 1 per containment zone or per 500 SF of affected area
+   These are standard IICRC guidelines; actual needs vary by class/category of loss */
+const S500_RULES = {
+  fan:      { sfPer: 50,   label: "Air Movers",           note: "1 per 50 SF of affected floor area (IICRC S500 §12.3)" },
+  dehu:     { sfPer: 125,  label: "LGR Dehumidifiers",    note: "1 per ~125 SF (1,000 CF at 8ft ceiling) (IICRC S500 §12.4)" },
+  "dehu-des":{ sfPer: 200, label: "Desiccant Dehus",      note: "1 per ~200 SF for low-humidity environments (IICRC S500 §12.4)" },
+  scrubber: { sfPer: 500,  label: "HEPA Air Scrubbers",   note: "1 per containment zone or per 500 SF (IICRC S500 §12.5)" },
+};
+
+/* Convert hours on site to billing days: ≥4 hours of any day = full billing day */
+function hoursToBillingDays(hours) {
+  if (!hours || hours <= 0) return 0;
+  const fullDays = Math.floor(hours / 24);
+  const remainderHours = hours % 24;
+  return fullDays + (remainderHours >= 4 ? 1 : 0);
+}
+
+/* Read DryDox equipment data for a project from localStorage */
+function loadDryDoxData(projId) {
+  // Equipment stored in DryDox state — check lsProj pattern
+  const equipment = lsProjRead(projId, "drydox_equipment") || [];
+  const rooms     = lsProjRead(projId, "drydox_rooms") || [];
+  const logs      = lsProjRead(projId, "drydox_logs") || [];
+  const billingDays = lsProjRead(projId, "drydox_billing_days") || 3;
+  const flags     = lsProjRead(projId, "drydox_flags") || [];
+  return { equipment, rooms, logs, billingDays, flags };
+}
+
+/* Look up a price list item rate */
+function getEquipRate(plItemId, priceLists) {
+  for (const pl of priceLists) {
+    const item = (pl.items || []).find(i => i.id === plItemId);
+    if (item) return { rate: item.price || 0, desc: item.desc, unit: item.unit, plName: pl.name };
+  }
+  return { rate: 0, desc: "", unit: "day", plName: "" };
+}
+
+/* Equipment type labels */
+const EQUIP_LABELS = {
+  fan:"Air Mover", dehu:"LGR Dehumidifier", "dehu-des":"Desiccant Dehu",
+  scrubber:"HEPA Air Scrubber", negair:"Negative Air Machine", ozone:"Ozone Generator",
+  fogger:"Thermal Fogger", mat:"Drying Mat", injectidry:"InjectiDry System",
+  thermal:"Thermal Camera", other:"Other Equipment",
+};
+
+function EquipmentMismatchReport({ data, priceLists }) {
+  const [expandedProj, setExpandedProj] = useState(null);
+
+  // Build mismatch analysis for each project that has DryDox data
+  const analysis = useMemo(() => {
+    return data.map(proj => {
+      const dd = loadDryDoxData(proj.id);
+      if (!dd.equipment.length && !dd.rooms.length) return null;
+
+      const totalSF = dd.rooms.reduce((s, r) => s + ((r.widthFt || 0) * (r.depthFt || 0)), 0);
+      const billingDays = dd.billingDays || 3;
+
+      // --- ACTUAL deployed equipment ---
+      const deployed = {};
+      let actualRevenue = 0;
+      const equipDetails = dd.equipment.map(eq => {
+        const type = eq.type || "other";
+        const dIn  = parseInt(eq.dayIn) || 1;
+        const dOut = parseInt(eq.dayOut) || 0;
+        const days = dOut > 0 ? Math.max(1, dOut - dIn + 1) : Math.max(1, billingDays - dIn + 1);
+        const { rate, desc } = getEquipRate(eq.plItemId, priceLists);
+        const total = days * rate;
+        actualRevenue += total;
+
+        if (!deployed[type]) deployed[type] = { count: 0, totalDays: 0, revenue: 0 };
+        deployed[type].count++;
+        deployed[type].totalDays += days;
+        deployed[type].revenue += total;
+
+        const room = dd.rooms.find(r => r.id === eq.roomId);
+        return { ...eq, type, days, rate, total, desc: desc || EQUIP_LABELS[type] || type, roomLabel: room?.label || "—" };
+      });
+
+      // --- S500 RECOMMENDED equipment ---
+      let recommendedRevenue = 0;
+      const recommendations = {};
+      Object.entries(S500_RULES).forEach(([type, rule]) => {
+        if (totalSF <= 0) return;
+        const recommended = Math.max(1, Math.ceil(totalSF / rule.sfPer));
+        const actualCount = deployed[type]?.count || 0;
+        // Find the best matching price for this equipment type from available price lists
+        let bestRate = 0;
+        for (const pl of priceLists) {
+          for (const item of (pl.items || [])) {
+            const code = (item.code || "").toLowerCase();
+            const desc = (item.desc || "").toLowerCase();
+            if (
+              (type === "fan" && (code.startsWith("am") || desc.includes("air mover"))) ||
+              (type === "dehu" && (code.startsWith("dh") || desc.includes("lgr dehumidifier")) && !desc.includes("desiccant")) ||
+              (type === "dehu-des" && (code.startsWith("dd") || desc.includes("desiccant"))) ||
+              (type === "scrubber" && (code.startsWith("as") || desc.includes("air scrubber")))
+            ) {
+              if (item.price > bestRate) bestRate = item.price;
+            }
+          }
+        }
+        const recRevenue = recommended * billingDays * bestRate;
+        recommendedRevenue += recRevenue;
+        recommendations[type] = {
+          label: rule.label,
+          note: rule.note,
+          recommended,
+          actual: actualCount,
+          diff: recommended - actualCount,
+          ratePerDay: bestRate,
+          recRevenue,
+          actualRevenue: deployed[type]?.revenue || 0,
+          revenueDiff: recRevenue - (deployed[type]?.revenue || 0),
+        };
+      });
+
+      // --- FLAGS / mismatch reasons from user comments ---
+      const flags = dd.flags || [];
+
+      return {
+        proj,
+        totalSF,
+        billingDays,
+        equipDetails,
+        deployed,
+        recommendations,
+        actualRevenue,
+        recommendedRevenue,
+        revenueDiff: recommendedRevenue - actualRevenue,
+        flags,
+        hasData: true,
+      };
+    }).filter(Boolean);
+  }, [data, priceLists]);
+
+  // Totals
+  const totals = useMemo(() => ({
+    projects:       analysis.length,
+    actualRevenue:  analysis.reduce((s, a) => s + a.actualRevenue, 0),
+    recRevenue:     analysis.reduce((s, a) => s + a.recommendedRevenue, 0),
+    diff:           analysis.reduce((s, a) => s + a.revenueDiff, 0),
+  }), [analysis]);
+
+  return (
+    <div>
+      {/* KPIs */}
+      <div className="rpt-kpi-row">
+        <div className="rpt-kpi">
+          <div className="rpt-kpi-label">Projects w/ Equipment</div>
+          <div className="rpt-kpi-val">{totals.projects}</div>
+        </div>
+        <div className="rpt-kpi">
+          <div className="rpt-kpi-label">Actual Equipment Revenue</div>
+          <div className="rpt-kpi-val">{f$(totals.actualRevenue)}</div>
+        </div>
+        <div className="rpt-kpi">
+          <div className="rpt-kpi-label">S500-Recommended Revenue</div>
+          <div className="rpt-kpi-val" style={{color:"var(--blue)"}}>{f$(totals.recRevenue)}</div>
+        </div>
+        <div className="rpt-kpi">
+          <div className="rpt-kpi-label">Revenue Gap</div>
+          <div className="rpt-kpi-val" style={{color: totals.diff > 0 ? "var(--acc)" : "var(--green)"}}>
+            {totals.diff > 0 ? `−${f$(totals.diff)}` : f$(Math.abs(totals.diff))}
+          </div>
+          <div className="rpt-kpi-sub">{totals.diff > 0 ? "Under-deployed vs S500" : "At or above S500"}</div>
+        </div>
+      </div>
+
+      {/* Billing day rule callout */}
+      <div className="rpt-card" style={{background:"var(--s1)",borderLeft:"3px solid var(--blue)",padding:"10px 14px",marginBottom:14}}>
+        <div style={{fontSize:11,color:"var(--t1)",fontWeight:600,marginBottom:2}}>Billing Day Rule</div>
+        <div style={{fontSize:10,color:"var(--t2)"}}>
+          Equipment on site for ≥4 hours of any calendar day counts as a full billing day. Example: a fan on site for 52 hours = <strong style={{color:"var(--t1)"}}>3 billing days</strong> (24h + 24h + 4h).
+        </div>
+      </div>
+
+      {/* S500 reference */}
+      <div className="rpt-card" style={{background:"var(--s1)",borderLeft:"3px solid var(--amber)",padding:"10px 14px",marginBottom:14}}>
+        <div style={{fontSize:11,color:"var(--t1)",fontWeight:600,marginBottom:4}}>IICRC S500 Equipment Standards</div>
+        {Object.values(S500_RULES).map(rule => (
+          <div key={rule.label} style={{fontSize:10,color:"var(--t2)",marginBottom:2}}>
+            <strong style={{color:"var(--t1)"}}>{rule.label}:</strong> {rule.note}
+          </div>
+        ))}
+      </div>
+
+      {/* Project-by-project mismatch table */}
+      <div className="rpt-card">
+        <div className="rpt-card-hd">Equipment Revenue Mismatch by Project</div>
+        <table className="rpt-tbl">
+          <thead>
+            <tr>
+              <th>Project</th>
+              <th>Area (SF)</th>
+              <th>Days</th>
+              <th>Actual Revenue</th>
+              <th>S500 Revenue</th>
+              <th>Gap</th>
+              <th style={{width:120}}>Gap %</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {analysis.sort((a, b) => b.revenueDiff - a.revenueDiff).map(a => {
+              const gapPct = a.recommendedRevenue > 0 ? (a.revenueDiff / a.recommendedRevenue * 100) : 0;
+              const expanded = expandedProj === a.proj.id;
+              return (
+                <>
+                  <tr key={a.proj.id} style={{cursor:"pointer"}} onClick={() => setExpandedProj(expanded ? null : a.proj.id)}>
+                    <td style={{fontWeight:600}}>{a.proj.name || a.proj.address || a.proj.id}</td>
+                    <td className="mono">{a.totalSF.toLocaleString()} SF</td>
+                    <td className="mono">{a.billingDays}d</td>
+                    <td className="mono">{f$(a.actualRevenue)}</td>
+                    <td className="mono" style={{color:"var(--blue)"}}>{f$(a.recommendedRevenue)}</td>
+                    <td className="mono" style={{color: a.revenueDiff > 0 ? "var(--acc)" : "var(--green)",fontWeight:700}}>
+                      {a.revenueDiff > 0 ? `−${f$(a.revenueDiff)}` : `+${f$(Math.abs(a.revenueDiff))}`}
+                    </td>
+                    <td>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <div className="rpt-bar" style={{flex:1}}>
+                          <div className="rpt-bar-fill" style={{
+                            width:`${Math.min(100,Math.abs(gapPct))}%`,
+                            background: a.revenueDiff > 0 ? "var(--acc)" : "var(--green)"
+                          }}/>
+                        </div>
+                        <span className="mono" style={{fontSize:9,color:"var(--t3)"}}>{Math.abs(gapPct).toFixed(0)}%</span>
+                      </div>
+                    </td>
+                    <td style={{fontSize:10,color:"var(--t3)"}}>{expanded ? "▲" : "▼"}</td>
+                  </tr>
+
+                  {/* Expanded detail */}
+                  {expanded && (
+                    <tr key={`${a.proj.id}-detail`}>
+                      <td colSpan={8} style={{padding:0,background:"var(--s1)"}}>
+                        <div style={{padding:"12px 16px"}}>
+
+                          {/* Equipment type comparison grid */}
+                          <div style={{fontWeight:700,fontSize:11,color:"var(--t1)",marginBottom:8}}>S500 Recommendation vs Deployed</div>
+                          <table className="rpt-tbl" style={{marginBottom:12}}>
+                            <thead>
+                              <tr>
+                                <th>Equipment Type</th>
+                                <th>S500 Rec.</th>
+                                <th>Deployed</th>
+                                <th>Difference</th>
+                                <th>Rate/Day</th>
+                                <th>Rec. Revenue</th>
+                                <th>Actual Revenue</th>
+                                <th>Revenue Gap</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {Object.entries(a.recommendations).map(([type, rec]) => (
+                                <tr key={type}>
+                                  <td style={{fontWeight:600}}>{rec.label}</td>
+                                  <td className="mono" style={{color:"var(--blue)"}}>{rec.recommended}</td>
+                                  <td className="mono">{rec.actual}</td>
+                                  <td className="mono" style={{
+                                    color: rec.diff > 0 ? "var(--acc)" : rec.diff < 0 ? "var(--green)" : "var(--t2)",
+                                    fontWeight:700
+                                  }}>
+                                    {rec.diff > 0 ? `−${rec.diff} short` : rec.diff < 0 ? `+${Math.abs(rec.diff)} extra` : "Match"}
+                                  </td>
+                                  <td className="mono">{f$(rec.ratePerDay)}</td>
+                                  <td className="mono" style={{color:"var(--blue)"}}>{f$(rec.recRevenue)}</td>
+                                  <td className="mono">{f$(rec.actualRevenue)}</td>
+                                  <td className="mono" style={{color: rec.revenueDiff > 0 ? "var(--acc)" : "var(--green)",fontWeight:600}}>
+                                    {rec.revenueDiff > 0 ? `−${f$(rec.revenueDiff)}` : `+${f$(Math.abs(rec.revenueDiff))}`}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+
+                          {/* Deployed equipment detail */}
+                          {a.equipDetails.length > 0 && (
+                            <>
+                              <div style={{fontWeight:700,fontSize:11,color:"var(--t1)",marginBottom:6}}>Deployed Equipment Detail</div>
+                              <table className="rpt-tbl" style={{marginBottom:12}}>
+                                <thead>
+                                  <tr><th>Equipment</th><th>Room</th><th>Day In</th><th>Day Out</th><th>Billing Days</th><th>Rate/Day</th><th>Revenue</th></tr>
+                                </thead>
+                                <tbody>
+                                  {a.equipDetails.map(eq => (
+                                    <tr key={eq.id}>
+                                      <td>{eq.brand || eq.desc} <span style={{fontSize:9,color:"var(--t3)"}}>({EQUIP_LABELS[eq.type] || eq.type})</span></td>
+                                      <td>{eq.roomLabel}</td>
+                                      <td className="mono">Day {eq.dayIn}</td>
+                                      <td className="mono">{parseInt(eq.dayOut) ? `Day ${eq.dayOut}` : "Active"}</td>
+                                      <td className="mono">{eq.days}d</td>
+                                      <td className="mono">{f$(eq.rate)}</td>
+                                      <td className="mono" style={{fontWeight:600}}>{f$(eq.total)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </>
+                          )}
+
+                          {/* Mismatch flags / user comments */}
+                          {a.flags.length > 0 && (
+                            <>
+                              <div style={{fontWeight:700,fontSize:11,color:"var(--t1)",marginBottom:6}}>Mismatch Reasons (Technician Notes)</div>
+                              {a.flags.map((flag, i) => (
+                                <div key={i} style={{background:"var(--s2)",border:"1px solid var(--br)",borderLeft:`3px solid ${flag.severity === "high" ? "var(--acc)" : flag.severity === "medium" ? "var(--amber)" : "var(--blue)"}`,borderRadius:6,padding:"8px 12px",marginBottom:6}}>
+                                  <div style={{fontSize:10,fontWeight:600,color:"var(--t1)"}}>{flag.equipType ? (EQUIP_LABELS[flag.equipType] || flag.equipType) : "General"}</div>
+                                  <div style={{fontSize:10,color:"var(--t2)",marginTop:2}}>{flag.comment || flag.reason || "No reason provided"}</div>
+                                  {flag.author && <div style={{fontSize:9,color:"var(--t3)",marginTop:3}}>— {flag.author}{flag.date ? ` · ${flag.date}` : ""}</div>}
+                                </div>
+                              ))}
+                            </>
+                          )}
+
+                          {/* No flags — show generic note */}
+                          {a.flags.length === 0 && a.revenueDiff > 0 && (
+                            <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderLeft:"3px solid var(--amber)",borderRadius:6,padding:"8px 12px",fontSize:10,color:"var(--t2)"}}>
+                              No mismatch notes recorded. Technicians can flag reasons for under-deployment in the DryDox equipment tab (e.g., "homeowner refused equipment in bedroom", "limited access", "insurance scope limitation").
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              );
+            })}
+            {analysis.length === 0 && (
+              <tr><td colSpan={8} style={{textAlign:"center",color:"var(--t3)",padding:30}}>
+                No projects with DryDox equipment data found. Deploy equipment in the DryDox tab on any project to see mismatch analysis.
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Summary by equipment type across all projects */}
+      {analysis.length > 0 && (
+        <div className="rpt-card">
+          <div className="rpt-card-hd">Company-Wide Equipment Gap Summary</div>
+          <table className="rpt-tbl">
+            <thead>
+              <tr><th>Equipment Type</th><th>Total Rec.</th><th>Total Deployed</th><th>Gap (Units)</th><th>Total Rec. Revenue</th><th>Total Actual Revenue</th><th>Revenue Gap</th></tr>
+            </thead>
+            <tbody>
+              {Object.entries(S500_RULES).map(([type, rule]) => {
+                const totalRec    = analysis.reduce((s, a) => s + (a.recommendations[type]?.recommended || 0), 0);
+                const totalActual = analysis.reduce((s, a) => s + (a.recommendations[type]?.actual || 0), 0);
+                const totalRecRev = analysis.reduce((s, a) => s + (a.recommendations[type]?.recRevenue || 0), 0);
+                const totalActRev = analysis.reduce((s, a) => s + (a.recommendations[type]?.actualRevenue || 0), 0);
+                const diff = totalRec - totalActual;
+                const revDiff = totalRecRev - totalActRev;
+                return (
+                  <tr key={type}>
+                    <td style={{fontWeight:600}}>{rule.label}</td>
+                    <td className="mono" style={{color:"var(--blue)"}}>{totalRec}</td>
+                    <td className="mono">{totalActual}</td>
+                    <td className="mono" style={{color: diff > 0 ? "var(--acc)" : "var(--green)",fontWeight:700}}>
+                      {diff > 0 ? `−${diff}` : diff < 0 ? `+${Math.abs(diff)}` : "—"}
+                    </td>
+                    <td className="mono" style={{color:"var(--blue)"}}>{f$(totalRecRev)}</td>
+                    <td className="mono">{f$(totalActRev)}</td>
+                    <td className="mono" style={{color: revDiff > 0 ? "var(--acc)" : "var(--green)",fontWeight:700}}>
+                      {revDiff > 0 ? `−${f$(revDiff)}` : `+${f$(Math.abs(revDiff))}`}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
    MAIN EXPORT — ReportsDashboard
 ═══════════════════════════════════════════════════════════════════════════ */
-export function ReportsDashboard({ projects=[], companyId="", onNavigate, globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[] }) {
+export function ReportsDashboard({ projects=[], companyId="", onNavigate, globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], priceLists=[] }) {
   const [tab, setTab] = useState("revenue");
 
   // Inject CSS once
@@ -1177,6 +1566,7 @@ export function ReportsDashboard({ projects=[], companyId="", onNavigate, global
         {tab === "pipeline" && <PipelineReport data={data} statuses={statuses} customWorkTypes={customWorkTypes} customProjectTypes={customProjectTypes} globalStaff={globalStaff}/>}
         {tab === "board"    && <WhiteboardReport data={data} statuses={statuses} customWorkTypes={customWorkTypes}/>}
         {tab === "ai"       && <AIAnalytics data={data}/>}
+        {tab === "equip"    && <EquipmentMismatchReport data={data} priceLists={priceLists}/>}
       </div>
     </div>
   );

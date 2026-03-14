@@ -3,11 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>Job-Dox Field</title>
+  <title>Cortex Field</title>
   <meta name="theme-color" content="#06070d">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="JD Field">
+  <meta name="apple-mobile-web-app-title" content="Cortex Field">
+  <link rel="icon" type="image/svg+xml" href="../shared/icon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="../shared/favicon-32x32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="../shared/apple-touch-icon.png">
   <link rel="manifest" href="manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -135,6 +138,34 @@ const WORK_COLORS  = {water:"#5ba3f5",fire:"#e43531",mold:"#a78bfa",smoke:"#e89c
 
 let _id = Date.now();
 const uid     = () => `f${_id++}`;
+
+// ── Single-session enforcement ──────────────────────────────────────────────
+// On login we write a random token to activeSessions/{memberstackId}.
+// A real-time listener watches that doc — if the token changes (someone logged
+// in from another device / browser), this session auto-logs out.
+const SESSION_TOKEN = `fld_${Date.now()}_${Math.random().toString(36).slice(2,10)}`;
+let _sessionUnsub = null;
+
+async function claimSession(memberId) {
+  try {
+    await db.collection("activeSessions").doc(memberId).set({
+      token: SESSION_TOKEN,
+      app: "field",
+      claimedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch(e) { /* offline — will sync when back online */ }
+}
+
+function watchSession(memberId, onKicked) {
+  if (_sessionUnsub) _sessionUnsub();
+  _sessionUnsub = db.collection("activeSessions").doc(memberId)
+    .onSnapshot(snap => {
+      if (!snap.exists()) return;
+      const remote = snap.data().token;
+      // If the token changed and it wasn't us, we've been kicked
+      if (remote && remote !== SESSION_TOKEN) onKicked();
+    });
+}
 const fmtDate = ts => ts?.toDate?ts.toDate().toLocaleDateString("en-US",{month:"short",day:"numeric"}):new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
 const fmtTime = ts => ts?.toDate?ts.toDate().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):"";
 
@@ -990,11 +1021,19 @@ function FieldApp() {
         ms.openModal("login");
         return;
       }
+      try { ms.closeModal(); } catch(e) {}
       setMember(m);
       // company-id is the same custom field the portal writes when a staff
       // member accepts a portal invite, or that we write via invite code below
-      const companyId = m.customFields?.["company-id"] || null;
-      if (!companyId) { setAuthState("invite"); return; }
+      let companyId = m.customFields?.["company-id"] || null;
+
+      // If no stored company-id, assume this user is the account owner.
+      // The portal uses member.id as the companyId for owners (see initMember).
+      if (!companyId) {
+        companyId = m.id;
+        // Persist so future logins skip this step
+        ms.updateMember({ customFields: { "company-id": companyId } }).catch(()=>{});
+      }
 
       const name = getMemberName(m);
       const profile = {
@@ -1008,6 +1047,18 @@ function FieldApp() {
         .collection("fieldUsers").doc(m.id).get()
         .then(s=>{ if(s.exists()&&s.data().clockedIn){ setClockProjId(s.data().clockedProjectId||null); setClockProjName(s.data().clockedProjectName||""); } })
         .catch(()=>{});
+
+      // ── Single-session: claim this device and watch for kicks ──
+      await claimSession(m.id);
+      watchSession(m.id, async () => {
+        // Another device/browser logged in — sign out here
+        if (_sessionUnsub) { _sessionUnsub(); _sessionUnsub = null; }
+        const _ms = await waitForMS();
+        await _ms.logout();
+        setAuthState("checking");
+        setMember(null); setFieldUser(null);
+        _ms.openModal("login");
+      });
 
       setFieldUser(profile);
       setAuthState("ready");
@@ -1024,6 +1075,7 @@ function FieldApp() {
       // - token expiry
       ms.onAuthChange(async updated => {
         if (!updated) {
+          if (_sessionUnsub) { _sessionUnsub(); _sessionUnsub = null; }
           setAuthState("checking");
           setMember(null); setFieldUser(null);
           ms.openModal("login");
