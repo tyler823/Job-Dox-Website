@@ -10843,7 +10843,7 @@ export default function JobDoxPortal() {
       // ── Stream projects ──
       const pq = query(collection(db, "companies", cid, "projects"), orderBy("createdAt","desc"));
       unsubProjects = onSnapshot(pq, snap => {
-        setProjects(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setProjects(snap.docs.map(d => ({ ...d.data(), id: d.id })));
       });
 
       // ── Stream staff roster (for SettingsPage + NotifyModal etc.) ──
