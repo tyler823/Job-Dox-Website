@@ -416,6 +416,17 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
   .modal-body{padding:14px 16px;}
   .report-summary-chips{grid-template-columns:1fr!important;}
 }
+
+/* ── Support Mode ── */
+.support-selector{background:var(--s1);border:1px solid var(--br);border-radius:16px;width:520px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.5);animation:jd-pop .2s ease both;overflow:hidden;}
+.support-selector-hd{padding:20px 24px 16px;border-bottom:1px solid var(--br);display:flex;align-items:center;gap:12px;}
+.support-search{background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:10px 14px;margin:14px 20px 0;font-family:var(--ui);font-size:12px;color:var(--t1);outline:none;transition:border-color .15s;}
+.support-search:focus{border-color:var(--amber);}
+.support-search::placeholder{color:var(--t3);}
+.support-list{flex:1;overflow-y:auto;padding:8px 12px 12px;}
+.support-company-row{width:100%;background:transparent;border:1px solid transparent;border-radius:9px;padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;font-family:var(--ui);transition:all .12s;}
+.support-company-row:hover{background:var(--s3);border-color:var(--br);}
+.support-banner{background:rgba(232,156,24,.10);border-bottom:1px solid rgba(232,156,24,.25);padding:8px 18px;display:flex;align-items:center;gap:10px;flex-shrink:0;font-size:12px;color:var(--amber);font-family:var(--ui);}
 `;
 
 const Ic = {
@@ -11721,6 +11732,13 @@ export default function JobDoxPortal() {
   const [cortexAlert,        setCortexAlert]        = useState(null);  // Cortex Coins usage alert
   const [cortexAlertDismissed, setCortexAlertDismissed] = useState(false);
   const [coInfo,               setCoInfo]              = useState(loadCoInfo);
+
+  // ── Support Mode (@job-dox.com staff) ──
+  const [isSupportUser,         setIsSupportUser]        = useState(false);
+  const [supportCompanySelected, setSupportCompanySelected] = useState(false);
+  const [supportCompanyName,     setSupportCompanyName]    = useState("");
+  const [allCompanies,           setAllCompanies]          = useState([]);
+  const [supportSearch,          setSupportSearch]         = useState("");
   const attrDefs = DEFAULT_ATTR_DEFS;
 
   // Re-sync if another tab updates localStorage config
@@ -11752,6 +11770,21 @@ export default function JobDoxPortal() {
     async function initMember(member) {
       setCurrentMember(member);
       const email = member.auth?.email || "";
+
+      // ── Support Mode: detect @job-dox.com staff ──
+      if (email.toLowerCase().endsWith("@job-dox.com")) {
+        setIsSupportUser(true);
+        // Load all companies for the selector
+        try {
+          const snap = await getDocs(collection(db, "companies"));
+          const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setAllCompanies(list);
+        } catch (e) { console.warn("Failed to load companies for support mode:", e); }
+        // Track member ID for tab-close cleanup
+        _portalMemberId = member.id;
+        sessionStorage.setItem("jd_portal_active", "1");
+        return; // Don't load any company data yet — wait for selection
+      }
 
       // Check if this user belongs to a company as a staff member
       // companyId is stored in their Memberstack custom fields after accepting an invite
@@ -12025,6 +12058,148 @@ export default function JobDoxPortal() {
     };
   }, []);
 
+  // ── Support Mode: select a company to view ──
+  const supportUnsubsRef = useRef([]);
+  const handleSupportCompanySelect = useCallback(async (company) => {
+    const cid = company.id;
+    const coName = company.companyName || company.name || company.id;
+    setCompanyId(cid);
+    _globalCompanyId = cid;
+    setDocsCompanyId(cid);
+    setSupportCompanyName(coName);
+    setSupportCompanySelected(true);
+    setPermission(10); // Full admin access for support staff
+
+    // Clean up any previous subscriptions
+    supportUnsubsRef.current.forEach(fn => fn());
+    supportUnsubsRef.current = [];
+
+    // Stream projects
+    const pq = query(collection(db, "companies", cid, "projects"), orderBy("createdAt","desc"));
+    supportUnsubsRef.current.push(onSnapshot(pq, snap => {
+      setProjects(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+    }));
+
+    // Stream staff roster
+    supportUnsubsRef.current.push(fsListenStaff(cid, list => {
+      setGlobalStaff(list);
+      syncStaffToLS(list, loadOfficesLS());
+    }));
+
+    // Stream offices
+    supportUnsubsRef.current.push(fsListenOffices(cid, list => {
+      setOffices(list);
+      saveOfficesToLS(list);
+      syncStaffToLS(JSON.parse(localStorage.getItem("jd_staff") || "[]"), list);
+    }));
+
+    // Stream review requests
+    supportUnsubsRef.current.push(fsListenReviewRequests(cid, list => {
+      setReviewRequests(list);
+    }));
+
+    // Load phone settings
+    getDoc(doc(db, `companies/${cid}/settings/phone`)).then(snap => {
+      if (snap.exists()) setPhoneSettings(snap.data());
+    }).catch(() => {});
+
+    // Load all company settings from Firestore
+    fsLoadCompanySettings(cid, "workTypes").then(v => {
+      if (v) { setCustomWorkTypes(v); try { localStorage.setItem(LS_CWT_KEY, JSON.stringify(v)); } catch {} }
+    });
+    fsLoadCompanySettings(cid, "statuses").then(v => {
+      if (v) { setCustomStatuses(v); try { localStorage.setItem(LS_CST_KEY, JSON.stringify(v)); } catch {} }
+    });
+    fsLoadCompanySettings(cid, "projectTypes").then(v => {
+      if (v) { setCustomProjectTypes(v); try { localStorage.setItem(LS_CPT_KEY, JSON.stringify(v)); } catch {} }
+    });
+    fsLoadCompanySettings(cid, "companyInfo").then(v => {
+      if (v) { setCoInfo(v); try { localStorage.setItem(LS_CO_KEY, JSON.stringify(v)); } catch {} }
+    });
+    fsLoadCompanySettings(cid, "billing").then(v => {
+      if (v) try { localStorage.setItem(LS_BILLING, JSON.stringify(v)); } catch {}
+    });
+    fsLoadCompanySettings(cid, "budgetTemplates").then(v => {
+      if (v) try { localStorage.setItem(LS_BUDGET_TEMPLATES, JSON.stringify(v)); } catch {}
+    });
+    fsLoadInvoices(cid).then(v => {
+      if (v) try { localStorage.setItem(LS_INVOICES, JSON.stringify(v)); } catch {}
+    });
+    fsLoadProjDocs(cid).then(v => {
+      if (v) try { localStorage.setItem(LS_PROJ_DOCS, JSON.stringify(v)); } catch {}
+    });
+    fsLoadProjMsgs(cid).then(v => {
+      if (v) try { localStorage.setItem(LS_PROJ_MSGS, JSON.stringify(v)); } catch {}
+    });
+    fsLoadVendors(cid).then(v => {
+      if (v) try { localStorage.setItem(LS_VENDORS, JSON.stringify(v)); } catch {}
+    });
+    fsLoadVendorBills(cid).then(v => {
+      if (v) try { localStorage.setItem(LS_VENDOR_BILLS, JSON.stringify(v)); } catch {}
+    });
+    fsLoadCompanySettings(cid, "activityFeed").then(v => {
+      if (v) try { localStorage.setItem(LS_ACTIVITY, JSON.stringify(v)); } catch {}
+    });
+    fsLoadCompanySettings(cid, "projectBudgets").then(v => {
+      if (v) try { localStorage.setItem("jd_project_budgets", JSON.stringify(v)); } catch {}
+    });
+    fsLoadCompanySettings(cid, "payrollRates").then(v => {
+      if (v) try { localStorage.setItem("jd_payroll_rates", JSON.stringify(v)); } catch {}
+    });
+    fsLoadCompanySettings(cid, "employeeRates").then(v => {
+      if (v) try { localStorage.setItem("jd_employee_rates", JSON.stringify(v)); } catch {}
+    });
+    fsLoadCompanySettings(cid, "qboSettings").then(v => {
+      if (v) try { localStorage.setItem("jd_qbo_settings", JSON.stringify(v)); } catch {}
+    });
+    fsLoadCompanySettings(cid, "docTemplates").then(v => {
+      if (v) try { localStorage.setItem("jd_doc_templates", JSON.stringify(v)); } catch {}
+    });
+    fsLoadCompanySettings(cid, "documents").then(v => {
+      if (v) try { localStorage.setItem("jd_documents", JSON.stringify(v)); } catch {}
+    });
+    fsLoadDispatchAppts(cid).then(v => {
+      if (v) try { localStorage.setItem(`jd_dispatch_appointments_${cid}`, JSON.stringify(v)); } catch {}
+    });
+    fsLoadDispatchResources(cid).then(v => {
+      if (v) try { localStorage.setItem(`jd_dispatch_resources_${cid}`, JSON.stringify(v)); } catch {}
+    });
+
+    // Stream pending invites
+    supportUnsubsRef.current.push(fsListenInvites(cid, list => setPendingInvites(list)));
+  }, []);
+
+  const handleSupportSwitchCompany = useCallback(() => {
+    // Unsubscribe from current company's listeners
+    supportUnsubsRef.current.forEach(fn => fn());
+    supportUnsubsRef.current = [];
+    // Clear state
+    setSupportCompanySelected(false);
+    setSupportCompanyName("");
+    setCompanyId(null);
+    _globalCompanyId = null;
+    setProjects([]);
+    setGlobalStaff([]);
+    setPendingInvites([]);
+    setOffices([]);
+    setReviewRequests([]);
+    setSelected(null);
+    setPage("portfolio");
+  }, []);
+
+  const handleSupportExitMode = useCallback(async () => {
+    supportUnsubsRef.current.forEach(fn => fn());
+    supportUnsubsRef.current = [];
+    setSupportCompanySelected(false);
+    setSupportCompanyName("");
+    setIsSupportUser(false);
+    setCompanyId(null);
+    _globalCompanyId = null;
+    try { await window.$memberstackDom.logout(); } catch(e) {}
+    try { sessionStorage.removeItem("jd_portal_active"); } catch {}
+    window.location.href = "https://job-dox.ai";
+  }, []);
+
   // ── Add project ──
   const handleAddProject = async (p) => {
     if (!companyId) throw new Error("Not authenticated — company ID missing.");
@@ -12144,6 +12319,73 @@ export default function JobDoxPortal() {
   };
 
   const navTo = (pg) => { setPage(pg); setSelected(null); setShowTools(false); };
+
+  // ── Support Mode: Company Selector screen ──
+  if (isSupportUser && !supportCompanySelected) {
+    const filtered = allCompanies.filter(c => {
+      if (!supportSearch) return true;
+      const s = supportSearch.toLowerCase();
+      const name = (c.companyName || c.name || "").toLowerCase();
+      const id = (c.id || "").toLowerCase();
+      return name.includes(s) || id.includes(s);
+    });
+    return (
+      <div className={`jdp${isLight?" lt":""}`} style={{alignItems:"center",justifyContent:"center"}}>
+        <div className="support-selector">
+          <div className="support-selector-hd">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="var(--amber)" style={{flexShrink:0}}>
+              <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 6c1.4 0 2.5 1.1 2.5 2.5S13.4 12 12 12s-2.5-1.1-2.5-2.5S10.6 7 12 7zm5 10H7v-1c0-1.67 3.33-2.5 5-2.5s5 .83 5 2.5v1z"/>
+            </svg>
+            <div>
+              <div style={{fontSize:18,fontWeight:700,color:"var(--t1)"}}>Support Mode</div>
+              <div style={{fontSize:11,color:"var(--t3)",fontFamily:"var(--mono)",marginTop:2}}>SELECT A COMPANY TO VIEW</div>
+            </div>
+          </div>
+          <input
+            className="support-search"
+            placeholder="Search companies by name or ID..."
+            value={supportSearch}
+            onChange={e => setSupportSearch(e.target.value)}
+            autoFocus
+          />
+          <div className="support-list">
+            {filtered.length === 0 && (
+              <div style={{padding:30,textAlign:"center",color:"var(--t3)",fontSize:12}}>No companies found</div>
+            )}
+            {filtered.map(c => (
+              <button key={c.id} className="support-company-row" onClick={() => handleSupportCompanySelect(c)}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:600,color:"var(--t1)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                    {c.companyName || c.name || "Unnamed Company"}
+                  </div>
+                  <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",marginTop:3}}>
+                    ID: {c.id}
+                  </div>
+                </div>
+                {(c.createdAt) && (
+                  <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",flexShrink:0}}>
+                    {typeof c.createdAt === "object" && c.createdAt.toDate
+                      ? c.createdAt.toDate().toLocaleDateString()
+                      : typeof c.createdAt === "string"
+                        ? new Date(c.createdAt).toLocaleDateString()
+                        : ""}
+                  </div>
+                )}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--t3)" style={{flexShrink:0}}>
+                  <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/>
+                </svg>
+              </button>
+            ))}
+          </div>
+          <div style={{padding:"14px 20px",borderTop:"1px solid var(--br)",display:"flex",justifyContent:"center"}}>
+            <button className="btn btn-ghost" onClick={handleSupportExitMode}>
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`jdp${isLight?" lt":""}`}>
@@ -12290,6 +12532,22 @@ export default function JobDoxPortal() {
       </nav>
 
       <div className="jdp-main">
+        {/* ── Support Mode Banner ── */}
+        {isSupportUser && supportCompanySelected && (
+          <div className="support-banner">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{flexShrink:0}}>
+              <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 6c1.4 0 2.5 1.1 2.5 2.5S13.4 12 12 12s-2.5-1.1-2.5-2.5S10.6 7 12 7zm5 10H7v-1c0-1.67 3.33-2.5 5-2.5s5 .83 5 2.5v1z"/>
+            </svg>
+            <span style={{flex:1,fontWeight:600}}>SUPPORT MODE — Viewing: {supportCompanyName}</span>
+            <button className="btn btn-xs" style={{background:"rgba(232,156,24,.2)",border:"1px solid rgba(232,156,24,.35)",color:"var(--amber)"}} onClick={handleSupportSwitchCompany}>
+              Switch Company
+            </button>
+            <button className="btn btn-xs btn-ghost" onClick={handleSupportExitMode}>
+              Exit Support Mode
+            </button>
+          </div>
+        )}
+
         {/* ── Cortex Coins Usage Alert Banner ── */}
         {cortexAlert && !cortexAlertDismissed && cortexAlert.usagePercent >= 80 && (
           <div style={{
