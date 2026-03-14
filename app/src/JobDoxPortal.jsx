@@ -9848,6 +9848,574 @@ function VendorManagerTab({ projects=[], globalStaff=[], companyId="" }) {
   );
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   INTEGRATIONS TAB
+   API key management, webhooks, and Zapier connection — per company.
+   Lives inside Settings. Admin-only (permission >= 8).
+══════════════════════════════════════════════════════════════════════ */
+function IntegrationsTab({ companyId, currentMemberId, permLevel=1 }) {
+  const isAdmin = permLevel >= 8;
+  const [sec, setSec] = useState("apikeys");
+  const [keys, setKeys] = useState([]);
+  const [webhooks, setWebhooks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  // API key generation form
+  const [showGenerate, setShowGenerate] = useState(false);
+  const [genName, setGenName] = useState("");
+  const [genScopes, setGenScopes] = useState(["projects:read","contacts:read","staff:read","events:read"]);
+  const [genExpiry, setGenExpiry] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [newKey, setNewKey] = useState(null);   // the raw key shown once
+  const [keyCopied, setKeyCopied] = useState(false);
+
+  // Webhook form
+  const [showWebhookForm, setShowWebhookForm] = useState(false);
+  const [whName, setWhName] = useState("");
+  const [whUrl, setWhUrl]   = useState("");
+  const [whEvents, setWhEvents] = useState([]);
+  const [whSaving, setWhSaving] = useState(false);
+
+  // Action feedback
+  const [actionMsg, setActionMsg] = useState("");
+
+  const ALL_SCOPES = [
+    { key:"projects:read",  label:"Read Projects" },
+    { key:"projects:write", label:"Write Projects" },
+    { key:"contacts:read",  label:"Read Contacts" },
+    { key:"contacts:write", label:"Write Contacts" },
+    { key:"staff:read",     label:"Read Staff" },
+    { key:"events:read",    label:"Read Events" },
+    { key:"events:write",   label:"Write Events" },
+    { key:"webhooks:manage",label:"Manage Webhooks" },
+  ];
+
+  const WH_EVENTS = [
+    "project.created","project.status_changed","project.assigned",
+    "note.added","estimate.created","estimate.accepted",
+    "task.completed","document.uploaded","shift.clocked_in","shift.clocked_out",
+    "review.requested","review.received",
+    "drydox.reading_logged","drydox.dry_standard",
+  ];
+
+  const SECTIONS = [
+    { id:"apikeys",  label:"API Keys" },
+    { id:"webhooks", label:"Webhooks" },
+    { id:"zapier",   label:"Zapier" },
+    { id:"docs",     label:"API Docs" },
+  ];
+
+  // Load keys + webhooks
+  useEffect(() => {
+    if (!companyId || !currentMemberId) return;
+    setLoading(true);
+    Promise.all([
+      callFn("api-keys", { action:"list", companyId, memberstackId:currentMemberId }),
+      getDocs(query(collection(db,`companies/${companyId}/webhooks`), orderBy("createdAt","desc"))),
+    ]).then(([keysRes, whSnap]) => {
+      setKeys(keysRes?.data || []);
+      setWebhooks(whSnap.docs.map(d => ({ id:d.id, ...d.data() })));
+    }).catch(e => setError(e.message)).finally(() => setLoading(false));
+  }, [companyId, currentMemberId]);
+
+  // Generate key
+  const doGenerate = async () => {
+    if (!genName.trim()) return;
+    setGenerating(true); setError("");
+    try {
+      const res = await callFn("api-keys", {
+        action:"generate", companyId, memberstackId:currentMemberId,
+        name:genName.trim(), scopes:genScopes,
+        expiresInDays: genExpiry ? parseInt(genExpiry) : undefined,
+      });
+      setNewKey(res.data);
+      // Refresh list
+      const listRes = await callFn("api-keys", { action:"list", companyId, memberstackId:currentMemberId });
+      setKeys(listRes?.data || []);
+    } catch(e) { setError(e.message); }
+    finally { setGenerating(false); }
+  };
+
+  // Revoke key
+  const doRevoke = async (keyId, keyName) => {
+    if (!confirm(`Revoke API key "${keyName}"? Any integrations using it will immediately stop working.`)) return;
+    try {
+      await callFn("api-keys", { action:"revoke", companyId, memberstackId:currentMemberId, keyId });
+      setKeys(prev => prev.map(k => k.id === keyId ? { ...k, status:"revoked" } : k));
+      setActionMsg("Key revoked.");
+      setTimeout(() => setActionMsg(""), 3000);
+    } catch(e) { setError(e.message); }
+  };
+
+  // Create webhook
+  const doCreateWebhook = async () => {
+    if (!whUrl.trim() || whEvents.length === 0) return;
+    setWhSaving(true);
+    try {
+      await addDoc(collection(db,`companies/${companyId}/webhooks`), {
+        url:whUrl.trim(), events:whEvents, name:whName.trim()||"Unnamed Webhook",
+        secret:Array.from(crypto.getRandomValues(new Uint8Array(32))).map(b=>b.toString(16).padStart(2,"0")).join(""),
+        status:"active", createdAt:serverTimestamp(), lastTriggeredAt:null, failureCount:0,
+      });
+      // Refresh
+      const whSnap = await getDocs(query(collection(db,`companies/${companyId}/webhooks`), orderBy("createdAt","desc")));
+      setWebhooks(whSnap.docs.map(d => ({ id:d.id, ...d.data() })));
+      setShowWebhookForm(false); setWhName(""); setWhUrl(""); setWhEvents([]);
+      setActionMsg("Webhook created.");
+      setTimeout(() => setActionMsg(""), 3000);
+    } catch(e) { setError(e.message); }
+    finally { setWhSaving(false); }
+  };
+
+  // Delete webhook
+  const doDeleteWebhook = async (whId) => {
+    if (!confirm("Delete this webhook?")) return;
+    try {
+      await deleteDoc(doc(db,`companies/${companyId}/webhooks/${whId}`));
+      setWebhooks(prev => prev.filter(w => w.id !== whId));
+      setActionMsg("Webhook deleted.");
+      setTimeout(() => setActionMsg(""), 3000);
+    } catch(e) { setError(e.message); }
+  };
+
+  const toggleScope = s => setGenScopes(prev => prev.includes(s) ? prev.filter(x=>x!==s) : [...prev,s]);
+  const toggleWhEvent = e => setWhEvents(prev => prev.includes(e) ? prev.filter(x=>x!==e) : [...prev,e]);
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text).then(() => { setKeyCopied(true); setTimeout(() => setKeyCopied(false), 2000); });
+  };
+
+  if (!isAdmin) return (
+    <div className="card" style={{padding:28,textAlign:"center",color:"var(--t3)"}}>
+      <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>Access Restricted</div>
+      <div style={{fontSize:11}}>Level 8 or higher required to manage Integrations & API.</div>
+    </div>
+  );
+
+  if (loading) return <div style={{padding:"32px 0",textAlign:"center",color:"var(--t3)",fontSize:12}}>Loading…</div>;
+
+  return (
+    <div>
+      {/* Section nav */}
+      <div style={{display:"flex",gap:2,borderBottom:"1px solid var(--br)",marginBottom:18}}>
+        {SECTIONS.map(s => (
+          <button key={s.id} onClick={()=>setSec(s.id)} style={{
+            padding:"6px 14px",background:"transparent",border:"none",
+            borderBottom:sec===s.id?"2px solid var(--acc)":"2px solid transparent",
+            color:sec===s.id?"var(--t1)":"var(--t2)",fontWeight:sec===s.id?700:400,
+            fontSize:11,cursor:"pointer",fontFamily:"var(--ui)",marginBottom:-1,
+          }}>{s.label}</button>
+        ))}
+      </div>
+
+      {error && (
+        <div style={{background:"rgba(228,53,49,.08)",border:"1px solid rgba(228,53,49,.2)",borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:11,color:"var(--acc)"}}>
+          {error} <span onClick={()=>setError("")} style={{cursor:"pointer",float:"right",fontWeight:700}}>&times;</span>
+        </div>
+      )}
+      {actionMsg && (
+        <div style={{background:"rgba(26,217,138,.08)",border:"1px solid rgba(26,217,138,.2)",borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:11,color:"var(--green)"}}>
+          {actionMsg}
+        </div>
+      )}
+
+      {/* ═══════════ API KEYS SECTION ═══════════ */}
+      {sec==="apikeys" && (
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div className="card" style={{padding:20}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>API Keys</div>
+                <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>
+                  Generate API keys for external integrations — CRMs, Zapier, marketing tools, custom apps.
+                  Each key is scoped to your company and can be limited to specific permissions.
+                </div>
+              </div>
+              {!showGenerate && !newKey && (
+                <button className="btn btn-primary btn-xs" onClick={()=>{ setShowGenerate(true); setGenName(""); setGenScopes(["projects:read","contacts:read","staff:read","events:read"]); setGenExpiry(""); }} style={{gap:5}}>
+                  {Ic.plus} Generate Key
+                </button>
+              )}
+            </div>
+
+            {/* New key reveal (shown once after generation) */}
+            {newKey && (
+              <div style={{marginTop:16,border:"1px solid rgba(26,217,138,.3)",borderRadius:10,padding:16,background:"rgba(26,217,138,.04)"}}>
+                <div style={{fontSize:12,fontWeight:700,color:"var(--green)",marginBottom:8}}>API Key Created — Copy It Now</div>
+                <div style={{fontSize:11,color:"var(--t2)",marginBottom:10}}>
+                  This is the <strong>only time</strong> the full key will be shown. Store it in a secure location (e.g., Zapier, CRM settings, or a password manager).
+                </div>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <code style={{flex:1,fontFamily:"var(--mono)",fontSize:12,padding:"10px 14px",background:"var(--s2)",border:"1px solid var(--br)",borderRadius:8,wordBreak:"break-all",color:"var(--t1)",userSelect:"all"}}>
+                    {newKey.apiKey}
+                  </code>
+                  <button className="btn btn-ghost btn-xs" onClick={()=>copyToClipboard(newKey.apiKey)} style={{gap:4,flexShrink:0}}>
+                    {Ic.copy} {keyCopied ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+                <div style={{display:"flex",gap:12,marginTop:10,fontSize:10,color:"var(--t3)"}}>
+                  <span><strong>Name:</strong> {newKey.name}</span>
+                  <span><strong>Scopes:</strong> {newKey.scopes?.join(", ")}</span>
+                </div>
+                <button className="btn btn-ghost btn-xs" onClick={()=>{setNewKey(null);setShowGenerate(false);}} style={{marginTop:10}}>Done</button>
+              </div>
+            )}
+
+            {/* Generate form */}
+            {showGenerate && !newKey && (
+              <div style={{marginTop:14,border:"1px solid var(--br)",borderRadius:8,padding:16,background:"var(--s2)"}}>
+                <div style={{fontSize:12,fontWeight:600,color:"var(--t1)",marginBottom:12}}>Generate New API Key</div>
+                <div style={{marginBottom:12}}>
+                  <label className="lbl">Key Name</label>
+                  <input className="inp" placeholder='e.g. "HubSpot Integration" or "Zapier"' value={genName} onChange={e=>setGenName(e.target.value)} style={{maxWidth:360}}/>
+                </div>
+                <div style={{marginBottom:12}}>
+                  <label className="lbl">Permissions (Scopes)</label>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))",gap:6,marginTop:6}}>
+                    {ALL_SCOPES.map(s => {
+                      const on = genScopes.includes(s.key);
+                      return (
+                        <div key={s.key} onClick={()=>toggleScope(s.key)} style={{
+                          display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:7,cursor:"pointer",userSelect:"none",
+                          border:`1px solid ${on?"var(--acc)":"var(--br)"}`,
+                          background:on?"rgba(228,53,49,.05)":"var(--s3)",
+                        }}>
+                          <div style={{width:14,height:14,borderRadius:4,border:`2px solid ${on?"var(--acc)":"var(--br)"}`,background:on?"var(--acc)":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                            {on && <svg width="8" height="8" viewBox="0 0 24 24" fill="#fff"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>}
+                          </div>
+                          <span style={{fontSize:11,color:on?"var(--acc)":"var(--t2)",fontWeight:on?600:400}}>{s.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div style={{marginBottom:14}}>
+                  <label className="lbl">Expiration (Optional)</label>
+                  <select className="sel" value={genExpiry} onChange={e=>setGenExpiry(e.target.value)} style={{maxWidth:200}}>
+                    <option value="">Never expires</option>
+                    <option value="30">30 days</option>
+                    <option value="90">90 days</option>
+                    <option value="180">6 months</option>
+                    <option value="365">1 year</option>
+                  </select>
+                </div>
+                <div style={{display:"flex",gap:8}}>
+                  <button className="btn btn-ghost btn-xs" onClick={()=>setShowGenerate(false)}>Cancel</button>
+                  <button className="btn btn-primary btn-xs" onClick={doGenerate} disabled={generating || !genName.trim()} style={{gap:5}}>
+                    {generating ? <><span style={{width:11,height:11,border:"2px solid rgba(255,255,255,.3)",borderTopColor:"#fff",borderRadius:"50%",animation:"jd-spin .7s linear infinite",display:"inline-block"}}/> Generating…</> : "Generate Key"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Keys table */}
+            {!showGenerate && !newKey && (
+              <div style={{marginTop:14}}>
+                {keys.length === 0 ? (
+                  <div style={{padding:"20px 0",textAlign:"center",color:"var(--t3)",fontSize:11}}>
+                    No API keys yet. Generate one to connect external apps.
+                  </div>
+                ) : (
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    {keys.map(k => (
+                      <div key={k.id} style={{
+                        display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:8,
+                        border:`1px solid ${k.status==="active"?"var(--br)":"rgba(228,53,49,.2)"}`,
+                        background:k.status==="active"?"var(--s2)":"rgba(228,53,49,.03)",
+                        opacity:k.status==="revoked"?0.55:1,
+                      }}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{fontSize:13,fontWeight:600,color:"var(--t1)"}}>{k.name}</span>
+                            <span style={{fontSize:9,fontFamily:"var(--mono)",padding:"1px 6px",borderRadius:4,
+                              background:k.status==="active"?"rgba(26,217,138,.12)":"rgba(228,53,49,.12)",
+                              color:k.status==="active"?"var(--green)":"var(--acc)",
+                            }}>{k.status?.toUpperCase()}</span>
+                          </div>
+                          <div style={{display:"flex",gap:10,marginTop:4,fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>
+                            <span>{k.prefix}</span>
+                            <span>Requests: {k.requestCount || 0}</span>
+                            {k.lastUsedAt && <span>Last used: {new Date(k.lastUsedAt._seconds ? k.lastUsedAt._seconds*1000 : k.lastUsedAt).toLocaleDateString()}</span>}
+                            {k.expiresAt && <span>Expires: {new Date(k.expiresAt._seconds ? k.expiresAt._seconds*1000 : k.expiresAt).toLocaleDateString()}</span>}
+                          </div>
+                          <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:5}}>
+                            {(k.scopes||[]).map(s => (
+                              <span key={s} style={{fontSize:9,background:"rgba(91,163,245,.08)",border:"1px solid rgba(91,163,245,.18)",color:"var(--blue)",borderRadius:10,padding:"1px 7px"}}>{s}</span>
+                            ))}
+                          </div>
+                        </div>
+                        {k.status==="active" && (
+                          <button className="btn btn-ghost btn-xs" onClick={()=>doRevoke(k.id, k.name)} style={{color:"var(--acc)",fontSize:10,flexShrink:0}}>
+                            Revoke
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Info box */}
+          <div className="card" style={{padding:16,background:"rgba(91,163,245,0.05)",border:"1px solid rgba(91,163,245,0.18)"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"var(--blue)",marginBottom:6}}>How API Keys Work</div>
+            <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.9}}>
+              1. Generate a key above with the appropriate scopes for your integration.<br/>
+              2. Copy the key immediately — it's only shown once.<br/>
+              3. Paste the key into your CRM, Zapier, or other tool as the <strong style={{color:"var(--t1)"}}>API Key</strong> or <strong style={{color:"var(--t1)"}}>Bearer Token</strong>.<br/>
+              4. All API requests using this key are scoped to your company — other companies cannot access your data.<br/>
+              5. You can revoke a key anytime if it's compromised or no longer needed.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════ WEBHOOKS SECTION ═══════════ */}
+      {sec==="webhooks" && (
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div className="card" style={{padding:20}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>Webhooks</div>
+                <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>
+                  Push real-time events to external URLs when things happen in Job-Dox.
+                  Perfect for Zapier Catch Hook triggers, CRM sync, or custom dashboards.
+                </div>
+              </div>
+              {!showWebhookForm && (
+                <button className="btn btn-primary btn-xs" onClick={()=>setShowWebhookForm(true)} style={{gap:5}}>
+                  {Ic.plus} Add Webhook
+                </button>
+              )}
+            </div>
+
+            {/* Add webhook form */}
+            {showWebhookForm && (
+              <div style={{marginTop:14,border:"1px solid var(--br)",borderRadius:8,padding:16,background:"var(--s2)"}}>
+                <div style={{fontSize:12,fontWeight:600,color:"var(--t1)",marginBottom:12}}>New Webhook</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+                  <div>
+                    <label className="lbl">Name</label>
+                    <input className="inp" placeholder='e.g. "Zapier - New Projects"' value={whName} onChange={e=>setWhName(e.target.value)}/>
+                  </div>
+                  <div>
+                    <label className="lbl">Endpoint URL</label>
+                    <input className="inp" placeholder="https://hooks.zapier.com/hooks/catch/..." value={whUrl} onChange={e=>setWhUrl(e.target.value)}/>
+                  </div>
+                </div>
+                <div style={{marginBottom:14}}>
+                  <label className="lbl">Events to Send</label>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))",gap:5,marginTop:6}}>
+                    {WH_EVENTS.map(e => {
+                      const on = whEvents.includes(e);
+                      return (
+                        <div key={e} onClick={()=>toggleWhEvent(e)} style={{
+                          display:"flex",alignItems:"center",gap:7,padding:"6px 10px",borderRadius:7,cursor:"pointer",userSelect:"none",
+                          border:`1px solid ${on?"var(--acc)":"var(--br)"}`,background:on?"rgba(228,53,49,.05)":"var(--s3)",
+                        }}>
+                          <div style={{width:13,height:13,borderRadius:3,border:`2px solid ${on?"var(--acc)":"var(--br)"}`,background:on?"var(--acc)":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                            {on && <svg width="7" height="7" viewBox="0 0 24 24" fill="#fff"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>}
+                          </div>
+                          <span style={{fontSize:10,color:on?"var(--acc)":"var(--t2)",fontWeight:on?600:400,fontFamily:"var(--mono)"}}>{e}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:8}}>
+                  <button className="btn btn-ghost btn-xs" onClick={()=>{setShowWebhookForm(false);setWhName("");setWhUrl("");setWhEvents([]);}}>Cancel</button>
+                  <button className="btn btn-primary btn-xs" onClick={doCreateWebhook} disabled={whSaving || !whUrl.trim() || whEvents.length===0} style={{gap:5}}>
+                    {whSaving ? "Saving…" : "Create Webhook"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Webhook list */}
+            {!showWebhookForm && (
+              <div style={{marginTop:14}}>
+                {webhooks.length === 0 ? (
+                  <div style={{padding:"20px 0",textAlign:"center",color:"var(--t3)",fontSize:11}}>
+                    No webhooks registered. Add one to push events to external services.
+                  </div>
+                ) : (
+                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {webhooks.map(w => (
+                      <div key={w.id} style={{
+                        border:`1px solid ${w.status==="active"?"var(--br)":"rgba(228,53,49,.2)"}`,
+                        borderRadius:8,padding:"10px 14px",background:"var(--s2)",
+                        display:"flex",alignItems:"center",gap:10,
+                        opacity:w.status==="disabled"?0.5:1,
+                      }}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{fontSize:13,fontWeight:600,color:"var(--t1)"}}>{w.name||"Unnamed Webhook"}</span>
+                            <span style={{fontSize:9,fontFamily:"var(--mono)",padding:"1px 6px",borderRadius:4,
+                              background:w.status==="active"?"rgba(26,217,138,.12)":"rgba(232,156,24,.12)",
+                              color:w.status==="active"?"var(--green)":"var(--amber)",
+                            }}>{(w.status||"active").toUpperCase()}</span>
+                            {(w.failureCount||0)>0 && <span style={{fontSize:9,color:"var(--acc)",fontFamily:"var(--mono)"}}>{w.failureCount} failures</span>}
+                          </div>
+                          <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",marginTop:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{w.url}</div>
+                          <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:5}}>
+                            {(w.events||[]).map(e => (
+                              <span key={e} style={{fontSize:9,background:"rgba(91,163,245,.08)",border:"1px solid rgba(91,163,245,.18)",color:"var(--blue)",borderRadius:10,padding:"1px 7px",fontFamily:"var(--mono)"}}>{e}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <button className="btn btn-ghost btn-xs" onClick={()=>doDeleteWebhook(w.id)} style={{color:"var(--acc)",fontSize:11,flexShrink:0}}>{Ic.trash}</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Signing info */}
+          <div className="card" style={{padding:16,background:"rgba(91,163,245,0.05)",border:"1px solid rgba(91,163,245,0.18)"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"var(--blue)",marginBottom:6}}>Webhook Security</div>
+            <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.9}}>
+              Every webhook delivery includes an <code style={{fontFamily:"var(--mono)",fontSize:10,color:"var(--t1)"}}>X-JobDox-Signature</code> header — an HMAC-SHA256 hash of the payload using your webhook secret.<br/>
+              Verify this signature in your receiving endpoint to ensure the request came from Job-Dox.<br/>
+              Webhooks that fail 10 consecutive times are automatically disabled to prevent noise.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════ ZAPIER SECTION ═══════════ */}
+      {sec==="zapier" && (
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div className="card" style={{padding:20}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
+              <div style={{width:40,height:40,borderRadius:10,background:"linear-gradient(135deg,#ff4a00,#ff8f00)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+              </div>
+              <div>
+                <div style={{fontSize:14,fontWeight:700,color:"var(--t1)"}}>Connect Job-Dox to Zapier</div>
+                <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>Automate workflows between Job-Dox and 7,000+ apps.</div>
+              </div>
+            </div>
+
+            <div style={{fontSize:12,fontWeight:600,color:"var(--t1)",marginBottom:10}}>Setup Steps</div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {[
+                { step:"1", title:"Generate an API Key", desc:'Go to the API Keys tab above and generate a key with the scopes your Zap needs (e.g., "Read Projects" + "Write Projects").' },
+                { step:"2", title:"Create a Zap in Zapier", desc:'Search for "Job-Dox" in Zapier\'s app directory, or use "Webhooks by Zapier" for manual setup.' },
+                { step:"3", title:"Authenticate", desc:"Paste your API key when Zapier asks to connect your Job-Dox account." },
+                { step:"4", title:"Choose a Trigger or Action", desc:"Select what fires the Zap (e.g., New Project) and what happens (e.g., Create HubSpot Contact)." },
+              ].map(s => (
+                <div key={s.step} style={{display:"flex",gap:12,alignItems:"flex-start",padding:"10px 14px",borderRadius:8,background:"var(--s2)",border:"1px solid var(--br)"}}>
+                  <div style={{width:24,height:24,borderRadius:12,background:"var(--acc)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{s.step}</div>
+                  <div>
+                    <div style={{fontSize:12,fontWeight:600,color:"var(--t1)"}}>{s.title}</div>
+                    <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>{s.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Popular Zap templates */}
+          <div className="card" style={{padding:20}}>
+            <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",marginBottom:12}}>Popular Zap Ideas</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {[
+                { from:"Google Ads Lead Form", to:"Create Project in Job-Dox", color:"#4285f4" },
+                { from:"New Job-Dox Project", to:"Create Contact in HubSpot", color:"#ff5c35" },
+                { from:"Project Status Changed", to:"Update Salesforce Deal Stage", color:"#00a1e0" },
+                { from:"Estimate Accepted", to:"Create Invoice in QuickBooks", color:"#2ca01c" },
+                { from:"New Job-Dox Project", to:"Slack Notification to Team", color:"#4a154b" },
+                { from:"Task Completed", to:"Log Row in Google Sheets", color:"#0f9d58" },
+              ].map((z,i) => (
+                <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:8,border:"1px solid var(--br)",background:"var(--s2)"}}>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:z.color,flexShrink:0}}/>
+                  <div style={{fontSize:11,color:"var(--t2)"}}>
+                    <span style={{fontWeight:600,color:"var(--t1)"}}>{z.from}</span>
+                    <span style={{margin:"0 5px",color:"var(--t3)"}}>→</span>
+                    {z.to}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════ API DOCS SECTION ═══════════ */}
+      {sec==="docs" && (
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div className="card" style={{padding:20}}>
+            <div style={{fontSize:14,fontWeight:700,color:"var(--t1)",marginBottom:4}}>Job-Dox REST API v1</div>
+            <div style={{fontSize:11,color:"var(--t3)",marginBottom:16}}>
+              All endpoints require an API key via <code style={{fontFamily:"var(--mono)",fontSize:10}}>Authorization: Bearer jdx_live_...</code> header.
+              Requests are scoped to your company. Rate limit: 60 requests per minute.
+            </div>
+
+            <div style={{fontSize:12,fontWeight:700,color:"var(--t1)",marginBottom:10}}>Base URL</div>
+            <code style={{display:"block",fontFamily:"var(--mono)",fontSize:12,padding:"10px 14px",background:"var(--s2)",border:"1px solid var(--br)",borderRadius:8,color:"var(--blue)",marginBottom:18}}>
+              https://job-dox.ai/.netlify/functions/api-v1
+            </code>
+
+            <div style={{fontSize:12,fontWeight:700,color:"var(--t1)",marginBottom:10}}>Endpoints</div>
+            {[
+              { method:"GET",   path:"/projects",               scope:"projects:read",  desc:"List all projects (paginated)" },
+              { method:"POST",  path:"/projects",               scope:"projects:write", desc:"Create a new project" },
+              { method:"GET",   path:"/projects/:id",           scope:"projects:read",  desc:"Get a single project" },
+              { method:"PATCH", path:"/projects/:id",           scope:"projects:write", desc:"Update project fields" },
+              { method:"GET",   path:"/projects/:id/contacts",  scope:"contacts:read",  desc:"List project contacts" },
+              { method:"POST",  path:"/projects/:id/contacts",  scope:"contacts:write", desc:"Add a contact to a project" },
+              { method:"GET",   path:"/projects/:id/notes",     scope:"projects:read",  desc:"List daily notes" },
+              { method:"GET",   path:"/projects/:id/tasks",     scope:"projects:read",  desc:"List project tasks" },
+              { method:"POST",  path:"/projects/:id/tasks",     scope:"projects:write", desc:"Create a task" },
+              { method:"GET",   path:"/projects/:id/documents", scope:"projects:read",  desc:"List documents" },
+              { method:"GET",   path:"/staff",                  scope:"staff:read",     desc:"List company staff" },
+              { method:"GET",   path:"/events",                 scope:"events:read",    desc:"List recent events" },
+              { method:"POST",  path:"/events",                 scope:"events:write",   desc:"Emit a custom event" },
+              { method:"GET",   path:"/webhooks",               scope:"webhooks:manage",desc:"List webhooks" },
+              { method:"POST",  path:"/webhooks",               scope:"webhooks:manage",desc:"Register a webhook" },
+              { method:"DELETE",path:"/webhooks/:id",           scope:"webhooks:manage",desc:"Delete a webhook" },
+              { method:"GET",   path:"/company",                scope:"projects:read",  desc:"Get company info" },
+            ].map((ep,i) => {
+              const mc = { GET:"var(--green)", POST:"var(--blue)", PATCH:"var(--amber)", DELETE:"var(--acc)" };
+              return (
+                <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",borderBottom:i<16?"1px solid var(--br)":"none"}}>
+                  <span style={{fontSize:10,fontWeight:800,fontFamily:"var(--mono)",color:mc[ep.method]||"var(--t1)",width:48,textAlign:"right"}}>{ep.method}</span>
+                  <code style={{fontSize:11,fontFamily:"var(--mono)",color:"var(--t1)",flex:1}}>{ep.path}</code>
+                  <span style={{fontSize:9,fontFamily:"var(--mono)",color:"var(--t3)",background:"var(--s2)",padding:"1px 6px",borderRadius:8}}>{ep.scope}</span>
+                  <span style={{fontSize:10,color:"var(--t3)",width:200,textAlign:"right"}}>{ep.desc}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Example request */}
+          <div className="card" style={{padding:20}}>
+            <div style={{fontSize:12,fontWeight:700,color:"var(--t1)",marginBottom:10}}>Example: Create a Project</div>
+            <pre style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--t2)",background:"var(--s2)",border:"1px solid var(--br)",borderRadius:8,padding:14,overflow:"auto",lineHeight:1.7,margin:0}}>
+{`curl -X POST https://job-dox.ai/.netlify/functions/api-v1/projects \\
+  -H "Authorization: Bearer jdx_live_YOUR_KEY_HERE" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "name": "Smith Water Damage - 123 Main St",
+    "type": "Water Damage",
+    "status": "new_lead",
+    "clientName": "John Smith",
+    "clientPhone": "(555) 123-4567",
+    "clientEmail": "john@example.com",
+    "address": "123 Main St, Springfield, IL"
+  }'`}
+            </pre>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission=1, currentMemberId, currentMemberName, onPermissionChange, offices=[], projects=[] }) {
   const [tab,      setTab]      = useState("staff");
   const [editId,   setEditId]   = useState(null);
@@ -10022,7 +10590,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     </div>
   );
 
-  const TABS = [["staff","Staff"],["vendors","Vendors"],["offices","Offices"],["phone","Phone & Calls"],["cortex","CortexAI"],["coins","Cortex Coins"],["general","General"],["roadmap","Roadmap"]];
+  const TABS = [["staff","Staff"],["vendors","Vendors"],["offices","Offices"],["phone","Phone & Calls"],["integrations","Integrations"],["cortex","CortexAI"],["coins","Cortex Coins"],["general","General"],["roadmap","Roadmap"]];
 
   return (
     <div className="scroll" style={{flex:1,overflow:"auto"}}>
@@ -10647,6 +11215,9 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
         {/* ── CORTEXAI TAB ── */}
         {tab==="phone" && (
           <PhoneSettingsTab companyId={companyId} globalStaff={globalStaff} permLevel={permLevel}/>
+        )}
+        {tab==="integrations" && (
+          <IntegrationsTab companyId={companyId} currentMemberId={currentMemberId} permLevel={permLevel}/>
         )}
         {tab==="cortex" && (
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
