@@ -10305,6 +10305,7 @@ export default function JobDoxPortal() {
       if (!window.$memberstackDom) { setTimeout(getMember, 250); return; }
       window.$memberstackDom.getCurrentMember().then(({ data: member }) => {
         if (member) {
+          try { window.$memberstackDom.closeModal(); } catch(e) {}
           initMember(member);
         } else {
           // Not logged in — send back to landing page
