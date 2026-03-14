@@ -133,73 +133,175 @@ async function parseXactimatePdf(file) {
   for (let p = 1; p <= pdf.numPages; p++) {
     const page  = await pdf.getPage(p);
     const items = await page.getTextContent();
-    // Group items by approximate Y position to reconstruct rows
-    const rows = {};
-    items.items.forEach(item => {
-      const y = Math.round(item.transform[5]);
-      if (!rows[y]) rows[y] = [];
-      rows[y].push({ x: item.transform[4], text: item.str.trim() });
+    // Group items by approximate Y position with tolerance bucketing
+    // PDF text items on the same visual row can differ by 1-3 Y units
+    const rawItems = items.items
+      .filter(item => item.str && item.str.trim())
+      .map(item => ({ x: item.transform[4], y: item.transform[5], text: item.str }));
+
+    // Sort by Y descending (top to bottom in page coordinates)
+    rawItems.sort((a, b) => b.y - a.y);
+
+    // Bucket items into rows with Y-tolerance of 4 units
+    const rows = [];
+    let currentRow = [];
+    let currentY = null;
+    rawItems.forEach(item => {
+      if (currentY === null || Math.abs(item.y - currentY) <= 4) {
+        currentRow.push(item);
+        if (currentY === null) currentY = item.y;
+      } else {
+        if (currentRow.length) rows.push(currentRow);
+        currentRow = [item];
+        currentY = item.y;
+      }
     });
-    // Sort rows top-to-bottom, items left-to-right
-    const sortedYs = Object.keys(rows).map(Number).sort((a,b)=>b-a);
-    sortedYs.forEach(y => {
-      const line = rows[y].sort((a,b)=>a.x-b.x).map(i=>i.text).join("  ");
-      fullText += line + "\n";
+    if (currentRow.length) rows.push(currentRow);
+
+    // Build text lines from rows (items sorted left-to-right)
+    rows.forEach(row => {
+      const sorted = row.sort((a, b) => a.x - b.x);
+      const line = sorted.map(i => i.text.trim()).filter(Boolean).join("  ");
+      if (line.trim()) fullText += line + "\n";
     });
     fullText += "--- PAGE BREAK ---\n";
   }
 
-  // Parse lines: find rows that have a category name + dollar amounts
-  // Xactimate lines look like: "DRYWALL   $12,150.00   $0.00   $12,150.00"
-  // or with depreciation: "PAINTING   $8,750.50   $875.05   $7,875.45"
-  const dollarRe = /\$([\d,]+(?:\.\d{2})?)/g;
+  // ── Parse the extracted text ──
   const lines = fullText.split("\n");
   const categories = [];
   const seen = new Set();
 
-  // Detect if we're in the category summary section
+  // Broader section detection — check for recap/summary markers
+  // Xactimate uses: "Recap by Category", "RECAP BY CATEGORY", "Category Summary",
+  // "Estimate Summary", and sometimes split across text items
   let inSummary = false;
-  for (const raw of lines) {
-    const line = raw.trim();
-    // Markers that indicate we've entered the recap section
-    if (/category\s+summary|recap\s+by\s+category|estimate\s+summary/i.test(line)) {
-      inSummary = true; continue;
-    }
-    if (!inSummary) continue;
-    // Skip header/separator/footer lines
-    if (/^[-=─]+$/.test(line)) continue;
-    if (/^(category|rcv|depreciation|acv|total|subtotal|overhead|profit|page)/i.test(line)) continue;
-    if (!line || line.length < 4) continue;
+  let pastSummary = false; // track if we left the summary section
 
+  // Also collect all lines that look like category+dollar data as fallback
+  const fallbackCats = [];
+
+  const parseCategoryLine = (line) => {
     // Extract all dollar amounts from this line
     const amounts = [];
+    const re = /\$\s*([\d,]+(?:\.\d{2})?)/g;
     let m;
-    const re = /\$([\d,]+(?:\.\d{2})?)/g;
     while ((m = re.exec(line)) !== null) {
       amounts.push(parseFloat(m[1].replace(/,/g, "")));
     }
-    if (amounts.length < 1) continue; // need at least one dollar amount
+    if (amounts.length < 1) return null;
 
     // Category name = everything before the first dollar sign
     const dollarIdx = line.indexOf("$");
     const rawName = line.slice(0, dollarIdx).trim();
-    if (!rawName || rawName.length < 2) continue;
+    if (!rawName || rawName.length < 2) return null;
+
+    // Skip lines that are clearly totals/subtotals/overhead/profit summary rows
+    if (/^(total|subtotal|grand\s*total|net\s*claim|line\s*item\s*total)/i.test(rawName)) return null;
+    if (/^(o\s*&\s*p\s*items?\s*subtotal|non-?\s*o\s*&\s*p\s*items?\s*subtotal)/i.test(rawName)) return null;
+    if (/^(overhead|profit)$/i.test(rawName)) return null;
+    if (/^(material\s*sales\s*tax|sales\s*tax)/i.test(rawName)) return null;
+
+    // Skip header-like lines
+    if (/^(items?|description|qty|unit|price|rcv|acv|deprec)/i.test(rawName) && rawName.length < 15) return null;
+
     // Normalize: title-case and clean up
-    const name = rawName.replace(/\s+/g, " ")
+    const name = rawName.replace(/\s+/g, " ").trim()
       .split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
 
-    if (seen.has(name)) continue;
-    seen.add(name);
+    if (!name || name.length < 2) return null;
 
-    // Xactimate columns: RCV | Depreciation | ACV
-    const rcv  = amounts[0] || 0;
-    const dep  = amounts.length >= 3 ? amounts[1] : 0;
-    const acv  = amounts.length >= 3 ? amounts[2] : (amounts[1] || rcv);
+    // Determine column interpretation:
+    // Format A (RCV/Dep/ACV): 3 dollar amounts → RCV, Depreciation, ACV
+    // Format B (Total/%): 1 dollar amount + optional percentage → Total only
+    // Format C (Total/Tax/RCV/Dep/ACV): 4-5 dollar amounts
+    const rcv = amounts[0] || 0;
+    let dep = 0, acv = rcv;
 
-    // Skip lines that are clearly totals
-    if (/total|subtotal/i.test(name)) continue;
+    if (amounts.length >= 3) {
+      // Could be RCV | Dep | ACV or Total | Tax | RCV...
+      // Heuristic: if last amount < first, likely ACV (after depreciation)
+      dep = amounts[1];
+      acv = amounts[2];
+      // If dep > rcv, columns might be in different order — use first as total
+      if (dep > rcv) { dep = 0; acv = rcv; }
+    } else if (amounts.length === 2) {
+      // Could be Total + % (where % is extracted as dollar) or Total + Dep
+      // If second amount is < 100 and no decimal > 2 digits, it's likely a percentage
+      if (amounts[1] <= 100) {
+        dep = 0; acv = rcv; // second is percentage, ignore
+      } else {
+        acv = amounts[1]; // second is ACV
+      }
+    }
 
-    categories.push({ name, xactRCV: rcv, xactACV: acv, xactDep: dep });
+    return { name, xactRCV: rcv, xactACV: acv, xactDep: dep };
+  };
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line || line === "--- PAGE BREAK ---") continue;
+
+    // ── Section detection (flexible matching) ──
+    // Match various Xactimate section headers, allowing for word spacing issues
+    const lineLC = line.toLowerCase().replace(/\s+/g, " ");
+    if (/recap\s*by\s*category/i.test(lineLC) ||
+        /category\s*summary/i.test(lineLC) ||
+        /estimate\s*summary/i.test(lineLC) ||
+        /recap\s*by\s*cat/i.test(lineLC) ||
+        /summary\s*by\s*category/i.test(lineLC) ||
+        /category\s*recap/i.test(lineLC)) {
+      inSummary = true;
+      pastSummary = false;
+      continue;
+    }
+
+    // Detect when we've left the recap section (new major section header)
+    if (inSummary && !line.includes("$") &&
+        (/^recap\s*by\s*(room|level|area)/i.test(lineLC) ||
+         /^recap\s*of\s*tax/i.test(lineLC) ||
+         /^line\s*item\s*detail/i.test(lineLC) ||
+         /^(sketch|diagram|scope\s*of\s*work)/i.test(lineLC))) {
+      pastSummary = true;
+    }
+
+    // ── O&P subsection headers — skip but stay in summary ──
+    if (inSummary && /^(o\s*&\s*p\s*items?|non-?\s*o\s*&\s*p\s*items?)\s*$/i.test(line)) continue;
+
+    // Skip pure separator/header lines
+    if (/^[-=─═]+$/.test(line)) continue;
+    if (line.length < 4) continue;
+
+    // If we're in the summary section and haven't left it
+    if (inSummary && !pastSummary) {
+      const parsed = parseCategoryLine(line);
+      if (parsed && !seen.has(parsed.name)) {
+        seen.add(parsed.name);
+        categories.push(parsed);
+      }
+    }
+
+    // Always collect fallback data (any line with category name + dollar amount)
+    if (line.includes("$")) {
+      const parsed = parseCategoryLine(line);
+      if (parsed && !fallbackCats.find(c => c.name === parsed.name)) {
+        fallbackCats.push(parsed);
+      }
+    }
+  }
+
+  // If the section marker was never found, use fallback parsing
+  // Filter fallback to only lines that look like actual category summaries
+  if (categories.length === 0 && fallbackCats.length > 0) {
+    // Heuristic: skip items that are clearly line-item details (very long names,
+    // contain measurements, or have too many dollar amounts)
+    const filtered = fallbackCats.filter(c => {
+      if (c.name.length > 60) return false; // likely a line-item description
+      if (/\d+\s*(sf|lf|sy|ea|hr)\b/i.test(c.name)) return false; // has units
+      if (/^\d/.test(c.name)) return false; // starts with a number
+      return true;
+    });
+    return filtered.length > 0 ? filtered : fallbackCats.slice(0, 30);
   }
 
   return categories;
@@ -958,7 +1060,7 @@ function XactimateBudgetTab({ proj, transactions=[], budgetData, onBudgetChange 
     try {
       const parsed = await parseXactimatePdf(file);
       if (!parsed.length) {
-        setParseErr("No categories found. Make sure the PDF includes a 'Recap by Category' or 'Category Summary' page.");
+        setParseErr("No categories found. Make sure the PDF is an Xactimate estimate with category data and dollar amounts. Supported formats include Recap by Category, Category Summary, and line-item estimate PDFs.");
       } else {
         setImportModal({ parsedCats: parsed, filename: file.name });
       }
