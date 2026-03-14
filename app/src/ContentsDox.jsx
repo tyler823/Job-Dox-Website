@@ -21,6 +21,9 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import {
   collection, onSnapshot, setDoc, deleteDoc, doc, updateDoc, getDoc
 } from "firebase/firestore";
+import {
+  getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject
+} from "firebase/storage";
 
 /* ═══════════════════════════════════════════════════════════════
    CSS — scoped to .cdox-* classes, injected once on mount
@@ -319,12 +322,13 @@ const Ico = {
 /* ═══════════════════════════════════════════════════════════════
    ITEM ROW
 ═══════════════════════════════════════════════════════════════ */
-function ItemRow({ item, index, onUpdate, onRemove, onDuplicate }) {
+function ItemRow({ item, index, onUpdate, onRemove, onDuplicate, companyId, projId, db }) {
   const [open, setOpen]               = useState(false);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [aiResult, setAiResult]       = useState(null);
   const [aiError, setAiError]         = useState(null);
   const [priceLoading, setPriceLoading] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
   const fileRef = useRef();
   const set = (f, v) => onUpdate(item.id, f, v);
 
@@ -338,13 +342,39 @@ function ItemRow({ item, index, onUpdate, onRemove, onDuplicate }) {
     }
   }, [item.rcv, item.depPct]); // eslint-disable-line
 
-  const handlePhotos = e => {
-    Array.from(e.target.files).forEach(f => {
-      const r = new FileReader();
-      r.onload = ev => onUpdate(item.id, "photos", [...item.photos, { dataUrl: ev.target.result, name: f.name }]);
-      r.readAsDataURL(f);
-    });
+  const handlePhotos = async (e) => {
+    const files = Array.from(e.target.files);
     e.target.value = "";
+    if (!files.length) return;
+
+    // If Storage is available, upload and persist URLs
+    if (companyId && projId) {
+      setPhotoUploading(true);
+      try {
+        const storage = getStorage(db.app);
+        const newPhotos = [];
+        for (const file of files) {
+          const safeName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+          const path = `companies/${companyId}/projects/${projId}/items/${item.id}/${safeName}`;
+          const ref = storageRef(storage, path);
+          await uploadBytes(ref, file);
+          const url = await getDownloadURL(ref);
+          newPhotos.push({ url, path, name: file.name });
+        }
+        onUpdate(item.id, "photos", [...item.photos, ...newPhotos]);
+      } catch (err) {
+        console.error("Photo upload failed:", err);
+        setAiError("Photo upload failed. Check your Firebase Storage configuration.");
+      }
+      setPhotoUploading(false);
+    } else {
+      // Fallback: base64 in-memory only (no persistence)
+      files.forEach(f => {
+        const r = new FileReader();
+        r.onload = ev => onUpdate(item.id, "photos", [...item.photos, { dataUrl: ev.target.result, name: f.name }]);
+        r.readAsDataURL(f);
+      });
+    }
   };
 
   // ── AI comparable lookup ──────────────────────────────────────
@@ -685,22 +715,29 @@ function ItemRow({ item, index, onUpdate, onRemove, onDuplicate }) {
 
           {/* ══ SECTION 7 — PHOTOS ══ */}
           <div style={{ borderTop: "1px solid var(--br)", paddingTop: 14, marginTop: 14 }}>
-            <label className="cdox-lbl">Photos ({item.photos.length}) — session only; export PDF to preserve images</label>
+            <label className="cdox-lbl">Photos ({item.photos.length}){item.photos.some(p => p.url) ? "" : item.photos.length > 0 ? " — session only; export PDF to preserve" : ""}</label>
             <div className="cdox-photo-grid">
               {item.photos.map((p, pi) => (
                 <div key={pi} className="cdox-photo-thumb">
-                  <img src={p.dataUrl} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }}/>
+                  <img src={p.url || p.dataUrl} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }}/>
                   <button
-                    onClick={() => set("photos", item.photos.filter((_, i) => i !== pi))}
+                    onClick={async () => {
+                      if (p.path) {
+                        try { const s = getStorage(db.app); await deleteObject(storageRef(s, p.path)); } catch {}
+                      }
+                      set("photos", item.photos.filter((_, i) => i !== pi));
+                    }}
                     style={{ position: "absolute", top: 2, right: 2, width: 15, height: 15, borderRadius: "50%",
                       background: "rgba(0,0,0,.75)", border: "none", color: "#fff", fontSize: 11,
                       cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                   >×</button>
                 </div>
               ))}
-              <button className="cdox-photo-add" onClick={() => fileRef.current.click()}>
-                {Ico.camera}
-                <span>Add Photo</span>
+              <button className="cdox-photo-add" onClick={() => fileRef.current.click()} disabled={photoUploading}>
+                {photoUploading
+                  ? <><span className="cdox-spin" style={{ display: "inline-block", width: 14, height: 14, borderRadius: "50%", border: "2px solid var(--br)", borderTopColor: "var(--acc)" }}/><span>Uploading…</span></>
+                  : <>{Ico.camera}<span>Add Photo</span></>
+                }
               </button>
               {/* capture="environment" triggers rear camera on mobile */}
               <input ref={fileRef} type="file" accept="image/*" multiple capture="environment"
@@ -831,7 +868,7 @@ function buildSOL(meta, items, companyName = "") {
           #${items.indexOf(it) + 1} — ${it.name || "Untitled"} · ${it.room || "No Room"}
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;">
-          ${it.photos.map(p => `<img src="${p.dataUrl}" style="width:140px;height:105px;object-fit:cover;border-radius:4px;border:1px solid #e5e7eb;"/>`).join("")}
+          ${it.photos.map(p => `<img src="${p.url || p.dataUrl}" style="width:140px;height:105px;object-fit:cover;border-radius:4px;border:1px solid #e5e7eb;"/>`).join("")}
         </div>
       </div>`
     ).join("");
@@ -1092,9 +1129,13 @@ export default function ContentsDox({ proj, companyId, db }) {
     if (!db || !companyId || !proj?.id) { setLoading(false); return; }
     const colRef = collection(db, "companies", companyId, "projects", proj.id, "contentsItems");
     const unsub  = onSnapshot(colRef, snap => {
-      const loaded = snap.docs.map(d => ({
-        ...blankItem(), ...d.data(), id: d.id, photos: []
-      }));
+      const loaded = snap.docs.map(d => {
+        const data = d.data();
+        return {
+          ...blankItem(), ...data, id: d.id,
+          photos: Array.isArray(data.photos) ? data.photos : []
+        };
+      });
       setItems(loaded);
       setLoading(false);
     }, () => setLoading(false));
@@ -1115,10 +1156,14 @@ export default function ContentsDox({ proj, companyId, db }) {
   const saveItem = useCallback(async (item) => {
     if (!db || !companyId || !proj?.id) return;
     setSaving(true);
-    const { photos, ...data } = item; // exclude photo blobs from Firestore
+    // Keep Storage-backed photos (url+path), strip base64 dataUrl photos
+    const persistedPhotos = (item.photos || [])
+      .filter(p => p.url && p.path)
+      .map(({ url, path, name }) => ({ url, path, name }));
+    const { photos, ...data } = item;
     await setDoc(
       doc(db, "companies", companyId, "projects", proj.id, "contentsItems", item.id),
-      data
+      { ...data, photos: persistedPhotos }
     );
     setSaving(false);
   }, [db, companyId, proj?.id]);
@@ -1325,6 +1370,9 @@ export default function ContentsDox({ proj, companyId, db }) {
                   onUpdate={upd}
                   onRemove={del}
                   onDuplicate={dup}
+                  companyId={companyId}
+                  projId={proj?.id}
+                  db={db}
                 />
               ))
             }

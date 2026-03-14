@@ -16,6 +16,9 @@ import { getFirestore, doc, getDoc, setDoc,
          addDoc, updateDoc, deleteDoc,
          collection, query, where, orderBy, limit,
          onSnapshot, serverTimestamp, writeBatch }  from "firebase/firestore";
+import { getStorage, ref as storageRef,
+         uploadBytes, getDownloadURL,
+         deleteObject }                             from "firebase/storage";
 
 // ── YOUR FIREBASE CONFIG ──────────────────────────────────────
 const FIREBASE_CONFIG = {
@@ -28,9 +31,10 @@ const FIREBASE_CONFIG = {
 };
 // ─────────────────────────────────────────────────────────────
 
-const app  = initializeApp(FIREBASE_CONFIG);
-export const auth = getAuth(app);
-export const db   = getFirestore(app);
+const app     = initializeApp(FIREBASE_CONFIG);
+export const auth    = getAuth(app);
+export const db      = getFirestore(app);
+export const storage = getStorage(app);
 
 // ════════════════════════════════════════════════════════════════
 //  AUTH
@@ -378,3 +382,34 @@ export const logAutomationRun = (companyId, automationId, log) =>
     ...log,
     createdAt: serverTimestamp(),
   });
+
+// ════════════════════════════════════════════════════════════════
+//  PHOTO STORAGE
+//  Stores item photos in Firebase Storage, returns download URLs.
+//  Path: companies/{companyId}/projects/{projectId}/items/{itemId}/{filename}
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * Upload a photo (File or Blob) to Firebase Storage.
+ * Returns { url, path, name } — url is the public download URL.
+ */
+export const uploadItemPhoto = async (companyId, projectId, itemId, file, fileName) => {
+  const safeName = `${Date.now()}_${(fileName || file.name || "photo.jpg").replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  const path = `companies/${companyId}/projects/${projectId}/items/${itemId}/${safeName}`;
+  const fileRef = storageRef(storage, path);
+  await uploadBytes(fileRef, file);
+  const url = await getDownloadURL(fileRef);
+  return { url, path, name: fileName || file.name || safeName };
+};
+
+/**
+ * Delete a photo from Firebase Storage by its storage path.
+ */
+export const deleteItemPhoto = async (storagePath) => {
+  try {
+    await deleteObject(storageRef(storage, storagePath));
+  } catch (err) {
+    // Ignore "not found" — photo may have been deleted externally
+    if (err.code !== "storage/object-not-found") throw err;
+  }
+};
