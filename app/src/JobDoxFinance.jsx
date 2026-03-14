@@ -884,13 +884,18 @@ function InvoicePreviewModal({ inv, onClose }) {
    - Set the budget amount from RCV, ACV, or custom
    - Toggle categories on/off
 ───────────────────────────────────────────────────────────────────────────── */
-function XactimateImportModal({ parsedCats=[], existingCats=[], filename, onApply, onClose }) {
+function XactimateImportModal({ parsedCats=[], existingCats=[], filename, onApply, onClose, activeWorktypes=[], preselectedWorkType="" }) {
+  // Work type the user wants to apply these categories to
+  const [selectedWT, setSelectedWT] = useState(preselectedWorkType || activeWorktypes[0] || "");
+
   // For each parsed category: { name, xactRCV, xactACV, xactDep }
-  // Build initial row state: try to match by name to existing
-  const [rows, setRows] = useState(() => parsedCats.map(pc => {
-    const match = existingCats.find(e => e.name.toLowerCase() === pc.name.toLowerCase());
+  // Build initial row state: try to match by name to existing categories for the selected work type
+  const buildRows = (wt) => parsedCats.map(pc => {
+    const match = existingCats.find(e =>
+      e.name.toLowerCase() === pc.name.toLowerCase() && (!e.workType || e.workType === wt)
+    );
     return {
-      id:       match ? match.id : `xc-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      id:       match ? match.id : `xc-${Date.now()}-${Math.random().toString(36).slice(2)}-${pc.name.replace(/\s+/g,"")}`,
       name:     pc.name,
       xactRCV:  pc.xactRCV,
       xactACV:  pc.xactACV,
@@ -901,7 +906,15 @@ function XactimateImportModal({ parsedCats=[], existingCats=[], filename, onAppl
       active:   true,
       isNew:    !match,
     };
-  }));
+  });
+
+  const [rows, setRows] = useState(() => buildRows(selectedWT));
+
+  // Rebuild rows when work type changes (re-match against existing categories for that WT)
+  const handleWTChange = (wt) => {
+    setSelectedWT(wt);
+    setRows(buildRows(wt));
+  };
 
   const updRow = (i, k, v) => setRows(rs => rs.map((r,idx) => idx===i ? {...r,[k]:v} : r));
 
@@ -910,17 +923,25 @@ function XactimateImportModal({ parsedCats=[], existingCats=[], filename, onAppl
 
   const handleApply = () => {
     const cats = rows.filter(r=>r.active).map(r => ({
-      id:       r.id,
-      name:     r.name,
-      color:    r.color,
-      budgeted: r.budgeted,
-      source:   "xactimate",
-      xactRCV:  r.xactRCV,
-      xactACV:  r.xactACV,
-      xactDep:  r.xactDep,
-      active:   true,
+      id:         r.id,
+      name:       r.name,
+      color:      r.color,
+      budgeted:   r.budgeted,
+      estimated:  r.budgeted,
+      ohp:        0,
+      targetCost: 0,
+      bids:       0,
+      vendors:    0,
+      inHouse:    0,
+      source:     "xactimate",
+      xactRCV:    r.xactRCV,
+      xactACV:    r.xactACV,
+      xactDep:    r.xactDep,
+      active:     true,
+      workType:   selectedWT,
+      status:     "active",
     }));
-    onApply(cats, filename);
+    onApply(cats, filename, selectedWT);
   };
 
   return (
@@ -939,9 +960,29 @@ function XactimateImportModal({ parsedCats=[], existingCats=[], filename, onAppl
           <button className="btn btn-ghost btn-xs" onClick={onClose} style={{marginLeft:8}}>✕</button>
         </div>
 
+        {/* Work type selector */}
+        {activeWorktypes.length > 0 && (
+          <div style={{padding:"10px 20px",background:"rgba(91,163,245,.04)",borderBottom:"1px solid var(--br)",display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:11,fontWeight:700,color:"var(--t2)",whiteSpace:"nowrap"}}>Apply to Budget:</span>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {activeWorktypes.map(wt => (
+                <button key={wt} onClick={() => handleWTChange(wt)}
+                  style={{
+                    padding:"5px 12px",fontSize:11,fontWeight:700,fontFamily:"var(--mono)",
+                    borderRadius:6,cursor:"pointer",border:"1px solid var(--br)",letterSpacing:".3px",
+                    background: selectedWT===wt ? "var(--blue)" : "var(--s2)",
+                    color: selectedWT===wt ? "#fff" : "var(--t2)",
+                    transition:"all .15s",
+                  }}>{wt}</button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Info banner */}
         <div style={{padding:"10px 20px",background:"rgba(91,163,245,.07)",borderBottom:"1px solid var(--br)",fontSize:11,color:"var(--t2)"}}>
-          {rows.length} categories found. Choose which to import and whether to budget by <strong>RCV</strong>, <strong>ACV</strong>, or a custom amount. These will be added to this project's budget.
+          {rows.length} categories found. Choose which to import and whether to budget by <strong>RCV</strong>, <strong>ACV</strong>, or a custom amount.
+          {selectedWT && <> Importing into <strong>{selectedWT}</strong> budget.</>}
         </div>
 
         {/* Column headers */}
@@ -1009,7 +1050,9 @@ function XactimateImportModal({ parsedCats=[], existingCats=[], filename, onAppl
             <span style={{fontWeight:700,color:"var(--t1)"}}>{rows.filter(r=>r.active).length}</span> categories · Budget total: <span style={{fontFamily:"var(--mono)",color:"var(--green)",fontWeight:700}}>{f$(totBudgeted)}</span>
           </div>
           <button className="btn btn-ghost btn-sm" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary btn-sm" onClick={handleApply}>Apply to Budget</button>
+          <button className="btn btn-primary btn-sm" disabled={!selectedWT && activeWorktypes.length > 0} onClick={handleApply}>
+            Apply to {selectedWT || "Budget"}
+          </button>
         </div>
       </div>
     </div>
@@ -1025,12 +1068,13 @@ function XactimateImportModal({ parsedCats=[], existingCats=[], filename, onAppl
    - Per-category progress bars vs actual AP spend
    - Budgeted amount editing
 ───────────────────────────────────────────────────────────────────────────── */
-function XactimateBudgetTab({ proj, transactions=[], budgetData, onBudgetChange }) {
+function XactimateBudgetTab({ proj, transactions=[], budgetData, onBudgetChange, preselectedWorkType="" }) {
   const [importModal, setImportModal] = useState(null); // { parsedCats, filename }
   const [parsing,     setParsing]     = useState(false);
   const [parseErr,    setParseErr]    = useState("");
   const [editCatId,   setEditCatId]   = useState(null);
   const fileRef = useRef();
+  const activeWorktypes = (proj.worktypes||[]).filter(w => (w.status||"active") !== "off").map(w => w.type||w);
 
   const categories = budgetData?.categories || [];
   const xactimate  = budgetData?.xactimate  || null;
@@ -1095,14 +1139,16 @@ function XactimateBudgetTab({ proj, transactions=[], budgetData, onBudgetChange 
     onBudgetChange(updated);
   };
 
-  const handleXactApply = (cats, filename) => {
-    // Merge with existing: update matching by id, append new
-    const existing = categories.filter(c => !cats.find(nc => nc.id===c.id));
+  const handleXactApply = (cats, filename, workType) => {
+    // Merge: for the target workType, replace matching categories and append new ones
+    // Keep all categories from other work types untouched
+    const importedIds = new Set(cats.map(c => c.id));
+    const existing = categories.filter(c => !importedIds.has(c.id));
     const merged = [...cats, ...existing];
     const updated = {
       ...budgetData,
       categories: merged,
-      xactimate: { filename, importDate: today() },
+      xactimate: { filename, importDate: today(), workType },
     };
     onBudgetChange(updated);
     setImportModal(null);
@@ -1284,6 +1330,8 @@ function XactimateBudgetTab({ proj, transactions=[], budgetData, onBudgetChange 
           parsedCats={importModal.parsedCats}
           existingCats={categories}
           filename={importModal.filename}
+          activeWorktypes={activeWorktypes}
+          preselectedWorkType={preselectedWorkType}
           onApply={handleXactApply}
           onClose={()=>setImportModal(null)}
         />
@@ -1302,6 +1350,44 @@ function WorktypeBudgetTab({ proj, transactions=[], budgetData, onBudgetChange, 
   const activeWorktypes = (proj.worktypes||[]).filter(w => (w.status||"active") !== "off").map(w => w.type||w);
   const [activeTab, setActiveTab] = useState("summary");
   const [catFilter, setCatFilter] = useState("all"); // all | complete | on_hold
+
+  // Xactimate import state (shared across tabs)
+  const [wtImportModal, setWtImportModal] = useState(null); // { parsedCats, filename, workType }
+  const [wtParsing, setWtParsing] = useState(false);
+  const [wtParseErr, setWtParseErr] = useState("");
+  const wtFileRef = useRef();
+  const wtImportTargetRef = useRef(""); // which worktype triggered the import
+
+  const handleWtFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    if (!file.name.toLowerCase().endsWith(".pdf")) { setWtParseErr("Please upload a PDF file."); return; }
+    setWtParsing(true); setWtParseErr("");
+    try {
+      const parsed = await parseXactimatePdf(file);
+      if (!parsed.length) {
+        setWtParseErr("No categories found. Make sure the PDF is an Xactimate estimate with category data and dollar amounts.");
+      } else {
+        setWtImportModal({ parsedCats: parsed, filename: file.name, workType: wtImportTargetRef.current });
+      }
+    } catch(err) {
+      setWtParseErr("Failed to parse PDF: " + err.message);
+    }
+    setWtParsing(false);
+  };
+
+  const handleWtXactApply = (cats, filename, workType) => {
+    const importedIds = new Set(cats.map(c => c.id));
+    const existing = (budgetData?.categories || []).filter(c => !importedIds.has(c.id));
+    const merged = [...cats, ...existing];
+    onBudgetChange({
+      ...budgetData,
+      categories: merged,
+      xactimate: { filename, importDate: today(), workType },
+    });
+    setWtImportModal(null);
+  };
 
   const categories = budgetData?.categories || [];
 
@@ -1681,12 +1767,20 @@ function WorktypeBudgetTab({ proj, transactions=[], budgetData, onBudgetChange, 
           </table>
         </div>
 
-        {/* Add Category button */}
-        <div style={{ marginTop: 12 }}>
+        {/* Action buttons */}
+        <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <button className="btn btn-primary btn-sm" onClick={() => addCategoryToWT(wt)}
             style={{ background: "var(--green)", borderColor: "var(--green)", display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
             Add Category <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
           </button>
+          <button className="btn btn-ghost btn-sm" style={{ color: "var(--blue)", fontSize: 12 }}
+            onClick={() => { wtImportTargetRef.current = wt; wtFileRef.current?.click(); }}
+            disabled={wtParsing}>
+            {wtParsing ? "Parsing..." : "Import Xactimate PDF"}
+          </button>
+          {wtParseErr && (
+            <span style={{ fontSize: 11, color: "var(--acc)" }}>{wtParseErr}</span>
+          )}
         </div>
 
         {renderBottomSections(wt)}
@@ -1806,6 +1900,22 @@ function WorktypeBudgetTab({ proj, transactions=[], budgetData, onBudgetChange, 
           <div style={{ fontSize: 13, color: "var(--t2)", marginBottom: 8 }}>No work types active on this project</div>
           <div style={{ fontSize: 11, color: "var(--t3)" }}>Turn on work types in the Overview tab to enable budget tracking per work type.</div>
         </div>
+      )}
+
+      {/* Hidden file input for Xactimate import from worktype tabs */}
+      <input ref={wtFileRef} type="file" accept=".pdf" style={{display:"none"}} onChange={handleWtFile}/>
+
+      {/* Xactimate import modal (triggered from worktype tabs) */}
+      {wtImportModal && (
+        <XactimateImportModal
+          parsedCats={wtImportModal.parsedCats}
+          existingCats={categories}
+          filename={wtImportModal.filename}
+          activeWorktypes={activeWorktypes}
+          preselectedWorkType={wtImportModal.workType}
+          onApply={handleWtXactApply}
+          onClose={() => setWtImportModal(null)}
+        />
       )}
     </div>
   );
