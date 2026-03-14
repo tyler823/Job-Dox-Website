@@ -976,6 +976,7 @@ document.querySelectorAll('.roi-charts').forEach(el=>{el.querySelectorAll('.ann-
       window.$memberstackDom.onReady.then(function(ms) {
         ms.onAuthChange(function(payload) {
           if (payload && payload.member && payload.type === 'LOGIN') {
+            try { ms.closeModal(); } catch(e) {}
             var invite = sessionStorage.getItem('jd_invite');
             var dest = '/app/dist/';
             if (invite) dest += '?invite=' + invite;

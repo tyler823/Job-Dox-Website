@@ -1021,6 +1021,7 @@ function FieldApp() {
         ms.openModal("login");
         return;
       }
+      try { ms.closeModal(); } catch(e) {}
       setMember(m);
       // company-id is the same custom field the portal writes when a staff
       // member accepts a portal invite, or that we write via invite code below
