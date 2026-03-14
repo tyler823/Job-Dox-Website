@@ -1147,7 +1147,7 @@ const PERM_DESCRIPTIONS = {
   7:  { title:"Manager",      desc:"Full financial visibility including client-facing billing rates on scope/invoices. Can see Shift Reports with billing figures. Cannot view staff pay rates." },
   8:  { title:"Sr. Manager",  desc:"All Level 7 access plus staff pay rate visibility in Shift Reports. Can view Payroll reports. Can access General Settings for config changes." },
   9:  { title:"Director",     desc:"All Level 8 access plus full Settings access. Can manage staff records and edit Payroll rate settings. Cannot change permission levels of other users." },
-  10: { title:"Admin",        desc:"Full system access across all offices. Can set permission levels for all staff, manage company configuration, edit Payroll rates, and view all financial data including pay rates." },
+  10: { title:"Admin",        desc:"Full system access across all offices. Can set permission levels for all staff — including granting Admin access to others. Can manage company configuration, edit Payroll rates, and view all financial data. Multiple admins are supported; only the Account Owner cannot be demoted." },
 };
 
 // Normalise legacy string permissions to numbers
@@ -9443,12 +9443,15 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
 
   const removeStaff = async (memberId) => {
     if (!companyId || memberId === currentMemberId) return; // can't remove yourself
+    if (memberId === companyId) return; // can't remove the account owner
     if (!window.confirm("Remove this person from the team?")) return;
     try { await fsRemoveStaff(companyId, memberId); } catch(e) { console.error(e); }
   };
 
   const changePermission = async (memberId, newPerm) => {
     if (!companyId || permLevel < 9) return;
+    // Prevent demoting the account owner (their memberId === companyId)
+    if (memberId === companyId && newPerm < 10) return;
     try {
       await fsUpdateStaffField(companyId, memberId, { permission: newPerm });
       if (onPermissionChange) onPermissionChange(memberId, newPerm);
@@ -9600,7 +9603,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                     <select className="sel" value={String(inviteForm.permission||3)}
                       onChange={e=>setInviteForm(f=>({...f,permission:parseInt(e.target.value)}))}
                       style={{fontSize:11}}>
-                      {[1,2,3,4,5,6,7,8,9].map(n=>(
+                      {[1,2,3,4,5,6,7,8,9,10].map(n=>(
                         <option key={n} value={n}>{PERM_LEVELS[n].label}</option>
                       ))}
                     </select>
@@ -9738,7 +9741,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                     <label className="lbl">Permission Level</label>
                     <select className="sel" value={String(form.permissionLevel||3)}
                       onChange={e=>setForm(f=>({...f,permissionLevel:parseInt(e.target.value)}))}>
-                      {[1,2,3,4,5,6,7,8,9].map(n=>(
+                      {[1,2,3,4,5,6,7,8,9,10].map(n=>(
                         <option key={n} value={n}>{PERM_LEVELS[n].label}</option>
                       ))}
                     </select>
@@ -9789,6 +9792,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                   const slv  = normPerm(s.permission ?? 3);
                   const pc   = PERM_LEVELS[slv]?.color || "var(--t3)";
                   const isSelf = s.id === currentMemberId;
+                  const isAccountOwner = s.id === companyId;
                   return (
                     <div key={s.id} style={{display:"grid",
                       gridTemplateColumns:"48px 1fr 150px 190px 160px 130px 110px",
@@ -9839,7 +9843,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                       <div style={{fontSize:11,color:"var(--t2)"}}>{s.phone||"—"}</div>
                       {/* Permission — dropdown for admins, badge for others */}
                       <div>
-                        {canChangePerms && !isSelf ? (
+                        {canChangePerms && !isSelf && !isAccountOwner ? (
                           <select className="sel" value={String(slv)}
                             onChange={e=>changePermission(s.id,parseInt(e.target.value))}
                             style={{fontSize:11,padding:"4px 8px",height:"auto",
@@ -9853,13 +9857,14 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                             borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,
                             background:`${pc}18`,color:pc,border:`1px solid ${pc}35`}}>
                             {PERM_LEVELS[slv]?.label||"—"}
+                            {isAccountOwner && <span style={{fontSize:8,opacity:.7}}>OWNER</span>}
                           </span>
                         )}
                       </div>
                       {/* Actions */}
                       <div style={{display:"flex",gap:4}}>
                         {canManageStaffLocal && <button className="btn btn-ghost btn-xs" title="Edit" onClick={()=>openEdit(s)}>{Ic.doc}</button>}
-                        {canManageStaffLocal && !isSelf && (
+                        {canManageStaffLocal && !isSelf && !isAccountOwner && (
                           <button className="btn btn-danger btn-xs" title="Remove from team" onClick={()=>removeStaff(s.id)}>{Ic.trash}</button>
                         )}
                       </div>
@@ -10295,7 +10300,7 @@ export default function JobDoxPortal() {
 
         if (isOwner) {
           // Account owner is ALWAYS admin — create or force-correct the record
-          const needsWrite = !staffRecord || staffRecord.permission !== "admin";
+          const needsWrite = !staffRecord || normPerm(staffRecord.permission) !== 10;
           if (needsWrite) {
             await fsSetStaff(cid, member.id, {
               firstName:  member.customFields?.firstName || "",
