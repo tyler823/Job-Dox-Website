@@ -7377,7 +7377,7 @@ function CortexCoinsTab({ companyId }) {
         <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",marginBottom:8}}>How Cortex Coins Work</div>
         <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.9}}>
           <strong style={{color:"var(--t1)"}}>1.</strong> Each workspace receives <strong style={{color:"var(--blue)"}}>300 Cortex Coins</strong> per 28-day billing cycle.<br/>
-          <strong style={{color:"var(--t1)"}}>2.</strong> Every AI-powered action (Adjuster Response Bot, CortexAI Workflows, Financial Analysis) costs <strong style={{color:"var(--t1)"}}>1 coin</strong>.<br/>
+          <strong style={{color:"var(--t1)"}}>2.</strong> Every AI-powered action (Adjuster Response Bot, CortexAI Workflows, Financial Analysis, AI Reports, Comparable Item Search, Call Transcriber) costs <strong style={{color:"var(--t1)"}}>1 coin</strong>.<br/>
           <strong style={{color:"var(--t1)"}}>3.</strong> Unused coins <strong style={{color:"var(--purple)"}}>roll over</strong> to your next cycle automatically.<br/>
           <strong style={{color:"var(--t1)"}}>4.</strong> You'll be notified when you reach <strong style={{color:"var(--amber)"}}>80%</strong> usage so you can plan accordingly.<br/>
           <strong style={{color:"var(--t1)"}}>5.</strong> When coins are exhausted, AI features pause until the next cycle begins.
@@ -7391,6 +7391,9 @@ function CortexCoinsTab({ companyId }) {
         <UsageBar label="Adjuster Response Bot" feature="adjuster-response" total={total} used={used} color="var(--blue)" pct={pct}/>
         <UsageBar label="CortexAI Workflows" feature="cortex-generate" total={total} used={used} color="var(--purple)" pct={pct}/>
         <UsageBar label="Financial Analysis" feature="finance-analyze" total={total} used={used} color="var(--teal)" pct={pct}/>
+        <UsageBar label="AI Reports" feature="reports-analyze" total={total} used={used} color="var(--amber)" pct={pct}/>
+        <UsageBar label="Comparable Item Search" feature="comparable-lookup" total={total} used={used} color="var(--green)" pct={pct}/>
+        <UsageBar label="Call Transcriber" feature="call-transcribe" total={total} used={used} color="var(--acc)" pct={pct}/>
         <div style={{marginTop:12,fontSize:10,color:"var(--t3)",fontStyle:"italic"}}>
           Detailed per-feature breakdown is available in your usage logs.
         </div>
