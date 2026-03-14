@@ -8,6 +8,7 @@ import DryDoxModule from "./DryDox.jsx";
 import AdjusterResponseModal from "./AdjusterResponseBot.jsx";
 import EstimateDoxTab, { loadProjEstimates } from "./EstimateDox.jsx";
 import { TimeOffPanel } from "./JobDoxTimeOff.jsx";
+import DispatchPanel from "./JobDoxDispatch.jsx";
 import html2canvas from "html2canvas";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
@@ -2199,11 +2200,40 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
     return result;
   }, [projects, currentMemberId, projTasksVersion]);
 
-  // Merged list for display — My Day personal tasks + assigned project tasks, de-duped by id
+  // ── Pull in dispatch appointments assigned to the current user ──
+  const dispatchAppts = useMemo(() => {
+    if (!currentMemberId || !companyId) return [];
+    try {
+      const raw = localStorage.getItem(`jd_dispatch_appointments_${companyId}`);
+      const appts = raw ? JSON.parse(raw) : [];
+      return appts
+        .filter(a => Array.isArray(a.assignedStaffIds) && a.assignedStaffIds.includes(currentMemberId) && a.date)
+        .map(a => ({
+          id:     a.id,
+          title:  a.title,
+          date:   a.date,
+          due:    a.date,
+          time:   a.time || "08:00",
+          type:   "appointment",
+          priority: a.priority || "med",
+          notes:  a.notes || "",
+          proj:   a.projName || "",
+          projId: a.projId || null,
+          done:   a.status === "completed",
+          assignedUserIds: a.assignedStaffIds,
+          commentThread: a.commentThread || [],
+          _fromDispatch: true,
+        }));
+    } catch { return []; }
+  }, [currentMemberId, companyId, projTasksVersion]);
+
+  // Merged list for display — My Day personal tasks + assigned project tasks + dispatch appointments, de-duped by id
   const allDisplayTasks = useMemo(() => {
     const ids = new Set(allTasks.map(t => t.id));
-    return [...allTasks, ...projTasks.filter(t => !ids.has(t.id))];
-  }, [allTasks, projTasks]);
+    const merged = [...allTasks, ...projTasks.filter(t => !ids.has(t.id))];
+    const mergedIds = new Set(merged.map(t => t.id));
+    return [...merged, ...dispatchAppts.filter(a => !mergedIds.has(a.id))];
+  }, [allTasks, projTasks, dispatchAppts]);
   const [selDate, setSelDate]   = useState(TODAY_ISO);
   const [calYear,  setCalYear]  = useState(() => new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
@@ -3905,6 +3935,31 @@ function TasksTab({ projId="", projName="", initialTasks=[], globalStaff=[], com
     });
   }, [projId]);
 
+  // ── Pull dispatch appointments linked to this project ──
+  const dispatchApptsForProj = useMemo(() => {
+    if (!projId || !companyId) return [];
+    try {
+      const raw = localStorage.getItem(`jd_dispatch_appointments_${companyId}`);
+      const all = raw ? JSON.parse(raw) : [];
+      return all.filter(a => a.projId === projId).map(a => ({
+        id: a.id,
+        projId: a.projId,
+        title: a.title,
+        assignedUserIds: a.assignedStaffIds || [],
+        assigned: "",
+        due: a.date,
+        priority: a.priority || "med",
+        type: "appointment",
+        time: a.time || "",
+        notes: a.notes || "",
+        status: a.status === "completed" ? "done" : "open",
+        created: a.createdAt ? new Date(a.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "",
+        commentThread: a.commentThread || [],
+        _fromDispatch: true,
+      }));
+    } catch { return []; }
+  }, [projId, companyId]);
+
   const [filter, setFilter] = useState("open");
   const [adding, setAdding] = useState(false);
   const [commentTask, setCommentTask] = useState(null);
@@ -3959,9 +4014,15 @@ function TasksTab({ projId="", projName="", initialTasks=[], globalStaff=[], com
   };
 
   // Vendors only see tasks they are personally assigned to
+  // Merge local tasks + dispatch appointments for this project, de-duped
+  const mergedTasks = useMemo(() => {
+    const ids = new Set(tasks.map(t => t.id));
+    return [...tasks, ...dispatchApptsForProj.filter(a => !ids.has(a.id))];
+  }, [tasks, dispatchApptsForProj]);
+
   const visBase = isVendor && currentMemberId
-    ? tasks.filter(t => Array.isArray(t.assignedUserIds) && t.assignedUserIds.includes(currentMemberId))
-    : tasks;
+    ? mergedTasks.filter(t => Array.isArray(t.assignedUserIds) && t.assignedUserIds.includes(currentMemberId))
+    : mergedTasks;
   const vis = visBase.filter(t => filter==="all" || t.status===filter);
   const priC = {high:"var(--acc)", med:"var(--amber)", low:"var(--t3)"};
 
@@ -10460,6 +10521,10 @@ export default function JobDoxPortal() {
           onClick={()=>navTo("myday")}>
           {Ic.calendar}
         </button>
+        <button className={`rail-btn${page==="dispatch"?" active":""}`} data-tip="Dispatch"
+          onClick={()=>navTo("dispatch")}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg>
+        </button>
         <button className="rail-btn" data-tip="All Tasks">{Ic.tasks}</button>
         <button className="rail-btn" data-tip="Messages">{Ic.msg}</button>
         <button className={`rail-btn${page==="reports"?" active":""}`} data-tip="Reports" onClick={()=>navTo("reports")}>{Ic.chart}</button>
@@ -10642,6 +10707,19 @@ export default function JobDoxPortal() {
             currentMemberId={currentMember?.id||""}
             companyId={companyId}
             projects={projects}
+          />
+        ) : page==="dispatch" ? (
+          <DispatchPanel
+            projects={projects}
+            offices={offices}
+            globalStaff={globalStaff}
+            companyId={companyId}
+            currentUser={currentUser}
+            currentMemberId={currentMember?.id||""}
+            onNavigate={handleNavigate}
+            customWorkTypes={customWorkTypes}
+            customProjectTypes={customProjectTypes}
+            customStatuses={customStatuses}
           />
         ) : page==="reports" ? (
           <ReportsDashboard
