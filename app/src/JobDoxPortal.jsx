@@ -6170,55 +6170,73 @@ const EQUIP_TYPES = [
 ];
 const getET = v => EQUIP_TYPES.find(t=>t.value===v) || EQUIP_TYPES[EQUIP_TYPES.length-1];
 
-const INITIAL_PRICE_LISTS = [
-  { id:"pl-wm", name:"Water Mitigation — Standard", workType:"Water Mitigation",
-    description:"Standard equipment & material pricing for water damage projects", createdAt:"Jan 1, 2025",
-    items:[
-      { id:"wm-1",  code:"AM-001", desc:"Air Mover (LGR/Axial)",              unit:"day", price:28   },
-      { id:"wm-2",  code:"DH-001", desc:"LGR Dehumidifier (Standard ~100pt)", unit:"day", price:85   },
-      { id:"wm-3",  code:"DH-002", desc:"LGR Dehumidifier XL (175pt+)",       unit:"day", price:115  },
-      { id:"wm-4",  code:"DD-001", desc:"Desiccant Dehumidifier",             unit:"day", price:145  },
-      { id:"wm-5",  code:"AS-001", desc:"HEPA Air Scrubber (500–600 CFM)",    unit:"day", price:65   },
-      { id:"wm-6",  code:"ID-001", desc:"InjectiDry Wall Drying System",      unit:"day", price:95   },
-      { id:"wm-7",  code:"DM-001", desc:"Drying Mat (hardwood/tile)",         unit:"day", price:18   },
-      { id:"wm-8",  code:"TC-001", desc:"Thermal Imaging Service",            unit:"day", price:45   },
-      { id:"wm-9",  code:"AT-001", desc:"Antimicrobial Treatment",            unit:"SF",  price:0.55 },
-      { id:"wm-10", code:"DE-001", desc:"Demo — Drywall Removal",             unit:"SF",  price:3.25 },
-    ] },
-  { id:"pl-fire", name:"Fire & Smoke — Standard", workType:"Fire/Smoke",
-    description:"Equipment pricing for fire and smoke restoration projects", createdAt:"Jan 1, 2025",
-    items:[
-      { id:"fs-1", code:"AS-002", desc:"HEPA Air Scrubber (1200 CFM)",    unit:"day", price:110 },
-      { id:"fs-2", code:"OZ-001", desc:"Ozone Generator",                 unit:"day", price:125 },
-      { id:"fs-3", code:"FG-001", desc:"Thermal Fogger",                  unit:"day", price:85  },
-      { id:"fs-4", code:"NA-001", desc:"Negative Air Machine",            unit:"day", price:65  },
-      { id:"fs-5", code:"DP-001", desc:"Duct Pack / Air Duct Cleaning",   unit:"LS",  price:450 },
-    ] },
-  { id:"pl-mold", name:"Mold Remediation — Standard", workType:"Mold Remediation",
-    description:"Equipment pricing for mold remediation projects", createdAt:"Jan 1, 2025",
-    items:[
-      { id:"mr-1", code:"NA-002", desc:"Negative Air Machine (600 CFM)",  unit:"day", price:65   },
-      { id:"mr-2", code:"AS-003", desc:"HEPA Air Scrubber (600 CFM)",     unit:"day", price:85   },
-      { id:"mr-3", code:"DH-003", desc:"LGR Dehumidifier",               unit:"day", price:85   },
-      { id:"mr-4", code:"AM-002", desc:"Air Mover",                       unit:"day", price:28   },
-      { id:"mr-5", code:"AM-003", desc:"Antimicrobial Treatment",         unit:"SF",  price:0.85 },
-    ] },
-];
+const INITIAL_PRICE_LISTS = [];
+
+// Parse a CSV line respecting quoted fields (handles commas inside quotes)
+function parseCSVLine(line) {
+  const cols = []; let cur = ""; let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { if (inQ && line[i+1] === '"') { cur += '"'; i++; } else { inQ = !inQ; } }
+    else if (c === ',' && !inQ) { cols.push(cur.trim()); cur = ""; }
+    else { cur += c; }
+  }
+  cols.push(cur.trim());
+  return cols;
+}
 
 function parseCSVToPriceItems(text) {
   const lines = text.trim().split("\n").filter(Boolean);
   if (lines.length < 2) return [];
-  const raw = lines[0].split(",").map(h=>h.trim().replace(/^"|"$/g,"").toLowerCase().replace(/\s+/g,""));
+  const raw = parseCSVLine(lines[0]).map(h=>h.replace(/^"|"$/g,"").toLowerCase().replace(/\s+/g,""));
   const colOf = (...names) => { for(const n of names){ const i=raw.indexOf(n); if(i>-1) return i; } return -1; };
   const cCode=colOf("code","itemcode","sku","#"); const cDesc=colOf("desc","description","name","item","service");
   const cUnit=colOf("unit","uom"); const cPrice=colOf("price","unitprice","rate","cost","amount");
   return lines.slice(1).map(line=>{
-    const cols = line.split(",").map(v=>v.trim().replace(/^"|"$/g,""));
+    const cols = parseCSVLine(line).map(v=>v.replace(/^"|"$/g,""));
     const desc = cDesc>-1 ? cols[cDesc] : "";
     if (!desc) return null;
     return { id:uid(), code:cCode>-1?cols[cCode]:"", desc, unit:cUnit>-1?(cols[cUnit]||"EA"):"EA",
              price:cPrice>-1?(parseFloat(cols[cPrice])||0):0 };
   }).filter(Boolean);
+}
+
+// Export price list items to CSV string
+function exportPriceListCSV(items) {
+  const esc = v => { const s = String(v ?? ""); return s.includes(",") || s.includes('"') ? `"${s.replace(/"/g,'""')}"` : s; };
+  const rows = ["code,desc,unit,price"];
+  (items || []).forEach(i => rows.push([esc(i.code), esc(i.desc), esc(i.unit), i.price].join(",")));
+  return rows.join("\n");
+}
+
+// Parse equipment inventory CSV
+function parseCSVToEquipment(text) {
+  const lines = text.trim().split("\n").filter(Boolean);
+  if (lines.length < 2) return [];
+  const raw = parseCSVLine(lines[0]).map(h=>h.replace(/^"|"$/g,"").toLowerCase().replace(/\s+/g,""));
+  const colOf = (...names) => { for(const n of names){ const i=raw.indexOf(n); if(i>-1) return i; } return -1; };
+  const cType=colOf("type","equipmenttype","equipment_type","category");
+  const cBrand=colOf("brand","model","brandmodel","brand/model","name","description");
+  const cSerial=colOf("serial","serialnumber","serial_number","serialno","serial#","sn");
+  const EQUIP_LOOKUP = {};
+  EQUIP_TYPES.forEach(et => { EQUIP_LOOKUP[et.value] = et.value; EQUIP_LOOKUP[et.label.toLowerCase()] = et.value; EQUIP_LOOKUP[et.code.toLowerCase()] = et.value; });
+  return lines.slice(1).map(line=>{
+    const cols = parseCSVLine(line).map(v=>v.replace(/^"|"$/g,""));
+    const brand = cBrand>-1 ? cols[cBrand] : "";
+    if (!brand) return null;
+    let typeRaw = cType>-1 ? (cols[cType]||"").toLowerCase().trim() : "";
+    const type = EQUIP_LOOKUP[typeRaw] || "other";
+    return { id:uid(), type, brand, serial: cSerial>-1 ? (cols[cSerial]||"") : "" };
+  }).filter(Boolean);
+}
+
+// Export equipment inventory to CSV string
+function exportEquipmentCSV(items) {
+  const esc = v => { const s = String(v ?? ""); return s.includes(",") || s.includes('"') ? `"${s.replace(/"/g,'""')}"` : s; };
+  const typeLabel = v => (EQUIP_TYPES.find(t=>t.value===v)||{}).label || v;
+  const rows = ["type,brand,serial"];
+  (items || []).forEach(i => rows.push([esc(typeLabel(i.type)), esc(i.brand), esc(i.serial)].join(",")));
+  return rows.join("\n");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -6349,6 +6367,12 @@ function PriceListManagerModal({ priceLists, setPriceLists, onClose }) {
                     </div>
                   </div>
                   <button className="btn btn-secondary btn-xs" onClick={()=>{setShowCSVFor(currentList.id);setImportStatus(null);}}>{Ic.upload} Import CSV</button>
+                  <button className="btn btn-secondary btn-xs" onClick={()=>{
+                    const csv = exportPriceListCSV(currentList.items);
+                    const blob = new Blob([csv],{type:"text/csv"});
+                    const a = document.createElement("a"); a.href=URL.createObjectURL(blob);
+                    a.download=`${currentList.name.replace(/[^a-zA-Z0-9-_ ]/g,"")}.csv`; a.click();
+                  }}>{Ic.goto} Export CSV</button>
                   <button className="btn btn-primary btn-xs" onClick={addItem}>{Ic.plus} Add Item</button>
                 </div>
 
