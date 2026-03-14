@@ -12,7 +12,7 @@ import DispatchPanel from "./JobDoxDispatch.jsx";
 import html2canvas from "html2canvas";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
-         doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where } from "firebase/firestore";
+         doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where, Timestamp } from "firebase/firestore";
 
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyAFwSEDPqKgAUbwbh_2KZNwLDdGCZEiq3E",
@@ -11796,6 +11796,15 @@ export default function JobDoxPortal() {
       setCompanyId(cid);
       _globalCompanyId = cid;
       setDocsCompanyId(cid);
+
+      // ── Save basic company metadata to Firestore (silent, non-blocking) ──
+      setDoc(doc(db, "companies", cid), {
+        companyName: member.customFields?.["company-name"] || "",
+        email:       member.auth?.email || "",
+        memberId:    member.id,
+        lastLogin:   Timestamp.now(),
+        createdAt:   Timestamp.now(),
+      }, { merge: true }).catch(e => console.warn("Company metadata write failed:", e));
 
       // ── Check for invite in URL: ?invite={companyId} ──
       const urlParams = new URLSearchParams(window.location.search);
