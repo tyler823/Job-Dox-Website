@@ -31,6 +31,37 @@ const db     = getFirestore(_fbApp);
 // in from another device / browser), this session auto-logs out.
 const PORTAL_SESSION_TOKEN = `ptl_${Date.now()}_${Math.random().toString(36).slice(2,10)}`;
 let _portalSessionUnsub = null;
+let _portalMemberId = null;      // tracked for tab-close cleanup
+
+// ── Tab-close / force-quit auto-logout ────────────────────────────────────
+// Uses pagehide + visibilitychange to catch desktop tab-close and mobile
+// force-quit.  Fires sendBeacon to a Netlify function that deletes the
+// activeSessions doc so Memberstack doesn't get confused on re-open.
+// Also clears local storage synchronously so the client-side session is gone.
+function _portalTabCloseCleanup() {
+  if (!_portalMemberId) return;
+  // Best-effort server call — sendBeacon works during page teardown
+  try {
+    navigator.sendBeacon(
+      "/.netlify/functions/clear-session",
+      JSON.stringify({ memberId: _portalMemberId })
+    );
+  } catch(e) { /* swallow */ }
+  // Synchronous local cleanup
+  localStorage.clear();
+  sessionStorage.clear();
+}
+
+function _onPageHide(e) {
+  // persisted === true means page is going into bfcache (back/forward),
+  // NOT a real close.  Only clean up on actual teardown.
+  if (!e.persisted) _portalTabCloseCleanup();
+}
+function _onVisibilityHidden() {
+  // On mobile, visibilitychange to "hidden" is often the last event before
+  // the OS kills the process.  Only act if the page is truly hidden.
+  if (document.visibilityState === "hidden") _portalTabCloseCleanup();
+}
 
 async function claimPortalSession(memberId) {
   try {
@@ -10364,6 +10395,10 @@ export default function JobDoxPortal() {
       // ── Stream pending invites (admin only, but harmless to load) ──
       unsubInvites = fsListenInvites(cid, list => setPendingInvites(list));
 
+      // ── Track member ID for tab-close cleanup ──
+      _portalMemberId = member.id;
+      sessionStorage.setItem("jd_portal_active", "1");
+
       // ── Single-session: claim this device and watch for kicks ──
       await claimPortalSession(member.id);
       watchPortalSession(member.id, async () => {
@@ -10378,8 +10413,21 @@ export default function JobDoxPortal() {
 
     function getMember() {
       if (!window.$memberstackDom) { setTimeout(getMember, 250); return; }
-      window.$memberstackDom.getCurrentMember().then(({ data: member }) => {
+      window.$memberstackDom.getCurrentMember().then(async ({ data: member }) => {
         if (member) {
+          // ── Dirty-close detection ──────────────────────────────────
+          // sessionStorage is wiped when the tab/browser closes.
+          // If Memberstack still has a member but our marker is gone,
+          // the previous session ended via tab-close / force-quit.
+          // Force a clean logout so Memberstack config stays consistent.
+          const wasActive = sessionStorage.getItem("jd_portal_active");
+          if (!wasActive) {
+            try { await window.$memberstackDom.logout(); } catch(e) {}
+            localStorage.clear();
+            sessionStorage.clear();
+            window.location.href = "https://job-dox.ai";
+            return;
+          }
           try { window.$memberstackDom.closeModal(); } catch(e) {}
           initMember(member);
         } else {
@@ -10399,12 +10447,19 @@ export default function JobDoxPortal() {
     }
     getMember();
 
+    // ── Register tab-close / force-quit listeners ──
+    window.addEventListener("pagehide", _onPageHide);
+    document.addEventListener("visibilitychange", _onVisibilityHidden);
+
     return () => {
       if (unsubProjects) unsubProjects();
       if (unsubStaff)    unsubStaff();
       if (unsubInvites)  unsubInvites();
       if (unsubOffices)  unsubOffices();
       if (_portalSessionUnsub) _portalSessionUnsub();
+      window.removeEventListener("pagehide", _onPageHide);
+      document.removeEventListener("visibilitychange", _onVisibilityHidden);
+      _portalMemberId = null;
     };
   }, []);
 

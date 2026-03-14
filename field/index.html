@@ -147,6 +147,27 @@ const uid     = () => `f${_id++}`;
 // in from another device / browser), this session auto-logs out.
 const SESSION_TOKEN = `fld_${Date.now()}_${Math.random().toString(36).slice(2,10)}`;
 let _sessionUnsub = null;
+let _fieldMemberId = null;        // tracked for tab-close cleanup
+
+// ── Tab-close / force-quit auto-logout ────────────────────────────────────
+function _fieldTabCloseCleanup() {
+  if (!_fieldMemberId) return;
+  try {
+    navigator.sendBeacon(
+      "/.netlify/functions/clear-session",
+      JSON.stringify({ memberId: _fieldMemberId })
+    );
+  } catch(e) {}
+  localStorage.clear();
+  sessionStorage.clear();
+}
+
+window.addEventListener("pagehide", function(e) {
+  if (!e.persisted) _fieldTabCloseCleanup();
+});
+document.addEventListener("visibilitychange", function() {
+  if (document.visibilityState === "hidden") _fieldTabCloseCleanup();
+});
 
 async function claimSession(memberId) {
   try {
@@ -1069,6 +1090,10 @@ function FieldApp() {
         .then(s=>{ if(s.exists()&&s.data().clockedIn){ setClockProjId(s.data().clockedProjectId||null); setClockProjName(s.data().clockedProjectName||""); } })
         .catch(()=>{});
 
+      // ── Track member ID for tab-close cleanup ──
+      _fieldMemberId = m.id;
+      sessionStorage.setItem("jd_field_active", "1");
+
       // ── Single-session: claim this device and watch for kicks ──
       await claimSession(m.id);
       watchSession(m.id, async () => {
@@ -1088,6 +1113,19 @@ function FieldApp() {
     async function boot() {
       const ms = await waitForMS();
       const { data: m } = await ms.getCurrentMember();
+
+      // ── Dirty-close detection ──────────────────────────────────
+      // sessionStorage is wiped when the tab/browser closes.
+      // If Memberstack still has a member but our marker is gone,
+      // the previous session ended via tab-close / force-quit.
+      if (m && !sessionStorage.getItem("jd_field_active")) {
+        try { await ms.logout(); } catch(e) {}
+        localStorage.clear();
+        sessionStorage.clear();
+        ms.openModal("login");
+        return;
+      }
+
       await initMember(ms, m);
 
       // onAuthChange handles ALL session events:
