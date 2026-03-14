@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { DocumentsTab, LogoUploadSection, DocumentTemplateCenter, setDocsCompanyId } from "./JobDoxDocuments.jsx";
+import { DocumentsTab, LogoUploadSection, DocumentTemplateCenter, setDocsCompanyId, PdfQuickSignModal } from "./JobDoxDocuments.jsx";
 import { FinancialTab, FinancialHealthBadge, FinancialDashboard } from "./JobDoxFinance.jsx";
 import { ReportsDashboard } from "./JobDoxReports.jsx";
 import { PayrollDashboard } from "./JobDoxPayroll.jsx";
@@ -5733,6 +5733,8 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
   const [selInv,    setSelInv]    = useState(null);   // invoice preview
   const [uploadModal, setUploadModal] = useState(false);
   const [uploadForm,  setUploadForm]  = useState({ name:"", type:"contract" });
+  const [signingDoc,  setSigningDoc]  = useState(null); // doc being signed via PdfQuickSignModal
+  const pdfFileRef = useRef();
 
   // Re-load if proj changes OR if an invoice was just generated (docRefreshKey bumped)
   useEffect(()=>{ setDocs(loadProjDocs(proj?.id||"")); }, [proj?.id, docRefreshKey]);
@@ -5743,7 +5745,7 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
     setDocs(updated);
   };
 
-  // Upload a named document (contract, auth form, etc.) without a file — just a record
+  // Upload a named document (contract, auth form, etc.) — optionally with a PDF file
   const handleUploadDoc = () => {
     if (!uploadForm.name.trim()) return;
     const doc = {
@@ -5752,11 +5754,43 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
       name: uploadForm.name.trim(),
       date: new Date().toISOString(),
       status: "on-file",
+      ...(uploadForm.fileData ? { fileData: uploadForm.fileData, fileName: uploadForm.fileName } : {}),
     };
     pushProjDoc(proj?.id||"", doc, proj?.name, "Staff");
     setDocs(loadProjDocs(proj?.id||""));
     setUploadForm({ name:"", type:"contract" });
     setUploadModal(false);
+  };
+
+  const handlePdfFileSelect = e => {
+    const file = e.target.files[0]; if (!file) return;
+    if (file.size > 10*1024*1024) { alert("PDF must be under 10 MB."); return; }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      setUploadForm(f => ({
+        ...f,
+        fileData: ev.target.result,
+        fileName: file.name,
+        name: f.name || file.name.replace(/\.pdf$/i, ""),
+      }));
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const handleSignSave = (result) => {
+    if (!signingDoc) return;
+    const updated = {
+      ...signingDoc,
+      signatures: result.signatures,
+      signedAt:   result.signedAt,
+      signedGeo:  result.geo,
+      status:     "signed",
+    };
+    const all = loadProjDocs(proj?.id||"").map(d => d.id===updated.id ? updated : d);
+    saveProjDocs(proj?.id||"", all);
+    setDocs(all);
+    setSigningDoc(null);
   };
 
   const DOC_TYPE_LABELS = {
@@ -5802,7 +5836,31 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
             </div>
             <div className="modal-body">
               <div style={{fontSize:11,color:"var(--t3)",marginBottom:4}}>
-                Log a contract, authorization form, or other document that belongs to this project.
+                Upload a PDF or log a document record for this project.
+              </div>
+              {/* PDF file upload */}
+              <div>
+                <label className="lbl">Upload PDF (optional)</label>
+                {uploadForm.fileData ? (
+                  <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",background:"rgba(26,217,138,.06)",border:"1px solid rgba(26,217,138,.2)",borderRadius:7,marginBottom:2}}>
+                    <span style={{fontSize:18}}>📄</span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:11,fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{uploadForm.fileName}</div>
+                      <div style={{fontSize:9,color:"var(--green)"}}>PDF ready to upload</div>
+                    </div>
+                    <button className="btn btn-ghost btn-xs" style={{color:"var(--acc)"}}
+                      onClick={()=>setUploadForm(f=>({...f,fileData:null,fileName:null}))}>✕</button>
+                  </div>
+                ) : (
+                  <label style={{display:"flex",alignItems:"center",gap:9,padding:"12px 14px",border:"1.5px dashed var(--br)",
+                    borderRadius:8,cursor:"pointer",color:"var(--t3)",fontSize:11,transition:"all .12s",marginBottom:2}}
+                    onMouseEnter={e=>e.currentTarget.style.borderColor="var(--blue)"}
+                    onMouseLeave={e=>e.currentTarget.style.borderColor="var(--br)"}>
+                    <span style={{fontSize:20}}>📎</span>
+                    <span>Click to attach a PDF file</span>
+                    <input ref={pdfFileRef} type="file" accept=".pdf" style={{display:"none"}} onChange={handlePdfFileSelect}/>
+                  </label>
+                )}
               </div>
               <div>
                 <label className="lbl">Document Type</label>
@@ -5819,7 +5877,7 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
               </div>
             </div>
             <div className="modal-ft">
-              <button className="btn btn-ghost" onClick={()=>setUploadModal(false)}>Cancel</button>
+              <button className="btn btn-ghost" onClick={()=>{setUploadModal(false);setUploadForm({name:"",type:"contract"});}}>Cancel</button>
               <button className="btn btn-primary" onClick={handleUploadDoc} disabled={!uploadForm.name.trim()}>Add to Documents</button>
             </div>
           </div>
@@ -5869,12 +5927,17 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
                   {doc.status==="on-file" && (
                     <span style={{fontSize:9,background:"rgba(91,163,245,.12)",color:"var(--blue)",borderRadius:4,padding:"1px 6px",fontFamily:"var(--mono)"}}>ON FILE</span>
                   )}
+                  {doc.status==="signed" && (
+                    <span style={{fontSize:9,background:"rgba(26,217,138,.12)",color:"var(--green)",borderRadius:4,padding:"1px 6px",fontFamily:"var(--mono)"}}>✓ SIGNED</span>
+                  )}
                 </div>
                 <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>
                   {doc.date ? new Date(doc.date).toLocaleDateString() : ""}
                   {doc.total ? ` · ${fmt$c(doc.total)}` : ""}
                   {doc.source==="ContentsDox" && doc.itemCount ? ` · ${doc.itemCount} items` : ""}
                   {doc.source==="ContentsDox" && doc.totalRCV ? ` · RCV ${fmt$c(doc.totalRCV)}` : ""}
+                  {doc.signedAt && <span style={{color:"var(--green)"}}> · Signed {new Date(doc.signedAt).toLocaleDateString()}</span>}
+                  {doc.signatures?.length > 0 && <span> · {doc.signatures.length} signature{doc.signatures.length!==1?"s":""}</span>}
                 </div>
               </div>
               <div style={{display:"flex",gap:6,flexShrink:0}}>
@@ -5891,6 +5954,17 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
                   }}>
                     View / Download
                   </button>
+                )}
+                {doc.fileData && doc.fileData.startsWith("data:application/pdf") && (
+                  <button className="btn btn-secondary btn-xs" onClick={()=>setSigningDoc(doc)}>
+                    ✍️ Sign
+                  </button>
+                )}
+                {doc.fileData && (
+                  <a href={doc.fileData} download={doc.fileName||"document.pdf"}
+                    className="btn btn-ghost btn-xs" style={{color:"var(--blue)",textDecoration:"none"}}>
+                    ↓
+                  </a>
                 )}
                 <button className="btn btn-ghost btn-xs" style={{color:"var(--blue)"}}
                   onClick={()=>setEmailModal({singleDoc:doc})}>
@@ -5921,6 +5995,16 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
 
       {/* Invoice preview */}
       {selInv && <InvoicePreviewPortalModal inv={selInv} onClose={()=>setSelInv(null)}/>}
+
+      {/* PDF Quick Sign modal */}
+      {signingDoc && signingDoc.fileData && (
+        <PdfQuickSignModal
+          pdfData={signingDoc.fileData}
+          docName={signingDoc.name}
+          onSave={handleSignSave}
+          onClose={()=>setSigningDoc(null)}
+        />
+      )}
     </div></div>
   );
 }
