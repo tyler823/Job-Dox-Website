@@ -1,6 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <rect width="512" height="512" rx="76" fill="#dc2626"/>
-  <text x="256" y="256" text-anchor="middle" dominant-baseline="central"
-        font-family="Arial, Helvetica, sans-serif" font-weight="700"
-        font-size="340" fill="#fff">C</text>
+  <g transform="translate(256,256) scale(0.6)" fill="none" stroke="#fff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Brain outline - left hemisphere -->
+    <path d="M-10,-160 C-80,-160 -140,-120 -160,-60 C-180,0 -170,50 -140,90 C-120,120 -110,140 -110,170 C-110,190 -90,200 -60,200 L-10,200"/>
+    <!-- Brain outline - right hemisphere -->
+    <path d="M10,-160 C80,-160 140,-120 160,-60 C180,0 170,50 140,90 C120,120 110,140 110,170 C110,190 90,200 60,200 L10,200"/>
+    <!-- Center line -->
+    <line x1="0" y1="-160" x2="0" y2="200"/>
+    <!-- Left sulci/folds -->
+    <path d="M-10,-80 C-60,-80 -100,-60 -120,-30" fill="none"/>
+    <path d="M-10,10 C-60,10 -110,30 -130,60" fill="none"/>
+    <path d="M-10,100 C-50,100 -90,110 -110,130" fill="none"/>
+    <!-- Right sulci/folds -->
+    <path d="M10,-80 C60,-80 100,-60 120,-30" fill="none"/>
+    <path d="M10,10 C60,10 110,30 130,60" fill="none"/>
+    <path d="M10,100 C50,100 90,110 110,130" fill="none"/>
+    <!-- Brain stem -->
+    <path d="M-20,200 L-20,230 C-20,250 -10,260 0,260 C10,260 20,250 20,230 L20,200"/>
+  </g>
 </svg>
