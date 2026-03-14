@@ -22,6 +22,11 @@
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { getFirestore, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { getApps } from "firebase/app";
+
+const _payrollDb = getApps().length > 0 ? getFirestore(getApps()[0]) : null;
+let _payrollCompanyId = null;
 
 /* ─────────────────────────────────────────────────────────────────────────────
    HELPERS
@@ -100,6 +105,9 @@ function loadEmployeeRates() {
 }
 function saveEmployeeRates(map) {
   try { localStorage.setItem(LS_EMPLOYEE_RATES, JSON.stringify(map)); } catch {}
+  if (_payrollDb && _payrollCompanyId) {
+    setDoc(doc(_payrollDb, "companies", _payrollCompanyId, "settings", "employeeRates"), { data: map, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
+  }
 }
 
 /* ── QBO Integration Settings ── */
@@ -121,6 +129,9 @@ function loadQboSettings() {
 }
 function saveQboSettings(settings) {
   try { localStorage.setItem(LS_QBO_SETTINGS, JSON.stringify(settings)); } catch {}
+  if (_payrollDb && _payrollCompanyId) {
+    setDoc(doc(_payrollDb, "companies", _payrollCompanyId, "settings", "qboSettings"), { data: settings, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
+  }
 }
 
 function loadRates() {
@@ -128,6 +139,9 @@ function loadRates() {
 }
 function saveRates(rates) {
   try { localStorage.setItem(LS_PAYROLL_RATES, JSON.stringify(rates)); } catch {}
+  if (_payrollDb && _payrollCompanyId) {
+    setDoc(doc(_payrollDb, "companies", _payrollCompanyId, "settings", "payrollRates"), { data: rates, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
+  }
 }
 
 /* Build a lookup: position → { payRate, chargeRate } */
@@ -900,6 +914,7 @@ function QboSettingsTab({ globalStaff, projects, canEditRates }) {
    PAYROLL DASHBOARD (main export)
 ═════════════════════════════════════════════════════════════════════════════ */
 export function PayrollDashboard({ projects=[], globalStaff=[], projectShifts={}, permissionLevel=1, companyId="" }) {
+  useEffect(() => { if (companyId) _payrollCompanyId = companyId; }, [companyId]);
   const [tab, setTab] = useState("report");
   const canEditRates = permissionLevel >= 9; // Director+ can edit
 

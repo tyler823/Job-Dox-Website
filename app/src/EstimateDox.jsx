@@ -10,14 +10,30 @@
  */
 
 import { useState, useEffect } from "react";
+import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { getApps } from "firebase/app";
 
-/* ── localStorage persistence for project estimates ── */
+const _estDb = getApps().length > 0 ? getFirestore(getApps()[0]) : null;
+let _estCompanyId = null;
+
+/* ── localStorage + Firestore persistence for project estimates ── */
 const LS_ESTIMATES = "jd_estimates";
 function loadProjEstimates(projId) {
   try { const all = JSON.parse(localStorage.getItem(LS_ESTIMATES)) || {}; return all[projId] || []; } catch { return []; }
 }
 function saveProjEstimates(projId, estimates) {
-  try { const all = JSON.parse(localStorage.getItem(LS_ESTIMATES)) || {}; all[projId] = estimates; localStorage.setItem(LS_ESTIMATES, JSON.stringify(all)); } catch {}
+  try {
+    const all = JSON.parse(localStorage.getItem(LS_ESTIMATES)) || {};
+    all[projId] = estimates;
+    localStorage.setItem(LS_ESTIMATES, JSON.stringify(all));
+    // Also save to Firestore on the project document
+    if (_estDb && _estCompanyId && projId) {
+      setDoc(doc(_estDb, "companies", _estCompanyId, "projects", projId), {
+        fsEstimates: JSON.parse(JSON.stringify(estimates)),
+        updatedAt: serverTimestamp(),
+      }, { merge: true }).catch(() => {});
+    }
+  } catch {}
 }
 export { loadProjEstimates };
 
@@ -752,7 +768,8 @@ function GBBPresentMode({ est, onClose, onSign, statusKey }) {
   );
 }
 
-function EstimateDoxTab({ proj }) {
+function EstimateDoxTab({ proj, companyId="" }) {
+  useEffect(() => { if (companyId) _estCompanyId = companyId; }, [companyId]);
   useEffect(()=>{
     const el = document.createElement("style");
     el.id = "gbb-tab-css";
@@ -764,8 +781,20 @@ function EstimateDoxTab({ proj }) {
 
   const projContext = { company:"Job-Dox", project:proj.name, client:proj.client||"", address:proj.address||"", id:proj.id };
   const [estimates, setEstimates] = useState(()=>loadProjEstimates(proj.id));
-  // Persist estimates to localStorage whenever they change
+  // Persist estimates to localStorage + Firestore whenever they change
   useEffect(()=>{ saveProjEstimates(proj.id, estimates); },[proj.id, estimates]);
+  // Load from Firestore on mount
+  useEffect(() => {
+    if (_estDb && _estCompanyId && proj.id) {
+      getDoc(doc(_estDb, "companies", _estCompanyId, "projects", proj.id))
+        .then(snap => {
+          if (snap.exists() && snap.data().fsEstimates !== undefined) {
+            setEstimates(snap.data().fsEstimates);
+          }
+        }).catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proj.id]);
   const [view, setView]           = useState("list");
   const [selEst, setSelEst]       = useState(null);
   const [selTier, setSelTier]     = useState(null);

@@ -27,6 +27,7 @@ import { loadProjEstimates } from "./EstimateDox.jsx";
 // Lazy db getter — avoids calling getFirestore() before Firebase is initialized
 let _db = null;
 const getDb = () => { if (!_db) _db = getFirestore(); return _db; };
+let _financeCompanyId = null; // Set when FinancialTab / FinancialDashboard mounts
 let _fid = 9000;
 const fuid = () => `f${++_fid}`;
 
@@ -44,7 +45,12 @@ function lsGetInvoices(projId) {
     return projId ? all.filter(i => i.projId === projId) : all;
   } catch { return []; }
 }
-function lsSaveAll(arr) { try { localStorage.setItem(LS_INV_KEY, JSON.stringify(arr)); } catch {} }
+function lsSaveAll(arr) {
+  try { localStorage.setItem(LS_INV_KEY, JSON.stringify(arr)); } catch {}
+  if (_financeCompanyId) {
+    try { setDoc(doc(getDb(), "companies", _financeCompanyId, "settings", "invoices"), { data: JSON.parse(JSON.stringify(arr)), updatedAt: serverTimestamp() }, { merge: true }); } catch {}
+  }
+}
 function lsUpdateInvoice(id, patch) {
   const all = (JSON.parse(localStorage.getItem(LS_INV_KEY)) || []).map(i => i.id === id ? {...i,...patch} : i);
   lsSaveAll(all);
@@ -54,10 +60,20 @@ function lsUpdateInvoice(id, patch) {
 /* ── Vendor bills mirror (shared with portal VendorManagerTab) ── */
 const LS_VENDOR_BILLS = "jd_vendor_bills";
 function lsLoadVendorBills()       { try { return JSON.parse(localStorage.getItem(LS_VENDOR_BILLS)) || []; } catch { return []; } }
-function lsUpsertVendorBill(bill)  { const all = lsLoadVendorBills().filter(b => b.id !== bill.id); try { localStorage.setItem(LS_VENDOR_BILLS, JSON.stringify([...all, bill])); } catch {} }
+function lsUpsertVendorBill(bill)  {
+  const all = lsLoadVendorBills().filter(b => b.id !== bill.id);
+  const updated = [...all, bill];
+  try { localStorage.setItem(LS_VENDOR_BILLS, JSON.stringify(updated)); } catch {}
+  if (_financeCompanyId) {
+    try { setDoc(doc(getDb(), "companies", _financeCompanyId, "settings", "vendorBills"), { data: JSON.parse(JSON.stringify(updated)), updatedAt: serverTimestamp() }, { merge: true }); } catch {}
+  }
+}
 function lsMarkVendorBillPaid(id, paid) {
   const all = lsLoadVendorBills().map(b => b.id === id ? {...b, status: paid ? "paid" : "approved"} : b);
   try { localStorage.setItem(LS_VENDOR_BILLS, JSON.stringify(all)); } catch {}
+  if (_financeCompanyId) {
+    try { setDoc(doc(getDb(), "companies", _financeCompanyId, "settings", "vendorBills"), { data: JSON.parse(JSON.stringify(all)), updatedAt: serverTimestamp() }, { merge: true }); } catch {}
+  }
 }
 
 /* ── Vendor registry read (shared key with portal jd_vendors) ── */
@@ -101,6 +117,9 @@ function lsSaveProjectBudget(projId, data) {
     const all = JSON.parse(localStorage.getItem(LS_PROJECT_BUDGETS)) || {};
     all[projId] = data;
     localStorage.setItem(LS_PROJECT_BUDGETS, JSON.stringify(all));
+    if (_financeCompanyId) {
+      setDoc(doc(getDb(), "companies", _financeCompanyId, "settings", "projectBudgets"), { data: JSON.parse(JSON.stringify(all)), updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
+    }
   } catch {}
 }
 
@@ -2555,6 +2574,7 @@ function ApprovedEstimatesPanel({ proj, invoices=[], onInvoiceCreated }) {
    FINANCIAL TAB  (exported)
 ───────────────────────────────────────────────────────────────────────────── */
 export function FinancialTab({ proj, companyId, laborCost=0, invoices: _invoicesProp=[], onInvoiceVoid }) {
+  useEffect(() => { if (companyId) _financeCompanyId = companyId; }, [companyId]);
   const [subTab, setSubTab] = useState("overview");
   const [data, setData]     = useState({ budgets:{}, transactions:[] });
   const [saving, setSaving] = useState(false);
@@ -2867,6 +2887,7 @@ export function FinancialTab({ proj, companyId, laborCost=0, invoices: _invoices
    FINANCIAL DASHBOARD  (exported — full portfolio-level page)
 ───────────────────────────────────────────────────────────────────────────── */
 export function FinancialDashboard({ projects=[], companyId, onNavigate }) {
+  useEffect(() => { if (companyId) _financeCompanyId = companyId; }, [companyId]);
   const [jobData, setJobData]   = useState({});  // { [projId]: financialData }
   const [loading, setLoading]   = useState(true);
   const [filter, setFilter]     = useState("all");

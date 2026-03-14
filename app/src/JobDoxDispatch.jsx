@@ -3,6 +3,12 @@
 //  Map-based project dispatch, scheduling & AI route optimization
 // ════════════════════════════════════════════════════════════════
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { initializeApp, getApps } from "firebase/app";
+import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+
+// ── Firebase (reuse existing app if already initialized) ──
+const _dispatchFbApp = getApps().length > 0 ? getApps()[0] : null;
+const _dispatchDb = _dispatchFbApp ? getFirestore(_dispatchFbApp) : null;
 
 // ── CSS for Dispatch Panel ──
 const DISPATCH_CSS = `
@@ -105,6 +111,13 @@ function loadDispatchAppts(companyId) {
 }
 function saveDispatchAppts(companyId, appts) {
   try { localStorage.setItem(`${LS_DISPATCH_APPTS}_${companyId}`, JSON.stringify(appts)); } catch {}
+  // Persist to Firestore
+  if (_dispatchDb && companyId) {
+    setDoc(doc(_dispatchDb, "companies", companyId, "settings", "dispatchAppts"), {
+      data: JSON.parse(JSON.stringify(appts)),
+      updatedAt: serverTimestamp(),
+    }, { merge: true }).catch(() => {});
+  }
 }
 
 // ── LS helpers for dispatch resources (trucks/crews) ──
@@ -114,6 +127,13 @@ function loadDispatchResources(companyId) {
 }
 function saveDispatchResources(companyId, resources) {
   try { localStorage.setItem(`${LS_DISPATCH_RESOURCES}_${companyId}`, JSON.stringify(resources)); } catch {}
+  // Persist to Firestore
+  if (_dispatchDb && companyId) {
+    setDoc(doc(_dispatchDb, "companies", companyId, "settings", "dispatchResources"), {
+      data: JSON.parse(JSON.stringify(resources)),
+      updatedAt: serverTimestamp(),
+    }, { merge: true }).catch(() => {});
+  }
 }
 
 // ── LS for project lat/lng cache ──
@@ -1032,7 +1052,7 @@ export default function DispatchPanel({
   const [fOffice, setFOffice] = useState("All");
   const [showFilters, setShowFilters] = useState(false);
 
-  // ── Appointments (persisted to LS) ──
+  // ── Appointments (persisted to LS + Firestore) ──
   const [appts, setApptsRaw] = useState(() => loadDispatchAppts(companyId));
   const setAppts = useCallback((updater) => {
     setApptsRaw(prev => {
@@ -1042,7 +1062,7 @@ export default function DispatchPanel({
     });
   }, [companyId]);
 
-  // ── Resources (trucks/crews) ──
+  // ── Resources (trucks/crews) — persisted to LS + Firestore ──
   const [resources, setResourcesRaw] = useState(() => loadDispatchResources(companyId));
   const setResources = useCallback((updater) => {
     setResourcesRaw(prev => {
@@ -1050,6 +1070,26 @@ export default function DispatchPanel({
       if (companyId) saveDispatchResources(companyId, next);
       return next;
     });
+  }, [companyId]);
+
+  // Load appointments and resources from Firestore on mount
+  useEffect(() => {
+    if (!_dispatchDb || !companyId) return;
+    getDoc(doc(_dispatchDb, "companies", companyId, "settings", "dispatchAppts"))
+      .then(snap => {
+        if (snap.exists() && snap.data().data) {
+          setApptsRaw(snap.data().data);
+          try { localStorage.setItem(`${LS_DISPATCH_APPTS}_${companyId}`, JSON.stringify(snap.data().data)); } catch {}
+        }
+      }).catch(() => {});
+    getDoc(doc(_dispatchDb, "companies", companyId, "settings", "dispatchResources"))
+      .then(snap => {
+        if (snap.exists() && snap.data().data) {
+          setResourcesRaw(snap.data().data);
+          try { localStorage.setItem(`${LS_DISPATCH_RESOURCES}_${companyId}`, JSON.stringify(snap.data().data)); } catch {}
+        }
+      }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);
 
   // ── Geocode cache — geocode projects on mount ──

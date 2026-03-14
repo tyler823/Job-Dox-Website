@@ -9,17 +9,32 @@
  */
 
 import { useState, useRef, useEffect } from "react";
+import { getFirestore, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { getApps } from "firebase/app";
 
-// ─── Storage ──────────────────────────────────────────────────────────────────
+const _docsDb = getApps().length > 0 ? getFirestore(getApps()[0]) : null;
+let _docsCompanyId = null;
+export function setDocsCompanyId(cid) { _docsCompanyId = cid; }
+
+// ─── Storage (localStorage cache + Firestore persistence) ─────────────────────
 const LS_TMPL = "jd_doc_templates";
 const LS_DOCS = "jd_documents";
 const LS_CO   = "jd_company_info";
 const loadTemplates = () => { try { return JSON.parse(localStorage.getItem(LS_TMPL)) || []; } catch { return []; } };
-const saveTemplates = v  => { try { localStorage.setItem(LS_TMPL, JSON.stringify(v)); } catch {} };
+const saveTemplates = v  => {
+  try { localStorage.setItem(LS_TMPL, JSON.stringify(v)); } catch {}
+  if (_docsDb && _docsCompanyId) { setDoc(doc(_docsDb, "companies", _docsCompanyId, "settings", "docTemplates"), { data: JSON.parse(JSON.stringify(v)), updatedAt: serverTimestamp() }, { merge: true }).catch(() => {}); }
+};
 const loadAllDocs   = () => { try { return JSON.parse(localStorage.getItem(LS_DOCS)) || []; } catch { return []; } };
-const saveAllDocs   = v  => { try { localStorage.setItem(LS_DOCS, JSON.stringify(v)); } catch {} };
+const saveAllDocs   = v  => {
+  try { localStorage.setItem(LS_DOCS, JSON.stringify(v)); } catch {}
+  if (_docsDb && _docsCompanyId) { setDoc(doc(_docsDb, "companies", _docsCompanyId, "settings", "documents"), { data: JSON.parse(JSON.stringify(v)), updatedAt: serverTimestamp() }, { merge: true }).catch(() => {}); }
+};
 const loadCoInfo    = () => { try { return JSON.parse(localStorage.getItem(LS_CO))   || {}; } catch { return {}; } };
-const saveCoInfo    = v  => { try { localStorage.setItem(LS_CO, JSON.stringify(v)); } catch {} };
+const saveCoInfo    = v  => {
+  try { localStorage.setItem(LS_CO, JSON.stringify(v)); } catch {}
+  if (_docsDb && _docsCompanyId) { setDoc(doc(_docsDb, "companies", _docsCompanyId, "settings", "companyInfo"), { data: JSON.parse(JSON.stringify(v)), updatedAt: serverTimestamp() }, { merge: true }).catch(() => {}); }
+};
 
 let _c = 9000;
 const uid = () => `jd-${++_c}-${Math.random().toString(36).slice(2,6)}`;
