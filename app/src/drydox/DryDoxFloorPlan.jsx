@@ -7,222 +7,327 @@
 ══════════════════════════════════════════════════════════════════ */
 import { useState, useRef, useEffect, useCallback } from "react";
 import { dduid, DDIc, MATERIAL_CLASSES, WATER_CATEGORIES } from "./DryDoxConstants.jsx";
+import { JobDoxLiDAR } from "../plugins/jobdox-lidar.js";
 
-// ── LiDAR / AR Session Manager ──
-// Uses WebXR Device API with depth-sensing for LiDAR-equipped devices
-// Falls back to ARKit (Safari) via WebXR polyfill patterns
+// ── LiDAR Hook ──
+// Uses Capacitor native plugin (RoomPlan) on iOS, falls back gracefully on web
 function useLiDAR() {
   const [supported, setSupported] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [scanResult, setScanResult] = useState(null);
-  const sessionRef = useRef(null);
+  const [reason, setReason] = useState("");
 
   useEffect(() => {
-    // Check for WebXR with depth sensing (LiDAR)
-    const checkSupport = async () => {
-      try {
-        if (navigator.xr) {
-          const supported = await navigator.xr.isSessionSupported("immersive-ar");
-          setSupported(supported);
-        } else {
-          // Check for iOS ARKit availability via feature detection
-          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-          const hasLiDAR = isIOS && window.DeviceMotionEvent;
-          setSupported(hasLiDAR);
-        }
-      } catch {
-        setSupported(false);
-      }
-    };
-    checkSupport();
+    JobDoxLiDAR.checkSupport().then(result => {
+      setSupported(result.supported);
+      setReason(result.reason || "");
+    });
   }, []);
 
   const startScan = useCallback(async () => {
     setScanning(true);
     setProgress(0);
 
+    // Show indeterminate progress while RoomPlan UI is open
+    const iv = setInterval(() => {
+      setProgress(p => p >= 90 ? 90 : p + Math.random() * 5 + 1);
+    }, 300);
+
     try {
-      if (navigator.xr) {
-        // WebXR path — request AR session with depth sensing
-        const session = await navigator.xr.requestSession("immersive-ar", {
-          requiredFeatures: ["local-floor"],
-          optionalFeatures: ["depth-sensing", "mesh-detection", "plane-detection"],
-          depthSensing: {
-            usagePreference: ["gpu-optimized", "cpu-optimized"],
-            dataFormatPreference: ["luminance-alpha", "float32"],
-          },
-        });
-        sessionRef.current = session;
+      const { rooms: scannedRooms } = await JobDoxLiDAR.scanRoom();
 
-        const walls = [];
-        const planes = [];
-        let frameCount = 0;
+      clearInterval(iv);
+      setProgress(100);
+      setScanning(false);
 
-        session.addEventListener("end", () => {
-          setScanning(false);
-          // Convert detected planes/meshes to room geometry
-          const rooms = processLiDARData(planes, walls);
-          setScanResult(rooms);
-        });
+      // Normalize results — add IDs, points, equipment arrays, etc.
+      const normalized = (scannedRooms || []).map((r, i) => ({
+        id: dduid(),
+        label: r.label || `Room ${i + 1}`,
+        widthFt: r.widthFt || 12,
+        depthFt: r.depthFt || 10,
+        ceilingFt: r.ceilingFt || 8,
+        floor: 1,
+        category: "cat1",
+        materialClass: "class2",
+        sqft: Math.round((r.widthFt || 12) * (r.depthFt || 10)),
+        walls: (r.walls || []).map(w => ({
+          id: dduid(),
+          label: w.label || "Wall",
+          lengthFt: w.lengthFt || 10,
+        })),
+        points: [],
+        equipment: [],
+      }));
 
-        // Reference space for tracking
-        const refSpace = await session.requestReferenceSpace("local-floor");
-
-        // Frame loop to collect depth data
-        const onFrame = (time, frame) => {
-          if (!session || session.ended) return;
-          frameCount++;
-
-          // Collect detected planes
-          if (frame.detectedPlanes) {
-            frame.detectedPlanes.forEach(plane => {
-              planes.push({
-                orientation: plane.orientation, // "horizontal" or "vertical"
-                position: plane.planeSpace,
-                polygon: plane.polygon,
-              });
-            });
-          }
-
-          // Collect mesh data if available
-          if (frame.detectedMeshes) {
-            frame.detectedMeshes.forEach(mesh => {
-              walls.push({
-                vertices: mesh.vertices,
-                indices: mesh.indices,
-              });
-            });
-          }
-
-          // Update progress based on frames collected
-          const p = Math.min(95, (frameCount / 300) * 100);
-          setProgress(p);
-
-          session.requestAnimationFrame(onFrame);
-        };
-
-        session.requestAnimationFrame(onFrame);
-      } else {
-        // Fallback: simulate scanning with manual entry prompt
-        simulateScan(setProgress, setScanResult, setScanning);
-      }
+      setScanResult(normalized);
     } catch (err) {
-      console.warn("LiDAR scan failed, falling back to manual:", err);
-      simulateScan(setProgress, setScanResult, setScanning);
+      clearInterval(iv);
+      setScanning(false);
+      setProgress(0);
+      console.warn("LiDAR scan failed or cancelled:", err?.message || err);
+      // Return empty so the UI stays on the prompt screen
+      setScanResult(null);
     }
   }, []);
 
   const stopScan = useCallback(() => {
-    if (sessionRef.current) {
-      sessionRef.current.end();
-      sessionRef.current = null;
-    }
+    // Native RoomPlan has its own cancel — this is a no-op safety valve
     setScanning(false);
-    setProgress(100);
+    setProgress(0);
   }, []);
 
-  return { supported, scanning, progress, scanResult, startScan, stopScan, setScanResult };
+  return { supported, scanning, progress, scanResult, startScan, stopScan, setScanResult, reason };
 }
 
-// Process raw LiDAR plane/mesh data into room structures
-function processLiDARData(planes, meshes) {
-  // Group vertical planes (walls) and horizontal planes (floor/ceiling)
-  const verticalPlanes = planes.filter(p => p.orientation === "vertical");
-  const horizontalPlanes = planes.filter(p => p.orientation === "horizontal");
+// ── Room Scan File Parser ──
+// Supports: JSON (RoomPlan / generic), CSV (name,width,depth,ceiling)
+function parseRoomScanFile(text, fileName) {
+  const ext = (fileName || "").split(".").pop().toLowerCase();
 
-  // If we have detected geometry, convert to room measurements
-  if (verticalPlanes.length >= 4) {
-    // Cluster walls into rooms based on spatial proximity
-    const rooms = clusterWallsToRooms(verticalPlanes, horizontalPlanes);
-    return rooms;
+  // ── JSON parsing ──
+  if (ext === "json" || text.trim().startsWith("{") || text.trim().startsWith("[")) {
+    try {
+      const data = JSON.parse(text);
+      return parseRoomJSON(data);
+    } catch (e) {
+      throw new Error("Invalid JSON file: " + e.message);
+    }
   }
 
-  // Not enough data — return empty for manual entry
-  return [];
+  // ── CSV parsing ──
+  if (ext === "csv" || text.includes(",")) {
+    return parseRoomCSV(text);
+  }
+
+  throw new Error("Unsupported file format. Use JSON or CSV.");
 }
 
-function clusterWallsToRooms(verticalPlanes, horizontalPlanes) {
-  // Simplified wall clustering — groups nearby vertical planes
-  // Real implementation would use DBSCAN or similar spatial clustering
-  const rooms = [];
-  const used = new Set();
+function parseRoomJSON(data) {
+  // Handle Apple RoomPlan / RoomBuilder JSON export
+  // Shape: { rooms: [...] } or { capturedRooms: [...] } or direct array
+  let roomsArr = [];
 
-  verticalPlanes.forEach((wall, i) => {
-    if (used.has(i)) return;
-    const cluster = [wall];
-    used.add(i);
+  if (Array.isArray(data)) {
+    roomsArr = data;
+  } else if (data.rooms && Array.isArray(data.rooms)) {
+    roomsArr = data.rooms;
+  } else if (data.capturedRooms && Array.isArray(data.capturedRooms)) {
+    roomsArr = data.capturedRooms;
+  } else if (data.results && Array.isArray(data.results)) {
+    // Some scanning apps export as { results: [...] }
+    roomsArr = data.results;
+  } else if (data.width || data.widthFt || data.dimensions) {
+    // Single room object
+    roomsArr = [data];
+  } else {
+    throw new Error("Could not find room data in JSON. Expected an array of rooms or an object with a 'rooms' key.");
+  }
 
-    verticalPlanes.forEach((other, j) => {
-      if (used.has(j)) return;
-      // Check if walls are close enough to form a room
-      if (cluster.length < 6) {
-        cluster.push(other);
-        used.add(j);
+  return roomsArr.map((r, i) => {
+    // Handle various dimension formats
+    let widthFt, depthFt, ceilingFt;
+
+    if (r.dimensions) {
+      // RoomPlan format: dimensions in meters { x, y, z }
+      const d = r.dimensions;
+      widthFt = round1(toFeet(d.x || d.width || 0));
+      depthFt = round1(toFeet(d.z || d.depth || d.y || 0));
+      ceilingFt = round1(toFeet(d.y || d.height || 2.4));
+    } else {
+      // Direct feet values
+      widthFt = r.widthFt || r.width_ft || r.width || 12;
+      depthFt = r.depthFt || r.depth_ft || r.depth || r.length || 10;
+      ceilingFt = r.ceilingFt || r.ceiling_ft || r.ceilingHeight || r.ceiling || 8;
+
+      // If values look like meters (all < 15), convert
+      if (widthFt < 15 && depthFt < 15) {
+        widthFt = round1(toFeet(widthFt));
+        depthFt = round1(toFeet(depthFt));
+        if (ceilingFt < 5) ceilingFt = round1(toFeet(ceilingFt));
       }
-    });
-
-    if (cluster.length >= 3) {
-      // Estimate room dimensions from wall cluster
-      const bounds = estimateRoomBounds(cluster);
-      rooms.push({
-        id: dduid(),
-        label: `Room ${rooms.length + 1}`,
-        widthFt: Math.round(bounds.width * 3.281), // meters to feet
-        depthFt: Math.round(bounds.depth * 3.281),
-        ceilingFt: Math.round((bounds.height || 2.4) * 3.281),
-        floor: 1,
-        walls: cluster.map((w, wi) => ({
-          id: dduid(),
-          label: ["North","East","South","West","NE","NW"][wi] || `Wall ${wi+1}`,
-          lengthFt: Math.round(bounds.wallLengths[wi] * 3.281) || 10,
-        })),
-        points: [], // moisture reading points
-        equipment: [], // equipment placed in room
-      });
     }
-  });
 
+    // Build walls
+    let walls;
+    if (r.walls && Array.isArray(r.walls)) {
+      walls = r.walls.map(w => ({
+        id: dduid(),
+        label: w.label || w.name || "Wall",
+        lengthFt: w.lengthFt || w.length_ft || (w.length ? round1(toFeet(w.length)) : 10),
+      }));
+    } else {
+      walls = [
+        { id: dduid(), label: "North Wall", lengthFt: widthFt },
+        { id: dduid(), label: "East Wall",  lengthFt: depthFt },
+        { id: dduid(), label: "South Wall", lengthFt: widthFt },
+        { id: dduid(), label: "West Wall",  lengthFt: depthFt },
+      ];
+    }
+
+    return {
+      id: dduid(),
+      label: r.label || r.name || r.roomName || `Scanned Room ${i + 1}`,
+      widthFt, depthFt, ceilingFt,
+      floor: r.floor || 1,
+      suite: r.suite || "",
+      category: r.category || "cat1",
+      materialClass: r.materialClass || "class2",
+      sqft: Math.round(widthFt * depthFt),
+      walls,
+      points: [],
+      equipment: [],
+    };
+  });
+}
+
+function parseRoomCSV(text) {
+  const lines = text.trim().split("\n").map(l => l.trim()).filter(Boolean);
+  if (lines.length < 2) throw new Error("CSV must have a header row and at least one data row.");
+
+  // Parse header
+  const header = lines[0].toLowerCase().split(",").map(h => h.trim());
+  const nameIdx = header.findIndex(h => /name|label|room/.test(h));
+  const widthIdx = header.findIndex(h => /width/.test(h));
+  const depthIdx = header.findIndex(h => /depth|length/.test(h));
+  const ceilingIdx = header.findIndex(h => /ceiling|height/.test(h));
+
+  if (widthIdx === -1 || depthIdx === -1) {
+    throw new Error("CSV must have 'width' and 'depth' (or 'length') columns.");
+  }
+
+  const rooms = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",").map(c => c.trim());
+    const label = nameIdx >= 0 ? cols[nameIdx] : `Room ${i}`;
+    const widthFt = parseFloat(cols[widthIdx]) || 12;
+    const depthFt = parseFloat(cols[depthIdx]) || 10;
+    const ceilingFt = ceilingIdx >= 0 ? (parseFloat(cols[ceilingIdx]) || 8) : 8;
+
+    rooms.push({
+      id: dduid(),
+      label: label || `Room ${i}`,
+      widthFt, depthFt, ceilingFt,
+      floor: 1,
+      suite: "",
+      category: "cat1",
+      materialClass: "class2",
+      sqft: Math.round(widthFt * depthFt),
+      walls: [
+        { id: dduid(), label: "North Wall", lengthFt: widthFt },
+        { id: dduid(), label: "East Wall",  lengthFt: depthFt },
+        { id: dduid(), label: "South Wall", lengthFt: widthFt },
+        { id: dduid(), label: "West Wall",  lengthFt: depthFt },
+      ],
+      points: [],
+      equipment: [],
+    });
+  }
+
+  if (rooms.length === 0) throw new Error("No room data found in CSV.");
   return rooms;
 }
 
-function estimateRoomBounds(walls) {
-  // Estimate bounding box from wall planes
-  let minX=Infinity, maxX=-Infinity, minZ=Infinity, maxZ=-Infinity, maxY=0;
-  walls.forEach(w => {
-    if (w.polygon) {
-      w.polygon.forEach(pt => {
-        minX = Math.min(minX, pt.x||0);
-        maxX = Math.max(maxX, pt.x||0);
-        minZ = Math.min(minZ, pt.z||0);
-        maxZ = Math.max(maxZ, pt.z||0);
-        maxY = Math.max(maxY, pt.y||0);
-      });
-    }
-  });
-  const width = maxX-minX || 3;
-  const depth = maxZ-minZ || 3;
-  return {
-    width, depth, height: maxY || 2.4,
-    wallLengths: walls.map(() => Math.max(width, depth) * (0.8 + Math.random()*0.4)),
-  };
-}
+function toFeet(meters) { return meters * 3.28084; }
+function round1(n) { return Math.round(n * 10) / 10; }
 
-// Simulate a scan (for devices without LiDAR)
-function simulateScan(setProgress, setScanResult, setScanning) {
-  let p = 0;
-  const iv = setInterval(() => {
-    p += Math.random() * 8 + 2;
-    if (p >= 100) {
-      clearInterval(iv);
-      setProgress(100);
-      setScanning(false);
-      // Return empty — user will enter rooms manually
-      setScanResult([]);
-    } else {
-      setProgress(Math.round(p));
+// ── Import Scan Modal ──
+function ImportScanModal({ onImport, onClose }) {
+  const [error, setError] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const fileRef = useRef(null);
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setPreview(null);
+
+    try {
+      const text = await file.text();
+      const rooms = parseRoomScanFile(text, file.name);
+      if (!rooms.length) throw new Error("No rooms found in file.");
+      setPreview(rooms);
+    } catch (err) {
+      setError(err.message);
     }
-  }, 200);
+  };
+
+  return (
+    <div className="dd-modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="dd-modal" style={{ maxWidth: 420 }}>
+        <div className="dd-modal-title">Import Room Scan</div>
+
+        <div style={{ fontSize: 12, color: "var(--t2)", lineHeight: 1.6, marginBottom: 14 }}>
+          Import room measurements from a scanning app. Supported formats:
+        </div>
+
+        <div style={{ display: "grid", gap: 6, marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: "var(--t2)", padding: "8px 12px", background: "var(--s2)", borderRadius: 8 }}>
+            <strong style={{ color: "var(--t1)" }}>JSON</strong> — Export from RoomPlan-compatible apps (3d Scanner App, Polycam, Canvas, magicplan)
+          </div>
+          <div style={{ fontSize: 11, color: "var(--t2)", padding: "8px 12px", background: "var(--s2)", borderRadius: 8 }}>
+            <strong style={{ color: "var(--t1)" }}>CSV</strong> — Spreadsheet with columns: name, width, depth, ceiling
+          </div>
+        </div>
+
+        <div style={{
+          border: "2px dashed var(--br)", borderRadius: 10, padding: "24px 16px",
+          textAlign: "center", cursor: "pointer", marginBottom: 14,
+          background: "var(--s2)", transition: "border-color .15s",
+        }} onClick={() => fileRef.current?.click()}>
+          <div style={{ marginBottom: 6 }}>{DDIc.upload}</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--t1)" }}>
+            Tap to select file
+          </div>
+          <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 4 }}>.json or .csv</div>
+          <input ref={fileRef} type="file" accept=".json,.csv,.txt"
+            style={{ display: "none" }} onChange={handleFile} />
+        </div>
+
+        {error && (
+          <div style={{
+            fontSize: 11, color: "var(--acc)", background: "rgba(228,53,49,.08)",
+            padding: "8px 12px", borderRadius: 6, marginBottom: 12,
+          }}>
+            {error}
+          </div>
+        )}
+
+        {preview && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)", marginBottom: 6 }}>
+              {preview.length} room{preview.length !== 1 ? "s" : ""} found:
+            </div>
+            <div style={{ maxHeight: 180, overflowY: "auto" }}>
+              {preview.map((r, i) => (
+                <div key={i} style={{
+                  fontSize: 11, padding: "6px 10px", background: "var(--s2)",
+                  borderRadius: 6, marginBottom: 4, display: "flex",
+                  justifyContent: "space-between", alignItems: "center",
+                }}>
+                  <span style={{ fontWeight: 600, color: "var(--t1)" }}>{r.label}</span>
+                  <span style={{ color: "var(--t3)", fontFamily: "var(--mono)", fontSize: 10 }}>
+                    {r.widthFt}' x {r.depthFt}' x {r.ceilingFt}' · {r.sqft} SF
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <button className="btn btn-ghost btn-xs" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary btn-xs"
+            disabled={!preview} style={{ opacity: preview ? 1 : 0.4 }}
+            onClick={() => { if (preview) { onImport(preview); onClose(); } }}>
+            Import {preview ? `${preview.length} Room${preview.length !== 1 ? "s" : ""}` : ""}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── Floor Plan Canvas Renderer ──
@@ -431,7 +536,7 @@ function FloorPlanCanvas({
 }
 
 // ── LiDAR Scan Prompt ──
-function LiDARScanPrompt({ lidar, onManualAdd }) {
+function LiDARScanPrompt({ lidar, onManualAdd, onImportScan }) {
   if (lidar.scanning) {
     return (
       <div className="dd-lidar-prompt">
@@ -458,7 +563,7 @@ function LiDARScanPrompt({ lidar, onManualAdd }) {
       <div style={{ fontSize: 12, color: "var(--t2)", maxWidth: 300, lineHeight: 1.5 }}>
         {lidar.supported
           ? "Use your device's LiDAR sensor to automatically scan and measure the structure, or add rooms manually."
-          : "Add rooms manually with measurements. For automatic scanning, use an iPhone 12 Pro or newer with LiDAR."}
+          : "Add rooms manually with measurements. For automatic LiDAR scanning, use the Job-Dox Field iOS app on an iPhone 12 Pro or newer."}
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
         {lidar.supported && (
@@ -466,7 +571,10 @@ function LiDARScanPrompt({ lidar, onManualAdd }) {
             {DDIc.lidar} LiDAR Scan
           </button>
         )}
-        <button className="btn btn-secondary" onClick={onManualAdd}>
+        <button className="btn btn-secondary" onClick={onImportScan}>
+          {DDIc.upload} Import Room Scan
+        </button>
+        <button className="btn btn-ghost" onClick={onManualAdd}>
           {DDIc.plus} Add Rooms Manually
         </button>
       </div>
@@ -663,8 +771,13 @@ export default function DryDoxFloorPlan({
   const [tool, setTool] = useState("select"); // select, pan, point, equip
   const [showGrid, setShowGrid] = useState(true);
   const [addRoomModal, setAddRoomModal] = useState(false);
+  const [importModal, setImportModal] = useState(false);
   const [editRoom, setEditRoom] = useState(null);
   const hasRooms = rooms.length > 0;
+
+  const handleImportRooms = (importedRooms) => {
+    setRooms(prev => [...prev, ...importedRooms]);
+  };
 
   // After LiDAR scan completes, merge results
   useEffect(() => {
@@ -699,7 +812,7 @@ export default function DryDoxFloorPlan({
   return (
     <div>
       {!hasRooms && !lidar.scanning ? (
-        <LiDARScanPrompt lidar={lidar} onManualAdd={() => setAddRoomModal(true)} />
+        <LiDARScanPrompt lidar={lidar} onManualAdd={() => setAddRoomModal(true)} onImportScan={() => setImportModal(true)} />
       ) : (
         <>
           {/* Floor selector */}
@@ -750,6 +863,9 @@ export default function DryDoxFloorPlan({
                 {DDIc.layers} Add Floor
               </button>
             )}
+            <button className="btn btn-ghost btn-xs" onClick={() => setImportModal(true)}>
+              {DDIc.upload} Import
+            </button>
             {lidar.supported && (
               <button className="btn btn-ghost btn-xs" onClick={lidar.startScan}>
                 {DDIc.lidar} Re-scan
@@ -832,8 +948,14 @@ export default function DryDoxFloorPlan({
           onClose={() => setEditRoom(null)}
         />
       )}
+      {importModal && (
+        <ImportScanModal
+          onImport={handleImportRooms}
+          onClose={() => setImportModal(false)}
+        />
+      )}
     </div>
   );
 }
 
-export { FloorPlanCanvas, LiDARScanPrompt, AddRoomModal, EditRoomModal, useLiDAR };
+export { FloorPlanCanvas, LiDARScanPrompt, AddRoomModal, EditRoomModal, ImportScanModal, useLiDAR };
