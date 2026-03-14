@@ -11,6 +11,7 @@ import { TimeOffPanel } from "./JobDoxTimeOff.jsx";
 import DispatchPanel from "./JobDoxDispatch.jsx";
 import html2canvas from "html2canvas";
 import { initializeApp } from "firebase/app";
+import { getAuth, signInAnonymously } from "firebase/auth";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
          doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where, Timestamp } from "firebase/firestore";
 
@@ -22,8 +23,9 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "496631882511",
   appId:             "1:496631882511:web:3f7be61bcbb83a6ab4d47a",
 };
-const _fbApp = initializeApp(FIREBASE_CONFIG);
-const db     = getFirestore(_fbApp);
+const _fbApp  = initializeApp(FIREBASE_CONFIG);
+const db      = getFirestore(_fbApp);
+const fbAuth  = getAuth(_fbApp);
 
 // ── Single-session enforcement ──────────────────────────────────────────────
 // On login we write a random token to activeSessions/{memberstackId}.
@@ -11774,6 +11776,11 @@ export default function JobDoxPortal() {
       // ── Support Mode: detect @job-dox.com staff ──
       if (email.toLowerCase().endsWith("@job-dox.com")) {
         setIsSupportUser(true);
+        // Sign in to Firebase Auth so Firestore security rules see request.auth != null.
+        // This must complete before querying the root companies collection.
+        try { await signInAnonymously(fbAuth); } catch (e) {
+          console.warn("Firebase anonymous sign-in failed:", e);
+        }
         // Load all companies for the selector
         try {
           const snap = await getDocs(collection(db, "companies"));
