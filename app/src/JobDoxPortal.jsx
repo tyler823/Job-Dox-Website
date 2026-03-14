@@ -11851,12 +11851,22 @@ export default function JobDoxPortal() {
       }
 
       // ── Load this user's permission from their staff record ──
-      try {
-        const staffRecord = await fsGetStaff(cid, member.id);
-        const isOwner = cid === member.id;
+      const isOwner = cid === member.id;
 
-        if (isOwner) {
-          // Account owner is ALWAYS admin — create or force-correct the record
+      if (isOwner) {
+        // Account owner is ALWAYS admin — set permission unconditionally
+        setPermission(10);
+        try { localStorage.setItem("jd_current_user", JSON.stringify({ permissionLevel: 10, memberId: member.id })); } catch {}
+
+        // Pre-populate company info from Memberstack if not already saved
+        const existingCo = loadCoInfo();
+        if (!existingCo.name && member.customFields?.["company-name"]) {
+          saveCoInfo({ ...existingCo, name: member.customFields["company-name"] });
+        }
+
+        // Create or force-correct the staff record (failure is non-fatal)
+        try {
+          const staffRecord = await fsGetStaff(cid, member.id);
           const needsWrite = !staffRecord || normPerm(staffRecord.permission) !== 10;
           if (needsWrite) {
             await fsSetStaff(cid, member.id, {
@@ -11872,19 +11882,17 @@ export default function JobDoxPortal() {
               joinedAt:   staffRecord?.joinedAt || new Date().toISOString(),
             });
           }
-          // Pre-populate company info from Memberstack if not already saved
-          const existingCo = loadCoInfo();
-          if (!existingCo.name && member.customFields?.["company-name"]) {
-            saveCoInfo({ ...existingCo, name: member.customFields["company-name"] });
+        } catch(e) { console.warn("Staff record sync failed for owner:", e); }
+      } else {
+        try {
+          const staffRecord = await fsGetStaff(cid, member.id);
+          if (staffRecord) {
+            const lv = normPerm(staffRecord.permission ?? 3);
+            setPermission(lv);
+            try { localStorage.setItem("jd_current_user", JSON.stringify({ permissionLevel: lv, memberId: member.id })); } catch {}
           }
-          setPermission(10);
-          try { localStorage.setItem("jd_current_user", JSON.stringify({ permissionLevel: 10, memberId: member.id })); } catch {}
-        } else if (staffRecord) {
-          const lv = normPerm(staffRecord.permission ?? 3);
-          setPermission(lv);
-          try { localStorage.setItem("jd_current_user", JSON.stringify({ permissionLevel: lv, memberId: member.id })); } catch {}
-        }
-      } catch(e) { console.warn("Staff record load failed:", e); }
+        } catch(e) { console.warn("Staff record load failed:", e); }
+      }
 
       // ── Stream projects ──
       const pq = query(collection(db, "companies", cid, "projects"), orderBy("createdAt","desc"));
