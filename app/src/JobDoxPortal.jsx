@@ -10181,6 +10181,66 @@ function VendorManagerTab({ projects=[], globalStaff=[], companyId="" }) {
   );
 }
 
+function FeatureRequestForm({ userName, companyName }) {
+  const [request, setRequest] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent]       = useState(false);
+  const [error, setError]     = useState("");
+
+  const handleSubmit = async () => {
+    if (!request.trim()) return;
+    setSending(true);
+    setError("");
+    try {
+      const res = await fetch(`${NETLIFY}/send-feature-request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userName: userName || "Unknown User", companyName: companyName || "Unknown Company", featureRequest: request.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send");
+      setSent(true);
+      setRequest("");
+    } catch (e) {
+      setError(e.message || "Something went wrong. Please try again.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="card" style={{padding:28}}>
+      <div style={{fontSize:15,fontWeight:700,color:"var(--t1)",marginBottom:4}}>Request a Feature</div>
+      <div style={{fontSize:11,color:"var(--t3)",marginBottom:18}}>Have an idea that would make Job-Dox better? Let us know below.</div>
+      {sent ? (
+        <div style={{textAlign:"center",padding:"32px 0"}}>
+          <div style={{fontSize:28,marginBottom:8}}>&#10003;</div>
+          <div style={{fontSize:13,fontWeight:600,color:"var(--t1)",marginBottom:4}}>Thank you!</div>
+          <div style={{fontSize:11,color:"var(--t3)",marginBottom:16}}>Your feature request has been submitted. We review every suggestion.</div>
+          <button className="btn" style={{fontSize:11}} onClick={()=>setSent(false)}>Submit Another</button>
+        </div>
+      ) : (
+        <>
+          <textarea
+            className="inp"
+            rows={6}
+            placeholder="Describe the feature you'd like to see..."
+            value={request}
+            onChange={e=>setRequest(e.target.value)}
+            style={{resize:"vertical",minHeight:100,fontSize:12,lineHeight:1.5}}
+          />
+          {error && <div style={{color:"#ef4444",fontSize:11,marginTop:6}}>{error}</div>}
+          <div style={{display:"flex",justifyContent:"flex-end",marginTop:12}}>
+            <button className="btn" disabled={sending || !request.trim()} onClick={handleSubmit} style={{fontSize:11,opacity:sending||!request.trim()?0.5:1}}>
+              {sending ? "Sending..." : "Submit Feature Request"}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission=1, currentMemberId, currentMemberName, onPermissionChange, offices=[], projects=[] }) {
   const [tab,      setTab]      = useState("staff");
   const [editId,   setEditId]   = useState(null);
@@ -10355,7 +10415,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     </div>
   );
 
-  const TABS = [["staff","Staff"],["vendors","Vendors"],["offices","Offices"],["phone","Phone & Calls"],["cortex","CortexAI"],["coins","Cortex Coins"],["general","General"],["roadmap","Roadmap"]];
+  const TABS = [["staff","Staff"],["vendors","Vendors"],["offices","Offices"],["phone","Phone & Calls"],["cortex","CortexAI"],["coins","Cortex Coins"],["general","General"],["roadmap","Feature Request"]];
 
   return (
     <div className="scroll" style={{flex:1,overflow:"auto"}}>
@@ -11022,10 +11082,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
           </div>
         ))}
         {tab==="roadmap" && (
-          <div className="card" style={{padding:28,textAlign:"center",color:"var(--t3)"}}>
-            <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>Feature Roadmap</div>
-            <div style={{fontSize:11}}>Vote for upcoming features — coming soon.</div>
-          </div>
+          <FeatureRequestForm userName={currentMemberName} companyName={loadCoInfo().name} />
         )}
       </div>
     </div>
