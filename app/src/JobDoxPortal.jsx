@@ -5263,12 +5263,23 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
                 <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>
                   {doc.date ? new Date(doc.date).toLocaleDateString() : ""}
                   {doc.total ? ` · ${fmt$c(doc.total)}` : ""}
+                  {doc.source==="ContentsDox" && doc.itemCount ? ` · ${doc.itemCount} items` : ""}
+                  {doc.source==="ContentsDox" && doc.totalRCV ? ` · RCV ${fmt$c(doc.totalRCV)}` : ""}
                 </div>
               </div>
               <div style={{display:"flex",gap:6,flexShrink:0}}>
                 {doc._inv && (
                   <button className="btn btn-secondary btn-xs" onClick={()=>setSelInv(doc._inv)}>
                     View
+                  </button>
+                )}
+                {doc.html && doc.source==="ContentsDox" && (
+                  <button className="btn btn-secondary btn-xs" onClick={()=>{
+                    const w = window.open("","_blank");
+                    w.document.write(doc.html);
+                    w.document.close();
+                  }}>
+                    View / Download
                   </button>
                 )}
                 <button className="btn btn-ghost btn-xs" style={{color:"var(--blue)"}}
@@ -7095,7 +7106,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       </div>
       {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff} worktypes={worktypes} setWorktypes={setWorktypes} currentUser={currentUser} assignedStaff={assignedStaff} setAssignedStaff={setAssignedStaff} canArchive={canArchive} onArchive={onArchive} onBack={onBack}/>}
       {tab==="drydox"         && <DryDoxModule    proj={proj} priceLists={priceLists} onPushToScope={handlePushToScope} companyLogo={coInfo?.logo}/>}
-      {tab==="contentsdox"    && <ContentsDox proj={proj} companyId={companyId} db={db}/>}
+      {tab==="contentsdox"    && <ContentsDox proj={proj} companyId={companyId} db={db} onDocGenerated={()=>setDocRefreshKey(k=>k+1)}/>}
       {tab==="estimatedox"    && <EstimateDoxTab proj={proj}/>}
       {tab==="contacts"       && <ContactsTab contacts={contacts} setContacts={setContacts}/>}
       {tab==="media"          && <MediaTab       folders={mediaFolders} setFolders={setMediaFolders} uploads={mediaUploads} setUploads={setMediaUploads}/>}
