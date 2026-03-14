@@ -1293,6 +1293,35 @@ async function fsLoadVendorBills(companyId) {
 // Global companyId reference for use by helper functions that don't have it in scope
 let _globalCompanyId = null;
 
+// ── Company data isolation ──────────────────────────────────────────────────
+// All company-specific localStorage keys. When a different company logs in on
+// the same browser, every one of these must be cleared so data from Company A
+// never leaks into Company B.  The keys are then repopulated from Firestore.
+const LS_COMPANY_KEYS = [
+  "jd_company_worktypes", "jd_company_statuses", "jd_company_project_types",
+  "jd_company_info", "jd_company_offices", "jd_billing_settings",
+  "jd_budget_templates", "jd_invoices", "jd_proj_docs", "jd_proj_msgs",
+  "jd_vendors", "jd_vendor_bills", "jd_workflow_templates", "jd_activity_log",
+  "jd_staff", "jd_company_config", "jd_project_budgets", "jd_cortex_worktypes",
+  "jd_current_user", "jd_payroll_rates", "jd_employee_rates", "jd_qbo_settings",
+  "jd_doc_templates", "jd_documents", "jd_employee_rate_overrides",
+  "jd_dispatch_geocache",
+];
+const LS_ACTIVE_COMPANY = "jd_active_company";
+
+/**
+ * Clear all company-specific localStorage when switching companies.
+ * Also clears any company-scoped dispatch keys from the previous company.
+ */
+function clearCompanyLocalStorage(previousCompanyId) {
+  LS_COMPANY_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch {} });
+  // Clear dispatch keys scoped to the previous company
+  if (previousCompanyId) {
+    try { localStorage.removeItem(`jd_dispatch_appointments_${previousCompanyId}`); } catch {}
+    try { localStorage.removeItem(`jd_dispatch_resources_${previousCompanyId}`); } catch {}
+  }
+}
+
 function Av({ name, color, size=34 }) {
   const init = (name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
   return <div style={{width:size,height:size,borderRadius:"50%",background:color||"var(--s4)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.34,fontWeight:700,flexShrink:0,letterSpacing:"-0.5px"}}>{init}</div>;
@@ -11801,6 +11830,25 @@ export default function JobDoxPortal() {
         } catch(e) { console.warn("Invite acceptance failed:", e); }
       }
 
+      // ── Data isolation: clear localStorage if the company changed ──
+      // This prevents Company A's staff, offices, billing, etc. from appearing
+      // when Company B logs in on the same browser.
+      const prevCompany = localStorage.getItem(LS_ACTIVE_COMPANY);
+      if (prevCompany && prevCompany !== cid) {
+        clearCompanyLocalStorage(prevCompany);
+        // Reset React state that was initialized from (now-stale) localStorage
+        setGlobalStaff([]);
+        setOffices([]);
+        setCustomWorkTypes([]);
+        setCustomStatuses([]);
+        setCustomProjectTypes([]);
+        setCoInfo(DEFAULT_CO_INFO);
+        setProjects([]);
+        setPendingInvites([]);
+        setReviewRequests([]);
+      }
+      localStorage.setItem(LS_ACTIVE_COMPANY, cid);
+
       // ── Load this user's permission from their staff record ──
       try {
         const staffRecord = await fsGetStaff(cid, member.id);
@@ -11960,6 +12008,8 @@ export default function JobDoxPortal() {
       watchPortalSession(member.id, async () => {
         // Another device/browser logged in — sign out here
         if (_portalSessionUnsub) { _portalSessionUnsub(); _portalSessionUnsub = null; }
+        clearCompanyLocalStorage(cid);
+        try { localStorage.removeItem(LS_ACTIVE_COMPANY); } catch {}
         try { await window.$memberstackDom.logout(); } catch(e) {}
         // Only clear session markers — data lives in Firestore
         try { sessionStorage.removeItem("jd_portal_active"); } catch {}
@@ -11985,6 +12035,8 @@ export default function JobDoxPortal() {
           const fromStripe = params.has("stripe");
           const fromInvite = params.has("invite");
           if (!wasActive && !fromLogin && !fromStripe && !fromInvite) {
+            clearCompanyLocalStorage(localStorage.getItem(LS_ACTIVE_COMPANY));
+            try { localStorage.removeItem(LS_ACTIVE_COMPANY); } catch {}
             try { await window.$memberstackDom.logout(); } catch(e) {}
             // Only clear session markers — data lives in Firestore
             try { sessionStorage.removeItem("jd_portal_active"); } catch {}
@@ -12002,6 +12054,8 @@ export default function JobDoxPortal() {
       window.$memberstackDom.onAuthChange((member) => {
         if (!member) {
           if (_portalSessionUnsub) { _portalSessionUnsub(); _portalSessionUnsub = null; }
+          clearCompanyLocalStorage(localStorage.getItem(LS_ACTIVE_COMPANY));
+          try { localStorage.removeItem(LS_ACTIVE_COMPANY); } catch {}
           // Only clear session markers — data lives in Firestore now
           try { sessionStorage.removeItem("jd_portal_active"); } catch {}
           window.location.href = "https://job-dox.ai";
@@ -12251,6 +12305,9 @@ export default function JobDoxPortal() {
           </>;
         })()}
         <button className="rail-btn" data-tip="Sign Out" onClick={async()=>{
+          // Clear company data from localStorage on logout to prevent data leaking to next user
+          clearCompanyLocalStorage(companyId);
+          try { localStorage.removeItem(LS_ACTIVE_COMPANY); } catch {}
           try {
             await window.$memberstackDom.logout();
           } catch(e) {
