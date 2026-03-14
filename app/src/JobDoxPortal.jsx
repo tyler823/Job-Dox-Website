@@ -94,9 +94,10 @@ async function callFn(name, data) {
   if (!res.ok) throw new Error(json.error || `${name} failed (${res.status})`);
   return json;
 }
-const sendSMS           = data => callFn("send-sms",            data);
-const initiateCall      = data => callFn("initiate-call",       data);
-const savePhoneSettings = data => callFn("save-phone-settings", data);
+const sendSMS            = data => callFn("send-sms",             data);
+const sendReviewRequest  = data => callFn("send-review-request", data);
+const initiateCall       = data => callFn("initiate-call",       data);
+const savePhoneSettings  = data => callFn("save-phone-settings", data);
 
 /* ── Google Maps key — restrict this to your domain in Google Cloud Console ── */
 const GMAPS_KEY = "AIzaSyB63wo4pFCRReosTWPlkZ6eETg7zdPaQpM"; // ← replace with real key
@@ -989,6 +990,10 @@ function fsListenOffices(companyId, cb) {
   const q = collection(db, "companies", companyId, "offices");
   return onSnapshot(q, snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
 }
+function fsListenReviewRequests(companyId, cb) {
+  const q = query(collection(db, "companies", companyId, "reviewRequests"), orderBy("createdAt", "desc"));
+  return onSnapshot(q, snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+}
 async function fsSetOffice(companyId, officeId, data) {
   await setDoc(doc(db, "companies", companyId, "offices", officeId), data, { merge: true });
 }
@@ -1804,6 +1809,148 @@ function CommModal({ proj, onClose, currentUser, phoneSettings={}, companyId="" 
                   : <>{Ic.sms} Send SMS</>}
               </button>
             )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ReviewRequestModal({ proj, onClose, offices=[], phoneSettings={}, companyId="", currentUser={} }) {
+  const [sending, setSending]     = useState(false);
+  const [sent, setSent]           = useState(false);
+  const [sendError, setSendError] = useState("");
+  const [customMsg, setCustomMsg] = useState("");
+  const coName = loadCoInfo().name;
+
+  // Find the office assigned to this project and its Google Business URL
+  const office = offices.find(o => o.id === proj.officeId);
+  const googleUrl = office?.googleBusinessUrl || "";
+  const clientPhone = proj.clientPhone || "";
+  const clientName = proj.client || proj.clientName || "";
+
+  const doSend = async () => {
+    if (!clientPhone) { setSendError("No client phone number on this project."); return; }
+    if (!googleUrl) { setSendError("No Google Business review URL configured for this office. Add one in Settings → Offices."); return; }
+    setSending(true);
+    setSendError("");
+    try {
+      await sendReviewRequest({
+        to:               clientPhone,
+        from:             phoneSettings?.twilioNumber || "",
+        clientName,
+        companyName:      coName,
+        googleBusinessUrl: googleUrl,
+        customMessage:    customMsg.trim() || undefined,
+        companyId,
+        projectId:        proj.id,
+        projectName:      proj.name || proj.address || "",
+        officeId:         office?.id || "",
+        officeName:       office?.name || "",
+        sentBy:           currentUser?.id || "",
+        sentByName:       currentUser?.name || "",
+      });
+      setSent(true);
+      setTimeout(onClose, 3000);
+    } catch (err) {
+      setSendError(err?.message || "Failed to send review request.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const previewMsg = customMsg.trim() || (() => {
+    const greeting = clientName ? `Hi ${clientName.split(" ")[0]}, t` : "T";
+    const co = coName || "our team";
+    return `${greeting}hank you for choosing ${co}! We'd love to hear about your experience. Would you mind leaving us a quick review? It only takes a moment:\n\n${googleUrl || "[Google Review Link]"}\n\nYour feedback helps us serve our community better. Thank you!`;
+  })();
+
+  return (
+    <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="modal modal-sm anim">
+        <div className="modal-hd">
+          <div>
+            <div className="modal-ttl">{sent ? "Review Request Sent!" : "Request Google Review"}</div>
+            <div style={{fontSize:11,color:"var(--t3)",marginTop:1}}>{proj.name || proj.address}</div>
+          </div>
+          <button className="btn btn-ghost btn-xs" onClick={onClose}>{Ic.close}</button>
+        </div>
+        <div className="modal-body">
+          {sent ? (
+            <div style={{textAlign:"center",padding:"24px 0"}}>
+              <div style={{width:52,height:52,borderRadius:"50%",background:"rgba(66,133,244,.12)",border:"2px solid #4285f4",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",color:"#4285f4",fontSize:22}}>
+                {Ic.check}
+              </div>
+              <div style={{fontWeight:700,fontSize:15}}>Review request sent!</div>
+              <div style={{fontSize:12,color:"var(--t2)",marginTop:4}}>Delivered to {clientPhone}</div>
+              {office && <div style={{fontSize:10,color:"var(--t3)",marginTop:4}}>Office: {office.name}</div>}
+            </div>
+          ) : (
+            <>
+              {/* Status checks */}
+              <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:14}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderRadius:8,
+                  background: clientPhone ? "rgba(26,217,138,.06)" : "rgba(228,53,49,.06)",
+                  border: `1px solid ${clientPhone ? "rgba(26,217,138,.2)" : "rgba(228,53,49,.2)"}`}}>
+                  <span style={{color: clientPhone ? "var(--green)" : "var(--acc)", fontSize:13}}>{clientPhone ? "✓" : "✕"}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:11,fontWeight:600,color:"var(--t1)"}}>Client Phone</div>
+                    <div style={{fontSize:10,color:"var(--t2)"}}>{clientPhone || "No phone number — add in project details"}</div>
+                  </div>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderRadius:8,
+                  background: office ? "rgba(26,217,138,.06)" : "rgba(232,156,24,.06)",
+                  border: `1px solid ${office ? "rgba(26,217,138,.2)" : "rgba(232,156,24,.2)"}`}}>
+                  <span style={{color: office ? "var(--green)" : "var(--amber)", fontSize:13}}>{office ? "✓" : "⚠"}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:11,fontWeight:600,color:"var(--t1)"}}>Office</div>
+                    <div style={{fontSize:10,color:"var(--t2)"}}>{office ? office.name : "No office assigned to this project"}</div>
+                  </div>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderRadius:8,
+                  background: googleUrl ? "rgba(66,133,244,.06)" : "rgba(228,53,49,.06)",
+                  border: `1px solid ${googleUrl ? "rgba(66,133,244,.2)" : "rgba(228,53,49,.2)"}`}}>
+                  <span style={{color: googleUrl ? "#4285f4" : "var(--acc)", fontSize:13}}>{googleUrl ? "★" : "✕"}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:11,fontWeight:600,color:"var(--t1)"}}>Google Business Review URL</div>
+                    <div style={{fontSize:10,color:"var(--t2)",wordBreak:"break-all"}}>{googleUrl || "Not configured — add in Settings → Offices"}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Message preview */}
+              <div>
+                <label className="lbl">Message Preview</label>
+                <div style={{background:"var(--s3)",borderRadius:8,padding:"12px 14px",fontSize:11,color:"var(--t2)",
+                  lineHeight:1.7,whiteSpace:"pre-wrap",border:"1px solid var(--br)",maxHeight:160,overflow:"auto"}}>
+                  {previewMsg}
+                </div>
+              </div>
+
+              {/* Custom message override */}
+              <div>
+                <label className="lbl">Custom Message <span style={{color:"var(--t3)",fontWeight:400,textTransform:"none",letterSpacing:0}}>(optional — leave blank for default)</span></label>
+                <textarea className="txa" value={customMsg} onChange={e=>setCustomMsg(e.target.value)}
+                  placeholder="Write a custom message… the Google review link will be included automatically if you mention it."
+                  style={{minHeight:64}}/>
+              </div>
+
+              {sendError && (
+                <div style={{fontSize:11,color:"var(--acc)",background:"var(--acc-lo)",borderRadius:7,padding:"7px 10px",border:"1px solid rgba(228,53,49,.2)"}}>{sendError}</div>
+              )}
+            </>
+          )}
+        </div>
+        {!sent && (
+          <div className="modal-ft">
+            <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary" onClick={doSend}
+              disabled={sending || !clientPhone || !googleUrl}
+              style={{background:"#4285f4",borderColor:"#4285f4"}}>
+              {sending
+                ? <><span style={{width:11,height:11,border:"2px solid rgba(255,255,255,.3)",borderTopColor:"#fff",borderRadius:"50%",animation:"jd-spin .7s linear infinite",display:"inline-block"}}/> Sending…</>
+                : <>★ Send Review Request</>}
+            </button>
           </div>
         )}
       </div>
@@ -7092,7 +7239,7 @@ const PROJ_TABS = [
 
 
 
-function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists, companyId="", phoneSettings={}, isVendor=false, currentMemberId="", onNavigate, canArchive=false, onArchive, coInfo={} }) {
+function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists, companyId="", phoneSettings={}, isVendor=false, currentMemberId="", onNavigate, canArchive=false, onArchive, coInfo={}, offices=[] }) {
   const [tab,setTab]           = useState(initialTab||"overview");
   // Sync when initialTab prop changes (e.g. user clicks a nav button while project is already open)
   const prevInitialTab = useRef(initialTab);
@@ -7105,6 +7252,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
   const [notifyModal,setNotify]= useState(false);
   const [commModal,setComm]    = useState(false);
   const [clockModal,setClock]  = useState(false);
+  const [reviewModal,setReview]= useState(false);
   // ── All shared tab state is now persisted via useProjState ──
   // useProjState(projId, key, fallback) saves to localStorage automatically
   // and re-loads when navigating between projects.
@@ -7150,6 +7298,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       {clockModal  && <ClockInModal proj={proj} clockInState={clockInState} onClockIn={onClockIn} onClockOut={onClockOut} onClose={()=>setClock(false)} currentUser={currentUser} canViewRates={canViewRates}/>}
       {notifyModal && <NotifyModal proj={proj} onClose={()=>setNotify(false)} globalStaff={globalStaff}/>}
       {commModal   && <CommModal    proj={proj} onClose={()=>setComm(false)} currentUser={currentUser} phoneSettings={phoneSettings} companyId={companyId}/>}
+      {reviewModal && <ReviewRequestModal proj={proj} onClose={()=>setReview(false)} offices={offices} phoneSettings={phoneSettings} companyId={companyId} currentUser={currentUser}/>}
       <div className="topbar">
         <div style={{display:"flex",alignItems:"center",gap:11}}>
           <button className="back-btn" onClick={onBack}>{Ic.back} Projects</button>
@@ -7172,6 +7321,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
           <span className="proj-detail-btns-secondary" style={{display:"contents"}}>
             <button className="btn btn-ghost btn-xs" onClick={openMaps}>{Ic.map} Navigate</button>
             <button className="btn btn-xs" onClick={()=>setComm(true)} style={{background:"rgba(232,156,24,.1)",border:"1px solid rgba(232,156,24,.25)",color:"var(--amber)"}}>{Ic.phone} Contact</button>
+            <button className="btn btn-xs" onClick={()=>setReview(true)} style={{background:"rgba(66,133,244,.1)",border:"1px solid rgba(66,133,244,.25)",color:"#4285f4"}}>★ Review</button>
           </span>
         </div>
       </div>
@@ -9410,7 +9560,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
   const [inviteForm, setInviteForm] = useState({ email:"", permission:3 });
 
   // ── Offices local state (mirrors Firestore via prop) ──
-  const officeBlank = { name:"", street:"", street2:"", city:"", state:"", zip:"", color:"#22d3ee", lat:null, lng:null };
+  const officeBlank = { name:"", street:"", street2:"", city:"", state:"", zip:"", color:"#22d3ee", lat:null, lng:null, googleBusinessUrl:"" };
   const [officeForm, setOfficeForm] = useState(officeBlank);
   const [officeEditId, setOfficeEditId] = useState(null);
   const [showOfficeForm, setShowOfficeForm] = useState(false);
@@ -9515,7 +9665,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     setOfficeGeoStatus(null);
   };
   const openEditOffice = o => {
-    setOfficeForm({ name:o.name||"", street:o.street||"", street2:o.street2||"", city:o.city||"", state:o.state||"", zip:o.zip||"", color:o.color||"#22d3ee", lat:o.lat||null, lng:o.lng||null });
+    setOfficeForm({ name:o.name||"", street:o.street||"", street2:o.street2||"", city:o.city||"", state:o.state||"", zip:o.zip||"", color:o.color||"#22d3ee", lat:o.lat||null, lng:o.lng||null, googleBusinessUrl:o.googleBusinessUrl||"" });
     setOfficeEditId(o.id);
     setShowOfficeForm(true);
     setOfficeError("");
@@ -10068,6 +10218,19 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                   </div>
                 </div>
 
+                {/* Google Business Profile URL */}
+                <div style={{marginBottom:14}}>
+                  <label className="lbl">Google Business Review URL</label>
+                  <input className="inp" value={officeForm.googleBusinessUrl||""}
+                    onChange={e=>setOfficeForm(f=>({...f,googleBusinessUrl:e.target.value}))}
+                    placeholder="https://g.page/r/YOUR_ID/review"
+                    style={{fontFamily:"var(--mono)",fontSize:11}}/>
+                  <div style={{fontSize:10,color:"var(--t3)",marginTop:4,lineHeight:1.5}}>
+                    Paste your Google Business Profile review link here. This will be used when sending review requests to clients for this office.
+                    Find it in your Google Business Profile under "Ask for reviews" or "Get more reviews".
+                  </div>
+                </div>
+
                 {/* Color */}
                 <div style={{marginBottom:14}}>
                   <label className="lbl">Office Color</label>
@@ -10134,6 +10297,19 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                               background:"rgba(232,156,24,.1)",border:"1px solid rgba(232,156,24,.25)",
                               padding:"2px 7px",borderRadius:5}}>
                               ⚠ NO COORDINATES — auto-assign disabled
+                            </span>
+                          )}
+                          {o.googleBusinessUrl ? (
+                            <span style={{fontSize:9,color:"#4285f4",fontFamily:"var(--mono)",
+                              background:"rgba(66,133,244,.1)",border:"1px solid rgba(66,133,244,.25)",
+                              padding:"2px 7px",borderRadius:5}}>
+                              ★ Google Reviews
+                            </span>
+                          ) : (
+                            <span style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",
+                              background:"var(--s3)",border:"1px solid var(--br)",
+                              padding:"2px 7px",borderRadius:5}}>
+                              No review link
                             </span>
                           )}
                         </div>
@@ -10238,6 +10414,7 @@ export default function JobDoxPortal() {
   const [globalStaff,      setGlobalStaff]     = useState([]);
   const [pendingInvites,   setPendingInvites]   = useState([]);
   const [offices,          setOffices]          = useState([]);
+  const [reviewRequests,   setReviewRequests]  = useState([]);
   const [companyId,        setCompanyId]       = useState(null);
   const [currentMember,    setCurrentMember]   = useState(null); // Memberstack member object
   const [priceLists,       setPriceLists]      = useState(INITIAL_PRICE_LISTS);
@@ -10274,6 +10451,7 @@ export default function JobDoxPortal() {
     let unsubStaff    = null;
     let unsubInvites  = null;
     let unsubOffices  = null;
+    let unsubReviews  = null;
 
     async function initMember(member) {
       setCurrentMember(member);
@@ -10380,6 +10558,11 @@ export default function JobDoxPortal() {
         syncStaffToLS(JSON.parse(localStorage.getItem("jd_staff") || "[]"), list);
       });
 
+      // ── Stream review requests (for Reputation report) ──
+      unsubReviews = fsListenReviewRequests(cid, list => {
+        setReviewRequests(list);
+      });
+
       // ── Load phone settings (one-time, not a stream — changes rarely) ──
       getDoc(doc(db, `companies/${cid}/settings/phone`)).then(snap => {
         if (snap.exists()) setPhoneSettings(snap.data());
@@ -10468,6 +10651,7 @@ export default function JobDoxPortal() {
       if (unsubStaff)    unsubStaff();
       if (unsubInvites)  unsubInvites();
       if (unsubOffices)  unsubOffices();
+      if (unsubReviews)  unsubReviews();
       if (_portalSessionUnsub) _portalSessionUnsub();
       window.removeEventListener("pagehide", _onPageHide);
       document.removeEventListener("visibilitychange", _onVisibilityHidden);
@@ -10813,6 +10997,8 @@ export default function JobDoxPortal() {
             customStatuses={customStatuses}
             customProjectTypes={customProjectTypes}
             priceLists={priceLists}
+            reviewRequests={reviewRequests}
+            offices={offices}
           />
         ) : page==="finance" ? (
           <FinancialDashboard
@@ -10855,6 +11041,7 @@ export default function JobDoxPortal() {
             canArchive={canArchiveProject}
             onArchive={handleArchiveProject}
             coInfo={coInfo}
+            offices={offices}
           />
         ) : (
           <PortfolioPage

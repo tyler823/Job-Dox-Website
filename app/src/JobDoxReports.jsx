@@ -158,6 +158,7 @@ const RIc = {
   download: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
   filter:   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
   equip:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>,
+  star:     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
 };
 
 
@@ -226,6 +227,7 @@ const REPORT_TABS = [
   { key:"board",    label:"Whiteboard", icon: RIc.board    },
   { key:"ai",       label:"AI Insights",icon: RIc.ai       },
   { key:"equip",    label:"Equip Mismatch",icon: RIc.equip },
+  { key:"reputation", label:"Reputation", icon: RIc.star },
 ];
 
 
@@ -1527,9 +1529,385 @@ function EquipmentMismatchReport({ data, priceLists }) {
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   8. REPUTATION MANAGEMENT
+   Shows review requests, ratings, and which projects lack reviews.
+═══════════════════════════════════════════════════════════════════════════ */
+function ReputationReport({ data, reviewRequests=[], offices=[] }) {
+  const [fOffice, setFOffice]   = useState("All");
+  const [fStatus, setFStatus]   = useState("All");
+  const [fPeriod, setFPeriod]   = useState("all_time");
+  const [expanded, setExpanded] = useState(null);
+
+  // Filter review requests
+  const filtered = useMemo(() => {
+    let list = [...reviewRequests];
+    if (fOffice !== "All") list = list.filter(r => r.officeId === fOffice);
+    if (fStatus !== "All") list = list.filter(r => r.status === fStatus);
+    if (fPeriod !== "all_time") {
+      const range = getDateRange(fPeriod);
+      if (range) {
+        const from = new Date(range.from).getTime();
+        const to   = new Date(range.to).getTime() + 86400000;
+        list = list.filter(r => {
+          const ts = r.createdAt?.toDate ? r.createdAt.toDate().getTime()
+                   : r.createdAt?.seconds ? r.createdAt.seconds * 1000
+                   : 0;
+          return ts >= from && ts < to;
+        });
+      }
+    }
+    return list;
+  }, [reviewRequests, fOffice, fStatus, fPeriod]);
+
+  // KPIs
+  const totalSent       = filtered.length;
+  const totalReceived   = filtered.filter(r => r.status === "review_received").length;
+  const totalNoResponse = filtered.filter(r => r.status === "sent").length;
+  const totalFailed     = filtered.filter(r => r.status === "failed").length;
+  const responseRate    = totalSent > 0 ? ((totalReceived / totalSent) * 100).toFixed(1) : "0.0";
+
+  // Ratings breakdown
+  const withRating = filtered.filter(r => r.reviewRating != null);
+  const avgRating  = withRating.length > 0
+    ? (withRating.reduce((s, r) => s + (r.reviewRating || 0), 0) / withRating.length).toFixed(1)
+    : "—";
+  const ratingDist = [5,4,3,2,1].map(n => ({
+    stars: n,
+    count: withRating.filter(r => Math.round(r.reviewRating) === n).length,
+  }));
+  const maxRatingCount = Math.max(1, ...ratingDist.map(r => r.count));
+
+  // Projects with no review requests
+  const projectsWithRequests = new Set(reviewRequests.map(r => r.projectId).filter(Boolean));
+  const completedStatuses = ["completed","closed"];
+  const projectsNoRequest = data.filter(p =>
+    completedStatuses.includes(p.status) && !projectsWithRequests.has(p.id)
+  );
+
+  // Projects with request sent but no review received
+  const sentButNoReview = [...new Map(
+    filtered.filter(r => r.status === "sent")
+      .map(r => [r.projectId, r])
+  ).values()];
+
+  // Office breakdown
+  const officeStats = useMemo(() => {
+    const map = {};
+    for (const o of offices) {
+      map[o.id] = { name: o.name, color: o.color || "#22d3ee", sent: 0, received: 0, totalRating: 0, ratingCount: 0, hasUrl: !!o.googleBusinessUrl };
+    }
+    for (const r of reviewRequests) {
+      if (r.officeId && map[r.officeId]) {
+        map[r.officeId].sent++;
+        if (r.status === "review_received") {
+          map[r.officeId].received++;
+          if (r.reviewRating != null) {
+            map[r.officeId].totalRating += r.reviewRating;
+            map[r.officeId].ratingCount++;
+          }
+        }
+      }
+    }
+    return Object.entries(map).map(([id, v]) => ({
+      id, ...v,
+      avgRating: v.ratingCount > 0 ? (v.totalRating / v.ratingCount).toFixed(1) : "—",
+      responseRate: v.sent > 0 ? ((v.received / v.sent) * 100).toFixed(0) : "0",
+    }));
+  }, [offices, reviewRequests]);
+
+  const formatDate = (ts) => {
+    if (!ts) return "—";
+    const d = ts.toDate ? ts.toDate() : ts.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
+    return d.toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" });
+  };
+
+  const starDisplay = (rating) => {
+    if (rating == null) return "—";
+    const full  = Math.floor(rating);
+    const stars = "★".repeat(full) + "☆".repeat(5 - full);
+    return <span style={{color:"#f59e0b",letterSpacing:1}}>{stars} <span style={{color:"var(--t2)",fontFamily:"var(--mono)",fontSize:10}}>{Number(rating).toFixed(1)}</span></span>;
+  };
+
+  return (
+    <div>
+      {/* Filters */}
+      <div className="rpt-filter-row">
+        <label>{RIc.filter} Filters</label>
+        <select className="rpt-sel" value={fOffice} onChange={e=>setFOffice(e.target.value)}>
+          <option value="All">All Offices</option>
+          {offices.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+        </select>
+        <select className="rpt-sel" value={fStatus} onChange={e=>setFStatus(e.target.value)}>
+          <option value="All">All Statuses</option>
+          <option value="sent">Sent — Awaiting Review</option>
+          <option value="review_received">Review Received</option>
+          <option value="failed">Failed to Send</option>
+        </select>
+        <select className="rpt-sel" value={fPeriod} onChange={e=>setFPeriod(e.target.value)}>
+          <option value="all_time">All Time</option>
+          <option value="this_month">This Month</option>
+          <option value="last_month">Last Month</option>
+          <option value="this_quarter">This Quarter</option>
+          <option value="this_year">This Year</option>
+        </select>
+      </div>
+
+      {/* KPIs */}
+      <div className="rpt-kpi-row">
+        <div className="rpt-kpi">
+          <div className="rpt-kpi-label">Requests Sent</div>
+          <div className="rpt-kpi-val">{totalSent}</div>
+          {totalFailed > 0 && <div className="rpt-kpi-sub" style={{color:"var(--acc)"}}>{totalFailed} failed</div>}
+        </div>
+        <div className="rpt-kpi">
+          <div className="rpt-kpi-label">Reviews Received</div>
+          <div className="rpt-kpi-val" style={{color:"var(--green)"}}>{totalReceived}</div>
+          <div className="rpt-kpi-sub">{responseRate}% response rate</div>
+        </div>
+        <div className="rpt-kpi">
+          <div className="rpt-kpi-label">Awaiting Response</div>
+          <div className="rpt-kpi-val" style={{color:"var(--amber)"}}>{totalNoResponse}</div>
+        </div>
+        <div className="rpt-kpi">
+          <div className="rpt-kpi-label">Avg Rating</div>
+          <div className="rpt-kpi-val" style={{color:"#f59e0b"}}>{avgRating === "—" ? "—" : `${avgRating} ★`}</div>
+          <div className="rpt-kpi-sub">{withRating.length} rated</div>
+        </div>
+      </div>
+
+      {/* Rating Distribution */}
+      {withRating.length > 0 && (
+        <div className="rpt-card">
+          <div className="rpt-card-hd">Rating Distribution</div>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {ratingDist.map(r => (
+              <div key={r.stars} style={{display:"flex",alignItems:"center",gap:10}}>
+                <span style={{fontSize:11,fontWeight:600,color:"#f59e0b",width:44,textAlign:"right"}}>
+                  {r.stars} ★
+                </span>
+                <div className="rpt-bar" style={{flex:1}}>
+                  <div className="rpt-bar-fill" style={{
+                    width: `${(r.count / maxRatingCount) * 100}%`,
+                    background: r.stars >= 4 ? "var(--green)" : r.stars === 3 ? "var(--amber)" : "var(--acc)",
+                  }}/>
+                </div>
+                <span style={{fontSize:10,fontFamily:"var(--mono)",color:"var(--t2)",width:30}}>{r.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Office Breakdown */}
+      {offices.length > 0 && (
+        <div className="rpt-card">
+          <div className="rpt-card-hd">Performance by Office</div>
+          <table className="rpt-tbl">
+            <thead>
+              <tr>
+                <th>Office</th>
+                <th>Review Link</th>
+                <th>Sent</th>
+                <th>Received</th>
+                <th>Response Rate</th>
+                <th>Avg Rating</th>
+              </tr>
+            </thead>
+            <tbody>
+              {officeStats.map(o => (
+                <tr key={o.id}>
+                  <td>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{width:8,height:8,borderRadius:"50%",background:o.color,flexShrink:0}}/>
+                      <span style={{fontWeight:600}}>{o.name}</span>
+                    </div>
+                  </td>
+                  <td>
+                    {o.hasUrl
+                      ? <span style={{color:"#4285f4",fontSize:10,fontWeight:600}}>★ Configured</span>
+                      : <span style={{color:"var(--t3)",fontSize:10}}>Not set</span>}
+                  </td>
+                  <td className="mono">{o.sent}</td>
+                  <td className="mono" style={{color:o.received>0?"var(--green)":"var(--t3)"}}>{o.received}</td>
+                  <td className="mono">{o.responseRate}%</td>
+                  <td>{o.avgRating === "—" ? <span style={{color:"var(--t3)"}}>—</span> : starDisplay(parseFloat(o.avgRating))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Review Request Log */}
+      <div className="rpt-card">
+        <div className="rpt-card-hd">
+          Review Request Log
+          <span style={{fontSize:10,color:"var(--t3)",fontWeight:400}}>{filtered.length} requests</span>
+        </div>
+        {filtered.length === 0 ? (
+          <div style={{textAlign:"center",padding:"30px 0",color:"var(--t3)"}}>
+            <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>No review requests yet</div>
+            <div style={{fontSize:11}}>Send your first review request from any project using the ★ Review button.</div>
+          </div>
+        ) : (
+          <table className="rpt-tbl">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Project</th>
+                <th>Client</th>
+                <th>Office</th>
+                <th>Sent By</th>
+                <th>Status</th>
+                <th>Rating</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r, i) => (
+                <>
+                  <tr key={r.id || i} style={{cursor:"pointer"}} onClick={()=>setExpanded(expanded===i?null:i)}>
+                    <td className="mono" style={{fontSize:10}}>{formatDate(r.createdAt)}</td>
+                    <td style={{fontWeight:600,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.projectName || "—"}</td>
+                    <td>{r.clientName || r.clientPhone || "—"}</td>
+                    <td>
+                      {r.officeName
+                        ? <span style={{fontSize:10,padding:"2px 8px",borderRadius:10,
+                            background:"rgba(34,211,238,.08)",border:"1px solid rgba(34,211,238,.18)",color:"var(--teal)"}}>{r.officeName}</span>
+                        : <span style={{color:"var(--t3)"}}>—</span>}
+                    </td>
+                    <td style={{fontSize:10,color:"var(--t2)"}}>{r.sentByName || "—"}</td>
+                    <td>
+                      {r.status === "review_received" ? (
+                        <span style={{fontSize:10,padding:"2px 8px",borderRadius:10,background:"rgba(26,217,138,.1)",border:"1px solid rgba(26,217,138,.25)",color:"var(--green)",fontWeight:600}}>Received</span>
+                      ) : r.status === "sent" ? (
+                        <span style={{fontSize:10,padding:"2px 8px",borderRadius:10,background:"rgba(232,156,24,.1)",border:"1px solid rgba(232,156,24,.25)",color:"var(--amber)",fontWeight:600}}>Awaiting</span>
+                      ) : (
+                        <span style={{fontSize:10,padding:"2px 8px",borderRadius:10,background:"rgba(228,53,49,.08)",border:"1px solid rgba(228,53,49,.2)",color:"var(--acc)",fontWeight:600}}>Failed</span>
+                      )}
+                    </td>
+                    <td>{starDisplay(r.reviewRating)}</td>
+                  </tr>
+                  {expanded === i && (
+                    <tr key={`${r.id || i}-exp`}>
+                      <td colSpan={7} style={{background:"var(--s1)",padding:"12px 16px"}}>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,fontSize:11}}>
+                          <div>
+                            <div style={{fontWeight:700,color:"var(--t1)",marginBottom:4}}>Review Details</div>
+                            <div style={{color:"var(--t2)",lineHeight:1.8}}>
+                              <div><strong>Phone:</strong> {r.clientPhone || "—"}</div>
+                              <div><strong>Google URL:</strong> <span style={{wordBreak:"break-all",fontSize:10,fontFamily:"var(--mono)"}}>{r.googleBusinessUrl || "—"}</span></div>
+                              {r.reviewDetectedAt && <div><strong>Review Date:</strong> {formatDate(r.reviewDetectedAt)}</div>}
+                            </div>
+                          </div>
+                          <div>
+                            {r.reviewText && (
+                              <>
+                                <div style={{fontWeight:700,color:"var(--t1)",marginBottom:4}}>Review Feedback</div>
+                                <div style={{color:"var(--t2)",lineHeight:1.7,fontStyle:"italic"}}>"{r.reviewText}"</div>
+                              </>
+                            )}
+                            {r.messageBody && (
+                              <>
+                                <div style={{fontWeight:700,color:"var(--t1)",marginBottom:4,marginTop:r.reviewText?10:0}}>Message Sent</div>
+                                <div style={{color:"var(--t3)",lineHeight:1.5,fontSize:10,whiteSpace:"pre-wrap",maxHeight:100,overflow:"auto"}}>{r.messageBody}</div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Projects Missing Review Requests */}
+      {projectsNoRequest.length > 0 && (
+        <div className="rpt-card">
+          <div className="rpt-card-hd" style={{color:"var(--amber)"}}>
+            Completed Projects Without Review Requests
+            <span style={{fontSize:10,color:"var(--t3)",fontWeight:400}}>{projectsNoRequest.length} projects</span>
+          </div>
+          <table className="rpt-tbl">
+            <thead>
+              <tr><th>Project</th><th>Client</th><th>Type</th><th>Completed</th><th>Office</th></tr>
+            </thead>
+            <tbody>
+              {projectsNoRequest.slice(0, 25).map(p => {
+                const off = offices.find(o => o.id === p.officeId);
+                return (
+                  <tr key={p.id}>
+                    <td style={{fontWeight:600}}>{p.name || p.address || p.id}</td>
+                    <td>{p.client || "—"}</td>
+                    <td style={{fontSize:10}}>{p.type || "—"}</td>
+                    <td className="mono" style={{fontSize:10}}>{p.createdDate || "—"}</td>
+                    <td>
+                      {off
+                        ? <span style={{fontSize:10,padding:"2px 8px",borderRadius:10,background:`${off.color}18`,border:`1px solid ${off.color}35`,color:off.color}}>{off.name}</span>
+                        : <span style={{color:"var(--t3)",fontSize:10}}>Unassigned</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+              {projectsNoRequest.length > 25 && (
+                <tr><td colSpan={5} style={{textAlign:"center",color:"var(--t3)",fontSize:10,padding:10}}>
+                  + {projectsNoRequest.length - 25} more projects
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Sent But No Review */}
+      {sentButNoReview.length > 0 && (
+        <div className="rpt-card">
+          <div className="rpt-card-hd" style={{color:"var(--acc)"}}>
+            Requests Sent — No Review Detected
+            <span style={{fontSize:10,color:"var(--t3)",fontWeight:400}}>{sentButNoReview.length} projects</span>
+          </div>
+          <table className="rpt-tbl">
+            <thead>
+              <tr><th>Project</th><th>Client</th><th>Sent Date</th><th>Office</th><th>Days Waiting</th></tr>
+            </thead>
+            <tbody>
+              {sentButNoReview.map((r, i) => {
+                const sentDate = r.createdAt?.toDate ? r.createdAt.toDate()
+                               : r.createdAt?.seconds ? new Date(r.createdAt.seconds * 1000)
+                               : null;
+                const daysWaiting = sentDate ? Math.floor((Date.now() - sentDate.getTime()) / 86400000) : "—";
+                return (
+                  <tr key={r.id || i}>
+                    <td style={{fontWeight:600}}>{r.projectName || "—"}</td>
+                    <td>{r.clientName || r.clientPhone || "—"}</td>
+                    <td className="mono" style={{fontSize:10}}>{formatDate(r.createdAt)}</td>
+                    <td>
+                      {r.officeName
+                        ? <span style={{fontSize:10,padding:"2px 8px",borderRadius:10,background:"rgba(34,211,238,.08)",border:"1px solid rgba(34,211,238,.18)",color:"var(--teal)"}}>{r.officeName}</span>
+                        : <span style={{color:"var(--t3)"}}>—</span>}
+                    </td>
+                    <td className="mono" style={{color: daysWaiting > 14 ? "var(--acc)" : daysWaiting > 7 ? "var(--amber)" : "var(--t2)", fontWeight:600}}>
+                      {daysWaiting}{typeof daysWaiting === "number" ? "d" : ""}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
    MAIN EXPORT — ReportsDashboard
 ═══════════════════════════════════════════════════════════════════════════ */
-export function ReportsDashboard({ projects=[], companyId="", onNavigate, globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], priceLists=[] }) {
+export function ReportsDashboard({ projects=[], companyId="", onNavigate, globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], priceLists=[], reviewRequests=[], offices=[] }) {
   const [tab, setTab] = useState("revenue");
 
   // Inject CSS once
@@ -1572,6 +1950,7 @@ export function ReportsDashboard({ projects=[], companyId="", onNavigate, global
         {tab === "board"    && <WhiteboardReport data={data} statuses={statuses} customWorkTypes={customWorkTypes}/>}
         {tab === "ai"       && <AIAnalytics data={data} companyId={companyId}/>}
         {tab === "equip"    && <EquipmentMismatchReport data={data} priceLists={priceLists}/>}
+        {tab === "reputation" && <ReputationReport data={data} reviewRequests={reviewRequests} offices={offices}/>}
       </div>
     </div>
   );
