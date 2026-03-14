@@ -7,10 +7,10 @@
    - CSV import/export for equipment inventory
 ══════════════════════════════════════════════════════════════════ */
 import { useState, useCallback, useMemo, useRef } from "react";
-import { dduid, DDIc, EQUIP_TYPES, getET, fmt$c, compareS500 } from "./DryDoxConstants.jsx";
+import { dduid, DDIc, EQUIP_TYPES, getET, fmt$c, fmtDate, compareS500 } from "./DryDoxConstants.jsx";
 
 // ── Equipment Inventory Sidebar (drag source) ──
-function EquipmentInventory({ inventory, onDeploy }) {
+function EquipmentInventory({ inventory, onDeploy, onReportMalfunction }) {
   const [search, setSearch] = useState("");
   const [dragItem, setDragItem] = useState(null);
 
@@ -60,6 +60,17 @@ function EquipmentInventory({ inventory, onDeploy }) {
                       <div style={{ fontSize: 9, color: "var(--t3)", fontFamily: "var(--mono)" }}>{item.serial}</div>
                     )}
                   </div>
+                  {onReportMalfunction && (
+                    <button
+                      style={{
+                        background: "none", border: "none", cursor: "pointer", padding: 2,
+                        color: "var(--amber)", opacity: 0.6, fontSize: 12,
+                      }}
+                      title="Report Malfunction"
+                      onClick={e => { e.stopPropagation(); onReportMalfunction(item); }}>
+                      {DDIc.warn}
+                    </button>
+                  )}
                   <div style={{ color: "var(--t3)", opacity: 0.5 }}>{DDIc.drag}</div>
                 </div>
               </div>
@@ -168,17 +179,100 @@ function DeployEquipmentModal({ rooms, priceLists, activePLId, inventoryItem, on
   );
 }
 
+// ── Report Malfunction Modal ──
+function ReportMalfunctionModal({ item, rooms, onReport, onClose }) {
+  const [f, setF] = useState({
+    description: "",
+    severity: "unusable", // unusable, degraded
+  });
+
+  const et = getET(item.type);
+  const room = rooms?.find(r => r.id === item.roomId);
+
+  const submit = () => {
+    if (!f.description.trim()) return;
+    onReport({
+      id: dduid(),
+      equipmentId: item.inventoryId || item.id,
+      type: item.type,
+      brand: item.brand || "",
+      serial: item.serial || "",
+      roomId: item.roomId || null,
+      roomLabel: room?.label || null,
+      description: f.description.trim(),
+      severity: f.severity,
+      reportedAt: new Date().toISOString(),
+      status: "open", // open, resolved
+      resolvedAt: null,
+      resolutionNotes: "",
+    });
+    onClose();
+  };
+
+  return (
+    <div className="dd-modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="dd-modal">
+        <div className="dd-modal-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ color: "var(--acc)" }}>{DDIc.warn}</span> Report Malfunction
+        </div>
+
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10, padding: 12,
+          background: "var(--s1)", border: "1px solid var(--br)", borderRadius: 8, marginBottom: 12,
+        }}>
+          <span style={{ fontSize: 20 }}>{et.icon}</span>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--t1)" }}>{item.brand || et.label}</div>
+            <div style={{ fontSize: 10, color: "var(--t3)", fontFamily: "var(--mono)" }}>
+              {item.serial ? `SN: ${item.serial}` : et.label}
+              {room ? ` · ${room.label}` : ""}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 10 }}>
+          <label className="lbl">Severity</label>
+          <select className="sel" value={f.severity} onChange={e => setF(p => ({ ...p, severity: e.target.value }))}>
+            <option value="unusable">Unusable — Cannot operate</option>
+            <option value="degraded">Degraded — Reduced performance</option>
+          </select>
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label className="lbl">Issue Description</label>
+          <textarea
+            className="inp"
+            value={f.description}
+            onChange={e => setF(p => ({ ...p, description: e.target.value }))}
+            placeholder="Describe the malfunction (e.g. motor won't start, leaking refrigerant, unusual noise...)"
+            style={{ width: "100%", minHeight: 80, resize: "vertical", fontFamily: "var(--ui)", fontSize: 12 }}
+          />
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <button className="btn btn-ghost btn-xs" onClick={onClose}>Cancel</button>
+          <button className="btn btn-danger btn-xs" onClick={submit} disabled={!f.description.trim()}>
+            {DDIc.warn} Report Malfunction
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Equipment Tab ──
 export default function DryDoxEquipment({
   rooms, equipmentPlacements, setEquipmentPlacements,
   inventory = [], setInventory, priceLists = [], activePLId,
   billingDays, setBillingDays, onPushToScope,
   s500Comments = {}, s500Overrides = {},
+  malfunctionReports = [], setMalfunctionReports,
 }) {
-  const [view, setView] = useState("deployed"); // deployed, inventory, billing
+  const [view, setView] = useState("deployed"); // deployed, inventory, billing, reports
   const [deployModal, setDeployModal] = useState(null); // item to deploy or true for empty
   const [dragTarget, setDragTarget] = useState(null);
   const [showCSVImport, setShowCSVImport] = useState(false);
+  const [malfunctionModal, setMalfunctionModal] = useState(null); // item to report
 
   const currentPL = priceLists.find(pl => pl.id === activePLId);
 
@@ -225,6 +319,44 @@ export default function DryDoxEquipment({
       eq.id === eqId
         ? { ...eq, removedAt: new Date().toISOString(), dayOut: billingDays }
         : eq
+    ));
+  };
+
+  // IDs of equipment currently flagged as malfunctioning (open reports)
+  const malfunctioningIds = useMemo(() => {
+    const ids = new Set();
+    (malfunctionReports || []).filter(r => r.status === "open").forEach(r => ids.add(r.equipmentId));
+    return ids;
+  }, [malfunctionReports]);
+
+  // Available inventory = inventory minus malfunctioning items
+  const availableInventory = useMemo(() =>
+    inventory.filter(item => !malfunctioningIds.has(item.id)),
+    [inventory, malfunctioningIds]
+  );
+
+  const openReports = (malfunctionReports || []).filter(r => r.status === "open");
+
+  // Report a malfunction — pull from deployed if applicable, remove from available inventory
+  const handleReportMalfunction = (report) => {
+    if (!setMalfunctionReports) return;
+    setMalfunctionReports(prev => [...prev, report]);
+    // If the equipment is currently deployed, remove it (set dayOut)
+    const deployedMatch = equipmentPlacements.find(e =>
+      !e.removedAt && (e.inventoryId === report.equipmentId || e.id === report.equipmentId)
+    );
+    if (deployedMatch) {
+      removeEquipment(deployedMatch.id);
+    }
+  };
+
+  // Resolve a malfunction — mark as resolved and re-add to inventory
+  const handleResolveMalfunction = (reportId, notes) => {
+    if (!setMalfunctionReports) return;
+    setMalfunctionReports(prev => prev.map(r =>
+      r.id === reportId
+        ? { ...r, status: "resolved", resolvedAt: new Date().toISOString(), resolutionNotes: notes || "" }
+        : r
     ));
   };
 
@@ -293,9 +425,18 @@ export default function DryDoxEquipment({
 
       {/* View toggle */}
       <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
-        {[["deployed", "Deployed"], ["inventory", "Inventory"], ["billing", "Billing"]].map(([k, l]) => (
+        {[["deployed", "Deployed"], ["inventory", "Inventory"], ["billing", "Billing"], ["reports", "Reports"]].map(([k, l]) => (
           <button key={k} className={`btn btn-xs ${view === k ? "btn-primary" : "btn-ghost"}`}
-            onClick={() => setView(k)}>{l}</button>
+            onClick={() => setView(k)}
+            style={k === "reports" && openReports.length > 0 ? { position: "relative" } : undefined}>
+            {l}
+            {k === "reports" && openReports.length > 0 && (
+              <span style={{
+                marginLeft: 4, fontSize: 8, background: "var(--acc)", color: "#fff",
+                borderRadius: 9, padding: "1px 5px", fontFamily: "var(--mono)", fontWeight: 700,
+              }}>{openReports.length}</span>
+            )}
+          </button>
         ))}
         <div style={{ flex: 1 }} />
         <button className="btn btn-primary btn-xs" onClick={() => setDeployModal(true)}>
@@ -366,10 +507,20 @@ export default function DryDoxEquipment({
                             </div>
                           </div>
                           {active && (
-                            <button className="btn btn-danger btn-xs" style={{ padding: "2px 5px" }}
-                              onClick={() => removeEquipment(eq.id)}>
-                              Pull
-                            </button>
+                            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                              <button className="btn btn-xs" style={{
+                                padding: "2px 5px", color: "var(--amber)", border: "1px solid var(--amber)",
+                                background: "rgba(232,156,24,.08)", fontSize: 9,
+                              }}
+                                title="Report Malfunction"
+                                onClick={() => setMalfunctionModal(eq)}>
+                                {DDIc.warn}
+                              </button>
+                              <button className="btn btn-danger btn-xs" style={{ padding: "2px 5px" }}
+                                onClick={() => removeEquipment(eq.id)}>
+                                Pull
+                              </button>
+                            </div>
                           )}
                         </div>
                       );
@@ -408,8 +559,9 @@ export default function DryDoxEquipment({
             </div>
           )}
           <EquipmentInventory
-            inventory={inventory.length > 0 ? inventory : generateDefaultInventory()}
+            inventory={availableInventory.length > 0 ? availableInventory : generateDefaultInventory().filter(i => !malfunctioningIds.has(i.id))}
             onDeploy={item => setDeployModal(item)}
+            onReportMalfunction={item => setMalfunctionModal(item)}
           />
         </>
       )}
@@ -532,6 +684,25 @@ export default function DryDoxEquipment({
         </>
       )}
 
+      {/* REPORTS VIEW — malfunction reports */}
+      {view === "reports" && (
+        <MalfunctionReportsView
+          reports={malfunctionReports || []}
+          onResolve={handleResolveMalfunction}
+          onDelete={reportId => setMalfunctionReports && setMalfunctionReports(prev => prev.filter(r => r.id !== reportId))}
+        />
+      )}
+
+      {/* Malfunction report modal */}
+      {malfunctionModal && (
+        <ReportMalfunctionModal
+          item={malfunctionModal}
+          rooms={rooms}
+          onReport={handleReportMalfunction}
+          onClose={() => setMalfunctionModal(null)}
+        />
+      )}
+
       {/* Deploy modal */}
       {deployModal && (
         <DeployEquipmentModal
@@ -542,6 +713,184 @@ export default function DryDoxEquipment({
           onDeploy={eq => setEquipmentPlacements(prev => [...prev, eq])}
           onClose={() => setDeployModal(null)}
         />
+      )}
+    </div>
+  );
+}
+
+// ── Malfunction Reports View ──
+function MalfunctionReportsView({ reports, onResolve, onDelete }) {
+  const [resolveModal, setResolveModal] = useState(null);
+  const [resolveNotes, setResolveNotes] = useState("");
+  const [filter, setFilter] = useState("open"); // open, resolved, all
+
+  const filtered = reports.filter(r => {
+    if (filter === "open") return r.status === "open";
+    if (filter === "resolved") return r.status === "resolved";
+    return true;
+  }).sort((a, b) => new Date(b.reportedAt) - new Date(a.reportedAt));
+
+  const openCount = reports.filter(r => r.status === "open").length;
+  const resolvedCount = reports.filter(r => r.status === "resolved").length;
+
+  const doResolve = () => {
+    if (!resolveModal) return;
+    onResolve(resolveModal.id, resolveNotes);
+    setResolveModal(null);
+    setResolveNotes("");
+  };
+
+  return (
+    <div>
+      {/* KPI */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
+        <div className="dd-kpi">
+          <div className="dd-kpi-val" style={{ color: openCount > 0 ? "var(--acc)" : "var(--t3)" }}>{openCount}</div>
+          <div className="dd-kpi-lbl">Open Issues</div>
+        </div>
+        <div className="dd-kpi">
+          <div className="dd-kpi-val" style={{ color: "var(--green)" }}>{resolvedCount}</div>
+          <div className="dd-kpi-lbl">Resolved</div>
+        </div>
+      </div>
+
+      {/* Filter */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+        {[["open", "Open"], ["resolved", "Resolved"], ["all", "All"]].map(([k, l]) => (
+          <button key={k} className={`btn btn-xs ${filter === k ? "btn-primary" : "btn-ghost"}`}
+            onClick={() => setFilter(k)}>{l}</button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 30, color: "var(--t3)", fontSize: 12 }}>
+          {filter === "open" ? "No open malfunction reports." : "No malfunction reports found."}
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {filtered.map(report => {
+            const et = getET(report.type);
+            const isOpen = report.status === "open";
+            return (
+              <div key={report.id} className="dd-card" style={{
+                borderLeft: `3px solid ${isOpen ? "var(--acc)" : "var(--green)"}`,
+                opacity: isOpen ? 1 : 0.7,
+              }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  <span style={{ fontSize: 22, marginTop: 2 }}>{et.icon}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)" }}>
+                        {report.brand || et.label}
+                      </span>
+                      <span style={{
+                        fontSize: 8, fontFamily: "var(--mono)", fontWeight: 700, padding: "1px 6px",
+                        borderRadius: 4,
+                        background: isOpen ? "rgba(228,53,49,.1)" : "rgba(26,217,138,.1)",
+                        color: isOpen ? "var(--acc)" : "var(--green)",
+                        textTransform: "uppercase",
+                      }}>
+                        {isOpen ? "Open" : "Resolved"}
+                      </span>
+                      <span style={{
+                        fontSize: 8, fontFamily: "var(--mono)", fontWeight: 700, padding: "1px 6px",
+                        borderRadius: 4,
+                        background: report.severity === "unusable" ? "rgba(228,53,49,.1)" : "rgba(232,156,24,.1)",
+                        color: report.severity === "unusable" ? "var(--acc)" : "var(--amber)",
+                        textTransform: "uppercase",
+                      }}>
+                        {report.severity}
+                      </span>
+                    </div>
+                    {report.serial && (
+                      <div style={{ fontSize: 9, color: "var(--t3)", fontFamily: "var(--mono)", marginBottom: 4 }}>
+                        SN: {report.serial}
+                      </div>
+                    )}
+                    {report.roomLabel && (
+                      <div style={{ fontSize: 10, color: "var(--t2)", marginBottom: 4 }}>
+                        Location: {report.roomLabel}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 11, color: "var(--t1)", marginBottom: 6, lineHeight: 1.5 }}>
+                      {report.description}
+                    </div>
+                    <div style={{ fontSize: 9, color: "var(--t3)", fontFamily: "var(--mono)" }}>
+                      Reported: {fmtDate(report.reportedAt)}
+                      {report.resolvedAt && ` · Resolved: ${fmtDate(report.resolvedAt)}`}
+                    </div>
+                    {report.resolutionNotes && (
+                      <div style={{
+                        fontSize: 10, color: "var(--green)", marginTop: 6, padding: "6px 8px",
+                        background: "rgba(26,217,138,.06)", borderRadius: 6, border: "1px solid rgba(26,217,138,.15)",
+                      }}>
+                        <strong>Resolution:</strong> {report.resolutionNotes}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                    {isOpen && (
+                      <button className="btn btn-xs" style={{
+                        padding: "4px 8px", color: "var(--green)", border: "1px solid var(--green)",
+                        background: "rgba(26,217,138,.08)", fontSize: 10,
+                      }}
+                        onClick={() => { setResolveModal(report); setResolveNotes(""); }}>
+                        {DDIc.fix} Fixed
+                      </button>
+                    )}
+                    <button className="btn btn-ghost btn-xs" style={{ padding: "4px 5px", opacity: 0.5 }}
+                      onClick={() => onDelete(report.id)}>
+                      {DDIc.trash}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Resolve modal */}
+      {resolveModal && (
+        <div className="dd-modal-overlay" onClick={e => { if (e.target === e.currentTarget) { setResolveModal(null); setResolveNotes(""); } }}>
+          <div className="dd-modal">
+            <div className="dd-modal-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ color: "var(--green)" }}>{DDIc.fix}</span> Mark as Fixed
+            </div>
+            <div style={{
+              display: "flex", alignItems: "center", gap: 10, padding: 12,
+              background: "var(--s1)", border: "1px solid var(--br)", borderRadius: 8, marginBottom: 12,
+            }}>
+              <span style={{ fontSize: 20 }}>{getET(resolveModal.type).icon}</span>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--t1)" }}>{resolveModal.brand || getET(resolveModal.type).label}</div>
+                <div style={{ fontSize: 10, color: "var(--t3)" }}>{resolveModal.description}</div>
+              </div>
+            </div>
+            <div style={{
+              fontSize: 11, color: "var(--blue)", padding: "8px 10px", marginBottom: 10,
+              background: "rgba(59,130,246,.06)", border: "1px solid rgba(59,130,246,.15)", borderRadius: 6,
+            }}>
+              This equipment will be returned to your available inventory once marked as fixed.
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <label className="lbl">Resolution Notes (optional)</label>
+              <textarea
+                className="inp"
+                value={resolveNotes}
+                onChange={e => setResolveNotes(e.target.value)}
+                placeholder="Describe what was done to fix the issue (e.g. replaced motor, recalibrated sensor...)"
+                style={{ width: "100%", minHeight: 60, resize: "vertical", fontFamily: "var(--ui)", fontSize: 12 }}
+              />
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button className="btn btn-ghost btn-xs" onClick={() => { setResolveModal(null); setResolveNotes(""); }}>Cancel</button>
+              <button className="btn btn-primary btn-xs" onClick={doResolve}>
+                {DDIc.check} Return to Inventory
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

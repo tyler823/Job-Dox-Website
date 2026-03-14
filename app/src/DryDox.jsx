@@ -76,6 +76,7 @@ export default function DryDoxTab({ proj, priceLists = [], onPushToScope, compan
   const [activePLId, setActivePL]               = useState(priceLists[0]?.id || null);
   const [s500Comments, setS500Comments]         = useDryDoxState(projId, "s500Comments", {});
   const [s500Overrides, setS500Overrides]       = useDryDoxState(projId, "s500Overrides", {});
+  const [malfunctionReports, setMalfunctionReports] = useDryDoxState("company", "malfunctionReports", []);
 
   // ── S500 compliance check ──
   const s500Status = useMemo(
@@ -231,6 +232,7 @@ export default function DryDoxTab({ proj, priceLists = [], onPushToScope, compan
               billingDays={billingDays} setBillingDays={setBillingDays}
               onPushToScope={handlePushToScope}
               s500Comments={s500Comments} s500Overrides={s500Overrides}
+              malfunctionReports={malfunctionReports} setMalfunctionReports={setMalfunctionReports}
             />
           )}
 
