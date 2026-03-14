@@ -7,222 +7,78 @@
 ══════════════════════════════════════════════════════════════════ */
 import { useState, useRef, useEffect, useCallback } from "react";
 import { dduid, DDIc, MATERIAL_CLASSES, WATER_CATEGORIES } from "./DryDoxConstants.jsx";
+import { JobDoxLiDAR } from "../plugins/jobdox-lidar.js";
 
-// ── LiDAR / AR Session Manager ──
-// Uses WebXR Device API with depth-sensing for LiDAR-equipped devices
-// Falls back to ARKit (Safari) via WebXR polyfill patterns
+// ── LiDAR Hook ──
+// Uses Capacitor native plugin (RoomPlan) on iOS, falls back gracefully on web
 function useLiDAR() {
   const [supported, setSupported] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [scanResult, setScanResult] = useState(null);
-  const sessionRef = useRef(null);
+  const [reason, setReason] = useState("");
 
   useEffect(() => {
-    // Check for WebXR with depth sensing (LiDAR)
-    const checkSupport = async () => {
-      try {
-        if (navigator.xr) {
-          const supported = await navigator.xr.isSessionSupported("immersive-ar");
-          setSupported(supported);
-        } else {
-          // Check for iOS ARKit availability via feature detection
-          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-          const hasLiDAR = isIOS && window.DeviceMotionEvent;
-          setSupported(hasLiDAR);
-        }
-      } catch {
-        setSupported(false);
-      }
-    };
-    checkSupport();
+    JobDoxLiDAR.checkSupport().then(result => {
+      setSupported(result.supported);
+      setReason(result.reason || "");
+    });
   }, []);
 
   const startScan = useCallback(async () => {
     setScanning(true);
     setProgress(0);
 
+    // Show indeterminate progress while RoomPlan UI is open
+    const iv = setInterval(() => {
+      setProgress(p => p >= 90 ? 90 : p + Math.random() * 5 + 1);
+    }, 300);
+
     try {
-      if (navigator.xr) {
-        // WebXR path — request AR session with depth sensing
-        const session = await navigator.xr.requestSession("immersive-ar", {
-          requiredFeatures: ["local-floor"],
-          optionalFeatures: ["depth-sensing", "mesh-detection", "plane-detection"],
-          depthSensing: {
-            usagePreference: ["gpu-optimized", "cpu-optimized"],
-            dataFormatPreference: ["luminance-alpha", "float32"],
-          },
-        });
-        sessionRef.current = session;
+      const { rooms: scannedRooms } = await JobDoxLiDAR.scanRoom();
 
-        const walls = [];
-        const planes = [];
-        let frameCount = 0;
+      clearInterval(iv);
+      setProgress(100);
+      setScanning(false);
 
-        session.addEventListener("end", () => {
-          setScanning(false);
-          // Convert detected planes/meshes to room geometry
-          const rooms = processLiDARData(planes, walls);
-          setScanResult(rooms);
-        });
+      // Normalize results — add IDs, points, equipment arrays, etc.
+      const normalized = (scannedRooms || []).map((r, i) => ({
+        id: dduid(),
+        label: r.label || `Room ${i + 1}`,
+        widthFt: r.widthFt || 12,
+        depthFt: r.depthFt || 10,
+        ceilingFt: r.ceilingFt || 8,
+        floor: 1,
+        category: "cat1",
+        materialClass: "class2",
+        sqft: Math.round((r.widthFt || 12) * (r.depthFt || 10)),
+        walls: (r.walls || []).map(w => ({
+          id: dduid(),
+          label: w.label || "Wall",
+          lengthFt: w.lengthFt || 10,
+        })),
+        points: [],
+        equipment: [],
+      }));
 
-        // Reference space for tracking
-        const refSpace = await session.requestReferenceSpace("local-floor");
-
-        // Frame loop to collect depth data
-        const onFrame = (time, frame) => {
-          if (!session || session.ended) return;
-          frameCount++;
-
-          // Collect detected planes
-          if (frame.detectedPlanes) {
-            frame.detectedPlanes.forEach(plane => {
-              planes.push({
-                orientation: plane.orientation, // "horizontal" or "vertical"
-                position: plane.planeSpace,
-                polygon: plane.polygon,
-              });
-            });
-          }
-
-          // Collect mesh data if available
-          if (frame.detectedMeshes) {
-            frame.detectedMeshes.forEach(mesh => {
-              walls.push({
-                vertices: mesh.vertices,
-                indices: mesh.indices,
-              });
-            });
-          }
-
-          // Update progress based on frames collected
-          const p = Math.min(95, (frameCount / 300) * 100);
-          setProgress(p);
-
-          session.requestAnimationFrame(onFrame);
-        };
-
-        session.requestAnimationFrame(onFrame);
-      } else {
-        // Fallback: simulate scanning with manual entry prompt
-        simulateScan(setProgress, setScanResult, setScanning);
-      }
+      setScanResult(normalized);
     } catch (err) {
-      console.warn("LiDAR scan failed, falling back to manual:", err);
-      simulateScan(setProgress, setScanResult, setScanning);
+      clearInterval(iv);
+      setScanning(false);
+      setProgress(0);
+      console.warn("LiDAR scan failed or cancelled:", err?.message || err);
+      // Return empty so the UI stays on the prompt screen
+      setScanResult(null);
     }
   }, []);
 
   const stopScan = useCallback(() => {
-    if (sessionRef.current) {
-      sessionRef.current.end();
-      sessionRef.current = null;
-    }
+    // Native RoomPlan has its own cancel — this is a no-op safety valve
     setScanning(false);
-    setProgress(100);
+    setProgress(0);
   }, []);
 
-  return { supported, scanning, progress, scanResult, startScan, stopScan, setScanResult };
-}
-
-// Process raw LiDAR plane/mesh data into room structures
-function processLiDARData(planes, meshes) {
-  // Group vertical planes (walls) and horizontal planes (floor/ceiling)
-  const verticalPlanes = planes.filter(p => p.orientation === "vertical");
-  const horizontalPlanes = planes.filter(p => p.orientation === "horizontal");
-
-  // If we have detected geometry, convert to room measurements
-  if (verticalPlanes.length >= 4) {
-    // Cluster walls into rooms based on spatial proximity
-    const rooms = clusterWallsToRooms(verticalPlanes, horizontalPlanes);
-    return rooms;
-  }
-
-  // Not enough data — return empty for manual entry
-  return [];
-}
-
-function clusterWallsToRooms(verticalPlanes, horizontalPlanes) {
-  // Simplified wall clustering — groups nearby vertical planes
-  // Real implementation would use DBSCAN or similar spatial clustering
-  const rooms = [];
-  const used = new Set();
-
-  verticalPlanes.forEach((wall, i) => {
-    if (used.has(i)) return;
-    const cluster = [wall];
-    used.add(i);
-
-    verticalPlanes.forEach((other, j) => {
-      if (used.has(j)) return;
-      // Check if walls are close enough to form a room
-      if (cluster.length < 6) {
-        cluster.push(other);
-        used.add(j);
-      }
-    });
-
-    if (cluster.length >= 3) {
-      // Estimate room dimensions from wall cluster
-      const bounds = estimateRoomBounds(cluster);
-      rooms.push({
-        id: dduid(),
-        label: `Room ${rooms.length + 1}`,
-        widthFt: Math.round(bounds.width * 3.281), // meters to feet
-        depthFt: Math.round(bounds.depth * 3.281),
-        ceilingFt: Math.round((bounds.height || 2.4) * 3.281),
-        floor: 1,
-        walls: cluster.map((w, wi) => ({
-          id: dduid(),
-          label: ["North","East","South","West","NE","NW"][wi] || `Wall ${wi+1}`,
-          lengthFt: Math.round(bounds.wallLengths[wi] * 3.281) || 10,
-        })),
-        points: [], // moisture reading points
-        equipment: [], // equipment placed in room
-      });
-    }
-  });
-
-  return rooms;
-}
-
-function estimateRoomBounds(walls) {
-  // Estimate bounding box from wall planes
-  let minX=Infinity, maxX=-Infinity, minZ=Infinity, maxZ=-Infinity, maxY=0;
-  walls.forEach(w => {
-    if (w.polygon) {
-      w.polygon.forEach(pt => {
-        minX = Math.min(minX, pt.x||0);
-        maxX = Math.max(maxX, pt.x||0);
-        minZ = Math.min(minZ, pt.z||0);
-        maxZ = Math.max(maxZ, pt.z||0);
-        maxY = Math.max(maxY, pt.y||0);
-      });
-    }
-  });
-  const width = maxX-minX || 3;
-  const depth = maxZ-minZ || 3;
-  return {
-    width, depth, height: maxY || 2.4,
-    wallLengths: walls.map(() => Math.max(width, depth) * (0.8 + Math.random()*0.4)),
-  };
-}
-
-// Simulate a scan (for devices without LiDAR)
-function simulateScan(setProgress, setScanResult, setScanning) {
-  let p = 0;
-  const iv = setInterval(() => {
-    p += Math.random() * 8 + 2;
-    if (p >= 100) {
-      clearInterval(iv);
-      setProgress(100);
-      setScanning(false);
-      // Return empty — user will enter rooms manually
-      setScanResult([]);
-    } else {
-      setProgress(Math.round(p));
-    }
-  }, 200);
+  return { supported, scanning, progress, scanResult, startScan, stopScan, setScanResult, reason };
 }
 
 // ── Floor Plan Canvas Renderer ──
@@ -458,7 +314,7 @@ function LiDARScanPrompt({ lidar, onManualAdd }) {
       <div style={{ fontSize: 12, color: "var(--t2)", maxWidth: 300, lineHeight: 1.5 }}>
         {lidar.supported
           ? "Use your device's LiDAR sensor to automatically scan and measure the structure, or add rooms manually."
-          : "Add rooms manually with measurements. For automatic scanning, use an iPhone 12 Pro or newer with LiDAR."}
+          : "Add rooms manually with measurements. For automatic LiDAR scanning, use the Job-Dox Field iOS app on an iPhone 12 Pro or newer."}
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
         {lidar.supported && (
