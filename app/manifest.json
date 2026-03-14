@@ -1,7 +1,7 @@
 {
-  "name": "Job-Dox Portal",
-  "short_name": "Job-Dox",
-  "description": "Job-Dox operations intelligence platform for contractors",
+  "name": "Cortex App",
+  "short_name": "Cortex",
+  "description": "Cortex operations intelligence platform for contractors",
   "start_url": "/app/",
   "scope": "/app/",
   "display": "standalone",
