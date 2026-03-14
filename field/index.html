@@ -23,6 +23,7 @@
   <!-- Firebase compat (Firestore only — NO Firebase Auth) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
   <!-- React 18 + Babel -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -116,7 +117,7 @@ html,body,#root{height:100%;background:#06070d;color:#eef1f8;font-family:'Outfit
 <div id="root"></div>
 
 <script>
-  // Firebase — Firestore only, NO Firebase Auth
+  // Firebase — Firestore + Storage, NO Firebase Auth
   firebase.initializeApp({
     apiKey:"AIzaSyAFwSEDPqKgAUbwbh_2KZNwLDdGCZEiq3E",
     authDomain:"cortex-717c6.firebaseapp.com",
@@ -126,6 +127,7 @@ html,body,#root{height:100%;background:#06070d;color:#eef1f8;font-family:'Outfit
     appId:"1:496631882511:web:3f7be61bcbb83a6ab4d47a",
   });
   const db = firebase.firestore();
+  const fbStorage = firebase.storage();
   db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
 </script>
 
@@ -775,17 +777,36 @@ function ContentsScreen({ proj, fieldUser }) {
 
   const addPhoto = e=>{
     Array.from(e.target.files).forEach(file=>{
-      const r=new FileReader(); r.onload=ev=>setF(p=>({...p,photos:[...p.photos,{url:ev.target.result}]})); r.readAsDataURL(file);
+      const r=new FileReader();
+      r.onload=ev=>setF(p=>({...p,photos:[...p.photos,{dataUrl:ev.target.result,file,name:file.name}]}));
+      r.readAsDataURL(file);
     }); e.target.value="";
   };
 
   const save = async()=>{
     if (!f.name.trim()) return; setSaving(true);
+    // Generate an item ID so we can organize photos under it
+    const itemId = `c${Date.now()}`;
+    // Upload photos to Firebase Storage
+    const uploadedPhotos = [];
+    for (const ph of f.photos) {
+      if (ph.file) {
+        try {
+          const safeName = `${Date.now()}_${ph.name.replace(/[^a-zA-Z0-9._-]/g,"_")}`;
+          const path = `companies/${fieldUser.companyId}/projects/${proj.id}/items/${itemId}/${safeName}`;
+          const ref = fbStorage.ref(path);
+          await ref.put(ph.file);
+          const url = await ref.getDownloadURL();
+          uploadedPhotos.push({url, path, name: ph.name});
+        } catch(err) { console.error("Photo upload failed:",err); }
+      }
+    }
     await db.collection("companies").doc(fieldUser.companyId)
-      .collection("projects").doc(proj.id).collection("contentsItems").add({
+      .collection("projects").doc(proj.id).collection("contentsItems").doc(itemId).set({
         name:f.name.trim(), room:f.room.trim(), disposition:f.disposition, quantity:f.quantity,
         techName:fieldUser.name, techMsId:fieldUser.memberstackId,
         category:"Other", condition:"Unknown",
+        photos: uploadedPhotos,
         createdAt:firebase.firestore.FieldValue.serverTimestamp(),
       });
     setF({name:"",room:"",disposition:"Non-Salvage",quantity:1,photos:[]}); setShow(false); setSaving(false);
@@ -803,7 +824,7 @@ function ContentsScreen({ proj, fieldUser }) {
               <span style={{background:dc+"22",color:dc,borderRadius:12,padding:"2px 8px",fontSize:9,fontWeight:700,flexShrink:0,fontFamily:"var(--mono)"}}>{it.disposition}</span>
             </div>
             <div style={{fontSize:11,color:"var(--t3)",marginTop:3}}>
-              {it.room&&<span>{it.room} · </span>}<span>Qty {it.quantity||1}</span>{it.techName&&<span> · {it.techName}</span>}
+              {it.room&&<span>{it.room} · </span>}<span>Qty {it.quantity||1}</span>{it.techName&&<span> · {it.techName}</span>}{it.photos?.length>0&&<span> · {I.cam} {it.photos.length}</span>}
             </div>
           </div>
         );})
@@ -828,7 +849,7 @@ function ContentsScreen({ proj, fieldUser }) {
               <div className="photo-grid">
                 {f.photos.map((ph,i)=>(
                   <div key={i} className="photo-thumb">
-                    <img src={ph.url} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                    <img src={ph.dataUrl||ph.url} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
                     <button onClick={()=>setF(p=>({...p,photos:p.photos.filter((_,j)=>j!==i)}))}
                       style={{position:"absolute",top:2,right:2,width:16,height:16,borderRadius:"50%",background:"rgba(0,0,0,.75)",border:"none",color:"#fff",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
                   </div>
