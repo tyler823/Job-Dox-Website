@@ -5,6 +5,27 @@
  * Reads ANTHROPIC_API_KEY from Netlify environment variables.
  */
 
+/** Check & deduct a Cortex Coin for this company. */
+async function deductCortexCoin(companyId, feature, userId) {
+  if (!companyId) return { allowed: true, coinData: null };
+  try {
+    const baseUrl = process.env.URL || process.env.SITE_URL || 'https://job-dox.ai';
+    const res = await fetch(`${baseUrl}/.netlify/functions/cortex-coins`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companyId, action: 'deduct', feature, userId }),
+    });
+    const data = await res.json();
+    if (res.status === 403 || data.error === 'insufficient_coins') {
+      return { allowed: false, message: data.message, coinData: data };
+    }
+    return { allowed: true, coinData: data };
+  } catch (err) {
+    console.warn('[reports-analyze] Cortex Coins check failed, allowing call:', err.message);
+    return { allowed: true, coinData: null };
+  }
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 204, headers: corsHeaders(), body: "" };
@@ -17,9 +38,19 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || "{}"); }
   catch { return respond(400, { error: "Invalid JSON body" }); }
 
-  const { prompt, mode = "reports" } = body;
+  const { prompt, mode = "reports", companyId, userId } = body;
   if (!prompt || typeof prompt !== "string") {
     return respond(400, { error: "Missing required field: prompt" });
+  }
+
+  // ── Cortex Coins gate ──
+  const coinCheck = await deductCortexCoin(companyId, 'reports-analyze', userId);
+  if (!coinCheck.allowed) {
+    return respond(403, {
+      error: 'cortex_coins_exhausted',
+      message: coinCheck.message,
+      coinData: coinCheck.coinData,
+    });
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -61,7 +92,7 @@ Keep responses under 800 words. Lead with the most important insight.`;
     }
 
     const text = json.content?.find(b => b.type === "text")?.text || "";
-    return respond(200, { text, mode });
+    return respond(200, { text, mode, cortexCoins: coinCheck.coinData });
 
   } catch (err) {
     console.error("[reports-analyze] error:", err);

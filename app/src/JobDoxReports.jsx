@@ -1018,7 +1018,7 @@ const AI_PROMPTS = [
   },
 ];
 
-function AIAnalytics({ data }) {
+function AIAnalytics({ data, companyId }) {
   const [activePrompt, setActivePrompt] = useState(null);
   const [result, setResult]   = useState("");
   const [loading, setLoading] = useState(false);
@@ -1041,10 +1041,15 @@ function AIAnalytics({ data }) {
     }
 
     try {
-      const res = await callFn("reports-analyze", { prompt: promptText, mode: "reports" });
+      const res = await callFn("reports-analyze", { prompt: promptText, mode: "reports", companyId });
       setResult(res.text || "No response from AI.");
     } catch (err) {
-      setError(err.message || "AI analysis failed. Check your API key configuration.");
+      const msg = err.message || "";
+      if (msg === "cortex_coins_exhausted") {
+        setError("You've used all of your Cortex Coins for this billing cycle. AI features are paused until your next cycle begins.");
+      } else {
+        setError(msg || "AI analysis failed. Check your API key configuration.");
+      }
     } finally {
       setLoading(false);
     }
@@ -1565,7 +1570,7 @@ export function ReportsDashboard({ projects=[], companyId="", onNavigate, global
         {tab === "referral" && <ReferralReport data={data} statuses={statuses}/>}
         {tab === "pipeline" && <PipelineReport data={data} statuses={statuses} customWorkTypes={customWorkTypes} customProjectTypes={customProjectTypes} globalStaff={globalStaff}/>}
         {tab === "board"    && <WhiteboardReport data={data} statuses={statuses} customWorkTypes={customWorkTypes}/>}
-        {tab === "ai"       && <AIAnalytics data={data}/>}
+        {tab === "ai"       && <AIAnalytics data={data} companyId={companyId}/>}
         {tab === "equip"    && <EquipmentMismatchReport data={data} priceLists={priceLists}/>}
       </div>
     </div>
