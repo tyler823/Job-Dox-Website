@@ -5734,6 +5734,9 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
   const [uploadModal, setUploadModal] = useState(false);
   const [uploadForm,  setUploadForm]  = useState({ name:"", type:"contract" });
   const [signingDoc,  setSigningDoc]  = useState(null); // doc being signed via PdfQuickSignModal
+  const [reqSigDoc,   setReqSigDoc]   = useState(null); // doc for "Request Signatures" modal
+  const [reqSigners,  setReqSigners]  = useState([]);   // signers being added in request modal
+  const [reqSending,  setReqSending]  = useState(false);
   const pdfFileRef = useRef();
 
   // Re-load if proj changes OR if an invoice was just generated (docRefreshKey bumped)
@@ -5780,12 +5783,30 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
 
   const handleSignSave = (result) => {
     if (!signingDoc) return;
+    // Merge new signatures with any existing ones (supports multi-signer)
+    const existing = signingDoc.signatures || [];
+    const merged   = [...existing, ...result.signatures];
+    // Update the specific signer's status if signerEmail was provided
+    let updatedSigners = signingDoc.signers || [];
+    if (result.signerEmail) {
+      updatedSigners = updatedSigners.map(s =>
+        s.email === result.signerEmail
+          ? { ...s, status:"signed", signedAt:result.signedAt, lat:result.geo?.lat, lng:result.geo?.lng }
+          : s
+      );
+    }
+    const allSigned = updatedSigners.length > 0 && updatedSigners.every(s => s.status === "signed");
+    const anySigned = updatedSigners.some(s => s.status === "signed");
     const updated = {
       ...signingDoc,
-      signatures: result.signatures,
+      signatures: merged,
+      signers:    updatedSigners,
       signedAt:   result.signedAt,
       signedGeo:  result.geo,
-      status:     "signed",
+      status:     updatedSigners.length === 0 ? "signed"
+                : allSigned ? "signed"
+                : anySigned ? "partially-signed"
+                : signingDoc.status,
     };
     const all = loadProjDocs(proj?.id||"").map(d => d.id===updated.id ? updated : d);
     saveProjDocs(proj?.id||"", all);
@@ -5930,6 +5951,12 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
                   {doc.status==="signed" && (
                     <span style={{fontSize:9,background:"rgba(26,217,138,.12)",color:"var(--green)",borderRadius:4,padding:"1px 6px",fontFamily:"var(--mono)"}}>✓ SIGNED</span>
                   )}
+                  {doc.status==="partially-signed" && (
+                    <span style={{fontSize:9,background:"rgba(91,163,245,.12)",color:"var(--blue)",borderRadius:4,padding:"1px 6px",fontFamily:"var(--mono)"}}>PARTIALLY SIGNED</span>
+                  )}
+                  {doc.status==="awaiting-signatures" && (
+                    <span style={{fontSize:9,background:"rgba(245,158,11,.12)",color:"var(--amber)",borderRadius:4,padding:"1px 6px",fontFamily:"var(--mono)"}}>AWAITING SIGNATURES</span>
+                  )}
                 </div>
                 <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>
                   {doc.date ? new Date(doc.date).toLocaleDateString() : ""}
@@ -5955,9 +5982,22 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
                     View / Download
                   </button>
                 )}
-                {doc.fileData && doc.fileData.startsWith("data:application/pdf") && (
+                {doc.fileData && doc.fileData.startsWith("data:application/pdf") && doc.status!=="signed" && (
                   <button className="btn btn-secondary btn-xs" onClick={()=>setSigningDoc(doc)}>
                     ✍️ Sign
+                  </button>
+                )}
+                {doc.fileData && doc.fileData.startsWith("data:application/pdf") && (
+                  <button className="btn btn-ghost btn-xs" style={{color:"var(--blue)"}} onClick={()=>{
+                    setReqSigDoc(doc);
+                    // Pre-populate from project contacts that have email
+                    const existing = doc.signers || [];
+                    const fromContacts = (contacts||[]).filter(c=>c.email&&!existing.find(s=>s.email===c.email)).map(c=>({
+                      id:`signer-${Date.now()}-${Math.random().toString(36).slice(2,5)}`, name:c.name||"", email:c.email, role:c.role||"Client", status:"pending"
+                    }));
+                    setReqSigners(existing.length>0 ? existing : fromContacts.length>0 ? fromContacts : [{id:`signer-${Date.now()}`,name:"",email:"",role:"Client",status:"pending"}]);
+                  }}>
+                    ✉ Request Signatures
                   </button>
                 )}
                 {doc.fileData && (
@@ -5975,9 +6015,99 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
                   {Ic.trash}
                 </button>
               </div>
+              {/* Signer status rows */}
+              {doc.signers?.length > 0 && (
+                <div style={{borderTop:"1px solid var(--br)",padding:"6px 15px 6px 49px",display:"flex",gap:8,flexWrap:"wrap"}}>
+                  {doc.signers.map((s,si) => (
+                    <div key={s.id||si} style={{display:"flex",alignItems:"center",gap:5,fontSize:10,color:s.status==="signed"?"var(--green)":"var(--amber)"}}>
+                      <span style={{width:6,height:6,borderRadius:"50%",background:s.status==="signed"?"var(--green)":"var(--amber)",flexShrink:0}}/>
+                      {s.name||s.email||`Signer ${si+1}`}
+                      <span style={{color:"var(--t3)"}}>({s.role})</span>
+                      {s.status==="signed" && s.signedAt && <span className="mono" style={{fontSize:8,color:"var(--t3)"}}>{new Date(s.signedAt).toLocaleDateString()}</span>}
+                      {s.status!=="signed" && doc.fileData && (
+                        <button className="btn btn-ghost btn-xs" style={{fontSize:9,padding:"1px 6px"}} onClick={()=>setSigningDoc({...doc, _signerIdx:si})}>
+                          Sign Now
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Request Signatures modal */}
+      {reqSigDoc && (
+        <div className="overlay" onClick={e=>e.target===e.currentTarget&&setReqSigDoc(null)}>
+          <div className="modal anim" style={{maxWidth:560}}>
+            <div className="modal-hd">
+              <div>
+                <div className="modal-ttl">Request Signatures</div>
+                <div style={{fontSize:11,color:"var(--t3)",marginTop:2}}>{reqSigDoc.name}</div>
+              </div>
+              <button className="btn btn-ghost btn-xs" onClick={()=>setReqSigDoc(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{fontSize:11,color:"var(--t3)",marginBottom:8,lineHeight:1.6}}>
+                Add the people who need to sign this document. Each signer will receive an email with a link to sign. Only one signer can access the document at a time — once they save their signature, the next signer is notified.
+              </div>
+              {reqSigners.map((s,i) => (
+                <div key={s.id} style={{display:"grid",gridTemplateColumns:"1fr 1fr 80px 28px",gap:8,marginBottom:8,padding:"10px 12px",background:"var(--s3)",borderRadius:8,border:"1px solid var(--br)",alignItems:"end"}}>
+                  <div>
+                    <label className="lbl">Name</label>
+                    <input className="inp" value={s.name} placeholder="Full name" style={{fontSize:11}}
+                      onChange={e=>{const v=e.target.value; setReqSigners(ss=>ss.map((x,j)=>j===i?{...x,name:v}:x));}}/>
+                  </div>
+                  <div>
+                    <label className="lbl">Email *</label>
+                    <input className="inp" type="email" value={s.email} placeholder="email@example.com" style={{fontSize:11}}
+                      onChange={e=>{const v=e.target.value; setReqSigners(ss=>ss.map((x,j)=>j===i?{...x,email:v}:x));}}/>
+                  </div>
+                  <div>
+                    <label className="lbl">Role</label>
+                    <input className="inp" value={s.role} placeholder="Client" style={{fontSize:11}}
+                      onChange={e=>{const v=e.target.value; setReqSigners(ss=>ss.map((x,j)=>j===i?{...x,role:v}:x));}}/>
+                  </div>
+                  <button className="btn btn-ghost btn-xs" style={{color:"var(--acc)",marginBottom:2}}
+                    onClick={()=>setReqSigners(ss=>ss.filter((_,j)=>j!==i))}>✕</button>
+                </div>
+              ))}
+              <button className="btn btn-ghost btn-xs" style={{marginTop:4}}
+                onClick={()=>setReqSigners(ss=>[...ss,{id:`signer-${Date.now()}`,name:"",email:"",role:"Client",status:"pending"}])}>
+                + Add Another Signer
+              </button>
+            </div>
+            <div className="modal-ft">
+              <button className="btn btn-ghost" onClick={()=>setReqSigDoc(null)}>Cancel</button>
+              <button className="btn btn-primary" disabled={reqSending || !reqSigners.some(s=>s.email?.trim())} onClick={async ()=>{
+                setReqSending(true);
+                const validSigners = reqSigners.filter(s=>s.email?.trim()).map(s=>({...s, status: s.status||"pending"}));
+                // Save signers to document
+                const updated = { ...reqSigDoc, signers: validSigners, status: reqSigDoc.status==="signed" ? "signed" : "awaiting-signatures" };
+                const all = loadProjDocs(proj?.id||"").map(d=>d.id===updated.id?updated:d);
+                saveProjDocs(proj?.id||"", all);
+                setDocs(all);
+                // Attempt to send via backend (will gracefully handle if function doesn't exist yet)
+                try {
+                  await callFn("send-signing-request", {
+                    companyId: _globalCompanyId,
+                    projectId: proj?.id,
+                    projectName: proj?.name,
+                    docId: reqSigDoc.id,
+                    docName: reqSigDoc.name,
+                    signers: validSigners,
+                  });
+                } catch(e) { console.warn("send-signing-request not available:", e.message); }
+                setReqSending(false);
+                setReqSigDoc(null);
+              }}>
+                {reqSending ? "Sending…" : `✉ Send to ${reqSigners.filter(s=>s.email?.trim()).length} Signer${reqSigners.filter(s=>s.email?.trim()).length!==1?"s":""}`}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -6001,6 +6131,9 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
         <PdfQuickSignModal
           pdfData={signingDoc.fileData}
           docName={signingDoc.name}
+          signerName={signingDoc._signerIdx!=null ? (signingDoc.signers?.[signingDoc._signerIdx]?.name||"") : ""}
+          signerEmail={signingDoc._signerIdx!=null ? (signingDoc.signers?.[signingDoc._signerIdx]?.email||"") : ""}
+          existingSignatures={signingDoc.signatures || []}
           onSave={handleSignSave}
           onClose={()=>setSigningDoc(null)}
         />

@@ -1046,16 +1046,18 @@ function PreviewModal({ doc, onClose }) {
 // PDF QUICK-SIGN MODAL — sign any PDF without a template
 // Opens a PDF, lets user draw a signature, tap to place it, and save.
 // ─────────────────────────────────────────────────────────────────────────────
-export function PdfQuickSignModal({ pdfData, docName="Document", onSave, onClose }) {
+export function PdfQuickSignModal({ pdfData, docName="Document", signerName="", signerEmail="", existingSignatures=[], onSave, onClose }) {
   const [pageCount,    setPageCount]    = useState(1);
   const [activePage,   setActivePage]   = useState(1);
   const [dims,         setDims]         = useState({});
   const [sigData,      setSigData]      = useState(null);
-  const [placedSigs,   setPlacedSigs]   = useState([]);   // [{ id, page, x, y, w, h, data, timestamp, lat, lng }]
+  const [placedSigs,   setPlacedSigs]   = useState([]);   // [{ id, page, x, y, w, h, data, timestamp, lat, lng, signerName, signerEmail }]
   const [placingMode,  setPlacingMode]  = useState(false);
   const [geo,          setGeo]          = useState(null);
   const [geoLoading,   setGeoLoading]   = useState(false);
   const [geoAsked,     setGeoAsked]     = useState(false);
+  const [nameInput,    setNameInput]    = useState(signerName);
+  const [emailInput,   setEmailInput]   = useState(signerEmail);
   const wrapRef = useRef();
 
   useEffect(() => {
@@ -1091,6 +1093,8 @@ export function PdfQuickSignModal({ pdfData, docName="Document", onSave, onClose
       timestamp: new Date().toISOString(),
       lat:  geo?.lat || "unavailable",
       lng:  geo?.lng || "unavailable",
+      signerName:  nameInput  || "",
+      signerEmail: emailInput || "",
     };
     setPlacedSigs(prev => [...prev, sig]);
     setPlacingMode(false);
@@ -1101,9 +1105,11 @@ export function PdfQuickSignModal({ pdfData, docName="Document", onSave, onClose
   const handleSave = () => {
     if (placedSigs.length === 0) { alert("Please place at least one signature on the PDF."); return; }
     onSave({
-      signatures: placedSigs,
-      signedAt:   new Date().toISOString(),
+      signatures:  placedSigs,
+      signedAt:    new Date().toISOString(),
       geo,
+      signerName:  nameInput  || "",
+      signerEmail: emailInput || "",
     });
   };
 
@@ -1128,6 +1134,35 @@ export function PdfQuickSignModal({ pdfData, docName="Document", onSave, onClose
           </button>
         </div>
       </div>
+
+      {/* Signer identity — shown if not pre-filled */}
+      {!signerName && !signerEmail && geoAsked && (
+        <div style={{ width:"100%", maxWidth:860, marginBottom:12, background:"var(--s2)", borderRadius:10, border:"1px solid var(--br)", padding:16, display:"flex", gap:12, alignItems:"flex-end" }}>
+          <div style={{ flex:1 }}>
+            <label className="lbl">Your Name</label>
+            <input className="inp" value={nameInput} onChange={e=>setNameInput(e.target.value)} placeholder="Full name"/>
+          </div>
+          <div style={{ flex:1 }}>
+            <label className="lbl">Your Email</label>
+            <input className="inp" type="email" value={emailInput} onChange={e=>setEmailInput(e.target.value)} placeholder="email@example.com"/>
+          </div>
+        </div>
+      )}
+
+      {/* Show existing signatures from other signers */}
+      {existingSignatures.length > 0 && geoAsked && (
+        <div style={{ width:"100%", maxWidth:860, marginBottom:10 }}>
+          <div className="mono" style={{ fontSize:9, color:"var(--t3)", marginBottom:6 }}>PREVIOUS SIGNATURES ON THIS DOCUMENT</div>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+            {existingSignatures.map((s, i) => (
+              <div key={s.id||i} style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(26,217,138,.06)", border:"1px solid rgba(26,217,138,.18)", borderRadius:6, padding:"4px 10px", fontSize:10, color:"var(--green)" }}>
+                {Di.check} {s.signerName || `Signature ${i+1}`} — Page {s.page}
+                {s.timestamp && <span className="mono" style={{ fontSize:8, color:"var(--t3)", marginLeft:4 }}>{new Date(s.timestamp).toLocaleDateString()}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* GPS prompt — ask once */}
       {!geoAsked && (
@@ -1204,7 +1239,27 @@ export function PdfQuickSignModal({ pdfData, docName="Document", onSave, onClose
                   onClick={activePage===p ? handleCanvasClick : undefined}
                 >
                   <PdfPageCanvas pdfData={pdfData} pageNum={p} width={720} onDims={d => setDims(prev => ({ ...prev, [p]:d }))}/>
-                  {/* Render placed signatures on this page */}
+                  {/* Render existing signatures from previous signers (read-only) */}
+                  {dims[p] && existingSignatures.filter(s => s.page===p).map((s, i) => (
+                    <div
+                      key={s.id||`ex-${i}`}
+                      style={{
+                        position:"absolute",
+                        left:   s.x * dims[p].w,
+                        top:    s.y * dims[p].h,
+                        width:  s.w * dims[p].w,
+                        height: s.h * dims[p].h,
+                        border:"1.5px solid rgba(26,217,138,.4)",
+                        borderRadius:5,
+                        background:"rgba(26,217,138,.03)",
+                        display:"flex", alignItems:"center", justifyContent:"center",
+                        overflow:"hidden", pointerEvents:"none",
+                      }}
+                    >
+                      <img src={s.data} alt="Previous signature" style={{ maxWidth:"100%", maxHeight:"100%", objectFit:"contain", opacity:.7 }}/>
+                    </div>
+                  ))}
+                  {/* Render newly placed signatures on this page */}
                   {dims[p] && placedSigs.filter(s => s.page===p).map(s => (
                     <div
                       key={s.id}
