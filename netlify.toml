@@ -7,6 +7,11 @@
   SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
 
 [[redirects]]
+  from   = "/field/*"
+  to     = "/field/index.html"
+  status = 200
+
+[[redirects]]
   from   = "/app/*"
   to     = "/app/dist/index.html"
   status = 200

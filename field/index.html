@@ -1026,20 +1026,13 @@ function FieldApp() {
       // member accepts a portal invite, or that we write via invite code below
       let companyId = m.customFields?.["company-id"] || null;
 
-      // If no stored company-id, check whether this user is the account owner.
-      // The portal uses member.id as the companyId for owners, so look for a
-      // matching company doc. This mirrors the portal's initMember() logic.
+      // If no stored company-id, assume this user is the account owner.
+      // The portal uses member.id as the companyId for owners (see initMember).
       if (!companyId) {
-        try {
-          const ownerDoc = await db.collection("companies").doc(m.id).get();
-          if (ownerDoc.exists()) {
-            companyId = m.id;
-            // Persist so future logins skip this check
-            ms.updateMember({ customFields: { "company-id": companyId } }).catch(()=>{});
-          }
-        } catch(e) { /* offline or permissions — fall through to invite screen */ }
+        companyId = m.id;
+        // Persist so future logins skip this step
+        ms.updateMember({ customFields: { "company-id": companyId } }).catch(()=>{});
       }
-      if (!companyId) { setAuthState("invite"); return; }
 
       const name = getMemberName(m);
       const profile = {
