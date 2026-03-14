@@ -3,6 +3,7 @@
   "short_name": "Job-Dox",
   "description": "Job-Dox operations intelligence platform for contractors",
   "start_url": "/app/",
+  "scope": "/app/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#06070d",
