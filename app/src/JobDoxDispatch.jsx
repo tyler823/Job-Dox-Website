@@ -136,10 +136,17 @@ function saveDispatchResources(companyId, resources) {
   }
 }
 
-// ── LS for project lat/lng cache ──
+// ── LS + Firestore for project lat/lng cache ──
 const LS_GEO_CACHE = "jd_dispatch_geocache";
 function loadGeoCache() { try { return JSON.parse(localStorage.getItem(LS_GEO_CACHE)) || {}; } catch { return {}; } }
-function saveGeoCache(cache) { try { localStorage.setItem(LS_GEO_CACHE, JSON.stringify(cache)); } catch {} }
+function saveGeoCache(cache, companyId) {
+  try { localStorage.setItem(LS_GEO_CACHE, JSON.stringify(cache)); } catch {}
+  if (_dispatchDb && companyId) {
+    setDoc(doc(_dispatchDb, "companies", companyId, "settings", "dispatchGeoCache"), {
+      data: JSON.parse(JSON.stringify(cache)), updatedAt: serverTimestamp(),
+    }, { merge: true }).catch(() => {});
+  }
+}
 
 // ── Unique ID generator ──
 let _dispatchId = 5000;
@@ -1092,9 +1099,23 @@ export default function DispatchPanel({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);
 
-  // ── Geocode cache — geocode projects on mount ──
+  // ── Geocode cache — load from Firestore then geocode missing projects ──
   const [geoCache, setGeoCache] = useState(loadGeoCache);
   const geocodingRef = useRef(false);
+
+  // Load geocache from Firestore on mount
+  useEffect(() => {
+    if (!_dispatchDb || !companyId) return;
+    getDoc(doc(_dispatchDb, "companies", companyId, "settings", "dispatchGeoCache"))
+      .then(snap => {
+        if (snap.exists() && snap.data().data) {
+          const v = snap.data().data;
+          setGeoCache(prev => ({ ...prev, ...v }));
+          try { localStorage.setItem(LS_GEO_CACHE, JSON.stringify({ ...loadGeoCache(), ...v })); } catch {}
+        }
+      }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId]);
 
   useEffect(() => {
     if (geocodingRef.current || !projects.length) return;
@@ -1116,7 +1137,7 @@ export default function DispatchPanel({
       }
       if (dirty) {
         setGeoCache({ ...cache });
-        saveGeoCache(cache);
+        saveGeoCache(cache, companyId);
       }
       geocodingRef.current = false;
     })();

@@ -22,6 +22,10 @@
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { getApps } from "firebase/app";
+
+const _rptDb = getApps().length > 0 ? getFirestore(getApps()[0]) : null;
 
 /* ─────────────────────────────────────────────────────────────────────────────
    HELPERS
@@ -1909,6 +1913,7 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
 ═══════════════════════════════════════════════════════════════════════════ */
 export function ReportsDashboard({ projects=[], companyId="", onNavigate, globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], priceLists=[], reviewRequests=[], offices=[] }) {
   const [tab, setTab] = useState("revenue");
+  const [fsReady, setFsReady] = useState(false);
 
   // Inject CSS once
   useEffect(() => {
@@ -1920,8 +1925,26 @@ export function ReportsDashboard({ projects=[], companyId="", onNavigate, global
     return () => { const el = document.getElementById("rpt-css"); if (el) el.remove(); };
   }, []);
 
-  // Enrich projects with financial data
-  const data = useMemo(() => enrichProjects(projects), [projects]);
+  // ── Load from Firestore on mount (source of truth → LS cache) ──
+  useEffect(() => {
+    if (!_rptDb || !companyId) { setFsReady(true); return; }
+    const loads = [
+      getDoc(doc(_rptDb, "companies", companyId, "settings", "invoices")).then(s => {
+        if (s.exists() && s.data().data) try { localStorage.setItem("jd_invoices", JSON.stringify(s.data().data)); } catch {}
+      }),
+      getDoc(doc(_rptDb, "companies", companyId, "settings", "vendorBills")).then(s => {
+        if (s.exists() && s.data().data) try { localStorage.setItem("jd_vendor_bills", JSON.stringify(s.data().data)); } catch {}
+      }),
+      getDoc(doc(_rptDb, "companies", companyId, "settings", "projectBudgets")).then(s => {
+        if (s.exists() && s.data().data) try { localStorage.setItem("jd_project_budgets", JSON.stringify(s.data().data)); } catch {}
+      }),
+    ];
+    Promise.allSettled(loads).then(() => setFsReady(true));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId]);
+
+  // Enrich projects with financial data (re-run after FS data loaded)
+  const data = useMemo(() => enrichProjects(projects), [projects, fsReady]);
   const statuses = customStatuses.length > 0 ? customStatuses : DEFAULT_STATUSES;
 
   return (

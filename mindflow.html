@@ -161,6 +161,21 @@ body{background:var(--bg);color:var(--t1);font-family:'Outfit',sans-serif;height
 .modal-hd{padding:16px 18px;border-bottom:1px solid var(--br);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
 .modal-body{overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
 </style>
+
+<!-- Firebase compat (Firestore only — matches field/index.html) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script>
+  firebase.initializeApp({
+    apiKey:"AIzaSyAFwSEDPqKgAUbwbh_2KZNwLDdGCZEiq3E",
+    authDomain:"cortex-717c6.firebaseapp.com",
+    projectId:"cortex-717c6",
+    storageBucket:"cortex-717c6.firebasestorage.app",
+    messagingSenderId:"496631882511",
+    appId:"1:496631882511:web:3f7be61bcbb83a6ab4d47a",
+  });
+  var mfDb = firebase.firestore();
+</script>
 </head>
 <body>
 <div class="wrap">
@@ -458,7 +473,46 @@ body{background:var(--bg);color:var(--t1);font-family:'Outfit',sans-serif;height
 
 <script>
 /* ══════════════════════════════════════════════
-   STAFF BRIDGE — reads from localStorage written by JobDoxPortal
+   FIRESTORE HELPERS — companyId derived from jd_company_config (stays in LS)
+══════════════════════════════════════════════ */
+function getMfCompanyId() {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('jd_company_config') || '{}');
+    return cfg.companyId || null;
+  } catch { return null; }
+}
+
+async function mfLoadSetting(settingsKey) {
+  const cid = getMfCompanyId();
+  if (!cid || typeof mfDb === 'undefined') return null;
+  try {
+    const snap = await mfDb.collection('companies').doc(cid).collection('settings').doc(settingsKey).get();
+    return snap.exists ? (snap.data().data || null) : null;
+  } catch { return null; }
+}
+
+async function mfSaveSetting(settingsKey, value) {
+  const cid = getMfCompanyId();
+  if (!cid || typeof mfDb === 'undefined') return;
+  try {
+    await mfDb.collection('companies').doc(cid).collection('settings').doc(settingsKey).set({
+      data: JSON.parse(JSON.stringify(value)),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+  } catch(e) { console.warn('[CortexAI] Firestore save failed:', e); }
+}
+
+async function mfLoadStaffFromFS() {
+  const cid = getMfCompanyId();
+  if (!cid || typeof mfDb === 'undefined') return null;
+  try {
+    const snap = await mfDb.collection('companies').doc(cid).collection('staff').get();
+    return snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+  } catch { return null; }
+}
+
+/* ══════════════════════════════════════════════
+   STAFF BRIDGE — reads from Firestore (source of truth), falls back to localStorage
 ══════════════════════════════════════════════ */
 let STAFF = [];       // loaded from localStorage (jd_staff)
 let ROLE_MAP = {};    // { "Project Manager": [{name,photoUrl,color,...}] }
@@ -472,26 +526,34 @@ const ROLE_COLORS = {
 
 function roleColor(role) { return ROLE_COLORS[role] || '#5ba3f5'; }
 
-function loadStaff() {
-  try {
-    const raw = localStorage.getItem('jd_staff');
-    if (raw) {
-      STAFF = JSON.parse(raw);
-    } else {
-      STAFF = []; // No staff — user must sync from Job-Dox portal
-    }
-  } catch(e) { STAFF = []; }
-
-  // Build role map — first person per role is auto-assigned
+function applyStaffData(staffArr) {
+  STAFF = staffArr || [];
   ROLE_MAP = {};
-  STAFF.forEach(s => {
+  STAFF.forEach(function(s) {
     if (!ROLE_MAP[s.systemRole]) ROLE_MAP[s.systemRole] = [];
     ROLE_MAP[s.systemRole].push(s);
   });
-
   updateStaffUI();
   updateFilterRoles();
   rerender();
+}
+
+function loadStaff() {
+  // Read from LS cache for fast paint
+  try {
+    var raw = localStorage.getItem('jd_staff');
+    if (raw) STAFF = JSON.parse(raw);
+    else STAFF = [];
+  } catch(e) { STAFF = []; }
+  applyStaffData(STAFF);
+
+  // Load from Firestore (source of truth)
+  mfLoadStaffFromFS().then(function(fsStaff) {
+    if (fsStaff && fsStaff.length > 0) {
+      try { localStorage.setItem('jd_staff', JSON.stringify(fsStaff)); } catch {}
+      applyStaffData(fsStaff);
+    }
+  });
 }
 
 function updateStaffUI() {
@@ -707,10 +769,11 @@ let filterPrio = '';
 let CURRENT_PERM = 3; // default: Technician until loaded
 
 function loadCurrentUser() {
+  // Read from LS cache first (fast paint)
   try {
-    const raw = localStorage.getItem('jd_current_user');
+    var raw = localStorage.getItem('jd_current_user');
     if (raw) {
-      const u = JSON.parse(raw);
+      var u = JSON.parse(raw);
       CURRENT_PERM = Math.min(10, Math.max(1, parseInt(u.permissionLevel) || 3));
     }
   } catch { CURRENT_PERM = 3; }
@@ -801,24 +864,33 @@ const BUILTIN_TEMPLATES = {
 };
 
 function loadCompanyConfig() {
+  // Read from jd_company_config (stays in LS as CortexAI sync layer)
   try {
-    const raw = localStorage.getItem('jd_company_config');
+    var raw = localStorage.getItem('jd_company_config');
     if (raw) {
-      const cfg = JSON.parse(raw);
+      var cfg = JSON.parse(raw);
       COMPANY_WORK_TYPES = cfg.workTypes  || [];
       COMPANY_STATUSES   = cfg.statuses   || [];
     } else {
-      // Try separate keys the portal also writes
-      try {
-        const wtRaw = localStorage.getItem('jd_company_worktypes');
-        const stRaw = localStorage.getItem('jd_company_statuses');
-        COMPANY_WORK_TYPES = wtRaw ? JSON.parse(wtRaw) : [];
-        COMPANY_STATUSES   = stRaw ? JSON.parse(stRaw) : [];
-      } catch { COMPANY_WORK_TYPES = []; COMPANY_STATUSES = []; }
+      COMPANY_WORK_TYPES = [];
+      COMPANY_STATUSES   = [];
     }
   } catch(e) { COMPANY_WORK_TYPES = []; COMPANY_STATUSES = []; }
 
   populateWorkTypeSelector();
+
+  // Also load from Firestore (source of truth)
+  mfLoadSetting('workTypes').then(function(v) {
+    if (v && JSON.stringify(v) !== JSON.stringify(COMPANY_WORK_TYPES)) {
+      COMPANY_WORK_TYPES = v;
+      populateWorkTypeSelector();
+    }
+  });
+  mfLoadSetting('statuses').then(function(v) {
+    if (v && JSON.stringify(v) !== JSON.stringify(COMPANY_STATUSES)) {
+      COMPANY_STATUSES = v;
+    }
+  });
 }
 
 function populateWorkTypeSelector() {
@@ -1086,6 +1158,16 @@ function loadAllTemplates() {
   try { return JSON.parse(localStorage.getItem(LS_WF_KEY)) || {}; } catch { return {}; }
 }
 
+// Load from Firestore (async, updates LS cache and refreshes UI)
+function loadAllTemplatesFromFS() {
+  mfLoadSetting('workflowTemplates').then(function(v) {
+    if (v) {
+      try { localStorage.setItem(LS_WF_KEY, JSON.stringify(v)); } catch {}
+      refreshLibrary();
+    }
+  });
+}
+
 function buildWorkflowExport(name, mode) {
   const triggers = COMPANY_STATUSES.filter(s=>s.triggerTask).map(s=>({
     keyword: s.triggerTask, toStatus: s.name, color: s.color,
@@ -1140,6 +1222,8 @@ function saveAsTemplate() {
       cfg.workTypes = cfg.workTypes.map(w => w.name === wt ? {...w, hasWorkflow:true} : w);
       localStorage.setItem('jd_company_config', JSON.stringify(cfg));
     }
+    // Persist to Firestore (source of truth)
+    mfSaveSetting('workflowTemplates', all);
     const total = PHASES.reduce((s,p)=>s+p.tasks,0);
     showToast(`${isOverwrite ? '↺ Updated' : '◈ Saved'}: "${name}" — ${total} tasks auto-apply on new ${wt} projects`);
     updateOverwriteWarning();
@@ -1257,6 +1341,8 @@ function deleteTemplate(wt) {
   const all = loadAllTemplates();
   delete all[wt];
   localStorage.setItem(LS_WF_KEY, JSON.stringify(all));
+  // Persist to Firestore (source of truth)
+  mfSaveSetting('workflowTemplates', all);
   // Mark work type as no longer having a workflow
   try {
     const cfg = JSON.parse(localStorage.getItem('jd_company_config') || '{}');
@@ -1814,14 +1900,14 @@ mmRender();
 mmUpdatePanel();
 
 function pollStaff() {
-  try {
-    const raw = localStorage.getItem('jd_staff');
-    const latest = raw ? JSON.parse(raw) : null;
-    if (latest && JSON.stringify(latest) !== JSON.stringify(STAFF)) {
-      loadStaff();
-      showToast(`↺ Staff updated from Job-Dox — ${latest.length} members`);
+  // Poll from Firestore (source of truth)
+  mfLoadStaffFromFS().then(function(fsStaff) {
+    if (fsStaff && JSON.stringify(fsStaff) !== JSON.stringify(STAFF)) {
+      try { localStorage.setItem('jd_staff', JSON.stringify(fsStaff)); } catch {}
+      applyStaffData(fsStaff);
+      showToast('↺ Staff updated from Job-Dox — ' + fsStaff.length + ' members');
     }
-  } catch(_){}
+  });
 }
 
 function pollCompanyConfig() {
@@ -1853,9 +1939,10 @@ function pollCompanyConfig() {
 loadCurrentUser();
 loadCompanyConfig();
 loadStaff();
-setInterval(pollStaff, 2000);
+loadAllTemplatesFromFS(); // Load workflow templates from Firestore
+setInterval(pollStaff, 5000);
 setInterval(pollCompanyConfig, 3000);
-setInterval(() => { loadCurrentUser(); }, 5000); // re-check perm every 5s
+setInterval(function() { loadCurrentUser(); }, 5000); // re-check perm every 5s
 </script>
 </body>
 </html>

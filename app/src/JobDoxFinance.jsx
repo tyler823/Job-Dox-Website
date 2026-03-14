@@ -18,7 +18,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { getFirestore, doc, onSnapshot, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { getFirestore, doc, getDoc, onSnapshot, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { loadProjEstimates } from "./EstimateDox.jsx";
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -2691,7 +2691,7 @@ export function FinancialTab({ proj, companyId, laborCost=0, invoices: _invoices
   const [addModal, setAddModal] = useState(false);
   const [addTypeHint, setAddTypeHint] = useState("invoice");
 
-  // ── Per-project budget (localStorage) ──
+  // ── Per-project budget (localStorage cache, Firestore source of truth) ──
   const [projBudget, setProjBudget] = useState(() => lsGetProjectBudget(proj.id));
   const handleBudgetChange = useCallback((updated) => {
     lsSaveProjectBudget(proj.id, updated);
@@ -2700,7 +2700,7 @@ export function FinancialTab({ proj, companyId, laborCost=0, invoices: _invoices
   // Re-sync when navigating between projects
   useEffect(() => { setProjBudget(lsGetProjectBudget(proj.id)); }, [proj.id]);
 
-  // ── Local invoice state (reads from localStorage, reactive to updates within this session) ──
+  // ── Local invoice state (localStorage cache, Firestore source of truth) ──
   const [invoices, setInvoices] = useState(() => lsGetInvoices(proj.id));
 
   const handleInvoiceChange = (id, patch) => {
@@ -2714,6 +2714,27 @@ export function FinancialTab({ proj, companyId, laborCost=0, invoices: _invoices
   useEffect(() => {
     setInvoices(lsGetInvoices(proj.id));
   }, [proj.id]);
+
+  // ── Load from Firestore on mount (source of truth) ──
+  useEffect(() => {
+    if (!companyId) return;
+    const db = getDb();
+    getDoc(doc(db, "companies", companyId, "settings", "invoices")).then(snap => {
+      if (snap.exists()) {
+        const all = snap.data().data || [];
+        try { localStorage.setItem(LS_INV_KEY, JSON.stringify(all)); } catch {}
+        setInvoices(proj.id ? all.filter(i => i.projId === proj.id) : all);
+      }
+    }).catch(() => {});
+    getDoc(doc(db, "companies", companyId, "settings", "projectBudgets")).then(snap => {
+      if (snap.exists()) {
+        const all = snap.data().data || {};
+        try { localStorage.setItem(LS_PROJECT_BUDGETS, JSON.stringify(all)); } catch {}
+        setProjBudget(all[proj.id] || { categories:[], xactimate:null });
+      }
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId, proj.id]);
 
   // Firestore path
   const docRef = useMemo(()=>
@@ -3003,9 +3024,34 @@ export function FinancialDashboard({ projects=[], companyId, onNavigate }) {
   const [filter, setFilter]     = useState("all");
   const [aiReport, setAiReport] = useState("");
   const [aiLoading, setAiLoad]  = useState(false);
-  // Read all generated invoices from localStorage (jd_invoices) — these are written by the
-  // portal's scope/invoice builder and are NOT stored in Firestore transactions.
+  // Read all generated invoices (localStorage cache, Firestore source of truth)
   const [allLsInvoices, setAllLsInvoices] = useState(() => lsGetInvoices());
+
+  // ── Load invoices + vendor bills from Firestore on mount ──
+  useEffect(() => {
+    if (!companyId) return;
+    const db = getDb();
+    getDoc(doc(db, "companies", companyId, "settings", "invoices")).then(snap => {
+      if (snap.exists()) {
+        const v = snap.data().data || [];
+        try { localStorage.setItem(LS_INV_KEY, JSON.stringify(v)); } catch {}
+        setAllLsInvoices(v);
+      }
+    }).catch(() => {});
+    getDoc(doc(db, "companies", companyId, "settings", "vendorBills")).then(snap => {
+      if (snap.exists()) {
+        const v = snap.data().data || [];
+        try { localStorage.setItem(LS_VENDOR_BILLS, JSON.stringify(v)); } catch {}
+      }
+    }).catch(() => {});
+    getDoc(doc(db, "companies", companyId, "settings", "projectBudgets")).then(snap => {
+      if (snap.exists()) {
+        const v = snap.data().data || {};
+        try { localStorage.setItem(LS_PROJECT_BUDGETS, JSON.stringify(v)); } catch {}
+      }
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId]);
 
   // Load financials for all projects
   useEffect(() => {
