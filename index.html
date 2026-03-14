@@ -968,16 +968,8 @@ document.querySelectorAll('.roi-charts').forEach(el=>{el.querySelectorAll('.ann-
     document.querySelectorAll('[data-ms-action="login"]').forEach(function(el) {
       el.addEventListener('click', function(e) {
         e.preventDefault();
-        window.$memberstackDom.openModal('LOGIN');
-      });
-    });
-
-    // Redirect after login — signup is handled by purchasePlansWithCheckout
-    if (window.$memberstackDom.onReady) {
-      window.$memberstackDom.onReady.then(function(ms) {
-        ms.onAuthChange(function(payload) {
-          if (payload && payload.member && payload.type === 'LOGIN') {
-            try { ms.closeModal(); } catch(e) {}
+        window.$memberstackDom.openModal('LOGIN').then(function(result) {
+          if (result && result.data) {
             sessionStorage.setItem('jd_portal_active', '1');
             var invite = sessionStorage.getItem('jd_invite');
             var dest = '/app/dist/';
@@ -986,7 +978,7 @@ document.querySelectorAll('.roi-charts').forEach(el=>{el.querySelectorAll('.ann-
           }
         });
       });
-    }
+    });
 
   } else {
     setTimeout(waitForMemberstack, 50);
