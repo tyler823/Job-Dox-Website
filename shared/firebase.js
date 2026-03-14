@@ -413,3 +413,48 @@ export const deleteItemPhoto = async (storagePath) => {
     if (err.code !== "storage/object-not-found") throw err;
   }
 };
+
+// ════════════════════════════════════════════════════════════════
+//  REVIEW REQUESTS  (company-level)
+//  /companies/{companyId}/reviewRequests/{requestId}
+//
+//  Tracks review requests sent to project clients for
+//  Google Business Profile reputation management.
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * Listen to all review requests for a company (real-time).
+ */
+export const listenReviewRequests = (companyId, callback) =>
+  onSnapshot(
+    query(collection(db, "companies", companyId, "reviewRequests"), orderBy("createdAt", "desc")),
+    snap => callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+
+/**
+ * Add a new review request record.
+ * @param {string} companyId
+ * @param {object} request - { projectId, projectName, officeId, officeName,
+ *   clientName, clientPhone, clientEmail, googleBusinessUrl, sentBy, sentByName, status }
+ */
+export const addReviewRequest = (companyId, request) =>
+  addDoc(collection(db, "companies", companyId, "reviewRequests"), {
+    ...request,
+    status: request.status || "sent",       // sent | review_received | no_response
+    createdAt: serverTimestamp(),
+  });
+
+/**
+ * Update a review request (e.g. mark review received, add rating/feedback).
+ */
+export const updateReviewRequest = (companyId, requestId, data) =>
+  updateDoc(doc(db, "companies", companyId, "reviewRequests", requestId), {
+    ...data,
+    updatedAt: serverTimestamp(),
+  });
+
+/**
+ * Delete a review request record.
+ */
+export const deleteReviewRequest = (companyId, requestId) =>
+  deleteDoc(doc(db, "companies", companyId, "reviewRequests", requestId));

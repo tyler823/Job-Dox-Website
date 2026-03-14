@@ -57,6 +57,8 @@ export const AUTOMATION_TRIGGERS = [
   { key: "document.uploaded",     label: "Document Uploaded",          group: "Docs"     },
   { key: "day.end",               label: "End of Day",                 group: "Schedule" },
   { key: "day.X",                 label: "X Days After Project Start", group: "Schedule" },
+  { key: "review.requested",      label: "Review Request Sent",        group: "Reputation" },
+  { key: "review.received",       label: "Review Received",            group: "Reputation" },
 ];
 
 // ── Automation Action Types ───────────────────────────────────
@@ -69,6 +71,7 @@ export const AUTOMATION_ACTIONS = [
   { key: "send_report",    label: "Send Project Report"        },
   { key: "send_notes",     label: "Email Daily Notes to Client"},
   { key: "webhook",        label: "Send Webhook (Zapier, etc.)"},
+  { key: "send_review",    label: "Send Review Request to Client" },
 ];
 
 // ── Event Types (cross-tool event bus) ────────────────────────
