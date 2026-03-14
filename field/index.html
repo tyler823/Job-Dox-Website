@@ -158,7 +158,7 @@ function _fieldTabCloseCleanup() {
       JSON.stringify({ memberId: _fieldMemberId })
     );
   } catch(e) {}
-  localStorage.clear();
+  localStorage.removeItem("jd_current_user");
   sessionStorage.clear();
 }
 
@@ -1120,7 +1120,7 @@ function FieldApp() {
       // the previous session ended via tab-close / force-quit.
       if (m && !sessionStorage.getItem("jd_field_active")) {
         try { await ms.logout(); } catch(e) {}
-        localStorage.clear();
+        localStorage.removeItem("jd_current_user");
         sessionStorage.clear();
         ms.openModal("login");
         return;
