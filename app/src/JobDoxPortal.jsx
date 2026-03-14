@@ -8017,6 +8017,7 @@ function AdvToolsPanel({ onClose, priceLists, setPriceLists, companyId, globalSt
   const [showPLManager,    setShowPLManager]    = useState(false);
   const [showDocTemplates, setShowDocTemplates] = useState(false);
   const [showTimeOff,      setShowTimeOff]      = useState(false);
+  const [showAPIPanel,     setShowAPIPanel]     = useState(false);
   const TOOLS = [
     { icon:Ic.mindflow, label:"CortexAI",              desc:"AI-powered workflow generation", link:"/mindflow.html" },
     { icon:Ic.calendar, label:"Time Off & Calendar",   desc:"PTO requests, approvals & company calendar", action:()=>setShowTimeOff(true) },
@@ -8024,6 +8025,7 @@ function AdvToolsPanel({ onClose, priceLists, setPriceLists, companyId, globalSt
     { icon:Ic.doc,      label:"Document Templates",    desc:"Manage reusable contracts, authorizations & change orders", action:()=>setShowDocTemplates(true) },
     { icon:Ic.attr,     label:"Attribute Templates",   desc:"Configure custom project fields" },
     { icon:Ic.report,   label:"Reporting",              desc:"Advanced analytics & exports" },
+    { icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 7V7c0-.55.45-1 1-1s1 .45 1 1v2h2c.55 0 1 .45 1 1s-.45 1-1 1h-2v2c0 .55-.45 1-1 1s-1-.45-1-1v-2H9c-.55 0-1-.45-1-1s.45-1 1-1h2zm5 8H8c-.55 0-1-.45-1-1s.45-1 1-1h8c.55 0 1 .45 1 1s-.45 1-1 1z"/></svg>, label:"API & Integrations", desc:"Connect Zapier, CRMs, and external apps", action:()=>setShowAPIPanel(true) },
   ];
   return (
     <>
@@ -8048,6 +8050,13 @@ function AdvToolsPanel({ onClose, priceLists, setPriceLists, companyId, globalSt
           globalStaff={globalStaff}
           currentMemberId={currentMemberId}
           permissionLevel={permissionLevel}
+        />
+      )}
+      {showAPIPanel && (
+        <APIIntegrationsPanel
+          onClose={()=>setShowAPIPanel(false)}
+          companyId={companyId}
+          memberstackId={currentMemberId}
         />
       )}
       <div style={{position:"fixed",inset:0,zIndex:300}} onClick={e=>e.target===e.currentTarget&&onClose()}>
@@ -8082,8 +8091,386 @@ function AdvToolsPanel({ onClose, priceLists, setPriceLists, companyId, globalSt
   );
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   APIIntegrationsPanel — API Key Management & App Connections
+   Full-screen overlay panel accessed from Advanced Tools.
+══════════════════════════════════════════════════════════════════ */
+function APIIntegrationsPanel({ onClose, companyId, memberstackId }) {
+  const [activeTab, setActiveTab] = useState("key");
+  const [keyData, setKeyData] = useState(null);
+  const [keyLoading, setKeyLoading] = useState(true);
+  const [keyRevealed, setKeyRevealed] = useState(false);
+  const [rawKey, setRawKey] = useState("");
+  const [copied, setCopied] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [revoking, setRevoking] = useState(false);
+  const [showRevokeModal, setShowRevokeModal] = useState(false);
+  const [savingScopes, setSavingScopes] = useState(false);
+  const [scopes, setScopes] = useState({
+    "projects:read": true,
+    "projects:write": false,
+    "contacts:read": true,
+    "contacts:write": false,
+    "projects:read:docs": false,
+  });
 
+  // Uses the module-level db (line 26) — no need to create a new Firebase app
 
+  // Load existing keys for this company
+  const loadKeys = useCallback(async () => {
+    if (!companyId) return;
+    setKeyLoading(true);
+    try {
+      const res = await fetch("/.netlify/functions/api-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "list", companyId, memberstackId }),
+      });
+      const json = await res.json();
+      if (json.ok && json.data && json.data.length > 0) {
+        const active = json.data.find(k => k.status === "active") || json.data[0];
+        setKeyData(active);
+        // Load scopes from the key
+        if (active.scopes) {
+          setScopes({
+            "projects:read": active.scopes.includes("projects:read"),
+            "projects:write": active.scopes.includes("projects:write"),
+            "contacts:read": active.scopes.includes("contacts:read"),
+            "contacts:write": active.scopes.includes("contacts:write"),
+            "projects:read:docs": active.scopes.includes("projects:read:docs"),
+          });
+        }
+      } else {
+        setKeyData(null);
+      }
+    } catch (e) {
+      console.error("Failed to load API keys:", e);
+    }
+    setKeyLoading(false);
+  }, [companyId, memberstackId]);
+
+  useEffect(() => { loadKeys(); }, [loadKeys]);
+
+  // Generate new key
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      const res = await fetch("/.netlify/functions/api-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "generate",
+          companyId,
+          memberstackId,
+          name: "Portal Key",
+          scopes: Object.entries(scopes).filter(([,v]) => v).map(([k]) => k),
+        }),
+      });
+      const json = await res.json();
+      if (json.ok && json.data) {
+        setRawKey(json.data.apiKey);
+        setKeyRevealed(true);
+        // Save to Firestore integrations settings
+        try {
+          const ref = doc(db, `companies/${companyId}/settings`, "integrations");
+          await setDoc(ref, {
+            apiKeyId: json.data.id,
+            apiKeyPrefix: json.data.prefix,
+            enabled: true,
+            createdAt: new Date().toISOString(),
+            scopes: json.data.scopes,
+          }, { merge: true });
+        } catch (_) {}
+        await loadKeys();
+      }
+    } catch (e) {
+      console.error("Generate key failed:", e);
+    }
+    setGenerating(false);
+  };
+
+  // Revoke key
+  const handleRevoke = async () => {
+    if (!keyData) return;
+    setRevoking(true);
+    try {
+      const res = await fetch("/.netlify/functions/api-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "revoke", companyId, memberstackId, keyId: keyData.id }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setKeyData(null);
+        setRawKey("");
+        setKeyRevealed(false);
+        // Update Firestore
+        try {
+          const ref = doc(db, `companies/${companyId}/settings`, "integrations");
+          await setDoc(ref, { enabled: false }, { merge: true });
+        } catch (_) {}
+      }
+    } catch (e) {
+      console.error("Revoke key failed:", e);
+    }
+    setRevoking(false);
+    setShowRevokeModal(false);
+  };
+
+  // Save scopes
+  const handleSaveScopes = async () => {
+    setSavingScopes(true);
+    try {
+      const scopeArr = Object.entries(scopes).filter(([,v]) => v).map(([k]) => k);
+      const ref = doc(db, `companies/${companyId}/settings`, "integrations");
+      await setDoc(ref, { scopes: scopeArr }, { merge: true });
+      setCopied("scopes");
+      setTimeout(() => setCopied(""), 2000);
+    } catch (e) {
+      console.error("Save scopes failed:", e);
+    }
+    setSavingScopes(false);
+  };
+
+  // Copy helpers
+  const copyToClipboard = (text, label) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(label);
+      setTimeout(() => setCopied(""), 2000);
+    });
+  };
+
+  const displayKey = keyData
+    ? (keyRevealed && rawKey ? rawKey : (keyData.prefix || "••••••••••••••••••••"))
+    : "No key generated";
+
+  const keyIsActive = keyData && keyData.status === "active";
+  const createdDate = keyData && keyData.createdAt
+    ? new Date(keyData.createdAt._seconds ? keyData.createdAt._seconds * 1000 : keyData.createdAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+    : null;
+
+  const SCOPE_ROWS = [
+    { key: "projects:read",      name: "Projects — Read",   desc: "View project data" },
+    { key: "projects:write",     name: "Projects — Write",  desc: "Create and update projects" },
+    { key: "contacts:read",      name: "Contacts — Read",   desc: "View contacts and client info" },
+    { key: "contacts:write",     name: "Contacts — Write",  desc: "Create and update contacts" },
+    { key: "projects:read:docs", name: "Documents — Read",  desc: "Access uploaded files and documents" },
+  ];
+
+  const APPS = [
+    { name: "Zapier",       desc: "Connect to 6,000+ apps",                  color: "#FF4A00", initials: "Z",  label: "Open Zapier →",         url: "https://zapier.com/apps" },
+    { name: "Google Forms", desc: "Auto-create projects from form responses", color: "#673AB7", initials: "GF", label: "Connect via Zapier →",   url: "https://zapier.com/apps/google-forms/integrations" },
+    { name: "HubSpot",      desc: "Sync contacts and deals with HubSpot",    color: "#FF7A59", initials: "HS", label: "Connect via Zapier →",   url: "https://zapier.com/apps/hubspot/integrations" },
+    { name: "Salesforce",   desc: "Sync CRM data with Salesforce",           color: "#00A1E0", initials: "SF", label: "Connect via Zapier →",   url: "https://zapier.com/apps/salesforce/integrations" },
+    { name: "Google Drive", desc: "Sync files and documents automatically",  color: "#0F9D58", initials: "GD", label: "Connect via Zapier →",   url: "https://zapier.com/apps/google-drive/integrations" },
+    { name: "Dropbox",      desc: "Backup and sync project documents",       color: "#0061FF", initials: "DB", label: "Connect via Zapier →",   url: "https://zapier.com/apps/dropbox/integrations" },
+    { name: "Slack",        desc: "Get notifications in your Slack channels", color: "#4A154B", initials: "SL", label: "Connect via Zapier →",   url: "https://zapier.com/apps/slack/integrations" },
+    { name: "Google Ads",   desc: "Track leads from Google Ads campaigns",   color: "#4285F4", initials: "GA", label: "Connect via Zapier →",   url: "https://zapier.com/apps/google-ads/integrations" },
+  ];
+
+  const codeExample = `GET https://your-site.netlify.app/.netlify/functions/api-projects\nHeaders:\n  x-api-key: YOUR_KEY_HERE`;
+
+  return (
+    <div className="overlay" style={{zIndex:350}} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{background:"var(--s1)",borderRadius:14,width:"min(820px,96vw)",maxHeight:"92vh",display:"flex",flexDirection:"column",overflow:"hidden",border:"1px solid var(--br)"}}>
+        {/* Header */}
+        <div className="modal-hd" style={{padding:"14px 20px",borderBottom:"1px solid var(--br)",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+          <div>
+            <div style={{fontWeight:700,fontSize:15,color:"var(--t1)",display:"flex",alignItems:"center",gap:8}}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--acc)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 7V7c0-.55.45-1 1-1s1 .45 1 1v2h2c.55 0 1 .45 1 1s-.45 1-1 1h-2v2c0 .55-.45 1-1 1s-1-.45-1-1v-2H9c-.55 0-1-.45-1-1s.45-1 1-1h2zm5 8H8c-.55 0-1-.45-1-1s.45-1 1-1h8c.55 0 1 .45 1 1s-.45 1-1 1z"/></svg>
+              API & Integrations
+            </div>
+            <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>Manage your API key and connect external apps</div>
+          </div>
+          <button className="btn btn-ghost btn-xs" onClick={onClose}>{Ic.close}</button>
+        </div>
+
+        {/* Tabs */}
+        <div className="tabs" style={{padding:"0 20px",borderBottom:"1px solid var(--br)",flexShrink:0}}>
+          <button className={`tab${activeTab==="key"?" active":""}`} onClick={()=>setActiveTab("key")}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
+            <span>My API Key</span>
+          </button>
+          <button className={`tab${activeTab==="apps"?" active":""}`} onClick={()=>setActiveTab("apps")}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>
+            <span>Connect Apps</span>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="scroll" style={{flex:1,overflowY:"auto",padding:20}}>
+
+          {/* ─── TAB 1: MY API KEY ─── */}
+          {activeTab === "key" && (
+            <div style={{display:"flex",flexDirection:"column",gap:16}}>
+
+              {/* Card 1 — API Key Status */}
+              <div className="card" style={{padding:20}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+                  <div style={{fontWeight:700,fontSize:14,color:"var(--t1)"}}>Your API Key</div>
+                  {keyIsActive
+                    ? <span className="badge" style={{background:"rgba(26,217,138,.15)",color:"var(--green)",fontSize:10,fontWeight:600,padding:"3px 10px",borderRadius:6}}>Active</span>
+                    : <span className="badge" style={{background:"rgba(228,53,49,.12)",color:"var(--acc)",fontSize:10,fontWeight:600,padding:"3px 10px",borderRadius:6}}>No Key</span>
+                  }
+                </div>
+
+                {keyLoading ? (
+                  <div style={{textAlign:"center",padding:"20px 0",color:"var(--t3)",fontSize:12}}>Loading…</div>
+                ) : (
+                  <>
+                    {/* Key display */}
+                    <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--s3)",border:"1px solid var(--br)",borderRadius:8,padding:"10px 14px",marginBottom:14}}>
+                      <code style={{flex:1,fontFamily:"var(--mono)",fontSize:12,color:"var(--t1)",letterSpacing:keyRevealed && rawKey ? 0 : 2,wordBreak:"break-all"}}>{displayKey}</code>
+                      {keyIsActive && (
+                        <button className="btn btn-ghost btn-xs" onClick={() => setKeyRevealed(!keyRevealed)} title={keyRevealed ? "Hide key" : "Reveal key"}>
+                          {Ic.eye}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Buttons row */}
+                    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                      <button className="btn btn-primary" disabled={generating} onClick={handleGenerate}>
+                        {generating ? "Generating…" : "Generate New Key"}
+                      </button>
+                      {keyIsActive && (
+                        <button className="btn btn-secondary" onClick={() => copyToClipboard(rawKey || keyData.prefix || "", "key")}>
+                          {copied === "key" ? "Copied!" : "Copy Key"}
+                        </button>
+                      )}
+                      {keyIsActive && (
+                        <button className="btn btn-danger" disabled={revoking} onClick={() => setShowRevokeModal(true)}>
+                          Revoke Key
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Created date */}
+                    {createdDate && (
+                      <div style={{fontSize:10,color:"var(--t3)",marginTop:12}}>Created: {createdDate}</div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Card 2 — Permissions / Scopes */}
+              <div className="card" style={{padding:20}}>
+                <div style={{fontWeight:700,fontSize:14,color:"var(--t1)",marginBottom:14}}>What This Key Can Access</div>
+                <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                  {SCOPE_ROWS.map(row => (
+                    <div key={row.key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:"1px solid var(--br)"}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:12,fontWeight:600,color:"var(--t1)"}}>{row.name}</div>
+                        <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>{row.desc}</div>
+                      </div>
+                      <button
+                        onClick={() => setScopes(s => ({ ...s, [row.key]: !s[row.key] }))}
+                        style={{width:40,height:22,borderRadius:11,background:scopes[row.key]?"var(--green)":"var(--s4)",border:"none",cursor:"pointer",position:"relative",flexShrink:0,transition:"background .2s"}}
+                      >
+                        <div style={{width:16,height:16,borderRadius:"50%",background:"#fff",position:"absolute",top:3,left:scopes[row.key]?21:3,transition:"left .2s"}}/>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div style={{marginTop:14}}>
+                  <button className="btn btn-primary" disabled={savingScopes} onClick={handleSaveScopes}>
+                    {copied === "scopes" ? "Saved!" : savingScopes ? "Saving…" : "Save Permissions"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 3 — How To Use Your Key */}
+              <div className="card" style={{padding:20}}>
+                <div style={{fontWeight:700,fontSize:14,color:"var(--t1)",marginBottom:10}}>Using Your Key</div>
+                <p style={{fontSize:12,color:"var(--t2)",lineHeight:1.6,margin:"0 0 14px"}}>
+                  Pass your API key in the request header as <code style={{fontFamily:"var(--mono)",background:"var(--s3)",padding:"1px 5px",borderRadius:4,fontSize:11}}>x-api-key</code>. Your key is tied to your account — never share it publicly.
+                </p>
+                <div style={{background:"#0a0c14",border:"1px solid var(--br)",borderRadius:8,padding:16,fontFamily:"var(--mono)",fontSize:11,color:"var(--green)",lineHeight:1.7,whiteSpace:"pre-wrap",overflowX:"auto"}}>
+                  {codeExample}
+                </div>
+                <div style={{marginTop:10}}>
+                  <button className="btn btn-secondary" onClick={() => copyToClipboard(codeExample, "example")}>
+                    {copied === "example" ? "Copied!" : "Copy Example"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ─── TAB 2: CONNECT APPS ─── */}
+          {activeTab === "apps" && (
+            <div style={{display:"flex",flexDirection:"column",gap:20}}>
+
+              {/* Zapier banner */}
+              <div style={{background:"var(--acc-lo)",border:"1px solid var(--acc)",borderRadius:10,padding:"16px 20px",display:"flex",alignItems:"flex-start",gap:12}}>
+                <span style={{fontSize:20,flexShrink:0}}>⚡</span>
+                <div style={{fontSize:12,color:"var(--t1)",lineHeight:1.6}}>
+                  <strong>Powered by Zapier</strong> — Job-Dox connects to 6,000+ apps through Zapier. Click any app below to set up your automation, then use your API key from the "My API Key" tab to authenticate.
+                </div>
+              </div>
+
+              {/* App grid */}
+              <div className="proj-grid">
+                {APPS.map(app => (
+                  <div key={app.name} className="card" style={{padding:20,display:"flex",flexDirection:"column",gap:12}}>
+                    <div style={{display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{width:40,height:40,borderRadius:10,background:app.color,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                        <span style={{color:"#fff",fontWeight:800,fontSize:app.initials.length > 1 ? 11 : 16,fontFamily:"var(--ui)"}}>{app.initials}</span>
+                      </div>
+                      <div style={{minWidth:0,flex:1}}>
+                        <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>{app.name}</div>
+                        <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>{app.desc}</div>
+                      </div>
+                    </div>
+                    <button className="btn btn-secondary" style={{width:"100%",textAlign:"center",fontSize:11}} onClick={() => window.open(app.url, "_blank")}>
+                      {app.label}
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Don't see your app? */}
+              <div style={{textAlign:"center",padding:"16px 0"}}>
+                <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:10}}>Don't see your app?</div>
+                <button className="btn btn-ghost" onClick={() => window.open("https://zapier.com/apps", "_blank")}>
+                  Browse all 6,000+ apps on Zapier →
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Revoke confirmation modal */}
+      {showRevokeModal && (
+        <div className="overlay" style={{zIndex:400}} onClick={e => e.target === e.currentTarget && setShowRevokeModal(false)}>
+          <div className="modal modal-sm anim" style={{maxWidth:420}}>
+            <div className="modal-hd">
+              <div>
+                <div style={{fontWeight:700,fontSize:14,color:"var(--t1)"}}>Revoke API Key?</div>
+                <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>This action cannot be undone</div>
+              </div>
+              <button className="btn btn-ghost btn-xs" onClick={() => setShowRevokeModal(false)}>{Ic.close}</button>
+            </div>
+            <div className="modal-body">
+              <p style={{fontSize:12,color:"var(--t2)",lineHeight:1.6,margin:0}}>
+                Revoking this key will immediately disable all external integrations using it.
+                Any Zapier automations or third-party connections will stop working.
+                You can generate a new key afterward.
+              </p>
+            </div>
+            <div className="modal-ft" style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+              <button className="btn btn-secondary" onClick={() => setShowRevokeModal(false)}>Cancel</button>
+              <button className="btn btn-danger" disabled={revoking} onClick={handleRevoke}>
+                {revoking ? "Revoking…" : "Revoke Key"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function syncWorktypesToLS(projId, worktypes) {
   try {
