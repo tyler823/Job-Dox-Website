@@ -1,8 +1,8 @@
 {
-  "name": "Job-Dox Field",
-  "short_name": "JD Field",
-  "description": "Job-Dox field tools for technicians — DryDox, Contents, Projects",
-  "start_url": "/",
+  "name": "Job-Dox Portal",
+  "short_name": "Job-Dox",
+  "description": "Job-Dox operations intelligence platform for contractors",
+  "start_url": "/app/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#06070d",
