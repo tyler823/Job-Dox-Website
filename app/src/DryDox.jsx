@@ -24,19 +24,59 @@ import DryDoxScope from "./drydox/DryDoxScope.jsx";
 import DryDoxReport from "./drydox/DryDoxReport.jsx";
 import DryDoxESX from "./drydox/DryDoxESX.jsx";
 import DryDoxS500 from "./drydox/DryDoxS500.jsx";
+import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { getApps } from "firebase/app";
 
-// ── Persistent state hook (mirrors useProjState from portal) ──
+const _dryDoxDb = getApps().length > 0 ? getFirestore(getApps()[0]) : null;
+let _dryDoxCompanyId = null;
+
+// Debounce map for DryDox Firestore saves
+const _ddSaveTimers = {};
+
+// ── Persistent state hook (saves to both localStorage + Firestore) ──
 function useDryDoxState(projId, key, fallback) {
   const lsKey = `dd_${projId}_${key}`;
-  const [val, setVal] = useState(() => {
+  const fsField = `dd_${key}`;
+  const [val, setValRaw] = useState(() => {
     try {
       const stored = localStorage.getItem(lsKey);
       return stored ? JSON.parse(stored) : fallback;
     } catch { return fallback; }
   });
+
+  // Load from Firestore on mount
   useEffect(() => {
-    try { localStorage.setItem(lsKey, JSON.stringify(val)); } catch {}
-  }, [lsKey, val]);
+    if (_dryDoxDb && _dryDoxCompanyId && projId) {
+      getDoc(doc(_dryDoxDb, "companies", _dryDoxCompanyId, "projects", projId))
+        .then(snap => {
+          if (snap.exists() && snap.data()[fsField] !== undefined) {
+            setValRaw(snap.data()[fsField]);
+            try { localStorage.setItem(lsKey, JSON.stringify(snap.data()[fsField])); } catch {}
+          }
+        })
+        .catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projId, lsKey]);
+
+  const setVal = useCallback((updater) => {
+    setValRaw(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      try { localStorage.setItem(lsKey, JSON.stringify(next)); } catch {}
+      // Save to Firestore (debounced)
+      if (_dryDoxDb && _dryDoxCompanyId && projId) {
+        clearTimeout(_ddSaveTimers[lsKey]);
+        _ddSaveTimers[lsKey] = setTimeout(() => {
+          setDoc(doc(_dryDoxDb, "companies", _dryDoxCompanyId, "projects", projId), {
+            [fsField]: JSON.parse(JSON.stringify(next)),
+            updatedAt: serverTimestamp(),
+          }, { merge: true }).catch(() => {});
+        }, 800);
+      }
+      return next;
+    });
+  }, [lsKey, fsField, projId]);
+
   return [val, setVal];
 }
 
@@ -53,7 +93,8 @@ function injectCSS() {
 // ══════════════════════════════════════════════════════════════════
 //  MAIN DRYDOX COMPONENT
 // ══════════════════════════════════════════════════════════════════
-export default function DryDoxTab({ proj, priceLists = [], onPushToScope, companyLogo, inventory: externalInventory = [] }) {
+export default function DryDoxTab({ proj, priceLists = [], onPushToScope, companyLogo, inventory: externalInventory = [], companyId="" }) {
+  useEffect(() => { if (companyId) _dryDoxCompanyId = companyId; }, [companyId]);
   // Inject styles
   useEffect(() => { injectCSS(); }, []);
 

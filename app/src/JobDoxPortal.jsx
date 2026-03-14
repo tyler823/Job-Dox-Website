@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { DocumentsTab, LogoUploadSection, DocumentTemplateCenter } from "./JobDoxDocuments.jsx";
+import { DocumentsTab, LogoUploadSection, DocumentTemplateCenter, setDocsCompanyId } from "./JobDoxDocuments.jsx";
 import { FinancialTab, FinancialHealthBadge, FinancialDashboard } from "./JobDoxFinance.jsx";
 import { ReportsDashboard } from "./JobDoxReports.jsx";
 import { PayrollDashboard } from "./JobDoxPayroll.jsx";
@@ -34,10 +34,10 @@ let _portalSessionUnsub = null;
 let _portalMemberId = null;      // tracked for tab-close cleanup
 
 // ── Tab-close / force-quit auto-logout ────────────────────────────────────
-// Uses pagehide + visibilitychange to catch desktop tab-close and mobile
-// force-quit.  Fires sendBeacon to a Netlify function that deletes the
-// activeSessions doc so Memberstack doesn't get confused on re-open.
-// Also clears local storage synchronously so the client-side session is gone.
+// Uses pagehide to catch desktop tab-close and mobile force-quit.
+// Fires sendBeacon to a Netlify function that deletes the activeSessions doc.
+// NOTE: We no longer clear localStorage because all persistent data lives in
+// Firestore.  Only session-specific keys are removed.
 function _portalTabCloseCleanup() {
   if (!_portalMemberId) return;
   // Best-effort server call — sendBeacon works during page teardown
@@ -47,9 +47,8 @@ function _portalTabCloseCleanup() {
       JSON.stringify({ memberId: _portalMemberId })
     );
   } catch(e) { /* swallow */ }
-  // Synchronous local cleanup
-  localStorage.clear();
-  sessionStorage.clear();
+  // Only clear session-specific markers — NOT user data
+  try { sessionStorage.removeItem("jd_portal_active"); } catch {}
 }
 
 function _onPageHide(e) {
@@ -57,11 +56,8 @@ function _onPageHide(e) {
   // NOT a real close.  Only clean up on actual teardown.
   if (!e.persisted) _portalTabCloseCleanup();
 }
-function _onVisibilityHidden() {
-  // On mobile, visibilitychange to "hidden" is often the last event before
-  // the OS kills the process.  Only act if the page is truly hidden.
-  if (document.visibilityState === "hidden") _portalTabCloseCleanup();
-}
+// REMOVED: _onVisibilityHidden — was clearing ALL localStorage when page went
+// hidden (e.g. switching tabs on mobile), destroying user data.
 
 async function claimPortalSession(memberId) {
   try {
@@ -528,6 +524,7 @@ function loadCoInfo() {
 }
 function saveCoInfo(info) {
   localStorage.setItem(LS_CO_KEY, JSON.stringify(info));
+  if (_globalCompanyId) fsSaveCompanySettings(_globalCompanyId, "companyInfo", info);
 }
 
 /* ── Billing settings (tax rates, T&C, overhead, pinned items) ── */
@@ -542,7 +539,7 @@ const DEFAULT_BILLING = {
   nextInvoiceNum: 1001,
 };
 function loadBilling()     { try { return { ...DEFAULT_BILLING, ...JSON.parse(localStorage.getItem(LS_BILLING)) }; } catch { return DEFAULT_BILLING; } }
-function saveBilling(b)    { try { localStorage.setItem(LS_BILLING, JSON.stringify(b)); } catch {} }
+function saveBilling(b)    { try { localStorage.setItem(LS_BILLING, JSON.stringify(b)); } catch {} if (_globalCompanyId) fsSaveCompanySettings(_globalCompanyId, "billing", b); }
 
 /* ── Budget Category Templates ── */
 const LS_BUDGET_TEMPLATES = "jd_budget_templates";
@@ -565,12 +562,12 @@ const DEFAULT_BUDGET_TEMPLATES = [
   { id:"bc16", name:"Mitigation",              color:"#0891b2", workTypes:[], active:true },
 ];
 function loadBudgetTemplates() { try { return JSON.parse(localStorage.getItem(LS_BUDGET_TEMPLATES)) || DEFAULT_BUDGET_TEMPLATES; } catch { return DEFAULT_BUDGET_TEMPLATES; } }
-function saveBudgetTemplates(t){ try { localStorage.setItem(LS_BUDGET_TEMPLATES, JSON.stringify(t)); } catch {} }
+function saveBudgetTemplates(t){ try { localStorage.setItem(LS_BUDGET_TEMPLATES, JSON.stringify(t)); } catch {} if (_globalCompanyId) fsSaveCompanySettings(_globalCompanyId, "budgetTemplates", t); }
 
 /* ── Invoice storage ── */
 const LS_INVOICES = "jd_invoices";
 function loadAllInvoices() { try { return JSON.parse(localStorage.getItem(LS_INVOICES)) || []; } catch { return []; } }
-function saveAllInvoices(v){ try { localStorage.setItem(LS_INVOICES, JSON.stringify(v)); } catch {} }
+function saveAllInvoices(v){ try { localStorage.setItem(LS_INVOICES, JSON.stringify(v)); } catch {} if (_globalCompanyId) fsSaveInvoices(_globalCompanyId, v); }
 function loadProjInvoices(projId) { return loadAllInvoices().filter(inv => inv.projId === projId); }
 function pushInvoice(inv) {
   const all = loadAllInvoices().filter(i => i.id !== inv.id);
@@ -583,7 +580,7 @@ function loadProjDocs(projId) {
   try { const all = JSON.parse(localStorage.getItem(LS_PROJ_DOCS)) || {}; return all[projId] || []; } catch { return []; }
 }
 function saveProjDocs(projId, docs) {
-  try { const all = JSON.parse(localStorage.getItem(LS_PROJ_DOCS)) || {}; all[projId] = docs; localStorage.setItem(LS_PROJ_DOCS, JSON.stringify(all)); } catch {}
+  try { const all = JSON.parse(localStorage.getItem(LS_PROJ_DOCS)) || {}; all[projId] = docs; localStorage.setItem(LS_PROJ_DOCS, JSON.stringify(all)); if (_globalCompanyId) fsSaveProjDocs(_globalCompanyId, all); } catch {}
 }
 function pushProjDoc(projId, doc, projName, userName) {
   const docs = loadProjDocs(projId).filter(d => d.id !== doc.id);
@@ -606,7 +603,7 @@ function loadProjMsgs(projId) {
   try { const all = JSON.parse(localStorage.getItem(LS_PROJ_MSGS)) || {}; return all[projId] || []; } catch { return []; }
 }
 function saveProjMsgs(projId, msgs) {
-  try { const all = JSON.parse(localStorage.getItem(LS_PROJ_MSGS)) || {}; all[projId] = msgs; localStorage.setItem(LS_PROJ_MSGS, JSON.stringify(all)); } catch {}
+  try { const all = JSON.parse(localStorage.getItem(LS_PROJ_MSGS)) || {}; all[projId] = msgs; localStorage.setItem(LS_PROJ_MSGS, JSON.stringify(all)); if (_globalCompanyId) fsSaveProjMsgs(_globalCompanyId, all); } catch {}
 }
 function pushProjMsg(projId, msg) {
   const msgs = loadProjMsgs(projId);
@@ -617,14 +614,14 @@ function pushProjMsg(projId, msg) {
 /* ── Vendor Manager LS helpers ────────────────────────────── */
 const LS_VENDORS = "jd_vendors";
 function loadVendors()        { try { return JSON.parse(localStorage.getItem(LS_VENDORS)) || []; } catch { return []; } }
-function saveVendors(arr)     { try { localStorage.setItem(LS_VENDORS, JSON.stringify(arr)); } catch {} }
+function saveVendors(arr)     { try { localStorage.setItem(LS_VENDORS, JSON.stringify(arr)); } catch {} if (_globalCompanyId) fsSaveVendors(_globalCompanyId, arr); }
 function upsertVendor(v)      { const all = loadVendors().filter(x => x.id !== v.id); saveVendors([...all, v]); }
 function deleteVendor(id)     { saveVendors(loadVendors().filter(v => v.id !== id)); }
 
 /* ── Vendor Bills mirror  (AP bills linked to vendor records) ─── */
 const LS_VENDOR_BILLS = "jd_vendor_bills";
 function loadVendorBills()              { try { return JSON.parse(localStorage.getItem(LS_VENDOR_BILLS)) || []; } catch { return []; } }
-function saveVendorBills(arr)           { try { localStorage.setItem(LS_VENDOR_BILLS, JSON.stringify(arr)); } catch {} }
+function saveVendorBills(arr)           { try { localStorage.setItem(LS_VENDOR_BILLS, JSON.stringify(arr)); } catch {} if (_globalCompanyId) fsSaveVendorBills(_globalCompanyId, arr); }
 function upsertVendorBill(bill)         { const all = loadVendorBills().filter(b => b.id !== bill.id); saveVendorBills([...all, bill]); }
 function loadBillsByVendor(vendorId)    { return loadVendorBills().filter(b => b.vendorId === vendorId); }
 function markVendorBillPaid(id, paid)   {
@@ -666,9 +663,9 @@ const DEFAULT_PROJECT_TYPES = [];
 function loadCWT()  { try { return JSON.parse(localStorage.getItem(LS_CWT_KEY)) || DEFAULT_WORK_TYPES; }  catch { return DEFAULT_WORK_TYPES; } }
 function loadCST()  { try { return JSON.parse(localStorage.getItem(LS_CST_KEY)) || DEFAULT_STATUSES; }    catch { return DEFAULT_STATUSES; } }
 function loadCPT()  { try { return JSON.parse(localStorage.getItem(LS_CPT_KEY)) || DEFAULT_PROJECT_TYPES; } catch { return DEFAULT_PROJECT_TYPES; } }
-function saveCWT(v) { try { localStorage.setItem(LS_CWT_KEY, JSON.stringify(v)); } catch {} }
-function saveCST(v) { try { localStorage.setItem(LS_CST_KEY, JSON.stringify(v)); } catch {} }
-function saveCPT(v) { try { localStorage.setItem(LS_CPT_KEY, JSON.stringify(v)); } catch {} }
+function saveCWT(v) { try { localStorage.setItem(LS_CWT_KEY, JSON.stringify(v)); } catch {} if (_globalCompanyId) fsSaveCompanySettings(_globalCompanyId, "workTypes", v); }
+function saveCST(v) { try { localStorage.setItem(LS_CST_KEY, JSON.stringify(v)); } catch {} if (_globalCompanyId) fsSaveCompanySettings(_globalCompanyId, "statuses", v); }
+function saveCPT(v) { try { localStorage.setItem(LS_CPT_KEY, JSON.stringify(v)); } catch {} if (_globalCompanyId) fsSaveCompanySettings(_globalCompanyId, "projectTypes", v); }
 
 // Merge WT_META icons into a custom work type
 function getWTMeta(name, customWorkTypes=[]) {
@@ -785,6 +782,7 @@ function pushActivity({ actionType, action, proj, projId, user, docName }) {
     };
     const updated = [entry, ...existing.map(e => ({ ...e, live: false }))].slice(0, 200);
     localStorage.setItem(LS_ACTIVITY, JSON.stringify(updated));
+    if (_globalCompanyId) fsSaveActivityDebounced(_globalCompanyId, updated);
   } catch {}
 }
 const TODAY_ISO = new Date().toISOString().slice(0,10);
@@ -835,8 +833,23 @@ const lsProj = {
   assigned:     { load: (id) => _lsRead(id, "assigned",    null), save: (id,v) => _lsWrite(id, "assigned",    v) },
 };
 
-// React hook: loads from LS on mount, auto-saves on every change,
-// re-loads if projId changes (navigating between projects).
+// Map from lsProj keys to Firestore field names on the project document
+const _projFieldMap = {
+  contacts:     "fsContacts",
+  scope:        "fsScope",
+  tasks:        "fsTasks",
+  notes:        "fsNotes",
+  worktypes:    "fsWorktypes",
+  mediaFolders: "fsMediaFolders",
+  mediaUploads: "fsMediaUploads",
+  emailSched:   "fsEmailSched",
+  clientPortal: "fsClientPortal",
+  assigned:     "fsAssigned",
+};
+
+// React hook: loads from Firestore (via project doc) first, falls back to
+// localStorage cache, auto-saves to BOTH on every change.
+// Re-loads if projId changes (navigating between projects).
 function useProjState(projId, key, fallback) {
   const accessor = lsProj[key];
   if (!accessor) throw new Error(`[useProjState] Unknown key: "${key}"`);
@@ -848,19 +861,41 @@ function useProjState(projId, key, fallback) {
 
   const [val, setValRaw] = useState(() => resolve(accessor.load(projId), fallback));
 
-  // Re-load when projId changes (user navigates between projects)
+  // On mount (and projId change), load from Firestore to ensure cloud data wins
   const prevProjId = useRef(projId);
   useEffect(() => {
-    if (prevProjId.current === projId) return;
-    prevProjId.current = projId;
-    setValRaw(resolve(accessor.load(projId), fallback));
+    if (prevProjId.current !== projId) {
+      prevProjId.current = projId;
+      // Load from LS cache immediately for fast paint
+      setValRaw(resolve(accessor.load(projId), fallback));
+    }
+    // Then load from Firestore (async) — cloud data takes precedence
+    if (_globalCompanyId && projId) {
+      const fsField = _projFieldMap[key];
+      if (fsField) {
+        getDoc(doc(db, "companies", _globalCompanyId, "projects", projId))
+          .then(snap => {
+            if (snap.exists() && snap.data()[fsField] !== undefined) {
+              const fsVal = snap.data()[fsField];
+              setValRaw(fsVal);
+              accessor.save(projId, fsVal); // update LS cache
+            }
+          })
+          .catch(() => {});
+      }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projId]);
 
   const setVal = useCallback((updater) => {
     setValRaw(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      accessor.save(projId, next);
+      accessor.save(projId, next); // LS cache
+      // Save to Firestore
+      const fsField = _projFieldMap[key];
+      if (_globalCompanyId && projId && fsField) {
+        fsSaveProjFieldDebounced(_globalCompanyId, projId, fsField, next);
+      }
       return next;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1000,6 +1035,263 @@ async function fsSetOffice(companyId, officeId, data) {
 async function fsDeleteOffice(companyId, officeId) {
   await deleteDoc(doc(db, "companies", companyId, "offices", officeId));
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   FIRESTORE — Project-level data persistence
+   All project data (tasks, contacts, scope, notes, etc.) is stored
+   on the project document as embedded fields. This ensures data
+   persists across sessions, devices, and browsers.
+══════════════════════════════════════════════════════════════════ */
+
+// Save a specific field on a project document
+async function fsSaveProjField(companyId, projId, key, value) {
+  if (!companyId || !projId) return;
+  try {
+    await updateDoc(doc(db, "companies", companyId, "projects", projId), {
+      [key]: JSON.parse(JSON.stringify(value)),
+      updatedAt: serverTimestamp(),
+    });
+  } catch(e) {
+    console.warn(`[Job-Dox] Firestore save failed for project field "${key}":`, e);
+  }
+}
+
+// Debounce map for project field saves — avoids flooding Firestore on rapid edits
+const _fsSaveTimers = {};
+function fsSaveProjFieldDebounced(companyId, projId, key, value, delay = 800) {
+  const timerKey = `${projId}_${key}`;
+  clearTimeout(_fsSaveTimers[timerKey]);
+  _fsSaveTimers[timerKey] = setTimeout(() => {
+    fsSaveProjField(companyId, projId, key, value);
+  }, delay);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   FIRESTORE — Company settings persistence
+   Settings like work types, statuses, project types, company info,
+   billing, and budget templates are stored at the company level.
+══════════════════════════════════════════════════════════════════ */
+
+async function fsSaveCompanySettings(companyId, settingsKey, value) {
+  if (!companyId) return;
+  try {
+    await setDoc(doc(db, "companies", companyId, "settings", settingsKey), {
+      data: JSON.parse(JSON.stringify(value)),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch(e) {
+    console.warn(`[Job-Dox] Firestore save failed for settings "${settingsKey}":`, e);
+  }
+}
+
+async function fsLoadCompanySettings(companyId, settingsKey) {
+  if (!companyId) return null;
+  try {
+    const snap = await getDoc(doc(db, "companies", companyId, "settings", settingsKey));
+    return snap.exists() ? snap.data().data : null;
+  } catch(e) {
+    console.warn(`[Job-Dox] Firestore load failed for settings "${settingsKey}":`, e);
+    return null;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   FIRESTORE — MyDay personal tasks persistence
+   Stored at /companies/{companyId}/myDayTasks/{memberId}
+══════════════════════════════════════════════════════════════════ */
+
+async function fsSaveMyDayTasks(companyId, memberId, tasks) {
+  if (!companyId || !memberId) return;
+  try {
+    await setDoc(doc(db, "companies", companyId, "myDayTasks", memberId), {
+      tasks: JSON.parse(JSON.stringify(tasks)),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch(e) {
+    console.warn("[Job-Dox] Firestore save failed for MyDay tasks:", e);
+  }
+}
+
+async function fsLoadMyDayTasks(companyId, memberId) {
+  if (!companyId || !memberId) return null;
+  try {
+    const snap = await getDoc(doc(db, "companies", companyId, "myDayTasks", memberId));
+    return snap.exists() ? (snap.data().tasks || []) : null;
+  } catch(e) {
+    console.warn("[Job-Dox] Firestore load failed for MyDay tasks:", e);
+    return null;
+  }
+}
+
+const _fsMyDayTimer = {};
+function fsSaveMyDayTasksDebounced(companyId, memberId, tasks, delay = 800) {
+  const key = `${companyId}_${memberId}`;
+  clearTimeout(_fsMyDayTimer[key]);
+  _fsMyDayTimer[key] = setTimeout(() => fsSaveMyDayTasks(companyId, memberId, tasks), delay);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   FIRESTORE — Dispatch persistence
+══════════════════════════════════════════════════════════════════ */
+
+async function fsSaveDispatchAppts(companyId, appts) {
+  if (!companyId) return;
+  try {
+    await setDoc(doc(db, "companies", companyId, "settings", "dispatchAppts"), {
+      data: JSON.parse(JSON.stringify(appts)),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch(e) {
+    console.warn("[Job-Dox] Firestore save failed for dispatch appointments:", e);
+  }
+}
+
+async function fsLoadDispatchAppts(companyId) {
+  if (!companyId) return null;
+  try {
+    const snap = await getDoc(doc(db, "companies", companyId, "settings", "dispatchAppts"));
+    return snap.exists() ? (snap.data().data || []) : null;
+  } catch(e) { return null; }
+}
+
+async function fsSaveDispatchResources(companyId, resources) {
+  if (!companyId) return;
+  try {
+    await setDoc(doc(db, "companies", companyId, "settings", "dispatchResources"), {
+      data: JSON.parse(JSON.stringify(resources)),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch(e) {
+    console.warn("[Job-Dox] Firestore save failed for dispatch resources:", e);
+  }
+}
+
+async function fsLoadDispatchResources(companyId) {
+  if (!companyId) return null;
+  try {
+    const snap = await getDoc(doc(db, "companies", companyId, "settings", "dispatchResources"));
+    return snap.exists() ? (snap.data().data || []) : null;
+  } catch(e) { return null; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   FIRESTORE — Activity feed persistence
+══════════════════════════════════════════════════════════════════ */
+
+async function fsSaveActivity(companyId, entries) {
+  if (!companyId) return;
+  try {
+    await setDoc(doc(db, "companies", companyId, "settings", "activityFeed"), {
+      data: JSON.parse(JSON.stringify(entries.slice(0, 200))),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch(e) {
+    console.warn("[Job-Dox] Firestore save failed for activity feed:", e);
+  }
+}
+
+const _fsActivityTimer = { ref: null };
+function fsSaveActivityDebounced(companyId, entries) {
+  clearTimeout(_fsActivityTimer.ref);
+  _fsActivityTimer.ref = setTimeout(() => fsSaveActivity(companyId, entries), 1200);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   FIRESTORE — Invoices, project docs, project messages, vendors
+══════════════════════════════════════════════════════════════════ */
+
+async function fsSaveInvoices(companyId, invoices) {
+  if (!companyId) return;
+  try {
+    await setDoc(doc(db, "companies", companyId, "settings", "invoices"), {
+      data: JSON.parse(JSON.stringify(invoices)),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch(e) { console.warn("[Job-Dox] Firestore save failed for invoices:", e); }
+}
+
+async function fsLoadInvoices(companyId) {
+  if (!companyId) return null;
+  try {
+    const snap = await getDoc(doc(db, "companies", companyId, "settings", "invoices"));
+    return snap.exists() ? (snap.data().data || []) : null;
+  } catch(e) { return null; }
+}
+
+async function fsSaveProjDocs(companyId, allDocs) {
+  if (!companyId) return;
+  try {
+    await setDoc(doc(db, "companies", companyId, "settings", "projDocs"), {
+      data: JSON.parse(JSON.stringify(allDocs)),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch(e) { console.warn("[Job-Dox] Firestore save failed for project docs:", e); }
+}
+
+async function fsLoadProjDocs(companyId) {
+  if (!companyId) return null;
+  try {
+    const snap = await getDoc(doc(db, "companies", companyId, "settings", "projDocs"));
+    return snap.exists() ? (snap.data().data || {}) : null;
+  } catch(e) { return null; }
+}
+
+async function fsSaveProjMsgs(companyId, allMsgs) {
+  if (!companyId) return;
+  try {
+    await setDoc(doc(db, "companies", companyId, "settings", "projMsgs"), {
+      data: JSON.parse(JSON.stringify(allMsgs)),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch(e) { console.warn("[Job-Dox] Firestore save failed for project messages:", e); }
+}
+
+async function fsLoadProjMsgs(companyId) {
+  if (!companyId) return null;
+  try {
+    const snap = await getDoc(doc(db, "companies", companyId, "settings", "projMsgs"));
+    return snap.exists() ? (snap.data().data || {}) : null;
+  } catch(e) { return null; }
+}
+
+async function fsSaveVendors(companyId, vendors) {
+  if (!companyId) return;
+  try {
+    await setDoc(doc(db, "companies", companyId, "settings", "vendors"), {
+      data: JSON.parse(JSON.stringify(vendors)),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch(e) { console.warn("[Job-Dox] Firestore save failed for vendors:", e); }
+}
+
+async function fsLoadVendors(companyId) {
+  if (!companyId) return null;
+  try {
+    const snap = await getDoc(doc(db, "companies", companyId, "settings", "vendors"));
+    return snap.exists() ? (snap.data().data || []) : null;
+  } catch(e) { return null; }
+}
+
+async function fsSaveVendorBills(companyId, bills) {
+  if (!companyId) return;
+  try {
+    await setDoc(doc(db, "companies", companyId, "settings", "vendorBills"), {
+      data: JSON.parse(JSON.stringify(bills)),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch(e) { console.warn("[Job-Dox] Firestore save failed for vendor bills:", e); }
+}
+
+async function fsLoadVendorBills(companyId) {
+  if (!companyId) return null;
+  try {
+    const snap = await getDoc(doc(db, "companies", companyId, "settings", "vendorBills"));
+    return snap.exists() ? (snap.data().data || []) : null;
+  } catch(e) { return null; }
+}
+
+// Global companyId reference for use by helper functions that don't have it in scope
+let _globalCompanyId = null;
 
 function Av({ name, color, size=34 }) {
   const init = (name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
@@ -2343,26 +2635,44 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
     ? `${viewingStaff.firstName||""} ${viewingStaff.lastName||""}`.trim()
     : currentUser?.name || "Me";
 
-  // ── Tasks & Appointments — persisted to localStorage ──
+  // ── Tasks & Appointments — persisted to Firestore + localStorage cache ──
   const tasksKey = companyId && currentMemberId ? `jd_myday_tasks_${companyId}_${currentMemberId}` : null;
   const [allTasks, setAllTasks] = useState(() => {
     if (!tasksKey) return MY_TASKS;
     try { return JSON.parse(localStorage.getItem(tasksKey)) || MY_TASKS; } catch { return MY_TASKS; }
   });
-  const saveTasks = (tasks) => { if (tasksKey) { try { localStorage.setItem(tasksKey, JSON.stringify(tasks)); } catch {} } };
+  const saveTasks = (tasks) => {
+    if (tasksKey) { try { localStorage.setItem(tasksKey, JSON.stringify(tasks)); } catch {} }
+    if (companyId && currentMemberId) fsSaveMyDayTasksDebounced(companyId, currentMemberId, tasks);
+  };
+
+  // Load MyDay tasks from Firestore on mount
+  useEffect(() => {
+    if (companyId && currentMemberId) {
+      fsLoadMyDayTasks(companyId, currentMemberId).then(fsTasks => {
+        if (fsTasks && fsTasks.length > 0) {
+          setAllTasks(fsTasks);
+          if (tasksKey) { try { localStorage.setItem(tasksKey, JSON.stringify(fsTasks)); } catch {} }
+        }
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId, currentMemberId]);
 
   // Version counter — increment after any write to project task localStorage to force projTasks to re-read
   const [projTasksVersion, setProjTasksVersion] = useState(0);
   const bumpProjTasks = () => setProjTasksVersion(v => v + 1);
 
   // ── Pull in project tasks assigned to the current user ──
+  // Read from project Firestore data (fsTasks field) or fall back to LS cache
   const projTasks = useMemo(() => {
     if (!currentMemberId || !projects.length) return [];
     const result = [];
     for (const proj of projects) {
-      const stored = _lsRead(proj.id, "tasks", null);
-      if (!Array.isArray(stored)) continue;
-      for (const t of stored) {
+      // Prefer Firestore data (already loaded in project doc via onSnapshot)
+      const tasks = proj.fsTasks || _lsRead(proj.id, "tasks", null);
+      if (!Array.isArray(tasks)) continue;
+      for (const t of tasks) {
         if (!t.due) continue;
         if (!Array.isArray(t.assignedUserIds) || !t.assignedUserIds.includes(currentMemberId)) continue;
         result.push({
@@ -2426,12 +2736,13 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
 
 
   const toggleTask = id => {
-    // If the task came from a project, toggle its status in project localStorage
+    // If the task came from a project, toggle its status in project LS + Firestore
     const projTask = projTasks.find(t => t.id === id);
     if (projTask && projTask.projId) {
       const stored = _lsRead(projTask.projId, "tasks", []);
       const updated = stored.map(x => x.id === id ? { ...x, status: x.status === "done" ? "open" : "done" } : x);
       _lsWrite(projTask.projId, "tasks", updated);
+      if (companyId) fsSaveProjFieldDebounced(companyId, projTask.projId, "fsTasks", updated);
       bumpProjTasks();
       return;
     }
@@ -2477,9 +2788,11 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
         type:            addType,
       };
       if (editingTask._fromProject && editingTask.projId) {
-        // Write back to project storage
+        // Write back to project storage (LS + Firestore)
         const stored = _lsRead(editingTask.projId, "tasks", []);
-        _lsWrite(editingTask.projId, "tasks", stored.map(x => x.id === editingTask.id ? { ...x, ...patch, status: x.status } : x));
+        const updatedProjTasks = stored.map(x => x.id === editingTask.id ? { ...x, ...patch, status: x.status } : x);
+        _lsWrite(editingTask.projId, "tasks", updatedProjTasks);
+        if (companyId) fsSaveProjFieldDebounced(companyId, editingTask.projId, "fsTasks", updatedProjTasks);
         bumpProjTasks();
       } else {
         const updated = allTasks.map(x => x.id === editingTask.id ? patch : x);
@@ -2682,10 +2995,12 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
           task={commentTask}
           onClose={(updatedThread) => {
             if (updatedThread) {
-              // Save back to project tasks LS or personal tasks
+              // Save back to project tasks LS + Firestore, or personal tasks
               if (commentTask._fromProject && commentTask.projId) {
                 const stored = _lsRead(commentTask.projId, "tasks", []);
-                _lsWrite(commentTask.projId, "tasks", stored.map(x => x.id===commentTask.id ? {...x, commentThread: updatedThread} : x));
+                const updProjTasks = stored.map(x => x.id===commentTask.id ? {...x, commentThread: updatedThread} : x);
+                _lsWrite(commentTask.projId, "tasks", updProjTasks);
+                if (companyId) fsSaveProjFieldDebounced(companyId, commentTask.projId, "fsTasks", updProjTasks);
                 bumpProjTasks();
               } else {
                 const updated = allTasks.map(x => x.id===commentTask.id ? {...x, commentThread: updatedThread} : x);
@@ -2919,7 +3234,9 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
                               const newComment = { author: currentUser?.name||"Staff", text, ts: new Date().toISOString() };
                               if (t._fromProject && t.projId) {
                                 const stored = _lsRead(t.projId, "tasks", []);
-                                _lsWrite(t.projId, "tasks", stored.map(x => x.id===t.id ? {...x, commentThread:[...(x.commentThread||[]),newComment]} : x));
+                                const updProjTasks = stored.map(x => x.id===t.id ? {...x, commentThread:[...(x.commentThread||[]),newComment]} : x);
+                                _lsWrite(t.projId, "tasks", updProjTasks);
+                                if (companyId) fsSaveProjFieldDebounced(companyId, t.projId, "fsTasks", updProjTasks);
                                 bumpProjTasks();
                               } else {
                                 const updated = allTasks.map(x => x.id===t.id ? {...x, commentThread:[...(x.commentThread||[]),newComment]} : x);
@@ -4133,7 +4450,7 @@ function TaskCommentModal({ task, onClose, currentUserName="You", globalStaff=[]
 }
 
 function TasksTab({ projId="", projName="", initialTasks=[], globalStaff=[], companyId="", phoneSettings={}, currentMemberId="", isVendor=false, currentUser }) {
-  // Load from LS first; fall back to Firestore initialTasks; then empty
+  // Load from LS cache first; then load from Firestore (async)
   const [tasks, setTasksRaw] = useState(() => {
     if (projId) {
       const stored = _lsRead(projId, "tasks", null);
@@ -4142,14 +4459,30 @@ function TasksTab({ projId="", projName="", initialTasks=[], globalStaff=[], com
     return initialTasks.length ? initialTasks : [];
   });
 
-  // Wrap setTasks to auto-save on every change
+  // On mount, load from Firestore to ensure cloud data wins
+  useEffect(() => {
+    if (companyId && projId) {
+      getDoc(doc(db, "companies", companyId, "projects", projId))
+        .then(snap => {
+          if (snap.exists() && snap.data().fsTasks !== undefined) {
+            setTasksRaw(snap.data().fsTasks);
+            _lsWrite(projId, "tasks", snap.data().fsTasks);
+          }
+        })
+        .catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId, projId]);
+
+  // Wrap setTasks to auto-save to both LS cache and Firestore
   const setTasks = useCallback((updater) => {
     setTasksRaw(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       if (projId) _lsWrite(projId, "tasks", next);
+      if (companyId && projId) fsSaveProjFieldDebounced(companyId, projId, "fsTasks", next);
       return next;
     });
-  }, [projId]);
+  }, [projId, companyId]);
 
   // ── Pull dispatch appointments linked to this project ──
   const dispatchApptsForProj = useMemo(() => {
@@ -7409,9 +7742,9 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
         ))}
       </div>
       {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff} worktypes={worktypes} setWorktypes={setWorktypes} currentUser={currentUser} assignedStaff={assignedStaff} setAssignedStaff={setAssignedStaff} canArchive={canArchive} onArchive={onArchive} onBack={onBack}/>}
-      {tab==="drydox"         && <DryDoxModule    proj={proj} priceLists={priceLists} onPushToScope={handlePushToScope} companyLogo={coInfo?.logo}/>}
+      {tab==="drydox"         && <DryDoxModule    proj={proj} priceLists={priceLists} onPushToScope={handlePushToScope} companyLogo={coInfo?.logo} companyId={companyId}/>}
       {tab==="contentsdox"    && <ContentsDox proj={proj} companyId={companyId} db={db} onDocGenerated={()=>setDocRefreshKey(k=>k+1)}/>}
-      {tab==="estimatedox"    && <EstimateDoxTab proj={proj}/>}
+      {tab==="estimatedox"    && <EstimateDoxTab proj={proj} companyId={companyId}/>}
       {tab==="contacts"       && <ContactsTab contacts={contacts} setContacts={setContacts}/>}
       {tab==="media"          && <MediaTab       folders={mediaFolders} setFolders={setMediaFolders} uploads={mediaUploads} setUploads={setMediaUploads}/>}
       {tab==="documents"      && <ProjectDocumentsPanel proj={proj} contacts={contacts} assignedStaff={assignedStaff} onNavigate={onNavigate} docRefreshKey={docRefreshKey}/>}
@@ -7443,11 +7776,11 @@ function CompanyTasksPage({ projects=[], globalStaff=[], companyId="", currentMe
   const [sortBy,       setSortBy]       = useState("due");        // due | priority | project | created
   const [expandedStaff,setExpandedStaff]= useState(null);        // staffId for breakdown view
 
-  // Aggregate ALL tasks across all projects
+  // Aggregate ALL tasks across all projects (prefer Firestore data from project docs)
   const allCompanyTasks = useMemo(() => {
     const result = [];
     for (const proj of projects) {
-      const stored = _lsRead(proj.id, "tasks", null);
+      const stored = proj.fsTasks || _lsRead(proj.id, "tasks", null);
       if (!Array.isArray(stored)) continue;
       for (const t of stored) {
         result.push({
@@ -10767,6 +11100,8 @@ export default function JobDoxPortal() {
       if (!cid) cid = member.id;
 
       setCompanyId(cid);
+      _globalCompanyId = cid;
+      setDocsCompanyId(cid);
 
       // ── Check for invite in URL: ?invite={companyId} ──
       const urlParams = new URLSearchParams(window.location.search);
@@ -10796,6 +11131,7 @@ export default function JobDoxPortal() {
             }
             cid = inviteCid;
             setCompanyId(cid);
+            _globalCompanyId = cid;
             // Clean up URL
             const url = new URL(window.location);
             url.searchParams.delete("invite");
@@ -10870,6 +11206,75 @@ export default function JobDoxPortal() {
         if (snap.exists()) setPhoneSettings(snap.data());
       }).catch(() => {});
 
+      // ── Load all company settings from Firestore ──
+      // These were previously localStorage-only; now Firestore is the source of truth.
+      fsLoadCompanySettings(cid, "workTypes").then(v => {
+        if (v) { setCustomWorkTypes(v); try { localStorage.setItem(LS_CWT_KEY, JSON.stringify(v)); } catch {} }
+      });
+      fsLoadCompanySettings(cid, "statuses").then(v => {
+        if (v) { setCustomStatuses(v); try { localStorage.setItem(LS_CST_KEY, JSON.stringify(v)); } catch {} }
+      });
+      fsLoadCompanySettings(cid, "projectTypes").then(v => {
+        if (v) { setCustomProjectTypes(v); try { localStorage.setItem(LS_CPT_KEY, JSON.stringify(v)); } catch {} }
+      });
+      fsLoadCompanySettings(cid, "companyInfo").then(v => {
+        if (v) { setCoInfo(v); try { localStorage.setItem(LS_CO_KEY, JSON.stringify(v)); } catch {} }
+      });
+      fsLoadCompanySettings(cid, "billing").then(v => {
+        if (v) try { localStorage.setItem(LS_BILLING, JSON.stringify(v)); } catch {}
+      });
+      fsLoadCompanySettings(cid, "budgetTemplates").then(v => {
+        if (v) try { localStorage.setItem(LS_BUDGET_TEMPLATES, JSON.stringify(v)); } catch {}
+      });
+      fsLoadInvoices(cid).then(v => {
+        if (v) try { localStorage.setItem(LS_INVOICES, JSON.stringify(v)); } catch {}
+      });
+      fsLoadProjDocs(cid).then(v => {
+        if (v) try { localStorage.setItem(LS_PROJ_DOCS, JSON.stringify(v)); } catch {}
+      });
+      fsLoadProjMsgs(cid).then(v => {
+        if (v) try { localStorage.setItem(LS_PROJ_MSGS, JSON.stringify(v)); } catch {}
+      });
+      fsLoadVendors(cid).then(v => {
+        if (v) try { localStorage.setItem(LS_VENDORS, JSON.stringify(v)); } catch {}
+      });
+      fsLoadVendorBills(cid).then(v => {
+        if (v) try { localStorage.setItem(LS_VENDOR_BILLS, JSON.stringify(v)); } catch {}
+      });
+      // Load activity feed from Firestore
+      fsLoadCompanySettings(cid, "activityFeed").then(v => {
+        if (v) try { localStorage.setItem(LS_ACTIVITY, JSON.stringify(v)); } catch {}
+      });
+      // Load project budgets from Firestore
+      fsLoadCompanySettings(cid, "projectBudgets").then(v => {
+        if (v) try { localStorage.setItem("jd_project_budgets", JSON.stringify(v)); } catch {}
+      });
+      // Load payroll settings from Firestore
+      fsLoadCompanySettings(cid, "payrollRates").then(v => {
+        if (v) try { localStorage.setItem("jd_payroll_rates", JSON.stringify(v)); } catch {}
+      });
+      fsLoadCompanySettings(cid, "employeeRates").then(v => {
+        if (v) try { localStorage.setItem("jd_employee_rates", JSON.stringify(v)); } catch {}
+      });
+      fsLoadCompanySettings(cid, "qboSettings").then(v => {
+        if (v) try { localStorage.setItem("jd_qbo_settings", JSON.stringify(v)); } catch {}
+      });
+      // Load document templates from Firestore
+      fsLoadCompanySettings(cid, "docTemplates").then(v => {
+        if (v) try { localStorage.setItem("jd_doc_templates", JSON.stringify(v)); } catch {}
+      });
+      fsLoadCompanySettings(cid, "documents").then(v => {
+        if (v) try { localStorage.setItem("jd_documents", JSON.stringify(v)); } catch {}
+      });
+      // Load estimates from Firestore (stored per-project on the doc, loaded lazily)
+      // Load dispatch appointments from Firestore
+      fsLoadDispatchAppts(cid).then(v => {
+        if (v) try { localStorage.setItem(`jd_dispatch_appointments_${cid}`, JSON.stringify(v)); } catch {}
+      });
+      fsLoadDispatchResources(cid).then(v => {
+        if (v) try { localStorage.setItem(`jd_dispatch_resources_${cid}`, JSON.stringify(v)); } catch {}
+      });
+
       // ── Load Cortex Coins status for usage alert ──
       fetch("/.netlify/functions/cortex-coins", {
         method: "POST",
@@ -10895,8 +11300,8 @@ export default function JobDoxPortal() {
         // Another device/browser logged in — sign out here
         if (_portalSessionUnsub) { _portalSessionUnsub(); _portalSessionUnsub = null; }
         try { await window.$memberstackDom.logout(); } catch(e) {}
-        localStorage.clear();
-        sessionStorage.clear();
+        // Only clear session markers — data lives in Firestore
+        try { sessionStorage.removeItem("jd_portal_active"); } catch {}
         window.location.href = "https://job-dox.ai";
       });
     }
@@ -10920,8 +11325,8 @@ export default function JobDoxPortal() {
           const fromInvite = params.has("invite");
           if (!wasActive && !fromLogin && !fromStripe && !fromInvite) {
             try { await window.$memberstackDom.logout(); } catch(e) {}
-            localStorage.clear();
-            sessionStorage.clear();
+            // Only clear session markers — data lives in Firestore
+            try { sessionStorage.removeItem("jd_portal_active"); } catch {}
             window.location.href = "https://job-dox.ai";
             return;
           }
@@ -10936,8 +11341,8 @@ export default function JobDoxPortal() {
       window.$memberstackDom.onAuthChange((member) => {
         if (!member) {
           if (_portalSessionUnsub) { _portalSessionUnsub(); _portalSessionUnsub = null; }
-          localStorage.clear();
-          sessionStorage.clear();
+          // Only clear session markers — data lives in Firestore now
+          try { sessionStorage.removeItem("jd_portal_active"); } catch {}
           window.location.href = "https://job-dox.ai";
         }
       });
@@ -10946,7 +11351,6 @@ export default function JobDoxPortal() {
 
     // ── Register tab-close / force-quit listeners ──
     window.addEventListener("pagehide", _onPageHide);
-    document.addEventListener("visibilitychange", _onVisibilityHidden);
 
     return () => {
       if (unsubProjects) unsubProjects();
@@ -10956,7 +11360,6 @@ export default function JobDoxPortal() {
       if (unsubReviews)  unsubReviews();
       if (_portalSessionUnsub) _portalSessionUnsub();
       window.removeEventListener("pagehide", _onPageHide);
-      document.removeEventListener("visibilitychange", _onVisibilityHidden);
       _portalMemberId = null;
     };
   }, []);
@@ -11190,9 +11593,8 @@ export default function JobDoxPortal() {
           try {
             await window.$memberstackDom.logout();
           } catch(e) {
-            // If logout fails, force it manually
-            localStorage.clear();
-            sessionStorage.clear();
+            // If logout fails, force redirect — data lives in Firestore
+            try { sessionStorage.removeItem("jd_portal_active"); } catch {}
             window.location.href = "https://job-dox.ai";
           }
         }} style={{color:"var(--t3)"}}>
