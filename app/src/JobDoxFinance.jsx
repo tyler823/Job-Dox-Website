@@ -1190,6 +1190,525 @@ function XactimateBudgetTab({ proj, transactions=[], budgetData, onBudgetChange 
   );
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   WORKTYPE BUDGET TAB
+   Top-level budget view organized by project worktypes.
+   Tabs: SUMMARY | ALL BUDGETS | [one tab per active worktype]
+   When a worktype is turned on for a project, it automatically gets a budget.
+───────────────────────────────────────────────────────────────────────────── */
+function WorktypeBudgetTab({ proj, transactions=[], budgetData, onBudgetChange, invoices=[] }) {
+  const activeWorktypes = (proj.worktypes||[]).filter(w => (w.status||"active") !== "off").map(w => w.type||w);
+  const [activeTab, setActiveTab] = useState("summary");
+  const [catFilter, setCatFilter] = useState("all"); // all | complete | on_hold
+
+  const categories = budgetData?.categories || [];
+
+  // Ensure each active worktype has budget categories — auto-apply templates
+  useEffect(() => {
+    if (!activeWorktypes.length) return;
+    const templates = lsGetBudgetTemplates();
+    let changed = false;
+    const existing = [...(budgetData?.categories || [])];
+    const existingWTs = new Set(existing.map(c => c.workType).filter(Boolean));
+
+    activeWorktypes.forEach(wt => {
+      if (existingWTs.has(wt)) return; // already has categories for this worktype
+      // Find templates applicable to this worktype
+      const relevant = templates.filter(t => {
+        if (!t.active) return false;
+        if (!t.workTypes?.length) return true;
+        return t.workTypes.some(tw => tw.toLowerCase() === wt.toLowerCase());
+      });
+      if (relevant.length) {
+        relevant.forEach(t => {
+          const id = `${t.id}-${wt.replace(/\s+/g,"-").toLowerCase()}-${Date.now()}`;
+          if (!existing.find(c => c.templateId === t.id && c.workType === wt)) {
+            existing.push({
+              id, templateId: t.id, name: t.name, color: t.color,
+              budgeted: 0, estimated: 0, ohp: 0, targetCost: 0,
+              bids: 0, vendors: 0, inHouse: 0,
+              source: "template", active: true, workType: wt,
+              status: "active", // active | complete | on_hold
+            });
+            changed = true;
+          }
+        });
+      }
+    });
+
+    if (changed) {
+      onBudgetChange({ ...budgetData, categories: existing });
+    }
+  }, [activeWorktypes.join(",")]);
+
+  // Compute actuals per category
+  const actuals = useMemo(() => {
+    const map = {};
+    transactions.forEach(t => {
+      if (t._isGenerated || t.auto) return;
+      if (TX_SIDE[t.type] !== "cost" && TX_SIDE[t.type] !== "ap") return;
+      const cat = t.budgetCatId || t.category || "__uncat__";
+      map[cat] = (map[cat] || 0) + (t.amount || 0);
+    });
+    return map;
+  }, [transactions]);
+
+  // Compute vendor spend per category
+  const vendorSpend = useMemo(() => {
+    const map = {};
+    transactions.forEach(t => {
+      if (t._isGenerated || t.auto) return;
+      if (t.type !== "bill" && t.type !== "payment_out") return;
+      const cat = t.budgetCatId || "__uncat__";
+      map[cat] = (map[cat] || 0) + (t.amount || 0);
+    });
+    return map;
+  }, [transactions]);
+
+  // Invoiced amounts per worktype
+  const invoicedByWT = useMemo(() => {
+    const map = {};
+    invoices.filter(i => i.status !== "void").forEach(inv => {
+      const wt = inv.workType || inv.category || "__general__";
+      map[wt] = (map[wt] || 0) + (inv.total || 0);
+    });
+    return map;
+  }, [invoices]);
+
+  // Payments collected per worktype
+  const paidByWT = useMemo(() => {
+    const map = {};
+    invoices.filter(i => i.status === "paid").forEach(inv => {
+      const wt = inv.workType || inv.category || "__general__";
+      map[wt] = (map[wt] || 0) + (inv.total || 0);
+    });
+    return map;
+  }, [invoices]);
+
+  const updCat = (id, patch) => {
+    const cats = categories.map(c => c.id === id ? { ...c, ...patch } : c);
+    onBudgetChange({ ...budgetData, categories: cats });
+  };
+
+  const addCategoryToWT = (wt) => {
+    const id = `mc-${Date.now()}`;
+    const cats = [...categories, {
+      id, name: "New Category", color: "#5ba3f5", budgeted: 0, estimated: 0,
+      ohp: 0, targetCost: 0, bids: 0, vendors: 0, inHouse: 0,
+      source: "manual", active: true, workType: wt, status: "active",
+    }];
+    onBudgetChange({ ...budgetData, categories: cats });
+  };
+
+  const removeCat = (id) => {
+    onBudgetChange({ ...budgetData, categories: categories.filter(c => c.id !== id) });
+  };
+
+  // ── Styles ──
+  const tabBarStyle = {
+    display: "flex", background: "var(--s3)", border: "1px solid var(--br)",
+    borderRadius: "8px 8px 0 0", overflow: "hidden",
+  };
+  const tabStyle = (active) => ({
+    flex: 1, padding: "10px 16px", fontSize: 11, fontWeight: 700, fontFamily: "var(--mono)",
+    textAlign: "center", cursor: "pointer", border: "none", letterSpacing: ".5px",
+    background: active ? "var(--blue)" : "transparent",
+    color: active ? "#fff" : "var(--t2)",
+    transition: "all .15s",
+  });
+  const subTabBarStyle = {
+    display: "flex", background: "var(--s2)", borderBottom: "1px solid var(--br)",
+    borderLeft: "1px solid var(--br)", borderRight: "1px solid var(--br)",
+    overflow: "hidden",
+  };
+  const subTabStyle = (active) => ({
+    padding: "7px 18px", fontSize: 10, fontWeight: 700, fontFamily: "var(--mono)",
+    cursor: "pointer", border: "none", letterSpacing: ".5px",
+    background: active ? "var(--green)" : "transparent",
+    color: active ? "#fff" : "var(--t3)",
+    transition: "all .15s",
+  });
+  const thStyle = {
+    padding: "8px 10px", fontSize: 10, fontWeight: 700, fontFamily: "var(--mono)",
+    color: "var(--t3)", textAlign: "right", borderBottom: "2px solid var(--br)",
+    background: "var(--s2)", whiteSpace: "nowrap",
+  };
+  const tdStyle = {
+    padding: "9px 10px", fontSize: 12, fontFamily: "var(--mono)", fontWeight: 600,
+    textAlign: "right", borderBottom: "1px solid var(--br)", color: "var(--t1)",
+  };
+  const sectionBoxStyle = {
+    background: "var(--s2)", border: "1px solid var(--br)", borderRadius: 8,
+    padding: "10px 14px", marginBottom: 10,
+  };
+
+  // ── ALL BUDGETS summary data ──
+  const wtSummary = activeWorktypes.map(wt => {
+    const wtCats = categories.filter(c => c.workType === wt);
+    const estimated = wtCats.reduce((s, c) => s + (c.estimated || c.budgeted || 0), 0);
+    const invoicedAmt = invoicedByWT[wt] || 0;
+    const targetCost = wtCats.reduce((s, c) => s + (c.targetCost || 0), 0);
+    const actualCosts = wtCats.reduce((s, c) => s + (actuals[c.id] || actuals[c.name] || 0), 0)
+      + wtCats.reduce((s, c) => s + (c.inHouse || 0), 0);
+    const remaining = estimated - actualCosts;
+    const grossMargin = estimated > 0 ? ((estimated - actualCosts) / estimated * 100) : 0;
+    const payments = paidByWT[wt] || 0;
+    const owed = invoicedAmt - payments;
+    return { wt, estimated, invoicedAmt, targetCost, actualCosts, remaining, grossMargin, payments, owed };
+  });
+
+  const jobTotal = wtSummary.reduce((acc, s) => ({
+    estimated: acc.estimated + s.estimated,
+    invoicedAmt: acc.invoicedAmt + s.invoicedAmt,
+    targetCost: acc.targetCost + s.targetCost,
+    actualCosts: acc.actualCosts + s.actualCosts,
+    remaining: acc.remaining + s.remaining,
+    payments: acc.payments + s.payments,
+    owed: acc.owed + s.owed,
+  }), { estimated: 0, invoicedAmt: 0, targetCost: 0, actualCosts: 0, remaining: 0, payments: 0, owed: 0 });
+  jobTotal.grossMargin = jobTotal.estimated > 0 ? ((jobTotal.estimated - jobTotal.actualCosts) / jobTotal.estimated * 100) : 0;
+
+  // ── Render sections shared across SUMMARY and worktype tabs ──
+  const renderBottomSections = (wt) => {
+    const wtInvoices = wt ? invoices.filter(i => (i.workType || i.category) === wt && i.status !== "void") : invoices.filter(i => i.status !== "void");
+    const arDue = wtInvoices.reduce((s, i) => s + (i.total || 0), 0);
+    const arPaid = wtInvoices.filter(i => i.status === "paid").reduce((s, i) => s + (i.total || 0), 0);
+    const arRemaining = arDue - arPaid;
+
+    return (
+      <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {/* Estimates */}
+        <div style={sectionBoxStyle}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", borderBottom: "1px solid var(--br)", paddingBottom: 6, marginBottom: 6 }}>Estimates</div>
+          <div style={{ fontSize: 11, color: "var(--t3)", padding: "8px 0", textAlign: "center" }}>
+            {wtInvoices.length === 0 ? "" : `${wtInvoices.length} estimate(s)`}
+          </div>
+        </div>
+
+        {/* Accounts Payable */}
+        <div style={sectionBoxStyle}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", borderBottom: "1px solid var(--br)", paddingBottom: 6, marginBottom: 6 }}>Accounts, Payable</div>
+          <div style={{ fontSize: 11, color: "var(--t3)", padding: "8px 0", textAlign: "center" }}></div>
+        </div>
+
+        {/* Accounts Receivable */}
+        <div style={sectionBoxStyle}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", borderBottom: "1px solid var(--br)", paddingBottom: 6, marginBottom: 6 }}>Accounts, Receivable</div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th style={{ ...thStyle, textAlign: "left" }}></th>
+                  <th style={thStyle}>Due</th>
+                  <th style={thStyle}>Paid</th>
+                  <th style={thStyle}>Remaining</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ ...tdStyle, textAlign: "left", fontWeight: 700 }}>Total</td>
+                  <td style={tdStyle}>{f$c(arDue)}</td>
+                  <td style={tdStyle}>{f$c(arPaid)}</td>
+                  <td style={tdStyle}>{f$c(arRemaining)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Payments + Commissions */}
+        <div>
+          <div style={sectionBoxStyle}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>Payments</span>
+              <span style={{ fontSize: 11, color: "var(--t3)" }}>None Found</span>
+            </div>
+          </div>
+          <div style={sectionBoxStyle}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>Commissions</span>
+              <span style={{ fontSize: 11, color: "var(--t3)" }}>None Found</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ── Render worktype category table ──
+  const renderWTTable = (wt) => {
+    let wtCats = categories.filter(c => c.workType === wt);
+    if (catFilter === "complete") wtCats = wtCats.filter(c => c.status === "complete");
+    else if (catFilter === "on_hold") wtCats = wtCats.filter(c => c.status === "on_hold");
+
+    const totals = wtCats.reduce((acc, c) => {
+      const actual = actuals[c.id] || actuals[c.name] || 0;
+      const vend = vendorSpend[c.id] || 0;
+      return {
+        est: acc.est + (c.estimated || c.budgeted || 0),
+        ohp: acc.ohp + (c.ohp || 0),
+        targetCost: acc.targetCost + (c.targetCost || 0),
+        bids: acc.bids + (c.bids || 0),
+        vendors: acc.vendors + vend,
+        inHouse: acc.inHouse + (c.inHouse || 0),
+        actual: acc.actual + actual + (c.inHouse || 0),
+      };
+    }, { est: 0, ohp: 0, targetCost: 0, bids: 0, vendors: 0, inHouse: 0, actual: 0 });
+    const totRemaining = totals.est - totals.actual;
+    const totGrossMargin = totals.est > 0 ? ((totals.est - totals.actual) / totals.est * 100) : 0;
+
+    // Detect any warning: in-house costs with no estimate
+    const hasWarning = (c) => (c.inHouse || 0) > 0 && !(c.estimated || c.budgeted);
+
+    return (
+      <div>
+        {/* Sub filter tabs */}
+        <div style={subTabBarStyle}>
+          {[["all", "ALL CATEGORIES"], ["complete", "COMPLETE"], ["on_hold", "ON HOLD"]].map(([k, l]) => (
+            <button key={k} style={subTabStyle(catFilter === k)} onClick={() => setCatFilter(k)}>{l}</button>
+          ))}
+        </div>
+
+        {/* Category table */}
+        <div style={{ border: "1px solid var(--br)", borderTop: "none", overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
+            <thead>
+              <tr>
+                <th style={{ ...thStyle, textAlign: "left", minWidth: 180 }}>Category</th>
+                <th style={{ ...thStyle, minWidth: 80 }}>Est</th>
+                <th style={{ ...thStyle, minWidth: 80 }}>Overhead &amp; Profit</th>
+                <th style={{ ...thStyle, minWidth: 80 }}>Target Cost</th>
+                <th style={{ ...thStyle, minWidth: 70 }}>Bids</th>
+                <th style={{ ...thStyle, minWidth: 70 }}>Vendors</th>
+                <th style={{ ...thStyle, minWidth: 80 }}>In-House</th>
+                <th style={{ ...thStyle, minWidth: 20 }}></th>
+                <th style={{ ...thStyle, minWidth: 80 }}>Remaining Funds</th>
+                <th style={{ ...thStyle, minWidth: 60 }}>Gross Margin</th>
+              </tr>
+            </thead>
+            <tbody>
+              {wtCats.map(cat => {
+                const est = cat.estimated || cat.budgeted || 0;
+                const actual = (actuals[cat.id] || actuals[cat.name] || 0) + (cat.inHouse || 0);
+                const remaining = est - actual;
+                const gm = est > 0 ? ((est - actual) / est * 100) : 0;
+                const vend = vendorSpend[cat.id] || 0;
+                const warn = hasWarning(cat);
+                // Show progress bar background in first column if budgeted
+                const pct = est > 0 ? Math.min(100, (actual / est) * 100) : 0;
+
+                return (
+                  <tr key={cat.id} style={{ background: cat.status === "on_hold" ? "rgba(232,156,24,.05)" : "transparent" }}>
+                    <td style={{ ...tdStyle, textAlign: "left", position: "relative" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {pct > 0 && (
+                          <div style={{
+                            position: "absolute", left: 0, top: 0, bottom: 0,
+                            width: `${pct}%`, background: cat.color ? `${cat.color}15` : "rgba(91,163,245,.08)",
+                            borderRight: pct < 100 ? "none" : undefined,
+                          }} />
+                        )}
+                        <span style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: 6 }}>
+                          {pct > 0 && (
+                            <span style={{ fontSize: 9, color: cat.color || "var(--green)", fontWeight: 700, minWidth: 30 }}>
+                              {pct.toFixed(0)}%
+                            </span>
+                          )}
+                          <input className="inp" value={cat.name}
+                            style={{ border: "none", background: "transparent", fontSize: 12, fontWeight: 600, padding: 0, color: "var(--t1)", width: "100%" }}
+                            onChange={e => updCat(cat.id, { name: e.target.value })} />
+                        </span>
+                      </div>
+                    </td>
+                    <td style={tdStyle}>
+                      <input type="number" className="inp" value={cat.estimated || cat.budgeted || ""}
+                        style={{ textAlign: "right", border: "none", background: "transparent", fontSize: 12, fontWeight: 600, padding: 0, width: 70 }}
+                        onChange={e => updCat(cat.id, { estimated: parseFloat(e.target.value) || 0, budgeted: parseFloat(e.target.value) || 0 })} />
+                    </td>
+                    <td style={tdStyle}>
+                      <input type="number" className="inp" value={cat.ohp || ""}
+                        style={{ textAlign: "right", border: "none", background: "transparent", fontSize: 12, fontWeight: 600, padding: 0, width: 70 }}
+                        onChange={e => updCat(cat.id, { ohp: parseFloat(e.target.value) || 0 })} />
+                    </td>
+                    <td style={tdStyle}>
+                      <input type="number" className="inp" value={cat.targetCost || ""}
+                        style={{ textAlign: "right", border: "none", background: "transparent", fontSize: 12, fontWeight: 600, padding: 0, width: 70 }}
+                        onChange={e => updCat(cat.id, { targetCost: parseFloat(e.target.value) || 0 })} />
+                    </td>
+                    <td style={tdStyle}>
+                      <input type="number" className="inp" value={cat.bids || ""}
+                        style={{ textAlign: "right", border: "none", background: "transparent", fontSize: 12, fontWeight: 600, padding: 0, width: 60 }}
+                        onChange={e => updCat(cat.id, { bids: parseFloat(e.target.value) || 0 })} />
+                    </td>
+                    <td style={tdStyle}>{f$c(vend)}</td>
+                    <td style={tdStyle}>
+                      <input type="number" className="inp" value={cat.inHouse || ""}
+                        style={{ textAlign: "right", border: "none", background: "transparent", fontSize: 12, fontWeight: 600, padding: 0, width: 70 }}
+                        onChange={e => updCat(cat.id, { inHouse: parseFloat(e.target.value) || 0 })} />
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: "center", padding: "9px 4px" }}>
+                      {warn && <span title="In-house costs with no estimate" style={{ color: "var(--acc)", fontSize: 14 }}>&#9650;</span>}
+                    </td>
+                    <td style={{ ...tdStyle, color: remaining < 0 ? "var(--acc)" : "var(--t1)" }}>
+                      {remaining < 0 ? `$${Math.abs(remaining).toFixed(2)}` : f$c(remaining)}
+                      {remaining < 0 && <span style={{ color: "var(--acc)" }}> </span>}
+                    </td>
+                    <td style={tdStyle}>{gm.toFixed(0)}%</td>
+                  </tr>
+                );
+              })}
+
+              {/* Totals row */}
+              <tr style={{ background: "var(--s3)" }}>
+                <td style={{ ...tdStyle, textAlign: "left", fontWeight: 800, fontSize: 12 }}>Totals</td>
+                <td style={{ ...tdStyle, fontWeight: 800 }}>{f$c(totals.est)}</td>
+                <td style={{ ...tdStyle, fontWeight: 800 }}>{f$c(totals.ohp)}</td>
+                <td style={{ ...tdStyle, fontWeight: 800 }}>{f$c(totals.targetCost)}</td>
+                <td style={{ ...tdStyle, fontWeight: 800 }}>{f$c(totals.bids)}</td>
+                <td style={{ ...tdStyle, fontWeight: 800 }}>{f$c(totals.vendors)}</td>
+                <td style={{ ...tdStyle, fontWeight: 800 }}>{f$c(totals.inHouse)}</td>
+                <td style={{ ...tdStyle, textAlign: "center" }}>
+                  {totals.inHouse > 0 && totals.est === 0 && <span style={{ color: "var(--acc)", fontSize: 14 }}>&#9650;</span>}
+                </td>
+                <td style={{ ...tdStyle, fontWeight: 800, color: totRemaining < 0 ? "var(--acc)" : "var(--t1)" }}>
+                  {totRemaining < 0 ? `-${f$c(Math.abs(totRemaining))}` : f$c(totRemaining)}
+                </td>
+                <td style={{ ...tdStyle, fontWeight: 800 }}>{totGrossMargin.toFixed(0)}%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Add Category button */}
+        <div style={{ marginTop: 12 }}>
+          <button className="btn btn-primary btn-sm" onClick={() => addCategoryToWT(wt)}
+            style={{ background: "var(--green)", borderColor: "var(--green)", display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+            Add Category <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
+          </button>
+        </div>
+
+        {renderBottomSections(wt)}
+      </div>
+    );
+  };
+
+  // ── Quickbooks sync status ──
+  const qbStatus = proj.qbSynced ? null : "Cannot Sync to Quickbooks";
+
+  return (
+    <div>
+      {/* Quickbooks sync warning */}
+      {qbStatus && (
+        <div style={{
+          display: "inline-block", background: "var(--green)", color: "#fff", padding: "6px 16px",
+          borderRadius: 6, fontSize: 12, fontWeight: 700, marginBottom: 12,
+        }}>
+          {qbStatus}
+        </div>
+      )}
+
+      {/* Top-level tab bar: SUMMARY | ALL BUDGETS | [worktypes...] */}
+      <div style={tabBarStyle}>
+        <button style={tabStyle(activeTab === "summary")} onClick={() => setActiveTab("summary")}>SUMMARY</button>
+        <button style={tabStyle(activeTab === "all")} onClick={() => setActiveTab("all")}>ALL BUDGETS</button>
+        {activeWorktypes.map(wt => (
+          <button key={wt} style={tabStyle(activeTab === wt)} onClick={() => { setActiveTab(wt); setCatFilter("all"); }}>
+            {wt.toUpperCase()}
+          </button>
+        ))}
+      </div>
+
+      {/* ── SUMMARY TAB ── */}
+      {activeTab === "summary" && (
+        <div style={{ border: "1px solid var(--br)", borderTop: "none", borderRadius: "0 0 8px 8px", padding: 16 }}>
+          {/* Can embed the old XactimateBudgetTab for import/template tools */}
+          <XactimateBudgetTab
+            proj={proj}
+            transactions={transactions}
+            budgetData={budgetData}
+            onBudgetChange={onBudgetChange}
+          />
+          {renderBottomSections(null)}
+        </div>
+      )}
+
+      {/* ── ALL BUDGETS TAB ── */}
+      {activeTab === "all" && (
+        <div style={{ border: "1px solid var(--br)", borderTop: "none", borderRadius: "0 0 8px 8px", padding: 0 }}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
+              <thead>
+                <tr>
+                  <th style={{ ...thStyle, textAlign: "left", minWidth: 160 }}>Budget Type</th>
+                  <th style={{ ...thStyle, minWidth: 100 }}>Estimate Amount</th>
+                  <th style={{ ...thStyle, minWidth: 100 }}>Invoiced Amount</th>
+                  <th style={{ ...thStyle, minWidth: 90 }}>Target Cost</th>
+                  <th style={{ ...thStyle, minWidth: 90 }}>Actual Costs</th>
+                  <th style={{ ...thStyle, minWidth: 100 }}>Remaining Funds</th>
+                  <th style={{ ...thStyle, minWidth: 80 }}>Gross Margin</th>
+                  <th style={{ ...thStyle, minWidth: 80 }}>Payments</th>
+                  <th style={{ ...thStyle, minWidth: 70 }}>Owed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {wtSummary.map(s => (
+                  <tr key={s.wt} style={{ cursor: "pointer" }} onClick={() => { setActiveTab(s.wt); setCatFilter("all"); }}>
+                    <td style={{ ...tdStyle, textAlign: "left", fontWeight: 800, fontSize: 13 }}>{s.wt}</td>
+                    <td style={tdStyle}>{f$c(s.estimated)}</td>
+                    <td style={tdStyle}>{f$c(s.invoicedAmt)}</td>
+                    <td style={tdStyle}>{f$c(s.targetCost)}</td>
+                    <td style={tdStyle}>{f$c(s.actualCosts)}</td>
+                    <td style={{ ...tdStyle, color: s.remaining < 0 ? "var(--acc)" : "var(--t1)" }}>
+                      {s.remaining < 0 ? `-${f$c(Math.abs(s.remaining))}` : f$c(s.remaining)}
+                    </td>
+                    <td style={tdStyle}>{s.grossMargin.toFixed(0)}%</td>
+                    <td style={tdStyle}>{f$c(s.payments)}</td>
+                    <td style={tdStyle}>{f$c(s.owed)}</td>
+                  </tr>
+                ))}
+                {/* Job Total row */}
+                <tr style={{ background: "var(--s3)" }}>
+                  <td style={{ ...tdStyle, textAlign: "left", fontWeight: 800, fontSize: 13 }}>Job Total</td>
+                  <td style={{ ...tdStyle, fontWeight: 800 }}>{f$c(jobTotal.estimated)}</td>
+                  <td style={{ ...tdStyle, fontWeight: 800 }}>{f$c(jobTotal.invoicedAmt)}</td>
+                  <td style={{ ...tdStyle, fontWeight: 800 }}>{f$c(jobTotal.targetCost)}</td>
+                  <td style={{ ...tdStyle, fontWeight: 800 }}>{f$c(jobTotal.actualCosts)}</td>
+                  <td style={{ ...tdStyle, fontWeight: 800, color: jobTotal.remaining < 0 ? "var(--acc)" : "var(--t1)" }}>
+                    {jobTotal.remaining < 0 ? `-${f$c(Math.abs(jobTotal.remaining))}` : f$c(jobTotal.remaining)}
+                  </td>
+                  <td style={{ ...tdStyle, fontWeight: 800 }}>{jobTotal.grossMargin.toFixed(0)}%</td>
+                  <td style={{ ...tdStyle, fontWeight: 800 }}>{f$c(jobTotal.payments)}</td>
+                  <td style={{ ...tdStyle, fontWeight: 800 }}>{f$c(jobTotal.owed)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ padding: 16 }}>
+            {renderBottomSections(null)}
+          </div>
+        </div>
+      )}
+
+      {/* ── INDIVIDUAL WORKTYPE TABS ── */}
+      {activeWorktypes.includes(activeTab) && (
+        <div style={{ border: "1px solid var(--br)", borderTop: "none", borderRadius: "0 0 8px 8px", padding: 0 }}>
+          {renderWTTable(activeTab)}
+        </div>
+      )}
+
+      {/* No worktypes active message */}
+      {activeWorktypes.length === 0 && activeTab !== "summary" && (
+        <div style={{ padding: "32px 20px", textAlign: "center", background: "var(--s2)", border: "1px solid var(--br)",
+          borderTop: "none", borderRadius: "0 0 8px 8px" }}>
+          <div style={{ fontSize: 13, color: "var(--t2)", marginBottom: 8 }}>No work types active on this project</div>
+          <div style={{ fontSize: 11, color: "var(--t3)" }}>Turn on work types in the Overview tab to enable budget tracking per work type.</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BudgetBuilder({ budgets, setBudgets, worktypes=[], transactions=[] }) {
   const activeTypes = worktypes.length
     ? [...new Set([...worktypes.map(w=>w.type||w), ...Object.keys(budgets)])]
@@ -2204,11 +2723,12 @@ export function FinancialTab({ proj, companyId, laborCost=0, invoices: _invoices
 
         {/* ── BUDGET ── */}
         {subTab==="budget" && (
-          <XactimateBudgetTab
+          <WorktypeBudgetTab
             proj={proj}
             transactions={allTransactions}
             budgetData={projBudget}
             onBudgetChange={handleBudgetChange}
+            invoices={invoices}
           />
         )}
 

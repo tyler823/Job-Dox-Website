@@ -3238,15 +3238,43 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
   const toggleWT = (type) => {
     let next;
     const existing = worktypes.find(w => w.type === type);
+    const turningOn = !existing || existing.status === "off";
     if (existing) {
-      // Toggle between active and off
       next = worktypes.map(w => w.type === type ? {...w, status: w.status === "off" ? "active" : "off"} : w);
     } else {
-      // Add new worktype
       next = [...worktypes, { type, status:"active", phase:"Initial Response" }];
     }
     setWorktypes(next);
     syncWorktypesToLS(proj.id, next);
+    // Auto-create budget categories when a worktype is turned on
+    if (turningOn) {
+      try {
+        const budgetLS = JSON.parse(localStorage.getItem("jd_project_budgets") || "{}");
+        const projBudget = budgetLS[proj.id] || { categories: [], xactimate: null };
+        const templates = loadBudgetTemplates();
+        const existingCats = projBudget.categories || [];
+        const hasWT = existingCats.some(c => c.workType === type);
+        if (!hasWT) {
+          const relevant = templates.filter(t => {
+            if (!t.active) return false;
+            if (!t.workTypes?.length) return true;
+            return t.workTypes.some(tw => tw.toLowerCase() === type.toLowerCase());
+          });
+          const newCats = relevant.map(t => ({
+            id: `${t.id}-${type.replace(/\s+/g,"-").toLowerCase()}-${Date.now()}`,
+            templateId: t.id, name: t.name, color: t.color,
+            budgeted: 0, estimated: 0, ohp: 0, targetCost: 0,
+            bids: 0, vendors: 0, inHouse: 0,
+            source: "template", active: true, workType: type, status: "active",
+          }));
+          if (newCats.length) {
+            projBudget.categories = [...existingCats, ...newCats];
+            budgetLS[proj.id] = projBudget;
+            localStorage.setItem("jd_project_budgets", JSON.stringify(budgetLS));
+          }
+        }
+      } catch {}
+    }
   };
   const setWTPhase = (type, phase) => {
     const next = worktypes.map(w => w.type === type ? {...w, phase} : w);
