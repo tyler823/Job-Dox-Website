@@ -12004,7 +12004,7 @@ function FeatureRequestForm({ userName, companyName }) {
   );
 }
 
-function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission=1, currentMemberId, currentMemberName, currentMemberEmail="", onPermissionChange, offices=[], projects=[] }) {
+function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission=1, currentMemberId, currentMemberName, currentMemberEmail="", onPermissionChange, offices=[], projects=[], onWorkTypesChange, onStatusesChange, onProjectTypesChange }) {
   const [tab,      setTab]      = useState("staff");
   const [editId,   setEditId]   = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -12856,7 +12856,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
         )}
 
         {tab==="general" && (permLevel >= 8 ? (
-          <GeneralSettingsTab onWorkTypesChange={setCustomWorkTypes} onStatusesChange={setCustomStatuses} onProjectTypesChange={setCustomProjectTypes}/>
+          <GeneralSettingsTab onWorkTypesChange={onWorkTypesChange} onStatusesChange={onStatusesChange} onProjectTypesChange={onProjectTypesChange}/>
         ) : (
           <div className="card" style={{padding:28,textAlign:"center",color:"var(--t3)"}}>
             <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>Access Restricted</div>
@@ -13891,6 +13891,9 @@ export default function JobDoxPortal() {
                   try { localStorage.setItem("jd_current_user", JSON.stringify({ permissionLevel: normPerm(newPerm), memberId: currentMember.id })); } catch {}
                 }
               }}
+              onWorkTypesChange={setCustomWorkTypes}
+              onStatusesChange={setCustomStatuses}
+              onProjectTypesChange={setCustomProjectTypes}
             />
           </>
         ) : page==="myday" ? (
