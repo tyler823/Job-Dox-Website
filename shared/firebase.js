@@ -22,12 +22,12 @@ import { getStorage, ref as storageRef,
 
 // ── YOUR FIREBASE CONFIG ──────────────────────────────────────
 const FIREBASE_CONFIG = {
-  apiKey:            "REPLACE_WITH_YOUR_API_KEY",
-  authDomain:        "REPLACE_WITH_YOUR_AUTH_DOMAIN",
-  projectId:         "REPLACE_WITH_YOUR_PROJECT_ID",
-  storageBucket:     "REPLACE_WITH_YOUR_STORAGE_BUCKET",
-  messagingSenderId: "REPLACE_WITH_YOUR_MESSAGING_SENDER_ID",
-  appId:             "REPLACE_WITH_YOUR_APP_ID",
+  apiKey:            "AIzaSyAFwSEDPqKgAUbwbh_2KZNwLDdGCZEiq3E",
+  authDomain:        "cortex-717c6.firebaseapp.com",
+  projectId:         "cortex-717c6",
+  storageBucket:     "cortex-717c6.firebasestorage.app",
+  messagingSenderId: "496631882511",
+  appId:             "1:496631882511:web:3f7be61bcbb83a6ab4d47a",
 };
 // ─────────────────────────────────────────────────────────────
 
