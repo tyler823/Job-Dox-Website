@@ -21,6 +21,16 @@
   to     = "/app/dist/index.html"
   status = 200
 
+[[redirects]]
+  from   = "/pros/*"
+  to     = "/.netlify/functions/yard-sign"
+  status = 200
+
+[[redirects]]
+  from   = "/sitemap-yards.xml"
+  to     = "/.netlify/functions/yard-sign-sitemap"
+  status = 200
+
 [[headers]]
   for = "/*"
   [headers.values]
