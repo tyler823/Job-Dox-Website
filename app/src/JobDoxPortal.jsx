@@ -9557,6 +9557,9 @@ function BillingTab({ companyId, memberEmail }) {
   const [loading, setLoading]         = useState(true);
   const [upgrading, setUpgrading]     = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [invoices, setInvoices]       = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError]     = useState("");
 
   // Real-time listener on billing/cortexCoins doc
   useEffect(() => {
@@ -9575,6 +9578,29 @@ function BillingTab({ companyId, memberEmail }) {
     });
     return () => unsub();
   }, [companyId]);
+
+  // Fetch billing history from Stripe via Netlify function
+  useEffect(() => {
+    if (!billingData) return;
+    const custId = billingData.stripeCustomerId;
+    setHistoryLoading(true);
+    setHistoryError("");
+    fetch("/.netlify/functions/get-billing-history", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stripeCustomerId: custId || null }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) throw new Error(data.error);
+        setInvoices(data.invoices || []);
+      })
+      .catch(err => {
+        console.warn("Billing history fetch error:", err);
+        setHistoryError("Could not load billing history.");
+      })
+      .finally(() => setHistoryLoading(false));
+  }, [billingData]);
 
   const handleUpgrade = async () => {
     setUpgrading(true);
@@ -9794,6 +9820,69 @@ function BillingTab({ companyId, memberEmail }) {
           </div>
         </div>
       )}
+
+      {/* ── Billing history ── */}
+      <div className="card" style={{padding:0,overflow:"hidden"}}>
+        <div style={{padding:"18px 24px",borderBottom:"1px solid var(--br)"}}>
+          <div style={{fontSize:14,fontWeight:700,color:"var(--t1)"}}>Billing history</div>
+        </div>
+
+        {historyLoading ? (
+          <div style={{padding:32,textAlign:"center"}}>
+            <div style={{width:18,height:18,border:"2px solid var(--br)",borderTopColor:"var(--acc)",
+              borderRadius:"50%",animation:"jd-spin .7s linear infinite",margin:"0 auto 10px"}}/>
+            <div style={{fontSize:11,color:"var(--t3)"}}>Loading billing history...</div>
+          </div>
+        ) : historyError ? (
+          <div style={{padding:"24px",fontSize:12,color:"var(--t3)",textAlign:"center"}}>{historyError}</div>
+        ) : invoices.length === 0 ? (
+          <div style={{padding:"28px 24px",textAlign:"center"}}>
+            <div style={{fontSize:12,color:"var(--t3)",lineHeight:1.7}}>
+              No billing history yet — charges will appear here after your first billing cycle
+            </div>
+          </div>
+        ) : (
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead>
+                <tr style={{borderBottom:"1px solid var(--br)"}}>
+                  {["Date","Description","Amount","Status","Invoice"].map(h => (
+                    <th key={h} style={{padding:"10px 16px",textAlign:"left",fontSize:9,fontFamily:"var(--mono)",
+                      color:"var(--t3)",letterSpacing:".08em",textTransform:"uppercase",fontWeight:600,
+                      whiteSpace:"nowrap"}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.map(inv => (
+                  <tr key={inv.id} style={{borderBottom:"1px solid var(--br)"}}>
+                    <td style={{padding:"10px 16px",color:"var(--t2)",whiteSpace:"nowrap"}}>{inv.date}</td>
+                    <td style={{padding:"10px 16px",color:"var(--t1)",maxWidth:280}}>{inv.description}</td>
+                    <td style={{padding:"10px 16px",color:"var(--t1)",fontWeight:600,whiteSpace:"nowrap"}}>{inv.amount}</td>
+                    <td style={{padding:"10px 16px"}}>
+                      <span className="badge" style={{
+                        ...(inv.status === "paid" ? {background:"rgba(26,217,138,.12)",border:"1px solid rgba(26,217,138,.3)",color:"var(--green)"}
+                          : inv.status === "open" ? {background:"rgba(232,156,24,.12)",border:"1px solid rgba(232,156,24,.3)",color:"var(--amber)"}
+                          : {background:"var(--s3)",border:"1px solid var(--br)",color:"var(--t3)"}),
+                      }}>{inv.status}</span>
+                    </td>
+                    <td style={{padding:"10px 16px"}}>
+                      {inv.invoiceUrl ? (
+                        <a href={inv.invoiceUrl} target="_blank" rel="noopener noreferrer"
+                          style={{fontSize:11,color:"var(--acc)",textDecoration:"none",fontWeight:600}}>
+                          View PDF
+                        </a>
+                      ) : (
+                        <span style={{fontSize:11,color:"var(--t3)"}}>—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
