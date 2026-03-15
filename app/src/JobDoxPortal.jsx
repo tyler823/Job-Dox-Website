@@ -9497,7 +9497,7 @@ function UsageBar({ label, color }) {
   );
 }
 
-function GeneralSettingsTab() {
+function GeneralSettingsTab({ onWorkTypesChange, onStatusesChange, onProjectTypesChange }) {
   const [sec, setSec]         = useState("company");
   const [coInfo, setCoInfo]   = useState(loadCoInfo);
   const [coSaved, setCoSaved] = useState(false);
@@ -9516,6 +9516,10 @@ function GeneralSettingsTab() {
 
   const save = (wt, st, pt) => {
     syncCompanyConfigToLS(wt, st, pt);
+    // Sync back to parent so other pages (e.g. Create Project form) see updates immediately
+    if (onWorkTypesChange)    onWorkTypesChange(wt);
+    if (onStatusesChange)     onStatusesChange(st);
+    if (onProjectTypesChange) onProjectTypesChange(pt);
   };
 
   /* ── WORK TYPES ── */
@@ -12287,7 +12291,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
         )}
 
         {tab==="general" && (permLevel >= 8 ? (
-          <GeneralSettingsTab/>
+          <GeneralSettingsTab onWorkTypesChange={setCustomWorkTypes} onStatusesChange={setCustomStatuses} onProjectTypesChange={setCustomProjectTypes}/>
         ) : (
           <div className="card" style={{padding:28,textAlign:"center",color:"var(--t3)"}}>
             <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>Access Restricted</div>
