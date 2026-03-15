@@ -128,7 +128,9 @@ html,body,#root{height:100%;background:#06070d;color:#eef1f8;font-family:'Outfit
   });
   const db = firebase.firestore();
   const fbStorage = firebase.storage();
-  db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
+  // NO enablePersistence() — Firestore's IndexedDB cache was serving stale
+  // project data that had been deleted in the portal. The onSnapshot listener
+  // is the only source of truth; offline persistence caused data desync.
 </script>
 
 <script type="text/babel">
@@ -158,16 +160,16 @@ function _fieldTabCloseCleanup() {
       JSON.stringify({ memberId: _fieldMemberId })
     );
   } catch(e) {}
-  localStorage.removeItem("jd_current_user");
-  sessionStorage.clear();
+  // Only clear session marker — do NOT clear localStorage/sessionStorage broadly
+  // as that can cause stale state on next load
+  try { sessionStorage.removeItem("jd_field_active"); } catch {}
 }
 
 window.addEventListener("pagehide", function(e) {
   if (!e.persisted) _fieldTabCloseCleanup();
 });
-document.addEventListener("visibilitychange", function() {
-  if (document.visibilityState === "hidden") _fieldTabCloseCleanup();
-});
+// REMOVED: visibilitychange cleanup — was triggering on tab switch (not close),
+// clearing session markers prematurely and causing dirty-close false positives
 
 async function claimSession(memberId) {
   try {
@@ -207,10 +209,16 @@ const I = {
   out:   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>,
 };
 
-// Wait for Memberstack SDK to initialise
-function waitForMS() {
-  return new Promise(resolve => {
-    const check = () => window.$memberstackDom ? resolve(window.$memberstackDom) : setTimeout(check, 150);
+// Wait for Memberstack SDK to initialise (with 5-second timeout)
+function waitForMS(timeoutMs) {
+  const limit = timeoutMs || 5000;
+  return new Promise((resolve, reject) => {
+    const start = Date.now();
+    const check = () => {
+      if (window.$memberstackDom) return resolve(window.$memberstackDom);
+      if (Date.now() - start > limit) return reject(new Error("Memberstack did not load"));
+      setTimeout(check, 150);
+    };
     check();
   });
 }
@@ -327,9 +335,16 @@ function ProjectsScreen({ fieldUser, onSelect, clockedProjId }) {
   const [loading,  setLoading]  = useState(true);
 
   useEffect(() => {
-    if (!fieldUser?.companyId) return;
-    return db.collection("companies").doc(fieldUser.companyId).collection("projects")
-      .onSnapshot(snap=>{ setProjects(snap.docs.map(d=>({id:d.id,...d.data()}))); setLoading(false); }, ()=>setLoading(false));
+    if (!fieldUser?.companyId) { setProjects([]); setLoading(false); return; }
+    // Reset state on companyId change so stale data never shows
+    setProjects([]); setLoading(true);
+    // Firestore onSnapshot is the ONLY source of truth — no localStorage, no cache
+    const unsub = db.collection("companies").doc(fieldUser.companyId).collection("projects")
+      .onSnapshot(snap=>{
+        setProjects(snap.docs.map(d=>({id:d.id,...d.data()})));
+        setLoading(false);
+      }, ()=>{ setProjects([]); setLoading(false); });
+    return () => unsub();
   }, [fieldUser?.companyId]);
 
   const stColor = s => s==="Active"?"var(--green)":s==="Complete"?"var(--blue)":s==="On Hold"?"var(--amber)":"var(--t3)";
@@ -1057,13 +1072,23 @@ function FieldApp() {
 
   // ── Memberstack auth — mirrors portal's getMember() exactly ──────────
   useEffect(()=>{
+    let cancelled = false;
+
     async function initMember(ms, m) {
+      if (cancelled) return;
       if (!m) {
-        // Not signed in — open Memberstack's own login modal
-        ms.openModal("login");
+        // Not signed in — show login state, open Memberstack modal
+        setAuthState("checking");
+        try { ms.openModal("login"); } catch(e) {}
         return;
       }
+
+      // BUG 2 FIX: Explicitly dismiss the login modal IMMEDIATELY on success
       try { ms.closeModal(); } catch(e) {}
+      // Belt-and-suspenders: dismiss again after a short delay in case the
+      // Memberstack modal DOM hasn't fully rendered yet
+      setTimeout(() => { try { ms.closeModal(); } catch(e) {} }, 300);
+
       setMember(m);
       // company-id is the same custom field the portal writes when a staff
       // member accepts a portal invite, or that we write via invite code below
@@ -1077,6 +1102,8 @@ function FieldApp() {
         ms.updateMember({ customFields: { "company-id": companyId } }).catch(()=>{});
       }
 
+      if (cancelled) return;
+
       const name = getMemberName(m);
       const profile = {
         memberstackId: m.id,
@@ -1087,7 +1114,7 @@ function FieldApp() {
       // Load clock state (non-blocking)
       db.collection("companies").doc(companyId)
         .collection("fieldUsers").doc(m.id).get()
-        .then(s=>{ if(s.exists()&&s.data().clockedIn){ setClockProjId(s.data().clockedProjectId||null); setClockProjName(s.data().clockedProjectName||""); } })
+        .then(s=>{ if(!cancelled&&s.exists()&&s.data().clockedIn){ setClockProjId(s.data().clockedProjectId||null); setClockProjName(s.data().clockedProjectName||""); } })
         .catch(()=>{});
 
       // ── Track member ID for tab-close cleanup ──
@@ -1099,20 +1126,36 @@ function FieldApp() {
       watchSession(m.id, async () => {
         // Another device/browser logged in — sign out here
         if (_sessionUnsub) { _sessionUnsub(); _sessionUnsub = null; }
-        const _ms = await waitForMS();
-        await _ms.logout();
+        try { const _ms = await waitForMS(2000); await _ms.logout(); } catch(e) {}
+        if (cancelled) return;
         setAuthState("checking");
         setMember(null); setFieldUser(null);
-        _ms.openModal("login");
+        try { const _ms2 = await waitForMS(2000); _ms2.openModal("login"); } catch(e) {}
       });
 
+      if (cancelled) return;
       setFieldUser(profile);
       setAuthState("ready");
     }
 
     async function boot() {
-      const ms = await waitForMS();
-      const { data: m } = await ms.getCurrentMember();
+      let ms;
+      try {
+        ms = await waitForMS(5000);
+      } catch(e) {
+        // Memberstack SDK didn't load within 5 seconds — show sign-in button
+        if (!cancelled) setAuthState("ms_timeout");
+        return;
+      }
+      if (cancelled) return;
+
+      let m = null;
+      try {
+        const result = await ms.getCurrentMember();
+        m = result?.data || null;
+      } catch(e) {
+        m = null;
+      }
 
       // ── Dirty-close detection ──────────────────────────────────
       // sessionStorage is wiped when the tab/browser closes.
@@ -1120,30 +1163,32 @@ function FieldApp() {
       // the previous session ended via tab-close / force-quit.
       if (m && !sessionStorage.getItem("jd_field_active")) {
         try { await ms.logout(); } catch(e) {}
-        localStorage.removeItem("jd_current_user");
-        sessionStorage.clear();
-        ms.openModal("login");
+        try { sessionStorage.removeItem("jd_field_active"); } catch {}
+        m = null;
+        try { ms.openModal("login"); } catch(e) {}
         return;
       }
 
       await initMember(ms, m);
 
-      // onAuthChange handles ALL session events:
-      // - normal logout
-      // - concurrent login from another device (Memberstack kicks the old session)
-      // - token expiry
+      // BUG 2 FIX: onAuthChange fires when a user completes login in the modal.
+      // We explicitly close the modal and initialize the app.
       ms.onAuthChange(async updated => {
+        if (cancelled) return;
         if (!updated) {
           if (_sessionUnsub) { _sessionUnsub(); _sessionUnsub = null; }
           setAuthState("checking");
           setMember(null); setFieldUser(null);
-          ms.openModal("login");
+          try { ms.openModal("login"); } catch(e) {}
           return;
         }
+        // Login succeeded — dismiss modal and init
+        try { ms.closeModal(); } catch(e) {}
         await initMember(ms, updated);
       });
     }
     boot();
+    return () => { cancelled = true; };
   },[]);
 
   const handleLinked = (companyId, companyName) => {
@@ -1170,6 +1215,21 @@ function FieldApp() {
   };
 
   if (authState==="checking") return <Splash/>;
+  if (authState==="ms_timeout") return (
+    <div className="auth-shell">
+      <div className="auth-logo">JD</div>
+      <div className="auth-card">
+        <div className="auth-title">Cortex Field</div>
+        <div className="auth-sub">Sign in to access your projects.</div>
+        <button className="btn btn-primary btn-full btn-lg" onClick={async()=>{
+          try { const ms=await waitForMS(3000); ms.openModal("login"); } catch(e) { window.location.reload(); }
+        }}>Sign In</button>
+        <div style={{marginTop:12,textAlign:"center"}}>
+          <button onClick={()=>window.location.reload()} style={{background:"none",border:"none",color:"var(--blue)",cursor:"pointer",fontSize:12,fontFamily:"'Outfit',sans-serif"}}>Reload page</button>
+        </div>
+      </div>
+    </div>
+  );
   if (authState==="invite")   return <InviteCodeScreen member={member} onLinked={handleLinked}/>;
 
   const pName = proj?.name||proj?.clientName||"Project";
