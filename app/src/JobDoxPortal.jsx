@@ -8977,7 +8977,7 @@ Keep responses concise and actionable — under 200 words unless a detailed brea
         {messages.length === 0 && !loading && (
           <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,padding:"30px 10px"}}>
             <div style={{width:44,height:44,borderRadius:12,background:"rgba(167,139,250,.12)",display:"flex",alignItems:"center",justifyContent:"center"}}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="var(--purple)"><path d="M21 10.5h-1V8c0-1.66-1.34-3-3-3h-4V3.5a1.5 1.5 0 0 0-3 0V5H6C4.34 5 3 6.34 3 8v2.5H2a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h1V18c0 1.66 1.34 3 3 3h12c1.66 0 3-1.34 3-3v-2.5h1a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1zM9 14.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm6 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="var(--purple)"><path d="M12 1L9.5 8.5 2 12l7.5 3.5L12 23l2.5-7.5L22 12l-7.5-3.5z"/></svg>
             </div>
             <div style={{textAlign:"center"}}>
               <div style={{fontWeight:700,fontSize:14,color:"var(--t1)",marginBottom:4}}>Ask Cortex anything</div>
@@ -13383,7 +13383,7 @@ export default function JobDoxPortal() {
         <button className={`rail-btn${showCopilot?" active":""}`} data-tip="Cortex Copilot"
           onClick={()=>setShowCopilot(v=>!v)}
           style={showCopilot?{background:"rgba(167,139,250,.1)",color:"var(--purple)",boxShadow:"0 0 0 1px rgba(167,139,250,.25)"}:{}}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M21 10.5h-1V8c0-1.66-1.34-3-3-3h-4V3.5a1.5 1.5 0 0 0-3 0V5H6C4.34 5 3 6.34 3 8v2.5H2a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h1V18c0 1.66 1.34 3 3 3h12c1.66 0 3-1.34 3-3v-2.5h1a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1zM9 14.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm6 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L9.5 8.5 2 12l7.5 3.5L12 23l2.5-7.5L22 12l-7.5-3.5z"/></svg>
           {showCopilot && <span style={{position:"absolute",left:0,top:"50%",transform:"translateY(-50%)",width:3,height:20,background:"var(--purple)",borderRadius:"0 2px 2px 0"}}/>}
         </button>
         <div className="rail-div"/>
@@ -13484,7 +13484,7 @@ export default function JobDoxPortal() {
           {clockInState ? "Clocked In" : "Clock"}
         </button>
         <button className={`mob-tab${showCopilot?"active":""}`} onClick={()=>setShowCopilot(v=>!v)} style={showCopilot?{color:"var(--purple)"}:{}}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M21 10.5h-1V8c0-1.66-1.34-3-3-3h-4V3.5a1.5 1.5 0 0 0-3 0V5H6C4.34 5 3 6.34 3 8v2.5H2a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h1V18c0 1.66 1.34 3 3 3h12c1.66 0 3-1.34 3-3v-2.5h1a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1zM9 14.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm6 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L9.5 8.5 2 12l7.5 3.5L12 23l2.5-7.5L22 12l-7.5-3.5z"/></svg>
           Cortex
         </button>
       </nav>
