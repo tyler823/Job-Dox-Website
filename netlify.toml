@@ -21,6 +21,26 @@
   to     = "/app/dist/index.html"
   status = 200
 
+[[redirects]]
+  from   = "/pros/*"
+  to     = "/.netlify/functions/yard-sign"
+  status = 200
+
+[[redirects]]
+  from   = "/sitemap-yards.xml"
+  to     = "/.netlify/functions/yard-sign-sitemap"
+  status = 200
+
+[[redirects]]
+  from   = "/api/marketing-data/*"
+  to     = "/.netlify/functions/marketing-webhook"
+  status = 200
+
+[[redirects]]
+  from   = "/api/generate-webhook-token"
+  to     = "/.netlify/functions/generate-webhook-token"
+  status = 200
+
 [[headers]]
   for = "/*"
   [headers.values]
