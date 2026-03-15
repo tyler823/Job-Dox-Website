@@ -10915,7 +10915,8 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     setSaveError("");
     try {
       if (editId) {
-        await fsSetStaff(companyId, editId, { ...form, permission: form.permissionLevel, color: ROLE_COLORS[form.systemRole] || "#5ba3f5" });
+        const isOwnerEdit = editId === companyId;
+        await fsSetStaff(companyId, editId, { ...form, permission: isOwnerEdit ? 10 : form.permissionLevel, color: ROLE_COLORS[form.systemRole] || "#5ba3f5" });
       } else {
         const newId = `manual-${Date.now()}`;
         await fsSetStaff(companyId, newId, {
@@ -11160,8 +11161,11 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
             {/* ── ADD / EDIT FORM ── */}
             {showForm && (
               <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:10,padding:20,marginBottom:20}}>
-                <div style={{fontSize:13,fontWeight:700,marginBottom:16,color:"var(--t1)"}}>
+                <div style={{fontSize:13,fontWeight:700,marginBottom:16,color:"var(--t1)",display:"flex",alignItems:"center",gap:8}}>
                   {editId ? "Edit Staff Member" : "Add Staff Member Manually"}
+                  {editId === companyId && <span style={{fontSize:9,color:"#e89c18",fontFamily:"var(--mono)",
+                    background:"rgba(232,156,24,.12)",padding:"2px 8px",borderRadius:4,fontWeight:700,
+                    border:"1px solid rgba(232,156,24,.25)"}}>Account Owner</span>}
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
                   {fld("First Name","firstName",{required:true,placeholder:"First name"})}
@@ -11234,12 +11238,20 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                 {canChangePerms && (
                   <div style={{marginBottom:14}}>
                     <label className="lbl">Permission Level</label>
+                    {editId === companyId ? (
+                      <div style={{padding:"8px 12px",background:"var(--s3)",borderRadius:7,
+                        border:"1px solid var(--br)",fontSize:11,color:"var(--t2)"}}>
+                        <span style={{fontWeight:700,color:PERM_LEVELS[10]?.color}}>{PERM_LEVELS[10].label}</span>
+                        <span style={{marginLeft:8,fontSize:10,color:"var(--t3)"}}>— Account Owner is always Admin</span>
+                      </div>
+                    ) : (
                     <select className="sel" value={String(form.permissionLevel||3)}
                       onChange={e=>setForm(f=>({...f,permissionLevel:parseInt(e.target.value)}))}>
                       {[1,2,3,4,5,6,7,8,9,10].map(n=>(
                         <option key={n} value={n}>{PERM_LEVELS[n].label}</option>
                       ))}
                     </select>
+                    )}
                     {/* Description of selected level */}
                     {PERM_DESCRIPTIONS[form.permissionLevel||3] && (
                       <div style={{marginTop:7,padding:"8px 12px",background:"var(--s3)",borderRadius:7,
@@ -11282,7 +11294,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                     <div key={i} className="mono" style={{fontSize:9,color:"var(--t3)"}}>{h}</div>
                   ))}
                 </div>
-                {globalStaff.map(s => {
+                {[...globalStaff].sort((a, b) => (a.id === companyId ? -1 : b.id === companyId ? 1 : 0)).map(s => {
                   const rc   = ROLE_COLORS[s.systemRole] || "#5ba3f5";
                   const slv  = normPerm(s.permission ?? 3);
                   const pc   = PERM_LEVELS[slv]?.color || "var(--t3)";
@@ -11309,6 +11321,9 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                       <div>
                         <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>
                           {s.firstName} {s.lastName}
+                          {isAccountOwner && <span style={{marginLeft:7,fontSize:9,color:"#e89c18",fontFamily:"var(--mono)",
+                            background:"rgba(232,156,24,.12)",padding:"1px 6px",borderRadius:4,fontWeight:700,
+                            border:"1px solid rgba(232,156,24,.25)"}}>Account Owner</span>}
                           {isSelf && <span style={{marginLeft:7,fontSize:9,color:"var(--blue)",fontFamily:"var(--mono)",
                             background:"rgba(91,163,245,.12)",padding:"1px 6px",borderRadius:4}}>YOU</span>}
                         </div>
