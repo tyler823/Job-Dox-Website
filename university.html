@@ -603,8 +603,8 @@
       <div class="nav-items">
         <div class="nav-item" onclick="showComingSoon('Creating Tasks')">Creating Tasks</div>
         <div class="nav-item" onclick="showComingSoon('Assigning to Team Members')">Assigning to Team Members</div>
-        <div class="nav-item" onclick="showComingSoon('Calendar View')">Calendar View</div>
-        <div class="nav-item" onclick="showComingSoon('Recurring Tasks')">Recurring Tasks</div>
+        <div class="nav-item" onclick="showView('task-calendar')">Calendar View</div>
+        <div class="nav-item" onclick="showView('recurring-tasks')">Recurring Tasks</div>
       </div>
     </div>
     <div class="nav-group" id="grp-cl-team">
@@ -638,10 +638,10 @@
     <div class="nav-group" id="grp-cl-ai">
       <div class="nav-group-header" onclick="toggleGroup('grp-cl-ai')"><svg class="grp-icon" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z"/></svg><span class="grp-label">Cortex AI</span><span class="chevron">▶</span></div>
       <div class="nav-items">
-        <div class="nav-item" onclick="showComingSoon('Budget Overrun Alerts')">Budget Overrun Alerts</div>
-        <div class="nav-item" onclick="showComingSoon('Project Health Scoring')">Project Health Scoring</div>
-        <div class="nav-item" onclick="showComingSoon('AI Auto-Tasks')">AI Auto-Tasks</div>
-        <div class="nav-item" onclick="showComingSoon('Crew Utilization')">Crew Utilization</div>
+        <div class="nav-item" onclick="showView('ai-alerts')">Budget Overrun Alerts</div>
+        <div class="nav-item" onclick="showView('ai-health')">Project Health Scoring</div>
+        <div class="nav-item" onclick="showView('ai-tasks')">AI Auto-Tasks</div>
+        <div class="nav-item" onclick="showView('crew-analytics')">Crew Utilization</div>
         <div class="nav-item" onclick="showComingSoon('Cortex Coins')">Cortex Coins</div>
         <div class="nav-item" onclick="showComingSoon('Adjuster Response AI')">Adjuster Response AI</div>
         <div class="nav-item" onclick="showComingSoon('SOP Generation')">SOP Generation</div>
@@ -651,7 +651,7 @@
       <div class="nav-group-header" onclick="toggleGroup('grp-cl-auto')"><svg class="grp-icon" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg><span class="grp-label">Automations</span><span class="chevron">▶</span></div>
       <div class="nav-items">
         <div class="nav-item" onclick="showComingSoon('Triggers &amp; Rules')">Triggers &amp; Rules</div>
-        <div class="nav-item" onclick="showComingSoon('Automated Notifications')">Automated Notifications</div>
+        <div class="nav-item" onclick="showView('auto-notifications')">Automated Notifications</div>
         <div class="nav-item" onclick="showComingSoon('Workflow Templates')">Workflow Templates</div>
       </div>
     </div>
@@ -660,9 +660,9 @@
     <div class="nav-group" id="grp-cl-reports">
       <div class="nav-group-header" onclick="toggleGroup('grp-cl-reports')"><svg class="grp-icon" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg><span class="grp-label">Reporting</span><span class="chevron">▶</span></div>
       <div class="nav-items">
-        <div class="nav-item" onclick="showComingSoon('Job Summary Reports')">Job Summary Reports</div>
-        <div class="nav-item" onclick="showComingSoon('Crew Performance')">Crew Performance</div>
-        <div class="nav-item" onclick="showComingSoon('Financial Reports')">Financial Reports</div>
+        <div class="nav-item" onclick="showView('job-reports')">Job Summary Reports</div>
+        <div class="nav-item" onclick="showView('crew-reports')">Crew Performance</div>
+        <div class="nav-item" onclick="showView('financial-reports')">Financial Reports</div>
       </div>
     </div>
 
@@ -1596,57 +1596,10 @@
         <h1 class="art-title">Calendar <span class="red">View</span></h1>
         <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>4 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>Intermediate</span></div>
       </div>
-      <p>Calendar View gives you a bird's-eye view of every task and deadline across all jobs. Use it to spot scheduling conflicts and balance workloads.</p>
-      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.355a3 3 0 0 1-3 0M9 12.75a3 3 0 1 1 6 0c0 1.657-1.343 3-3 3S9 14.407 9 12.75Z"/></svg></div><div><span class="callout-lbl">Pro Tip</span><p>Click any day to quick-create a task — it auto-fills the due date.</p></div></div>
-      <h2>Step-by-Step</h2>
-      <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Click "Calendar" in the sidebar navigation</div><p class="step-desc">The Calendar icon is located in the main sidebar. Clicking it switches your view from the job list to the full calendar interface.</p></div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Browse the monthly view</div><p class="step-desc">The calendar displays all tasks across every job, color-coded by priority. Hover over any task pill to see full details.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-    <div style="display:flex;align-items:center;gap:12px;">
-      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
-      <span style="font-size:15px;font-weight:600;color:#fff;">March 2026</span>
-      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
-    </div>
-    <div style="display:flex;gap:4px;">
-      <span style="padding:4px 10px;border-radius:4px;font-size:10px;color:#777;border:1px solid #333;">Day</span>
-      <span style="padding:4px 10px;border-radius:4px;font-size:10px;color:#777;border:1px solid #333;">Week</span>
-      <span style="padding:4px 10px;border-radius:4px;font-size:10px;color:#fff;background:#e03535;">Month</span>
-    </div>
-  </div>
-  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:#2a2a2a;border:1px solid #2a2a2a;border-radius:6px;overflow:hidden;">
-    <div style="background:#1c1c1c;padding:4px 6px;text-align:center;font-size:10px;color:#555;font-weight:600;">Sun</div>
-    <div style="background:#1c1c1c;padding:4px 6px;text-align:center;font-size:10px;color:#555;font-weight:600;">Mon</div>
-    <div style="background:#1c1c1c;padding:4px 6px;text-align:center;font-size:10px;color:#555;font-weight:600;">Tue</div>
-    <div style="background:#1c1c1c;padding:4px 6px;text-align:center;font-size:10px;color:#555;font-weight:600;">Wed</div>
-    <div style="background:#1c1c1c;padding:4px 6px;text-align:center;font-size:10px;color:#555;font-weight:600;">Thu</div>
-    <div style="background:#1c1c1c;padding:4px 6px;text-align:center;font-size:10px;color:#555;font-weight:600;">Fri</div>
-    <div style="background:#1c1c1c;padding:4px 6px;text-align:center;font-size:10px;color:#555;font-weight:600;">Sat</div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#333;">1</span></div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#c8c8c8;">2</span></div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#c8c8c8;">3</span></div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#c8c8c8;">4</span></div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#c8c8c8;">5</span></div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#c8c8c8;">6</span></div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#c8c8c8;">7</span></div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#c8c8c8;">8</span></div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#c8c8c8;">9</span><div style="margin-top:3px;"><span style="display:block;padding:2px 4px;border-radius:3px;font-size:8px;background:rgba(91,163,245,0.2);color:#5ba3f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Moisture check</span></div></div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#c8c8c8;">10</span></div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#c8c8c8;">11</span></div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#c8c8c8;">12</span></div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#c8c8c8;">13</span></div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#c8c8c8;">14</span></div>
-    <div style="background:#1a1a1a;padding:6px;min-height:52px;border:1px solid rgba(240,87,87,0.3);"><span style="font-size:10px;color:#fff;font-weight:600;">15</span></div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#c8c8c8;">16</span><div style="margin-top:3px;"><span style="display:block;padding:2px 4px;border-radius:3px;font-size:8px;background:rgba(249,115,22,0.2);color:#f97316;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Demo removal</span></div></div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#c8c8c8;">17</span></div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#c8c8c8;">18</span></div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#c8c8c8;">19</span></div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#c8c8c8;">20</span><div style="margin-top:3px;"><span style="display:block;padding:2px 4px;border-radius:3px;font-size:8px;background:rgba(240,87,87,0.2);color:#f05757;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Install Dehumid...</span></div></div>
-    <div style="background:#141414;padding:6px;min-height:52px;"><span style="font-size:10px;color:#c8c8c8;">21</span></div>
-  </div>
-</div></div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Switch between Day, Week, and Month views</div><p class="step-desc">Use the toggle in the top-right corner of the calendar to switch views. <strong>Day</strong> shows hourly time slots, <strong>Week</strong> shows a 7-day column layout, and <strong>Month</strong> gives you the full overview.</p></div></div>
-        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Drag to reschedule</div><p class="step-desc">Click and drag any task pill to a new date to instantly update its due date. The assignee is notified of the change automatically.</p></div></div>
+      <p>Calendar View will give you a visual overview of every task and deadline across all jobs, with drag-and-drop rescheduling.</p>
+      <div style="margin:32px 0;text-align:center;">
+        <span class="pill pill-red" style="font-size:13px;padding:6px 16px;">In Development</span>
+        <p style="color:#777;font-size:14px;margin-top:16px;max-width:480px;margin-left:auto;margin-right:auto;">This feature is actively being built and will appear here when it launches. Check back soon.</p>
       </div>
       <div class="quiz-section" id="quiz-task-calendar">
         <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Calendar View</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
@@ -1668,46 +1621,10 @@
         <h1 class="art-title">Recurring <span class="red">Tasks</span></h1>
         <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>3 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>Intermediate</span></div>
       </div>
-      <p>Recurring tasks auto-create on a schedule — perfect for weekly safety checks, equipment inspections, or daily moisture readings.</p>
-      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg></div><div><span class="callout-lbl">Warning</span><p>Recurring tasks are created based on the job's start date. If the job is On Hold, recurring generation pauses until it's reactivated.</p></div></div>
-      <h2>Step-by-Step</h2>
-      <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Create a task as normal</div><p class="step-desc">Start by creating a task the usual way (see <strong>Creating Tasks</strong>). Fill in the task name, assignee, and priority as you normally would.</p></div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Toggle "Repeat" on</div><p class="step-desc">Enable the Repeat toggle to reveal the recurrence settings panel where you configure the schedule.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
-  <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:14px;">Recurrence Settings</div>
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-    <span style="font-size:13px;color:#fff;">Repeat</span>
-    <div style="width:36px;height:20px;border-radius:10px;background:#e03535;position:relative;cursor:pointer;"><div style="width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:2px;right:2px;"></div></div>
-  </div>
-  <div style="margin-bottom:12px;">
-    <div style="font-size:11px;color:#777;margin-bottom:4px;">Frequency</div>
-    <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;">
-      <span>Weekly</span>
-      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
-    </div>
-  </div>
-  <div style="margin-bottom:12px;">
-    <div style="font-size:11px;color:#777;margin-bottom:6px;">Repeat on</div>
-    <div style="display:flex;gap:6px;">
-      <span style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;background:#1a1a1a;border:1px solid #333;color:#555;">S</span>
-      <span style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;background:rgba(224,53,53,0.15);border:1px solid rgba(224,53,53,0.4);color:#f05757;">M</span>
-      <span style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;background:#1a1a1a;border:1px solid #333;color:#555;">T</span>
-      <span style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;background:rgba(224,53,53,0.15);border:1px solid rgba(224,53,53,0.4);color:#f05757;">W</span>
-      <span style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;background:#1a1a1a;border:1px solid #333;color:#555;">T</span>
-      <span style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;background:rgba(224,53,53,0.15);border:1px solid rgba(224,53,53,0.4);color:#f05757;">F</span>
-      <span style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;background:#1a1a1a;border:1px solid #333;color:#555;">S</span>
-    </div>
-  </div>
-  <div>
-    <div style="font-size:11px;color:#777;margin-bottom:4px;">Ends</div>
-    <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;">
-      <span>When job completes</span>
-      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
-    </div>
-  </div>
-</div></div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Set the frequency</div><p class="step-desc">Choose how often the task repeats: <strong>Daily</strong>, <strong>Weekly</strong>, <strong>Bi-weekly</strong>, or <strong>Monthly</strong>. For weekly and bi-weekly, select which days of the week the task should be created on.</p></div></div>
-        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Save the recurring task</div><p class="step-desc">Click <code>Create Task</code> to save. The system will automatically generate new task instances on schedule. Each instance can be completed independently without affecting the others.</p></div></div>
+      <p>Recurring Tasks will auto-create on a schedule for weekly safety checks, equipment inspections, or daily moisture readings.</p>
+      <div style="margin:32px 0;text-align:center;">
+        <span class="pill pill-red" style="font-size:13px;padding:6px 16px;">In Development</span>
+        <p style="color:#777;font-size:14px;margin-top:16px;max-width:480px;margin-left:auto;margin-right:auto;">This feature is actively being built and will appear here when it launches. Check back soon.</p>
       </div>
       <div class="quiz-section" id="quiz-recurring-tasks">
         <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Recurring Tasks</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
@@ -2437,84 +2354,10 @@
         <h1 class="art-title">Budget <span class="red">Overrun</span> Alerts</h1>
         <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>4 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>Intermediate</span></div>
       </div>
-      <p>Job-Dox AI watches your job budgets in real time. When expenses approach or exceed your limit, the system notifies the job owner and assigned managers — before the damage is done.</p>
-      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.355a3 3 0 0 1-3 0M9 12.75a3 3 0 1 1 6 0c0 1.657-1.343 3-3 3S9 14.407 9 12.75Z"/></svg></div><div><span class="callout-lbl">Default Thresholds</span><p>Alerts fire at <strong>80%</strong> (warning) and <strong>100%</strong> (critical) by default. Customize in <code>Settings › Notifications › Budget Alerts</code>.</p></div></div>
-      <h2>Step-by-Step: Configuring Alerts</h2>
-      <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Go to Settings › Notifications</div><p class="step-desc">Click your avatar → Settings → Notifications tab.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
-  <!-- Settings Page Header -->
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
-    <span style="color:#fff;font-weight:600;font-size:14px;">Settings</span>
-  </div>
-  <!-- Tab Bar -->
-  <div style="display:flex;gap:0;border-bottom:1.5px solid #2a2a2a;margin-bottom:16px;">
-    <div style="padding:8px 16px;color:#777;font-size:12px;font-weight:500;cursor:pointer;">General</div>
-    <div style="padding:8px 16px;color:#777;font-size:12px;font-weight:500;cursor:pointer;">Company Profile</div>
-    <div style="padding:8px 16px;color:#fff;font-size:12px;font-weight:600;border-bottom:2px solid #f05757;margin-bottom:-1.5px;">Notifications</div>
-    <div style="padding:8px 16px;color:#777;font-size:12px;font-weight:500;cursor:pointer;">Billing</div>
-  </div>
-  <!-- Budget Alerts Section -->
-  <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:14px;margin-bottom:10px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <div>
-        <div style="color:#fff;font-weight:600;font-size:13px;">Budget Alerts</div>
-        <div style="color:#777;font-size:11px;margin-top:2px;">Get notified when job spending approaches your budget limit</div>
-      </div>
-      <!-- ON Toggle -->
-      <div style="display:flex;align-items:center;gap:6px;">
-        <span style="color:#22c55e;font-size:11px;font-weight:600;">ON</span>
-        <div style="width:36px;height:20px;background:#22c55e;border-radius:10px;position:relative;">
-          <div style="width:16px;height:16px;background:#fff;border-radius:50%;position:absolute;top:2px;right:2px;"></div>
-        </div>
-      </div>
-    </div>
-    <!-- Alert Channels -->
-    <div style="margin-top:10px;">
-      <div style="color:#c8c8c8;font-size:12px;font-weight:500;margin-bottom:6px;">Alert Channels</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <div style="background:#1a1a1a;border:1px solid #f05757;border-radius:6px;padding:6px 14px;font-size:12px;color:#f05757;font-weight:500;">Email</div>
-        <div style="background:#1a1a1a;border:1px solid #f05757;border-radius:6px;padding:6px 14px;font-size:12px;color:#f05757;font-weight:500;">In-App</div>
-        <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:6px 14px;font-size:12px;color:#777;">SMS</div>
-      </div>
-    </div>
-  </div>
-</div></div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Find the Budget Alerts panel</div><p class="step-desc">Scroll to Budget Alerts and toggle it <code>ON</code> if not already enabled.</p></div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Set warning and critical thresholds</div><p class="step-desc">Common setup: 75% warning / 95% critical for tight-margin jobs.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
-  <!-- Warning Threshold -->
-  <div style="margin-bottom:16px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-      <span style="color:#fff;font-weight:600;font-size:13px;">Warning Threshold</span>
-      <span style="color:#e89c18;font-weight:600;font-size:13px;">75%</span>
-    </div>
-    <div style="width:100%;height:8px;background:#1c1c1c;border-radius:4px;overflow:hidden;">
-      <div style="width:75%;height:100%;background:linear-gradient(90deg,#e89c18,#f0b429);border-radius:4px;"></div>
-    </div>
-    <div style="color:#777;font-size:11px;margin-top:4px;">Sends a warning notification to job owner and managers</div>
-  </div>
-  <!-- Critical Threshold -->
-  <div style="margin-bottom:16px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-      <span style="color:#fff;font-weight:600;font-size:13px;">Critical Threshold</span>
-      <span style="color:#f05757;font-weight:600;font-size:13px;">95%</span>
-    </div>
-    <div style="width:100%;height:8px;background:#1c1c1c;border-radius:4px;overflow:hidden;">
-      <div style="width:95%;height:100%;background:linear-gradient(90deg,#e03535,#f05757);border-radius:4px;"></div>
-    </div>
-    <div style="color:#777;font-size:11px;margin-top:4px;">Sends an urgent alert and flags the job on the dashboard</div>
-  </div>
-  <!-- Preview -->
-  <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:12px;display:flex;align-items:center;gap:10px;">
-    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#e89c18" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
-    <div>
-      <div style="color:#c8c8c8;font-size:12px;">Alert Preview</div>
-      <div style="color:#fff;font-size:12px;font-weight:500;margin-top:2px;">You'll be alerted when spending reaches <span style="color:#e89c18;font-weight:600;">$13,500</span> of <span style="color:#fff;font-weight:600;">$18,000</span>.</div>
-    </div>
-  </div>
-</div></div></div>
-        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Choose notification channels</div><p class="step-desc">Select Email, In-App, or both. Critical alerts can also trigger SMS if your plan includes it.</p></div></div>
-        <div class="step"><div class="step-num">5</div><div class="step-body"><div class="step-title">Save and test</div><p class="step-desc">Click <code>Save</code>, then use <code>Send Test Alert</code> to confirm delivery.</p></div></div>
+      <p>Cortex AI will monitor your job budgets in real time and notify job owners and managers when expenses approach or exceed limits.</p>
+      <div style="margin:32px 0;text-align:center;">
+        <span class="pill pill-red" style="font-size:13px;padding:6px 16px;">In Development</span>
+        <p style="color:#777;font-size:14px;margin-top:16px;max-width:480px;margin-left:auto;margin-right:auto;">This feature is actively being built and will appear here when it launches. Check back soon.</p>
       </div>
       <div class="quiz-section" id="quiz-ai-alerts">
         <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Budget Overrun Alerts</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
@@ -2536,79 +2379,10 @@
         <h1 class="art-title">Project Health <span class="red">Scoring</span></h1>
         <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>5 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>Intermediate</span></div>
       </div>
-      <p>Cortex AI assigns a health score to every active job based on budget burn rate, schedule adherence, task completion, and documentation gaps. The score updates in real time so you can intervene before a job goes sideways.</p>
-      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.355a3 3 0 0 1-3 0M9 12.75a3 3 0 1 1 6 0c0 1.657-1.343 3-3 3S9 14.407 9 12.75Z"/></svg></div><div><span class="callout-lbl">Pro Tip</span><p>A score below 60 triggers an automatic notification to the project owner. Don't wait for it — check the dashboard weekly.</p></div></div>
-      <h2>Step-by-Step: Understanding Health Scores</h2>
-      <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Open any job — the health score appears in the header</div><p class="step-desc">Navigate to a job and look for the circular health score badge in the top-right of the job header. The color reflects the overall status: green (good), amber (fair), red (at risk).</p></div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Understand the score</div><p class="step-desc">The health score is a composite of four weighted sub-metrics. Each one contributes to the overall number.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
-  <!-- Health Score Card -->
-  <div style="display:flex;align-items:center;gap:18px;margin-bottom:16px;">
-    <!-- Circular Gauge -->
-    <div style="position:relative;width:90px;height:90px;flex-shrink:0;">
-      <svg width="90" height="90" viewBox="0 0 90 90" style="transform:rotate(-90deg);">
-        <circle cx="45" cy="45" r="38" fill="none" stroke="#1c1c1c" stroke-width="7"/>
-        <circle cx="45" cy="45" r="38" fill="none" stroke="#e89c18" stroke-width="7" stroke-dasharray="238.76" stroke-dashoffset="62.08" stroke-linecap="round"/>
-      </svg>
-      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-        <span style="color:#e89c18;font-weight:700;font-size:24px;line-height:1;">74</span>
-        <span style="color:#777;font-size:10px;">/100</span>
-      </div>
-    </div>
-    <div>
-      <div style="color:#e89c18;font-weight:700;font-size:14px;letter-spacing:1px;">FAIR</div>
-      <div style="color:#777;font-size:11px;margin-top:2px;">Updated 2 min ago</div>
-    </div>
-  </div>
-  <!-- Sub-metrics -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:10px;">
-      <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#c8c8c8;font-size:12px;">Budget</span><span style="color:#22c55e;font-size:12px;font-weight:600;">82%</span></div>
-      <div style="width:100%;height:6px;background:#0d0d0d;border-radius:3px;overflow:hidden;"><div style="width:82%;height:100%;background:#22c55e;border-radius:3px;"></div></div>
-    </div>
-    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:10px;">
-      <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#c8c8c8;font-size:12px;">Schedule</span><span style="color:#e89c18;font-size:12px;font-weight:600;">68%</span></div>
-      <div style="width:100%;height:6px;background:#0d0d0d;border-radius:3px;overflow:hidden;"><div style="width:68%;height:100%;background:#e89c18;border-radius:3px;"></div></div>
-    </div>
-    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:10px;">
-      <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#c8c8c8;font-size:12px;">Tasks</span><span style="color:#e89c18;font-size:12px;font-weight:600;">75%</span></div>
-      <div style="width:100%;height:6px;background:#0d0d0d;border-radius:3px;overflow:hidden;"><div style="width:75%;height:100%;background:#e89c18;border-radius:3px;"></div></div>
-    </div>
-    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:10px;">
-      <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#c8c8c8;font-size:12px;">Documentation</span><span style="color:#e89c18;font-size:12px;font-weight:600;">71%</span></div>
-      <div style="width:100%;height:6px;background:#0d0d0d;border-radius:3px;overflow:hidden;"><div style="width:71%;height:100%;background:#e89c18;border-radius:3px;"></div></div>
-    </div>
-  </div>
-</div></div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Drill into sub-metrics — click any metric to see what's dragging it down</div><p class="step-desc">Each sub-metric expands to show the specific factors affecting that score, with actionable items highlighted.</p></div></div>
-        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Act on AI recommendations</div><p class="step-desc">Cortex AI provides prioritized recommendations to improve the health score. Address the red items first.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
-  <!-- Recommendations Header -->
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.355a3 3 0 0 1-3 0M9 12.75a3 3 0 1 1 6 0c0 1.657-1.343 3-3 3S9 14.407 9 12.75Z"/></svg>
-    <span style="color:#fff;font-weight:600;font-size:13px;">AI Recommendations</span>
-  </div>
-  <!-- Recommendation Items -->
-  <div style="display:flex;flex-direction:column;gap:8px;">
-    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:12px;display:flex;align-items:flex-start;gap:10px;">
-      <div style="width:24px;height:24px;border-radius:6px;background:rgba(96,165,250,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">
-        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#60a5fa" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/></svg>
-      </div>
-      <div><div style="color:#fff;font-size:12px;font-weight:500;">Upload missing moisture readings for rooms 2-4</div><div style="color:#777;font-size:11px;margin-top:2px;">Documentation gap detected — 3 rooms missing readings</div></div>
-    </div>
-    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:12px;display:flex;align-items:flex-start;gap:10px;">
-      <div style="width:24px;height:24px;border-radius:6px;background:rgba(232,156,24,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">
-        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#e89c18" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
-      </div>
-      <div><div style="color:#fff;font-size:12px;font-weight:500;">3 tasks are overdue — reassign or update deadlines</div><div style="color:#777;font-size:11px;margin-top:2px;">Overdue tasks lower your schedule and task scores</div></div>
-    </div>
-    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:12px;display:flex;align-items:flex-start;gap:10px;">
-      <div style="width:24px;height:24px;border-radius:6px;background:rgba(240,87,87,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">
-        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
-      </div>
-      <div><div style="color:#fff;font-size:12px;font-weight:500;">Budget is at 82% with 40% of work remaining</div><div style="color:#777;font-size:11px;margin-top:2px;">High burn rate — review upcoming expenses</div></div>
-    </div>
-  </div>
-</div></div></div>
+      <p>Cortex AI will assign a real-time health score to every active job based on budget, schedule, task completion, and documentation.</p>
+      <div style="margin:32px 0;text-align:center;">
+        <span class="pill pill-red" style="font-size:13px;padding:6px 16px;">In Development</span>
+        <p style="color:#777;font-size:14px;margin-top:16px;max-width:480px;margin-left:auto;margin-right:auto;">This feature is actively being built and will appear here when it launches. Check back soon.</p>
       </div>
       <div class="quiz-section" id="quiz-ai-health">
         <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Project Health Scoring</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
@@ -2630,61 +2404,10 @@
         <h1 class="art-title">AI <span class="red">Auto-Tasks</span></h1>
         <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>4 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>Intermediate</span></div>
       </div>
-      <p>Cortex AI can automatically create tasks based on job events — when a project status changes, when a document is uploaded, or when a drying standard is reached. This eliminates the manual checklists your team forgets to follow.</p>
-      <div class="callout tip" style="border-color:rgba(232,156,24,0.4);"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#e89c18" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg></div><div><span class="callout-lbl">Cortex Coins</span><p>Auto-tasks use Cortex Coins. Each auto-task creation costs 1 coin. You have 300 coins per 28-day billing cycle.</p></div></div>
-      <h2>Step-by-Step: Creating Auto-Task Rules</h2>
-      <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Go to Settings › Cortex AI › Auto-Tasks</div><p class="step-desc">Open Settings from your avatar menu, then navigate to the Cortex AI section and select Auto-Tasks.</p></div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Click "+ New Rule"</div><p class="step-desc">This opens the rule builder where you define the trigger, action, and assignment.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
-  <!-- Rule Builder Header -->
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-    <div style="display:flex;align-items:center;gap:8px;">
-      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"/></svg>
-      <span style="color:#fff;font-weight:600;font-size:14px;">New Auto-Task Rule</span>
-    </div>
-    <!-- Toggle -->
-    <div style="display:flex;align-items:center;gap:6px;">
-      <span style="color:#22c55e;font-size:11px;font-weight:600;">ON</span>
-      <div style="width:36px;height:20px;background:#22c55e;border-radius:10px;position:relative;">
-        <div style="width:16px;height:16px;background:#fff;border-radius:50%;position:absolute;top:2px;right:2px;"></div>
-      </div>
-    </div>
-  </div>
-  <!-- Trigger -->
-  <div style="margin-bottom:12px;">
-    <div style="color:#777;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Trigger</div>
-    <div style="background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;">
-      <span style="color:#fff;font-size:12px;">When project status changes to <span style="color:#e89c18;font-weight:600;">Mitigation</span></span>
-      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
-    </div>
-  </div>
-  <!-- Action -->
-  <div style="margin-bottom:12px;">
-    <div style="color:#777;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Action</div>
-    <div style="background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:10px 12px;">
-      <span style="color:#fff;font-size:12px;">Create task: <span style="color:#f05757;font-weight:500;">Set up dehumidifiers</span></span>
-    </div>
-  </div>
-  <!-- Assignee & Due -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-    <div>
-      <div style="color:#777;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Assignee</div>
-      <div style="background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;">
-        <span style="color:#fff;font-size:12px;">Field Staff on project</span>
-        <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
-      </div>
-    </div>
-    <div>
-      <div style="color:#777;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Due</div>
-      <div style="background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:10px 12px;">
-        <span style="color:#fff;font-size:12px;">1 day after trigger</span>
-      </div>
-    </div>
-  </div>
-</div></div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Set the trigger event</div><p class="step-desc">Choose from available triggers: <code>project.created</code>, <code>project.status_changed</code>, <code>document.uploaded</code>, <code>drydox.dry_standard</code>, <code>task.completed</code>, and more.</p></div></div>
-        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Define the task it creates</div><p class="step-desc">Set the task name, description, assignee (specific user or role-based), and due date relative to the trigger event.</p></div></div>
-        <div class="step"><div class="step-num">5</div><div class="step-body"><div class="step-title">Enable and test</div><p class="step-desc">Toggle the rule on and use <code>Test Rule</code> to verify it fires correctly without consuming a Cortex Coin.</p></div></div>
+      <p>Cortex AI will automatically create tasks based on job events like status changes, document uploads, or drying standards being reached.</p>
+      <div style="margin:32px 0;text-align:center;">
+        <span class="pill pill-red" style="font-size:13px;padding:6px 16px;">In Development</span>
+        <p style="color:#777;font-size:14px;margin-top:16px;max-width:480px;margin-left:auto;margin-right:auto;">This feature is actively being built and will appear here when it launches. Check back soon.</p>
       </div>
       <div class="quiz-section" id="quiz-ai-tasks">
         <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: AI Auto-Tasks</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
@@ -2706,81 +2429,10 @@
         <h1 class="art-title">Crew <span class="red">Utilization</span></h1>
         <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>4 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>Intermediate</span></div>
       </div>
-      <p>Cortex AI analyzes your team's workload across all active jobs. See who's overloaded, who has capacity, and where to rebalance — all powered by shift data, task assignments, and job schedules.</p>
-      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.355a3 3 0 0 1-3 0M9 12.75a3 3 0 1 1 6 0c0 1.657-1.343 3-3 3S9 14.407 9 12.75Z"/></svg></div><div><span class="callout-lbl">Pro Tip</span><p>Run this before assigning new jobs. An overloaded crew member leads to missed tasks and lower health scores.</p></div></div>
-      <h2>Step-by-Step: Analyzing Crew Utilization</h2>
-      <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Go to Reports › Crew Utilization</div><p class="step-desc">Open the Reports section from the main navigation and select Crew Utilization.</p></div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">View the utilization dashboard</div><p class="step-desc">Each team member shows a utilization bar based on their assigned work vs. available capacity.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
-  <!-- Dashboard Header -->
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-    <div style="display:flex;align-items:center;gap:8px;">
-      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128H5.228A2 2 0 0 1 3.213 17.1a5.25 5.25 0 0 1 10.537 0c.07.29.163.573.279.847M15 19.128a9.38 9.38 0 0 1-2.625.372c-1.474 0-2.876-.342-4.121-.952M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z"/></svg>
-      <span style="color:#fff;font-weight:600;font-size:14px;">Crew Utilization</span>
-    </div>
-    <!-- Legend -->
-    <div style="display:flex;gap:12px;font-size:10px;">
-      <div style="display:flex;align-items:center;gap:4px;"><div style="width:8px;height:8px;border-radius:2px;background:#22c55e;"></div><span style="color:#777;">&lt;60%</span></div>
-      <div style="display:flex;align-items:center;gap:4px;"><div style="width:8px;height:8px;border-radius:2px;background:#e89c18;"></div><span style="color:#777;">60-85%</span></div>
-      <div style="display:flex;align-items:center;gap:4px;"><div style="width:8px;height:8px;border-radius:2px;background:#f05757;"></div><span style="color:#777;">&gt;85%</span></div>
-    </div>
-  </div>
-  <!-- Crew Members -->
-  <div style="display:flex;flex-direction:column;gap:10px;">
-    <!-- Mike J. -->
-    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:12px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div style="width:28px;height:28px;border-radius:50%;background:#6b1a1a;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#f05757;">MJ</div>
-          <div><div style="color:#fff;font-size:12px;font-weight:500;">Mike J.</div><div style="color:#777;font-size:10px;">Field Staff</div></div>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span style="color:#f05757;font-size:12px;font-weight:700;">92%</span>
-          <span style="background:rgba(240,87,87,0.15);color:#f05757;font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;">OVERLOADED</span>
-        </div>
-      </div>
-      <div style="width:100%;height:6px;background:#0d0d0d;border-radius:3px;overflow:hidden;"><div style="width:92%;height:100%;background:#f05757;border-radius:3px;"></div></div>
-    </div>
-    <!-- Sarah T. -->
-    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:12px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div style="width:28px;height:28px;border-radius:50%;background:rgba(232,156,24,0.2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#e89c18;">ST</div>
-          <div><div style="color:#fff;font-size:12px;font-weight:500;">Sarah T.</div><div style="color:#777;font-size:10px;">Project Manager</div></div>
-        </div>
-        <span style="color:#e89c18;font-size:12px;font-weight:700;">78%</span>
-      </div>
-      <div style="width:100%;height:6px;background:#0d0d0d;border-radius:3px;overflow:hidden;"><div style="width:78%;height:100%;background:#e89c18;border-radius:3px;"></div></div>
-    </div>
-    <!-- Alex R. -->
-    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:12px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div style="width:28px;height:28px;border-radius:50%;background:rgba(34,197,94,0.2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#22c55e;">AR</div>
-          <div><div style="color:#fff;font-size:12px;font-weight:500;">Alex R.</div><div style="color:#777;font-size:10px;">Field Staff</div></div>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span style="color:#22c55e;font-size:12px;font-weight:700;">45%</span>
-          <span style="background:rgba(34,197,94,0.15);color:#22c55e;font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;">AVAILABLE</span>
-        </div>
-      </div>
-      <div style="width:100%;height:6px;background:#0d0d0d;border-radius:3px;overflow:hidden;"><div style="width:45%;height:100%;background:#22c55e;border-radius:3px;"></div></div>
-    </div>
-    <!-- Dana K. -->
-    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:12px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div style="width:28px;height:28px;border-radius:50%;background:rgba(232,156,24,0.2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#e89c18;">DK</div>
-          <div><div style="color:#fff;font-size:12px;font-weight:500;">Dana K.</div><div style="color:#777;font-size:10px;">Field Staff</div></div>
-        </div>
-        <span style="color:#e89c18;font-size:12px;font-weight:700;">61%</span>
-      </div>
-      <div style="width:100%;height:6px;background:#0d0d0d;border-radius:3px;overflow:hidden;"><div style="width:61%;height:100%;background:#e89c18;border-radius:3px;"></div></div>
-    </div>
-  </div>
-</div></div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Drill into a team member</div><p class="step-desc">Click any crew member to see their assigned jobs, shifts logged this period, and pending tasks across all projects.</p></div></div>
-        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Rebalance workloads</div><p class="step-desc">Reassign tasks directly from this view to balance workloads. Drag tasks between team members or use the quick-reassign button.</p></div></div>
+      <p>Cortex AI will analyze your team's workload across all active jobs to show who's overloaded, who has capacity, and where to rebalance.</p>
+      <div style="margin:32px 0;text-align:center;">
+        <span class="pill pill-red" style="font-size:13px;padding:6px 16px;">In Development</span>
+        <p style="color:#777;font-size:14px;margin-top:16px;max-width:480px;margin-left:auto;margin-right:auto;">This feature is actively being built and will appear here when it launches. Check back soon.</p>
       </div>
       <div class="quiz-section" id="quiz-crew-analytics">
         <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Crew Utilization</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
@@ -2930,7 +2582,7 @@
   </div>
 </div></div></div>
         <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Customize the message</div><p class="step-desc">Use merge fields to personalize — <code>{{client_name}}</code>, <code>{{job_name}}</code>, <code>{{status}}</code>, and more.</p></div></div>
-        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Preview and activate</div><p class="step-desc">Use "Send Test" to preview the notification before going live.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Preview and activate</div><p class="step-desc">Review the notification preview, then toggle the automation on to go live.</p></div></div>
       </div>
       <div class="quiz-section" id="quiz-auto-notifications">
         <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Automated Notifications</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
@@ -3077,110 +2729,11 @@
         <h1 class="art-title">Job Summary <span class="red">Reports</span></h1>
         <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>5 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>Intermediate</span></div>
       </div>
-      <p>A Job Summary Report is a single-page snapshot of an entire project — status, timeline, budget, notes, photos, and documents — packaged for adjusters, clients, or internal review. Generate one in seconds and export as PDF or email it directly.</p>
-      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/></svg></div><div><span class="callout-lbl">Pro tip</span><p>Send a Job Summary to the adjuster before your final walkthrough — it shows professionalism and speeds up claim approvals.</p></div></div>
-      <h2>Step-by-Step: Generating a Job Summary Report</h2>
-      <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Open the project</div><p class="step-desc">Navigate to the job you want to report on from the Dashboard or Projects list.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
-  <!-- Project header bar -->
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-    <div style="display:flex;align-items:center;gap:10px;">
-      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/></svg>
-      <span style="color:#fff;font-weight:700;font-size:14px;">WD-2024-0147</span>
-      <span style="font-size:11px;color:#777;">•</span>
-      <span style="font-size:12px;color:#c8c8c8;">Johnson Residence — Water Damage</span>
-    </div>
-    <span style="background:rgba(26,217,138,0.15);color:#1ad98a;font-size:10px;font-weight:600;padding:3px 10px;border-radius:4px;text-transform:uppercase;">Active</span>
-  </div>
-  <!-- Tab bar with Reports highlighted -->
-  <div style="display:flex;gap:0;border-bottom:1px solid #2a2a2a;margin-bottom:14px;">
-    <div style="padding:8px 14px;font-size:11px;color:#777;cursor:pointer;">Overview</div>
-    <div style="padding:8px 14px;font-size:11px;color:#777;cursor:pointer;">Notes</div>
-    <div style="padding:8px 14px;font-size:11px;color:#777;cursor:pointer;">Tasks</div>
-    <div style="padding:8px 14px;font-size:11px;color:#777;cursor:pointer;">Budget</div>
-    <div style="padding:8px 14px;font-size:11px;color:#fff;font-weight:600;border-bottom:2px solid #f05757;">Reports</div>
-    <div style="padding:8px 14px;font-size:11px;color:#777;cursor:pointer;">Documents</div>
-  </div>
-  <div style="color:#777;font-size:11px;">Select a report type below to generate</div>
-</div></div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Click "Reports" tab → "Job Summary"</div><p class="step-desc">The Reports tab shows all available report types. Select "Job Summary" to generate a full project snapshot.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
-  <!-- Report type cards -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-    <div style="background:#1c1c1c;border:2px solid #f05757;border-radius:8px;padding:14px;cursor:pointer;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
-        <span style="color:#fff;font-weight:600;font-size:13px;">Job Summary</span>
+      <p>Job Summary Reports will generate single-page project snapshots with status, timeline, budget, notes, photos, and documents for adjusters and clients.</p>
+      <div style="margin:32px 0;text-align:center;">
+        <span class="pill pill-red" style="font-size:13px;padding:6px 16px;">In Development</span>
+        <p style="color:#777;font-size:14px;margin-top:16px;max-width:480px;margin-left:auto;margin-right:auto;">This feature is actively being built and will appear here when it launches. Check back soon.</p>
       </div>
-      <div style="color:#777;font-size:11px;">Complete project overview with timeline, budget, notes & photos</div>
-    </div>
-    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:14px;cursor:pointer;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z"/></svg>
-        <span style="color:#c8c8c8;font-weight:600;font-size:13px;">Financial Summary</span>
-      </div>
-      <div style="color:#777;font-size:11px;">Budget vs. actuals, expense breakdown, profit margins</div>
-    </div>
-    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:14px;cursor:pointer;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
-        <span style="color:#c8c8c8;font-weight:600;font-size:13px;">Photo Report</span>
-      </div>
-      <div style="color:#777;font-size:11px;">Before/during/after photo gallery with timestamps</div>
-    </div>
-    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:14px;cursor:pointer;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-        <span style="color:#c8c8c8;font-weight:600;font-size:13px;">Timeline Report</span>
-      </div>
-      <div style="color:#777;font-size:11px;">Chronological log of all project activity</div>
-    </div>
-  </div>
-</div></div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Choose which sections to include</div><p class="step-desc">Toggle sections on/off: Project Info, Timeline, Budget Summary, Daily Notes, Photos, Task Completion, and Documents. Each section adds detail but also length.</p></div></div>
-        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Preview and export</div><p class="step-desc">Preview the compiled report, then export as PDF or email it directly to the adjuster or client.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
-  <!-- Report preview header -->
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-    <div style="display:flex;align-items:center;gap:8px;">
-      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
-      <span style="color:#fff;font-weight:600;font-size:14px;">Report Preview</span>
-    </div>
-    <div style="display:flex;gap:8px;">
-      <div style="background:#e03535;color:#fff;font-size:11px;font-weight:600;padding:6px 14px;border-radius:6px;cursor:pointer;">
-        <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-1px;margin-right:4px;"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>Export PDF
-      </div>
-      <div style="background:#1c1c1c;border:1px solid #2a2a2a;color:#c8c8c8;font-size:11px;font-weight:600;padding:6px 14px;border-radius:6px;cursor:pointer;">
-        <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-1px;margin-right:4px;"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg>Email
-      </div>
-    </div>
-  </div>
-  <!-- Report content preview -->
-  <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:16px;">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-      <div style="width:28px;height:28px;border-radius:6px;background:#6b1a1a;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#f05757;">JD</div>
-      <div>
-        <div style="color:#fff;font-weight:600;font-size:13px;">Job Summary Report — WD-2024-0147</div>
-        <div style="color:#777;font-size:10px;">Johnson Residence • Generated Mar 15, 2026</div>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
-      <div style="background:#141414;border-radius:6px;padding:10px;text-align:center;">
-        <div style="color:#777;font-size:9px;text-transform:uppercase;font-weight:600;">Budget</div>
-        <div style="color:#1ad98a;font-weight:700;font-size:16px;">$24,500</div>
-      </div>
-      <div style="background:#141414;border-radius:6px;padding:10px;text-align:center;">
-        <div style="color:#777;font-size:9px;text-transform:uppercase;font-weight:600;">Spent</div>
-        <div style="color:#e89c18;font-weight:700;font-size:16px;">$18,230</div>
-      </div>
-      <div style="background:#141414;border-radius:6px;padding:10px;text-align:center;">
-        <div style="color:#777;font-size:9px;text-transform:uppercase;font-weight:600;">Margin</div>
-        <div style="color:#1ad98a;font-weight:700;font-size:16px;">25.6%</div>
-      </div>
-    </div>
-    <div style="color:#777;font-size:10px;border-top:1px solid #2a2a2a;padding-top:10px;">Sections: Project Info ✓ &nbsp; Timeline ✓ &nbsp; Budget ✓ &nbsp; Notes ✓ &nbsp; Photos ✓ &nbsp; Tasks ✓ &nbsp; Docs ✓</div>
-  </div>
-</div></div></div>
-      </div>
-      <div class="callout warn"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#eab308" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg></div><div><span class="callout-lbl">Important</span><p>Reports are point-in-time snapshots. If you add notes or expenses after generating, you'll need to regenerate to include them.</p></div></div>
       <div class="quiz-section" id="quiz-job-reports">
         <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Job Summary Reports</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
         <div class="progress-bar"><div class="progress-fill" id="prog-job-reports" style="width:0%"></div></div>
@@ -3201,63 +2754,11 @@
         <h1 class="art-title">Crew <span class="red">Performance</span></h1>
         <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>5 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>Advanced</span></div>
       </div>
-      <p>The Crew Performance report gives managers visibility into how field staff are performing across all active jobs — task completion rates, hours logged, jobs assigned, and utilization percentage. Use it to balance workloads and identify top performers.</p>
-      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/></svg></div><div><span class="callout-lbl">Pro tip</span><p>Review crew performance weekly during your team meeting. Staff who consistently exceed 85% utilization may be overloaded — redistribute before burnout hits.</p></div></div>
-      <h2>Step-by-Step: Running a Crew Performance Report</h2>
-      <div class="steps">
-        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Go to Reports › Crew Performance</div><p class="step-desc">From the main navigation, open the Reports section and select Crew Performance.</p></div></div>
-        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Set the date range</div><p class="step-desc">Choose a date range to analyze — this week, last 30 days, custom range, etc. All metrics are scoped to the selected window.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
-  <!-- Date range bar -->
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-    <div style="display:flex;align-items:center;gap:8px;">
-      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"/></svg>
-      <span style="color:#fff;font-weight:600;font-size:14px;">Crew Performance</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:6px 12px;font-size:11px;color:#c8c8c8;display:flex;align-items:center;gap:6px;">
-        <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
-        Mar 1 – Mar 15, 2026
+      <p>The Crew Performance report will give managers visibility into field staff task completion rates, hours logged, jobs assigned, and utilization.</p>
+      <div style="margin:32px 0;text-align:center;">
+        <span class="pill pill-red" style="font-size:13px;padding:6px 16px;">In Development</span>
+        <p style="color:#777;font-size:14px;margin-top:16px;max-width:480px;margin-left:auto;margin-right:auto;">This feature is actively being built and will appear here when it launches. Check back soon.</p>
       </div>
-      <div style="background:#e03535;color:#fff;font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;">Generate</div>
-    </div>
-  </div>
-  <!-- Crew table -->
-  <div style="border:1px solid #2a2a2a;border-radius:8px;overflow:hidden;">
-    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;background:#1c1c1c;padding:8px 14px;border-bottom:1px solid #2a2a2a;">
-      <span style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;">Team Member</span>
-      <span style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;">Tasks Done</span>
-      <span style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;">Hours</span>
-      <span style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;">Jobs</span>
-      <span style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;">Utilization</span>
-    </div>
-    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;padding:10px 14px;border-bottom:1px solid #2a2a2a;align-items:center;">
-      <div style="display:flex;align-items:center;gap:8px;"><div style="width:26px;height:26px;border-radius:50%;background:#6b1a1a;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#f05757;">MR</div><span style="color:#fff;font-size:12px;font-weight:500;">Mike Rodriguez</span></div>
-      <span style="color:#1ad98a;font-weight:600;">34</span>
-      <span>62.5 hrs</span>
-      <span>5</span>
-      <span style="color:#1ad98a;font-weight:600;">78%</span>
-    </div>
-    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;padding:10px 14px;border-bottom:1px solid #2a2a2a;align-items:center;">
-      <div style="display:flex;align-items:center;gap:8px;"><div style="width:26px;height:26px;border-radius:50%;background:#6b1a1a;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#f05757;">SJ</div><span style="color:#fff;font-size:12px;font-weight:500;">Sarah Johnson</span></div>
-      <span style="color:#1ad98a;font-weight:600;">41</span>
-      <span>71.0 hrs</span>
-      <span>6</span>
-      <span style="color:#e43531;font-weight:600;">89%</span>
-    </div>
-    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;padding:10px 14px;align-items:center;">
-      <div style="display:flex;align-items:center;gap:8px;"><div style="width:26px;height:26px;border-radius:50%;background:#6b1a1a;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#f05757;">TW</div><span style="color:#fff;font-size:12px;font-weight:500;">Tom Williams</span></div>
-      <span style="color:#e89c18;font-weight:600;">18</span>
-      <span>32.0 hrs</span>
-      <span>3</span>
-      <span style="color:#e89c18;font-weight:600;">40%</span>
-    </div>
-  </div>
-</div></div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Review the metrics</div><p class="step-desc">Each team member row shows: tasks completed, total hours clocked, active jobs, and utilization percentage. Red utilization (&gt;85%) flags overloaded staff. Amber (&lt;50%) suggests under-utilization.</p></div></div>
-        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Take action on imbalances</div><p class="step-desc">Click a crew member's name to drill into their job assignments. Reassign tasks from overloaded staff to under-utilized members directly from the report.</p></div></div>
-        <div class="step"><div class="step-num">5</div><div class="step-body"><div class="step-title">Export or share</div><p class="step-desc">Download the crew performance report as PDF or CSV. Share with operations managers for scheduling decisions.</p></div></div>
-      </div>
-      <div class="callout warn"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#eab308" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg></div><div><span class="callout-lbl">Important</span><p>Utilization is calculated from shift clock-ins and task assignments. If staff aren't clocking in consistently, the data will be inaccurate. Enforce time tracking for reliable reports.</p></div></div>
       <div class="quiz-section" id="quiz-crew-reports">
         <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Crew Performance</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
         <div class="progress-bar"><div class="progress-fill" id="prog-crew-reports" style="width:0%"></div></div>
@@ -3278,9 +2779,8 @@
         <h1 class="art-title">Financial <span class="red">Reports</span></h1>
         <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>6 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>Advanced</span></div>
       </div>
-      <p>Financial Reports give you a portfolio-level view of your business — total revenue, expenses, profit margins, and accounts receivable across all jobs. Powered by Cortex AI, the Financial Analyst feature can also generate instant AI-driven briefings on your financial health.</p>
-      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/></svg></div><div><span class="callout-lbl">Pro tip</span><p>Use the AI Financial Analyst for a quick portfolio briefing before your weekly owner meeting. It costs 1 Cortex Coin per analysis and highlights urgent margin risks automatically.</p></div></div>
-      <h2>Step-by-Step: Running Financial Reports</h2>
+      <p>Financial Reports give you a portfolio-level view of your business — total revenue, expenses, profit margins, and accounts receivable across all jobs.</p>
+            <h2>Step-by-Step: Running Financial Reports</h2>
       <div class="steps">
         <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Navigate to Reports › Financial</div><p class="step-desc">Open the Financial Reports section from the main Reports menu. You'll see two modes: Job-Level and Portfolio.</p></div></div>
         <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Choose Job-Level or Portfolio mode</div><p class="step-desc">Job-Level analyzes a single project's financials. Portfolio gives you a company-wide overview across all active and completed jobs.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
@@ -3299,55 +2799,9 @@
       <div style="color:rgba(255,255,255,0.8);font-size:10px;">All jobs</div>
     </div>
   </div>
-  <!-- Portfolio KPI cards -->
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;">
-    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:12px;text-align:center;">
-      <div style="color:#777;font-size:9px;text-transform:uppercase;font-weight:600;margin-bottom:4px;">Revenue</div>
-      <div style="color:#1ad98a;font-weight:700;font-size:18px;">$482K</div>
-      <div style="color:#1ad98a;font-size:10px;">↑ 12% vs last month</div>
-    </div>
-    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:12px;text-align:center;">
-      <div style="color:#777;font-size:9px;text-transform:uppercase;font-weight:600;margin-bottom:4px;">Expenses</div>
-      <div style="color:#e89c18;font-weight:700;font-size:18px;">$341K</div>
-      <div style="color:#e89c18;font-size:10px;">↑ 8% vs last month</div>
-    </div>
-    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:12px;text-align:center;">
-      <div style="color:#777;font-size:9px;text-transform:uppercase;font-weight:600;margin-bottom:4px;">Avg Margin</div>
-      <div style="color:#1ad98a;font-weight:700;font-size:18px;">29.3%</div>
-      <div style="color:#777;font-size:10px;">Target: 25%+</div>
-    </div>
-    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:12px;text-align:center;">
-      <div style="color:#777;font-size:9px;text-transform:uppercase;font-weight:600;margin-bottom:4px;">AR Aging</div>
-      <div style="color:#e43531;font-weight:700;font-size:18px;">$67K</div>
-      <div style="color:#e43531;font-size:10px;">3 invoices 30+ days</div>
-    </div>
-  </div>
+  
 </div></div></div>
-        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Review KPI cards and breakdown tables</div><p class="step-desc">The dashboard shows revenue, total expenses, average margin, and AR aging at a glance. Scroll down for per-job breakdowns with individual margin calculations.</p></div></div>
-        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Use AI Financial Analyst (optional)</div><p class="step-desc">Click "Ask Cortex AI" to get an instant AI briefing on your financial data. The analyst flags urgent items — margin risks, overdue invoices, cost overruns — and gives actionable recommendations. Costs 1 Cortex Coin.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
-  <!-- AI Analyst output -->
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-    <div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#f05757,#6b1a1a);display:flex;align-items:center;justify-content:center;">
-      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#fff" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg>
-    </div>
-    <div>
-      <span style="color:#fff;font-weight:600;font-size:13px;">Cortex AI — Financial Analyst</span>
-      <span style="background:rgba(240,87,87,0.15);color:#f05757;font-size:9px;font-weight:600;padding:2px 6px;border-radius:3px;margin-left:6px;">1 COIN</span>
-    </div>
-  </div>
-  <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:14px;font-size:12px;line-height:1.6;">
-    <div style="color:#fff;font-weight:600;margin-bottom:6px;">Portfolio Briefing — Mar 2026</div>
-    <div style="color:#c8c8c8;">
-      <span style="color:#e43531;font-weight:600;">⚠ Urgent:</span> 3 invoices totaling $67K are 30+ days overdue. Follow up with:<br>
-      <span style="color:#777;margin-left:12px;">• WD-2024-0089 — $28,500 (42 days)</span><br>
-      <span style="color:#777;margin-left:12px;">• FD-2024-0034 — $22,000 (37 days)</span><br>
-      <span style="color:#777;margin-left:12px;">• MD-2024-0112 — $16,500 (31 days)</span><br><br>
-      <span style="color:#1ad98a;font-weight:600;">✓ Healthy:</span> Average margin at 29.3% exceeds your 25% target.<br><br>
-      <span style="color:#e89c18;font-weight:600;">⚡ Watch:</span> Job SD-2024-0056 margin at 12% — labor costs rising faster than budgeted.
-    </div>
-  </div>
-</div></div></div>
-        <div class="step"><div class="step-num">5</div><div class="step-body"><div class="step-title">Export reports</div><p class="step-desc">Download financial reports as PDF for stakeholder presentations or CSV for import into your accounting software. Email directly to business partners or accountants.</p></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Export reports</div><p class="step-desc">Download financial reports as PDF for stakeholder presentations or CSV for import into your accounting software. Email directly to business partners or accountants.</p></div></div>
       </div>
       <div class="callout warn"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#eab308" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg></div><div><span class="callout-lbl">Important</span><p>Financial reports are only as accurate as the data entered. Ensure all expenses are recorded and invoices are logged promptly. Missing entries will skew your margin calculations.</p></div></div>
       <div class="quiz-section" id="quiz-financial-reports">
