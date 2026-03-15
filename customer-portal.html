@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Client Portal — Job-Dox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<!-- Firebase SDK (compat for standalone HTML) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+
+<style>
+/* ── Design tokens (matches Job-Dox design system) ── */
+:root {
+  --bg:      #06070d;
+  --s1:      #0c0e18;
+  --s2:      #10121e;
+  --s3:      #161929;
+  --s4:      #1c2035;
+  --acc:     #e43531;
+  --acc-lo:  rgba(228,53,49,.09);
+  --acc-glo: rgba(228,53,49,.28);
+  --t1:      #eef1f8;
+  --t2:      #8b95b0;
+  --t3:      #404866;
+  --green:   #1ad98a;
+  --amber:   #e89c18;
+  --blue:    #5ba3f5;
+  --purple:  #a78bfa;
+  --teal:    #22d3ee;
+  --br:      rgba(255,255,255,.10);
+  --br-hi:   rgba(255,255,255,.18);
+  --ui:      'Outfit', sans-serif;
+  --mono:    'Space Mono', monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; }
+body {
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--t1);
+  font-family: var(--ui);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Utility ── */
+.hidden   { display: none !important; }
+.mono     { font-family: var(--mono); }
+.t2       { color: var(--t2); }
+.t3       { color: var(--t3); }
+.accent   { color: var(--acc); }
+
+/* ── Shell ── */
+.shell {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0 12px;
+  border-bottom: 1px solid var(--br);
+}
+.header-brand {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--t1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.header-brand .logo-dot {
+  width: 10px; height: 10px;
+  background: var(--acc);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--acc-glo);
+  flex-shrink: 0;
+}
+.sign-out-btn {
+  background: var(--s3);
+  border: 1px solid var(--br);
+  color: var(--t2);
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.sign-out-btn:hover { background: var(--s4); color: var(--t1); }
+.footer {
+  margin-top: auto;
+  padding: 24px 0 16px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--t3);
+  font-family: var(--mono);
+  letter-spacing: .04em;
+}
+.footer span { color: var(--acc); }
+
+/* ── Auth screens ── */
+.auth-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+}
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--s1);
+  border: 1px solid var(--br);
+  border-radius: 14px;
+  padding: 32px 28px;
+}
+.auth-card h2 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.auth-card .subtitle {
+  font-size: 13px;
+  color: var(--t2);
+  margin-bottom: 24px;
+}
+.field { margin-bottom: 14px; }
+.field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--t2);
+  margin-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-family: var(--mono);
+}
+.field input {
+  width: 100%;
+  background: var(--s2);
+  border: 1px solid var(--br);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: var(--ui);
+  color: var(--t1);
+  outline: none;
+  transition: border-color .15s;
+}
+.field input:focus { border-color: var(--acc); }
+.field-row { display: flex; gap: 10px; }
+.field-row .field { flex: 1; }
+.btn-primary {
+  width: 100%;
+  background: var(--acc);
+  border: none;
+  color: #fff;
+  font-family: var(--ui);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: opacity .15s;
+  margin-top: 8px;
+}
+.btn-primary:hover { opacity: .9; }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.auth-toggle {
+  text-align: center;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--t2);
+}
+.auth-toggle a {
+  color: var(--acc);
+  cursor: pointer;
+  text-decoration: none;
+  font-weight: 600;
+}
+.auth-toggle a:hover { text-decoration: underline; }
+.auth-error {
+  background: rgba(228,53,49,.1);
+  border: 1px solid rgba(228,53,49,.25);
+  color: var(--acc);
+  font-size: 13px;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+
+/* ── Tabs ── */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--br);
+  margin-top: 16px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.tab-btn {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 12px 6px 10px;
+  font-family: var(--ui);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--t3);
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+  text-align: center;
+}
+.tab-btn:hover { color: var(--t2); }
+.tab-btn.active {
+  color: var(--t1);
+  border-bottom-color: var(--acc);
+  font-weight: 600;
+}
+.tab-content { padding: 20px 0; flex: 1; }
+
+/* ── Cards ── */
+.card {
+  background: var(--s1);
+  border: 1px solid var(--br);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.card-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--t3);
+  font-family: var(--mono);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.card-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--t1);
+}
+.card-value.small { font-size: 13px; font-weight: 400; color: var(--t2); }
+
+/* ── Status badge ── */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Progress bar ── */
+.progress-wrap { margin-top: 20px; }
+.progress-bar-bg {
+  width: 100%;
+  height: 8px;
+  background: var(--s3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width .4s ease;
+}
+.progress-steps {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+.progress-step {
+  font-size: 9px;
+  font-family: var(--mono);
+  color: var(--t3);
+  text-align: center;
+  flex: 1;
+}
+.progress-step.active { color: var(--t1); font-weight: 700; }
+.progress-step.done   { color: var(--green); }
+
+/* ── Notes ── */
+.note-card {
+  background: var(--s1);
+  border: 1px solid var(--br);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.note-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.note-date {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--t3);
+}
+.note-author {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--t2);
+}
+.note-body {
+  font-size: 14px;
+  color: var(--t1);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* ── Photo grid ── */
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.photo-thumb {
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--br);
+  cursor: pointer;
+  background: var(--s3);
+  transition: transform .15s, border-color .15s;
+}
+.photo-thumb:hover { transform: scale(1.03); border-color: var(--br-hi); }
+.photo-thumb img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ── Lightbox ── */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0,0,0,.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  cursor: pointer;
+}
+.lightbox img {
+  max-width: 100%;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+/* ── Documents ── */
+.doc-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--s1);
+  border: 1px solid var(--br);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.doc-info { flex: 1; min-width: 0; }
+.doc-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--t1);
+  word-break: break-word;
+}
+.doc-date {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--t3);
+  margin-top: 2px;
+}
+.doc-status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.doc-status.pending  { background: rgba(232,156,24,.12); color: var(--amber); }
+.doc-status.signed   { background: rgba(26,217,138,.1);  color: var(--green); }
+.doc-status.completed { background: rgba(26,217,138,.1); color: var(--green); }
+.btn-sign {
+  background: var(--acc);
+  border: none;
+  color: #fff;
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity .15s;
+  white-space: nowrap;
+}
+.btn-sign:hover { opacity: .9; }
+
+/* ── Empty state ── */
+.empty-state {
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--t3);
+}
+.empty-state .icon {
+  font-size: 36px;
+  margin-bottom: 12px;
+  opacity: .5;
+}
+.empty-state p {
+  font-size: 14px;
+  color: var(--t2);
+  max-width: 280px;
+  margin: 0 auto;
+}
+
+/* ── Loading ── */
+.loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 0;
+  gap: 6px;
+}
+.loader-dot {
+  width: 8px; height: 8px;
+  background: var(--acc);
+  border-radius: 50%;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.loader-dot:nth-child(2) { animation-delay: .15s; }
+.loader-dot:nth-child(3) { animation-delay: .3s; }
+@keyframes pulse {
+  0%, 80%, 100% { transform: scale(.6); opacity: .4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+/* ── Contact card ── */
+.contact-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--s2);
+  border: 1px solid var(--br);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 8px;
+}
+.contact-avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--s4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--t2);
+  flex-shrink: 0;
+}
+.contact-name { font-size: 14px; font-weight: 600; }
+.contact-phone {
+  font-size: 12px;
+  color: var(--blue);
+  text-decoration: none;
+}
+.contact-phone:hover { text-decoration: underline; }
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .auth-card { padding: 24px 20px; }
+  .photo-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+  .tab-btn { font-size: 12px; padding: 10px 4px 8px; }
+}
+</style>
+</head>
+<body>
+
+<div class="shell" id="app">
+  <!-- Loader shown while auth initializes -->
+  <div id="view-loading" class="auth-wrap">
+    <div class="loader">
+      <div class="loader-dot"></div>
+      <div class="loader-dot"></div>
+      <div class="loader-dot"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ TEMPLATES ═══════════════════ -->
+
+<!-- Auth: Sign In -->
+<template id="tpl-signin">
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <h2>Sign In</h2>
+      <p class="subtitle">Access your project portal</p>
+      <div id="auth-error" class="auth-error hidden"></div>
+      <form id="signin-form">
+        <div class="field">
+          <label for="si-email">Email</label>
+          <input id="si-email" type="email" required autocomplete="email" placeholder="you@email.com">
+        </div>
+        <div class="field">
+          <label for="si-pass">Password</label>
+          <input id="si-pass" type="password" required autocomplete="current-password" placeholder="Your password">
+        </div>
+        <button type="submit" class="btn-primary" id="si-btn">Sign In</button>
+      </form>
+      <div class="auth-toggle">
+        Don't have an account? <a id="go-signup">Create one</a>
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- Auth: Sign Up -->
+<template id="tpl-signup">
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <h2>Create Your Account</h2>
+      <p class="subtitle">Set up access to view your project</p>
+      <div id="auth-error-su" class="auth-error hidden"></div>
+      <form id="signup-form">
+        <div class="field-row">
+          <div class="field">
+            <label for="su-first">First Name</label>
+            <input id="su-first" type="text" required placeholder="First">
+          </div>
+          <div class="field">
+            <label for="su-last">Last Name</label>
+            <input id="su-last" type="text" required placeholder="Last">
+          </div>
+        </div>
+        <div class="field">
+          <label for="su-email">Email</label>
+          <input id="su-email" type="email" required autocomplete="email" placeholder="you@email.com">
+        </div>
+        <div class="field">
+          <label for="su-pass">Password</label>
+          <input id="su-pass" type="password" required autocomplete="new-password" placeholder="Min 6 characters" minlength="6">
+        </div>
+        <div class="field">
+          <label for="su-pass2">Confirm Password</label>
+          <input id="su-pass2" type="password" required autocomplete="new-password" placeholder="Re-enter password" minlength="6">
+        </div>
+        <button type="submit" class="btn-primary" id="su-btn">Create Account</button>
+      </form>
+      <div class="auth-toggle">
+        Already have an account? <a id="go-signin">Sign in</a>
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- Auth: Access Denied -->
+<template id="tpl-denied">
+  <div class="auth-wrap">
+    <div class="auth-card" style="text-align:center;">
+      <div style="font-size:36px;margin-bottom:12px;opacity:.5;">&#128274;</div>
+      <h2 style="margin-bottom:8px;">Access Denied</h2>
+      <p class="subtitle" style="margin-bottom:20px;" id="denied-msg">
+        We couldn't find your account linked to this project. Please make sure you're using the email address your restoration company has on file.
+      </p>
+      <button class="btn-primary" id="denied-signout">Sign Out &amp; Try Again</button>
+    </div>
+  </div>
+</template>
+
+<!-- Missing params -->
+<template id="tpl-badlink">
+  <div class="auth-wrap">
+    <div class="auth-card" style="text-align:center;">
+      <div style="font-size:36px;margin-bottom:12px;opacity:.5;">&#128279;</div>
+      <h2 style="margin-bottom:8px;">Invalid Link</h2>
+      <p class="subtitle">
+        This portal link appears to be invalid or incomplete. Please check the link you received from your restoration company and try again.
+      </p>
+    </div>
+  </div>
+</template>
+
+<!-- Portal (main view after auth) -->
+<template id="tpl-portal">
+  <header class="header">
+    <div class="header-brand">
+      <span class="logo-dot"></span>
+      <span id="portal-company-name">Project Portal</span>
+    </div>
+    <button class="sign-out-btn" id="btn-signout">Sign Out</button>
+  </header>
+
+  <nav class="tab-bar">
+    <button class="tab-btn active" data-tab="overview">Overview</button>
+    <button class="tab-btn" data-tab="updates">Updates</button>
+    <button class="tab-btn" data-tab="photos">Photos</button>
+    <button class="tab-btn" data-tab="documents">Documents</button>
+  </nav>
+
+  <main class="tab-content" id="tab-panels">
+    <!-- Overview tab -->
+    <section id="panel-overview"></section>
+    <!-- Updates tab -->
+    <section id="panel-updates" class="hidden"></section>
+    <!-- Photos tab -->
+    <section id="panel-photos" class="hidden"></section>
+    <!-- Documents tab -->
+    <section id="panel-documents" class="hidden"></section>
+  </main>
+
+  <footer class="footer">Powered by <span>Job-Dox</span></footer>
+</template>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   Customer Portal — Job-Dox
+   Standalone HTML, uses Firebase Auth + Netlify Function backend
+   ═══════════════════════════════════════════════════════════════ */
+(function() {
+  "use strict";
+
+  // ── Parse URL params ──────────────────────────────────────────
+  const params = new URLSearchParams(window.location.search);
+  const PROJECT_ID = params.get("projectId") || "";
+  const COMPANY_ID = params.get("companyId") || "";
+  const NETLIFY_FN = "/.netlify/functions";
+
+  // ── Firebase init ─────────────────────────────────────────────
+  // Uses the same config as shared/firebase.js.
+  // Replace these with your real Firebase config values.
+  const FIREBASE_CONFIG = {
+    apiKey:            "REPLACE_WITH_YOUR_API_KEY",
+    authDomain:        "REPLACE_WITH_YOUR_AUTH_DOMAIN",
+    projectId:         "REPLACE_WITH_YOUR_PROJECT_ID",
+    storageBucket:     "REPLACE_WITH_YOUR_STORAGE_BUCKET",
+    messagingSenderId: "REPLACE_WITH_YOUR_MESSAGING_SENDER_ID",
+    appId:             "REPLACE_WITH_YOUR_APP_ID",
+  };
+
+  const fbApp  = firebase.initializeApp(FIREBASE_CONFIG);
+  const auth   = firebase.auth();
+
+  // ── State ─────────────────────────────────────────────────────
+  const shell = document.getElementById("app");
+  let portalData = null;
+  let currentTab = "overview";
+
+  // ── Status config (mirrors shared/constants.js) ───────────────
+  const STATUS_META = {
+    new_lead:         { label: "New Lead",           color: "#5ba3f5" },
+    active:           { label: "Active",             color: "#1ad98a" },
+    mitigation:       { label: "Mitigation",         color: "#e89c18" },
+    reconstruction:   { label: "Reconstruction",     color: "#a78bfa" },
+    pending_approval: { label: "Pending Approval",   color: "#f97316" },
+    completed:        { label: "Completed",          color: "#404866" },
+    closed:           { label: "Closed",             color: "#404866" },
+    on_hold:          { label: "On Hold",            color: "#e43531" },
+  };
+
+  const STATUS_ORDER = ["new_lead","active","mitigation","reconstruction","pending_approval","completed","closed"];
+
+  // ── Helpers ───────────────────────────────────────────────────
+  function $(sel, ctx) { return (ctx || document).querySelector(sel); }
+  function $$(sel, ctx) { return Array.from((ctx || document).querySelectorAll(sel)); }
+  function esc(s) {
+    const d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+  function formatDate(d) {
+    if (!d) return "";
+    const dt = d.toDate ? d.toDate() : new Date(d._seconds ? d._seconds * 1000 : d);
+    if (isNaN(dt)) return String(d);
+    return dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  }
+
+  // ── Render helpers ────────────────────────────────────────────
+  function renderTemplate(id) {
+    const tpl = document.getElementById(id);
+    if (!tpl) return;
+    shell.innerHTML = "";
+    shell.appendChild(tpl.content.cloneNode(true));
+  }
+
+  // ── Auth flow ─────────────────────────────────────────────────
+  function showBadLink() {
+    renderTemplate("tpl-badlink");
+  }
+
+  function showSignIn() {
+    renderTemplate("tpl-signin");
+    const form = $("#signin-form");
+    const errEl = $("#auth-error");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errEl.classList.add("hidden");
+      const btn = $("#si-btn");
+      btn.disabled = true;
+      btn.textContent = "Signing in…";
+      try {
+        await auth.signInWithEmailAndPassword(
+          $("#si-email").value.trim(),
+          $("#si-pass").value
+        );
+        // onAuthStateChanged will handle next step
+      } catch (err) {
+        errEl.textContent = friendlyAuthError(err.code);
+        errEl.classList.remove("hidden");
+        btn.disabled = false;
+        btn.textContent = "Sign In";
+      }
+    });
+
+    $("#go-signup").addEventListener("click", showSignUp);
+  }
+
+  function showSignUp() {
+    renderTemplate("tpl-signup");
+    const form = $("#signup-form");
+    const errEl = $("#auth-error-su");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errEl.classList.add("hidden");
+
+      const pass  = $("#su-pass").value;
+      const pass2 = $("#su-pass2").value;
+      if (pass !== pass2) {
+        errEl.textContent = "Passwords don't match.";
+        errEl.classList.remove("hidden");
+        return;
+      }
+
+      const btn = $("#su-btn");
+      btn.disabled = true;
+      btn.textContent = "Creating account…";
+
+      try {
+        const cred = await auth.createUserWithEmailAndPassword(
+          $("#su-email").value.trim(),
+          pass
+        );
+        // Store display name
+        const displayName = ($("#su-first").value.trim() + " " + $("#su-last").value.trim()).trim();
+        if (displayName) {
+          await cred.user.updateProfile({ displayName: displayName });
+        }
+        // onAuthStateChanged will handle next step
+      } catch (err) {
+        errEl.textContent = friendlyAuthError(err.code);
+        errEl.classList.remove("hidden");
+        btn.disabled = false;
+        btn.textContent = "Create Account";
+      }
+    });
+
+    $("#go-signin").addEventListener("click", showSignIn);
+  }
+
+  function friendlyAuthError(code) {
+    const map = {
+      "auth/email-already-in-use": "An account with this email already exists. Try signing in instead.",
+      "auth/invalid-email": "Please enter a valid email address.",
+      "auth/weak-password": "Password must be at least 6 characters.",
+      "auth/user-not-found": "No account found with this email. Create one first.",
+      "auth/wrong-password": "Incorrect password. Please try again.",
+      "auth/invalid-credential": "Invalid email or password. Please try again.",
+      "auth/too-many-requests": "Too many attempts. Please wait a moment and try again.",
+    };
+    return map[code] || "Something went wrong. Please try again.";
+  }
+
+  function showDenied() {
+    renderTemplate("tpl-denied");
+    $("#denied-signout").addEventListener("click", () => {
+      auth.signOut();
+    });
+  }
+
+  // ── Fetch portal data ─────────────────────────────────────────
+  async function fetchPortalData(userEmail) {
+    const url = `${NETLIFY_FN}/get-portal-data?companyId=${encodeURIComponent(COMPANY_ID)}&projectId=${encodeURIComponent(PROJECT_ID)}&email=${encodeURIComponent(userEmail)}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to load project data");
+    }
+    return res.json();
+  }
+
+  // ── Main portal ───────────────────────────────────────────────
+  function showPortal(data) {
+    portalData = data;
+    renderTemplate("tpl-portal");
+
+    // Company name
+    const companyName = data.companyName || "Project Portal";
+    $("#portal-company-name").textContent = companyName;
+    document.title = companyName + " — Client Portal";
+
+    // Sign out
+    $("#btn-signout").addEventListener("click", () => auth.signOut());
+
+    // Tabs
+    $$(".tab-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        $$(".tab-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        switchTab(btn.dataset.tab);
+      });
+    });
+
+    // Render initial tab
+    renderOverview(data);
+    renderUpdates(data);
+    renderPhotos(data);
+    renderDocuments(data);
+  }
+
+  function switchTab(tab) {
+    currentTab = tab;
+    ["overview","updates","photos","documents"].forEach((t) => {
+      const panel = document.getElementById("panel-" + t);
+      if (panel) panel.classList.toggle("hidden", t !== tab);
+    });
+  }
+
+  // ── Overview tab ──────────────────────────────────────────────
+  function renderOverview(data) {
+    const p = data.project || {};
+    const panel = $("#panel-overview");
+    if (!panel) return;
+
+    const statusKey = p.status || "active";
+    const meta = STATUS_META[statusKey] || { label: statusKey, color: "#8b95b0" };
+
+    // Progress indicator
+    const statusIdx = STATUS_ORDER.indexOf(statusKey);
+    const progressPct = statusIdx >= 0 ? Math.round(((statusIdx + 1) / STATUS_ORDER.length) * 100) : 50;
+
+    let contactHTML = "";
+    if (data.companyContact) {
+      const c = data.companyContact;
+      const initials = ((c.name || "").split(" ").map(n => n[0] || "").join("").toUpperCase()).slice(0, 2) || "?";
+      contactHTML = `
+        <div class="card-label">Your Company Contact</div>
+        <div class="contact-card">
+          <div class="contact-avatar">${esc(initials)}</div>
+          <div>
+            <div class="contact-name">${esc(c.name || "—")}</div>
+            ${c.phone ? `<a class="contact-phone" href="tel:${esc(c.phone)}">${esc(c.phone)}</a>` : ""}
+          </div>
+        </div>`;
+    }
+
+    panel.innerHTML = `
+      <div class="card">
+        <div class="card-label">Status</div>
+        <div style="margin-top:4px;">
+          <span class="status-badge" style="background:${meta.color}15; color:${meta.color};">
+            <span class="status-dot" style="background:${meta.color};"></span>
+            ${esc(meta.label)}
+          </span>
+        </div>
+      </div>
+      ${p.workType ? `
+      <div class="card">
+        <div class="card-label">Work Type</div>
+        <div class="card-value">${esc(p.workType)}</div>
+      </div>` : ""}
+      ${(p.street || p.address) ? `
+      <div class="card">
+        <div class="card-label">Project Address</div>
+        <div class="card-value small">${esc(p.street || p.address || "")}${p.city ? ", " + esc(p.city) : ""}${p.state ? ", " + esc(p.state) : ""}${p.zip ? " " + esc(p.zip) : ""}</div>
+      </div>` : ""}
+      ${contactHTML ? `<div class="card">${contactHTML}</div>` : ""}
+      <div class="progress-wrap">
+        <div class="card-label" style="margin-bottom:8px;">Project Progress</div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" style="width:${progressPct}%; background:${meta.color};"></div>
+        </div>
+        <div class="progress-steps">
+          ${STATUS_ORDER.map((s, i) => {
+            const m = STATUS_META[s] || {};
+            const cls = s === statusKey ? "active" : (i < statusIdx ? "done" : "");
+            return `<div class="progress-step ${cls}">${esc(m.label || s)}</div>`;
+          }).join("")}
+        </div>
+      </div>`;
+  }
+
+  // ── Updates tab ───────────────────────────────────────────────
+  function renderUpdates(data) {
+    const panel = $("#panel-updates");
+    if (!panel) return;
+
+    const notes = (data.notes || []);
+    if (notes.length === 0) {
+      panel.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">&#128221;</div>
+          <p>Your project team hasn't posted any updates yet. Check back soon.</p>
+        </div>`;
+      return;
+    }
+
+    panel.innerHTML = notes.map((n) => `
+      <div class="note-card">
+        <div class="note-meta">
+          <span class="note-author">${esc(n.author || "Team")}</span>
+          <span class="note-date">${esc(n.date || formatDate(n.createdAt))}</span>
+        </div>
+        <div class="note-body">${esc(n.content || "")}</div>
+      </div>`).join("");
+  }
+
+  // ── Photos tab ────────────────────────────────────────────────
+  function renderPhotos(data) {
+    const panel = $("#panel-photos");
+    if (!panel) return;
+
+    const photos = (data.photos || []);
+    if (photos.length === 0) {
+      panel.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">&#128247;</div>
+          <p>No photos have been uploaded yet. Your team will add photos as the project progresses.</p>
+        </div>`;
+      return;
+    }
+
+    panel.innerHTML = `<div class="photo-grid">${
+      photos.map((ph, i) => `
+        <div class="photo-thumb" data-idx="${i}">
+          <img src="${esc(ph.url || ph.dataUrl || "")}" alt="${esc(ph.name || "Project photo")}" loading="lazy">
+        </div>`).join("")
+    }</div>`;
+
+    // Lightbox
+    panel.addEventListener("click", (e) => {
+      const thumb = e.target.closest(".photo-thumb");
+      if (!thumb) return;
+      const idx = parseInt(thumb.dataset.idx, 10);
+      const ph = photos[idx];
+      if (!ph) return;
+      const lb = document.createElement("div");
+      lb.className = "lightbox";
+      lb.innerHTML = `<img src="${esc(ph.url || ph.dataUrl || "")}" alt="${esc(ph.name || "Photo")}">`;
+      lb.addEventListener("click", () => lb.remove());
+      document.body.appendChild(lb);
+    });
+  }
+
+  // ── Documents tab ─────────────────────────────────────────────
+  function renderDocuments(data) {
+    const panel = $("#panel-documents");
+    if (!panel) return;
+
+    const docs = (data.signingRequests || []);
+    if (docs.length === 0) {
+      panel.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">&#128196;</div>
+          <p>No documents require your attention right now. You'll see any documents that need your signature here.</p>
+        </div>`;
+      return;
+    }
+
+    const statusLabel = (s) => {
+      if (s === "completed") return { text: "Completed", cls: "completed" };
+      if (s === "signed")    return { text: "Signed",    cls: "signed" };
+      return { text: "Pending Signature", cls: "pending" };
+    };
+
+    panel.innerHTML = docs.map((d) => {
+      const sl = statusLabel(d.status);
+      const signingUrl = d.signingUrl || "";
+      const showSign = (d.status === "pending" || d.status === "active") && signingUrl;
+      return `
+        <div class="doc-row">
+          <div class="doc-info">
+            <div class="doc-name">${esc(d.docName || d.name || "Document")}</div>
+            <div class="doc-date">${esc(formatDate(d.createdAt))}</div>
+          </div>
+          <span class="doc-status ${sl.cls}">${esc(sl.text)}</span>
+          ${showSign ? `<a class="btn-sign" href="${esc(signingUrl)}" target="_blank" rel="noopener">Review &amp; Sign</a>` : ""}
+        </div>`;
+    }).join("");
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────
+  if (!PROJECT_ID || !COMPANY_ID) {
+    showBadLink();
+    return;
+  }
+
+  auth.onAuthStateChanged(async (user) => {
+    if (!user) {
+      showSignIn();
+      return;
+    }
+
+    // Show loading
+    shell.innerHTML = '<div class="auth-wrap"><div class="loader"><div class="loader-dot"></div><div class="loader-dot"></div><div class="loader-dot"></div></div></div>';
+
+    try {
+      const data = await fetchPortalData(user.email);
+      if (data.accessDenied) {
+        showDenied();
+        return;
+      }
+      showPortal(data);
+    } catch (err) {
+      console.error("[Customer Portal] Load error:", err);
+      showDenied();
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
