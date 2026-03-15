@@ -3715,7 +3715,7 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
     setNoteText(""); setAddingNote(false);
   };
   const schedLabels = {daily:"End of Day",weekly:"End of Week",none:"Never (Manual Only)"};
-  const portalLink = `https://portal.job-dox.com/client/${proj.id.toLowerCase()}`;
+  const portalLink = `https://portal.job-dox.ai/client/${proj.id.toLowerCase()}`;
 
   // ── WorkType helpers ──
   const WT_OPTIONS = Object.keys(WT_META);
@@ -12335,7 +12335,7 @@ export default function JobDoxPortal() {
   const [cortexAlertDismissed, setCortexAlertDismissed] = useState(false);
   const [coInfo,               setCoInfo]              = useState(loadCoInfo);
 
-  // ── Support Mode (@job-dox.com staff) ──
+  // ── Support Mode (@job-dox.ai staff) ──
   const [isSupportUser,         setIsSupportUser]        = useState(false);
   const [supportCompanySelected, setSupportCompanySelected] = useState(false);
   const [supportCompanyName,     setSupportCompanyName]    = useState("");
@@ -12455,8 +12455,8 @@ export default function JobDoxPortal() {
       setCurrentMember(member);
       const email = member.auth?.email || "";
 
-      // ── Support Mode: detect @job-dox.com staff ──
-      if (email.toLowerCase().endsWith("@job-dox.com")) {
+      // ── Support Mode: detect @job-dox.ai staff ──
+      if (email.toLowerCase().endsWith("@job-dox.ai")) {
         setIsSupportUser(true);
         // Sign in to Firebase Auth so Firestore security rules see request.auth != null.
         // This must complete before querying the root companies collection.
@@ -13199,7 +13199,7 @@ export default function JobDoxPortal() {
                 const uName = currentUser.name || "User";
                 const cName = loadCoInfo().name || "Company";
                 const subject = encodeURIComponent(`Support Request from ${uName} with ${cName}`);
-                window.location.href = `mailto:info@job-dox.com?subject=${subject}`;
+                window.location.href = `mailto:info@job-dox.ai?subject=${subject}`;
               }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
                 Contact Us

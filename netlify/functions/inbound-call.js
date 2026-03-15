@@ -3,7 +3,7 @@
  * Netlify Function — Twilio inbound call webhook
  *
  * Set this URL as your Twilio number's "A call comes in" webhook:
- *   https://job-dox.com/.netlify/functions/inbound-call
+ *   https://job-dox.ai/.netlify/functions/inbound-call
  *
  * Looks up the company by their Twilio number, plays the disclosure
  * message, then simultaneously rings everyone in the active call group.
@@ -14,7 +14,7 @@
 
 const { getDb, admin } = require("./_firebase");
 
-const SITE_URL = process.env.SITE_URL || "https://job-dox.com";
+const SITE_URL = process.env.SITE_URL || "https://job-dox.ai";
 
 // Twilio sends form-encoded POST bodies, so we parse them manually
 function parseFormBody(raw) {

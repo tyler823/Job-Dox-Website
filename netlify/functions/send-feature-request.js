@@ -7,12 +7,12 @@
  *   SMTP_PORT     = smtp port (e.g. 587)
  *   SMTP_USER     = smtp username / email
  *   SMTP_PASS     = smtp password / app password
- *   SMTP_FROM     = sender address (e.g. noreply@job-dox.com)
+ *   SMTP_FROM     = sender address (e.g. noreply@job-dox.ai)
  */
 
 const nodemailer = require("nodemailer");
 
-const ALLOWED_ORIGIN = process.env.SITE_URL || "https://job-dox.com";
+const ALLOWED_ORIGIN = process.env.SITE_URL || "https://job-dox.ai";
 
 const headers = {
   "Access-Control-Allow-Origin":  ALLOWED_ORIGIN,
@@ -66,7 +66,7 @@ exports.handler = async (event) => {
   try {
     await transporter.sendMail({
       from: SMTP_FROM || SMTP_USER,
-      to: "info@job-dox.com",
+      to: "info@job-dox.ai",
       subject,
       html,
       text: `Feature Request\n\nFrom: ${userName}\nCompany: ${companyName}\n\n${featureRequest}`,

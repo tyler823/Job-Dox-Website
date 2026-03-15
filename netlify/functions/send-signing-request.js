@@ -15,7 +15,7 @@
  *   TWILIO_ACCOUNT_SID       = ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
  *   TWILIO_AUTH_TOKEN         = your_auth_token
  *   FIREBASE_SERVICE_ACCOUNT  = { ...service account JSON }
- *   SITE_URL                  = https://job-dox.com  (for signing links)
+ *   SITE_URL                  = https://job-dox.ai  (for signing links)
  *   SENDGRID_API_KEY          = (optional, for email delivery)
  */
 
@@ -23,7 +23,7 @@ const twilio = require("twilio");
 const { getDb, admin } = require("./_firebase");
 const crypto = require("crypto");
 
-const ALLOWED_ORIGIN = process.env.SITE_URL || "https://job-dox.com";
+const ALLOWED_ORIGIN = process.env.SITE_URL || "https://job-dox.ai";
 
 const headers = {
   "Access-Control-Allow-Origin":  ALLOWED_ORIGIN,
@@ -144,7 +144,7 @@ exports.handler = async (event) => {
     //   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
     //   await sgMail.send({
     //     to: signer.email,
-    //     from: "noreply@job-dox.com",
+    //     from: "noreply@job-dox.ai",
     //     subject: `Signature requested: ${docName}`,
     //     html: `<p>Hi ${signer.name},</p>
     //            <p>Your signature is requested on <strong>${docName}</strong>.</p>

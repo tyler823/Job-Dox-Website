@@ -3,7 +3,7 @@
  * Netlify Function — Twilio inbound SMS webhook
  *
  * Set this URL as your Twilio number's "A message comes in" webhook:
- *   https://job-dox.com/.netlify/functions/receive-sms
+ *   https://job-dox.ai/.netlify/functions/receive-sms
  *
  * Looks up the company by their Twilio number, logs the inbound
  * message to Firestore, and returns a valid TwiML response.

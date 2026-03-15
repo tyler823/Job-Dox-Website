@@ -3,7 +3,7 @@
  * Netlify Function — Twilio inbound voice call webhook
  *
  * Set this URL as your Twilio number's "A call comes in" webhook:
- *   https://job-dox.com/.netlify/functions/handle-voice
+ *   https://job-dox.ai/.netlify/functions/handle-voice
  *
  * Looks up the company by their Twilio number, loads phone settings
  * from Firestore, and returns TwiML to either play a greeting message
@@ -15,7 +15,7 @@
 
 const { getDb, admin } = require("./_firebase");
 
-const SITE_URL = process.env.SITE_URL || "https://job-dox.com";
+const SITE_URL = process.env.SITE_URL || "https://job-dox.ai";
 
 const twimlHeaders = {
   "Content-Type":                "text/xml",

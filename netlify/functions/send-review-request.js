@@ -15,7 +15,7 @@
 const twilio = require("twilio");
 const { getDb, admin } = require("./_firebase");
 
-const ALLOWED_ORIGIN = process.env.SITE_URL || "https://job-dox.com";
+const ALLOWED_ORIGIN = process.env.SITE_URL || "https://job-dox.ai";
 
 const headers = {
   "Access-Control-Allow-Origin":  ALLOWED_ORIGIN,
