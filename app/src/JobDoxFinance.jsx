@@ -2496,6 +2496,7 @@ Be direct and specific. Flag anything that needs immediate attention.`;
       }
       if (json.error) throw new Error(json.error);
       setAnalysis(json.text || "No analysis returned.");
+      window.dispatchEvent(new CustomEvent("jd-ai-usage-updated"));
     } catch(e) {
       setError(e.message || "Unable to reach AI analyst. Check your connection.");
     }
@@ -3147,6 +3148,7 @@ Give a 3-4 sentence executive summary, then bullet-point the top 3 actions for t
         setAiReport(json.message || "You've used all of your Cortex Coins for this billing cycle.");
       } else {
         setAiReport(json.text||"");
+        window.dispatchEvent(new CustomEvent("jd-ai-usage-updated"));
       }
     } catch { setAiReport("AI analysis unavailable."); }
     setAiLoad(false);
