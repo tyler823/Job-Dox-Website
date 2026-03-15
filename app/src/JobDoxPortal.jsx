@@ -12381,7 +12381,7 @@ function ClassicMigrationTab({ companyId, currentMemberId }) {
               ))}
             </div>
           )}
-          <div style={{fontSize:11,color:"var(--t3)"}}>This is a one-time import. If something looks wrong, contact <a href="mailto:support@job-dox.com" style={{color:"var(--acc)"}}>support@job-dox.com</a>.</div>
+          <div style={{fontSize:11,color:"var(--t3)"}}>This is a one-time import. If something looks wrong, contact <a href="mailto:info@job-dox.com" style={{color:"var(--acc)"}}>info@job-dox.com</a>.</div>
         </div>
       </div>
     );
