@@ -706,6 +706,7 @@ function syncCompanyConfigToLS(workTypes, statuses, projectTypes) {
   // Also write combined summary for mindflow
   try {
     localStorage.setItem("jd_company_config", JSON.stringify({
+      companyId: _globalCompanyId || null,
       workTypes: workTypes.map(w => ({ id:w.id, name:w.name, color:w.color, hasWorkflow:w.hasWorkflow })),
       statuses:  statuses.map(s  => ({ id:s.id, name:s.name, color:s.color, triggerTask:s.triggerTask })),
       projectTypes: projectTypes.map(p => ({ id:p.id, name:p.name, color:p.color })),
@@ -729,6 +730,7 @@ function saveWorkflowTemplate(workType, templateObj) {
     const all = loadWorkflowTemplates();
     all[workType] = { ...templateObj, savedAt: new Date().toISOString() };
     localStorage.setItem(LS_WF_TEMPLATES_KEY, JSON.stringify(all));
+    if (_globalCompanyId) fsSaveCompanySettings(_globalCompanyId, "workflowTemplates", all);
   } catch {}
 }
 
@@ -737,6 +739,7 @@ function deleteWorkflowTemplate(workType) {
     const all = loadWorkflowTemplates();
     delete all[workType];
     localStorage.setItem(LS_WF_TEMPLATES_KEY, JSON.stringify(all));
+    if (_globalCompanyId) fsSaveCompanySettings(_globalCompanyId, "workflowTemplates", all);
   } catch {}
 }
 
@@ -11992,6 +11995,14 @@ export default function JobDoxPortal() {
       fsLoadDispatchResources(cid).then(v => {
         if (v) try { localStorage.setItem(`jd_dispatch_resources_${cid}`, JSON.stringify(v)); } catch {}
       });
+      // Load workflow templates from Firestore
+      fsLoadCompanySettings(cid, "workflowTemplates").then(v => {
+        if (v) try { localStorage.setItem(LS_WF_TEMPLATES_KEY, JSON.stringify(v)); } catch {}
+      });
+      // Load dispatch geocache from Firestore
+      fsLoadCompanySettings(cid, "dispatchGeoCache").then(v => {
+        if (v) try { localStorage.setItem("jd_dispatch_geocache", JSON.stringify(v)); } catch {}
+      });
 
       // ── Load Cortex Coins status for usage alert ──
       fetch("/.netlify/functions/cortex-coins", {
@@ -12187,6 +12198,14 @@ export default function JobDoxPortal() {
     });
     fsLoadDispatchResources(cid).then(v => {
       if (v) try { localStorage.setItem(`jd_dispatch_resources_${cid}`, JSON.stringify(v)); } catch {}
+    });
+    // Load workflow templates from Firestore
+    fsLoadCompanySettings(cid, "workflowTemplates").then(v => {
+      if (v) try { localStorage.setItem(LS_WF_TEMPLATES_KEY, JSON.stringify(v)); } catch {}
+    });
+    // Load dispatch geocache from Firestore
+    fsLoadCompanySettings(cid, "dispatchGeoCache").then(v => {
+      if (v) try { localStorage.setItem("jd_dispatch_geocache", JSON.stringify(v)); } catch {}
     });
 
     // Stream pending invites

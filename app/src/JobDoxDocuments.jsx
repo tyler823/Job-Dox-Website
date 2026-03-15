@@ -9,7 +9,7 @@
  */
 
 import { useState, useRef, useEffect } from "react";
-import { getFirestore, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { getApps } from "firebase/app";
 
 const _docsDb = getApps().length > 0 ? getFirestore(getApps()[0]) : null;
@@ -1301,6 +1301,18 @@ export function DocumentTemplateCenter({ onClose }) {
   const [editTmpl,    setEditTmpl]    = useState(null);
   const [showBuilder, setShowBuilder] = useState(false);
 
+  // Load from Firestore on mount (source of truth)
+  useEffect(() => {
+    if (!_docsDb || !_docsCompanyId) return;
+    getDoc(doc(_docsDb, "companies", _docsCompanyId, "settings", "docTemplates")).then(snap => {
+      if (snap.exists() && snap.data().data) {
+        const v = snap.data().data;
+        setTemplates(v);
+        try { localStorage.setItem(LS_TMPL, JSON.stringify(v)); } catch {}
+      }
+    }).catch(() => {});
+  }, []);
+
   const reload = () => setTemplates(loadTemplates());
 
   const deleteTemplate = id => {
@@ -1408,6 +1420,21 @@ export function LogoUploadSection({ coInfo, setCoInfo }) {
 export function DocumentsTab({ proj, docs:docsIn, setDocs:setDocsIn }) {
   const [localDocs, setLocalDocs] = useState(() => loadAllDocs().filter(d=>d.projectId===(proj?.id||null)));
   const allDocs = docsIn || localDocs;
+
+  // Load from Firestore on mount (source of truth)
+  useEffect(() => {
+    if (!_docsDb || !_docsCompanyId) return;
+    getDoc(doc(_docsDb, "companies", _docsCompanyId, "settings", "documents")).then(snap => {
+      if (snap.exists() && snap.data().data) {
+        const v = snap.data().data;
+        try { localStorage.setItem(LS_DOCS, JSON.stringify(v)); } catch {}
+        const pd = v.filter(d => d.projectId === (proj?.id || null));
+        setLocalDocs(pd);
+        if (setDocsIn) setDocsIn(pd);
+      }
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const pushDoc = updated => {
     const all = loadAllDocs();

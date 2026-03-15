@@ -172,13 +172,23 @@ export default function DryDoxTab({ proj, priceLists = [], onPushToScope, compan
   }, [onPushToScope]);
 
   // ── Save document record (for report generation) ──
-  const handleSaveDocument = useCallback((doc) => {
-    // Save to project's localStorage documents
+  const handleSaveDocument = useCallback((docRecord) => {
+    // Save to project's localStorage documents (cache) + Firestore (source of truth)
     try {
       const key = `jd_project_docs_${projId}`;
       const existing = JSON.parse(localStorage.getItem(key) || "[]");
-      existing.push(doc);
+      existing.push(docRecord);
       localStorage.setItem(key, JSON.stringify(existing));
+      // Also write to proj_docs in Firestore (shared with portal Documents tab)
+      if (_dryDoxDb && _dryDoxCompanyId) {
+        const lsAll = JSON.parse(localStorage.getItem("jd_proj_docs") || "{}");
+        const projDocs = (lsAll[projId] || []).filter(d => d.id !== docRecord.id);
+        lsAll[projId] = [...projDocs, docRecord];
+        localStorage.setItem("jd_proj_docs", JSON.stringify(lsAll));
+        setDoc(doc(_dryDoxDb, "companies", _dryDoxCompanyId, "settings", "projDocs"), {
+          data: JSON.parse(JSON.stringify(lsAll)), updatedAt: serverTimestamp(),
+        }, { merge: true }).catch(() => {});
+      }
     } catch {}
   }, [projId]);
 

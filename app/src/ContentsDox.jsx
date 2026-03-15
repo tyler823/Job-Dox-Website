@@ -1095,10 +1095,26 @@ function buildSOL(meta, items, companyName = "", companyLogo = "") {
 /* ═══════════════════════════════════════════════════════════════
    MAIN COMPONENT
 ═══════════════════════════════════════════════════════════════ */
-// ── Read company info from localStorage (shared with portal) ──
+// ── Read company info (localStorage cache, Firestore source of truth) ──
 function loadCoInfo() {
   try { return JSON.parse(localStorage.getItem("jd_company_info")) || {}; } catch { return {}; }
 }
+async function fsLoadCoInfo() {
+  if (!_cdoxDb || !_cdoxCompanyId) return null;
+  try {
+    const snap = await getDoc(doc(_cdoxDb, "companies", _cdoxCompanyId, "settings", "companyInfo"));
+    if (snap.exists() && snap.data().data) {
+      const v = snap.data().data;
+      try { localStorage.setItem("jd_company_info", JSON.stringify(v)); } catch {}
+      return v;
+    }
+  } catch {}
+  return null;
+}
+
+// ── Module-level references for Firestore writes from standalone helpers ──
+let _cdoxDb = null;
+let _cdoxCompanyId = null;
 
 // ── Push document record to portal Documents tab ──
 function pushDocToPortal(projId, docRecord, projName) {
@@ -1108,6 +1124,12 @@ function pushDocToPortal(projId, docRecord, projName) {
     const docs = (all[projId] || []).filter(d => d.id !== docRecord.id);
     all[projId] = [...docs, docRecord];
     localStorage.setItem(LS, JSON.stringify(all));
+    // Persist to Firestore
+    if (_cdoxDb && _cdoxCompanyId) {
+      setDoc(doc(_cdoxDb, "companies", _cdoxCompanyId, "settings", "projDocs"), {
+        data: JSON.parse(JSON.stringify(all)), updatedAt: new Date().toISOString(),
+      }, { merge: true }).catch(() => {});
+    }
   } catch {}
   // Push activity
   try {
@@ -1122,10 +1144,19 @@ function pushDocToPortal(projId, docRecord, projName) {
       ts: new Date().toISOString(),
     });
     localStorage.setItem("jd_activities", JSON.stringify(acts.slice(0, 200)));
+    // Persist activity to Firestore
+    if (_cdoxDb && _cdoxCompanyId) {
+      setDoc(doc(_cdoxDb, "companies", _cdoxCompanyId, "settings", "activityFeed"), {
+        data: JSON.parse(JSON.stringify(acts.slice(0, 200))), updatedAt: new Date().toISOString(),
+      }, { merge: true }).catch(() => {});
+    }
   } catch {}
 }
 
 export default function ContentsDox({ proj, companyId, db, onDocGenerated }) {
+  // ── Set module-level refs for Firestore access from standalone helpers ──
+  useEffect(() => { if (db) _cdoxDb = db; if (companyId) _cdoxCompanyId = companyId; }, [db, companyId]);
+
   // ── CSS injection ──────────────────────────────────────────────
   useEffect(() => {
     const id = "cdox-inner-styles";

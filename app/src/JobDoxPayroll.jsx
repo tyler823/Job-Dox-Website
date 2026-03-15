@@ -22,7 +22,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { getFirestore, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { getApps } from "firebase/app";
 
 const _payrollDb = getApps().length > 0 ? getFirestore(getApps()[0]) : null;
@@ -533,6 +533,18 @@ function RateSettingsTab({ canEditRates }) {
   const [editPay, setEditPay] = useState("");
   const [editCharge, setEditCharge] = useState("");
 
+  // Load from Firestore on mount (source of truth)
+  useEffect(() => {
+    if (!_payrollDb || !_payrollCompanyId) return;
+    getDoc(doc(_payrollDb, "companies", _payrollCompanyId, "settings", "payrollRates")).then(snap => {
+      if (snap.exists() && snap.data().data) {
+        const v = snap.data().data;
+        setRates(v);
+        try { localStorage.setItem(LS_PAYROLL_RATES, JSON.stringify(v)); } catch {}
+      }
+    }).catch(() => {});
+  }, []);
+
   const persist = useCallback((updated) => {
     setRates(updated);
     saveRates(updated);
@@ -707,6 +719,25 @@ function QboSettingsTab({ globalStaff, projects, canEditRates }) {
 
   const rates = useMemo(() => loadRates(), []);
   const lookup = useMemo(() => ratesLookup(rates), [rates]);
+
+  // Load from Firestore on mount (source of truth)
+  useEffect(() => {
+    if (!_payrollDb || !_payrollCompanyId) return;
+    getDoc(doc(_payrollDb, "companies", _payrollCompanyId, "settings", "qboSettings")).then(snap => {
+      if (snap.exists() && snap.data().data) {
+        const v = snap.data().data;
+        setSettings(v);
+        try { localStorage.setItem(LS_QBO_SETTINGS, JSON.stringify(v)); } catch {}
+      }
+    }).catch(() => {});
+    getDoc(doc(_payrollDb, "companies", _payrollCompanyId, "settings", "employeeRates")).then(snap => {
+      if (snap.exists() && snap.data().data) {
+        const v = snap.data().data;
+        setEmpRates(v);
+        try { localStorage.setItem(LS_EMPLOYEE_RATES, JSON.stringify(v)); } catch {}
+      }
+    }).catch(() => {});
+  }, []);
 
   const persistSettings = useCallback((updated) => {
     setSettings(updated);
