@@ -665,6 +665,9 @@ body {
     messagingSenderId: "REPLACE_WITH_YOUR_MESSAGING_SENDER_ID",
     appId:             "REPLACE_WITH_YOUR_APP_ID",
   };
+  // NOTE: The values above must match your Firebase Console config.
+  // shared/firebase.js also uses placeholder values — replace both
+  // files with your real Firebase credentials before deploying.
 
   const fbApp  = firebase.initializeApp(FIREBASE_CONFIG);
   const auth   = firebase.auth();

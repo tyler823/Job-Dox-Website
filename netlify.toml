@@ -41,6 +41,16 @@
   to     = "/.netlify/functions/generate-webhook-token"
   status = 200
 
+[[redirects]]
+  from   = "/client"
+  to     = "/customer-portal.html"
+  status = 200
+
+[[redirects]]
+  from   = "/client/*"
+  to     = "/customer-portal.html"
+  status = 200
+
 [[headers]]
   for = "/*"
   [headers.values]

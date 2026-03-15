@@ -3739,7 +3739,7 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
     setNoteText(""); setAddingNote(false);
   };
   const schedLabels = {daily:"End of Day",weekly:"End of Week",none:"Never (Manual Only)"};
-  const portalLink = `https://portal.job-dox.com/client/${proj.id.toLowerCase()}`;
+  const portalLink = `https://job-dox.ai/client?projectId=${encodeURIComponent(proj.id)}&companyId=${encodeURIComponent(_globalCompanyId||"")}`;
 
   // ── WorkType helpers ──
   const WT_OPTIONS = Object.keys(WT_META);
