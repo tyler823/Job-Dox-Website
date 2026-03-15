@@ -8338,6 +8338,7 @@ function APIIntegrationsPanel({ onClose, companyId, memberstackId }) {
   const [generating, setGenerating] = useState(false);
   const [revoking, setRevoking] = useState(false);
   const [showRevokeModal, setShowRevokeModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
   const [savingScopes, setSavingScopes] = useState(false);
   const [scopes, setScopes] = useState({
     "projects:read": true,
@@ -8359,10 +8360,12 @@ function APIIntegrationsPanel({ onClose, companyId, memberstackId }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "list", companyId, memberstackId }),
       });
-      const json = await res.json();
+      let json;
+      try { json = await res.json(); } catch { json = { ok: false, error: { message: "Server returned an invalid response (status " + res.status + ")." } }; }
       if (json.ok && json.data && json.data.length > 0) {
         const active = json.data.find(k => k.status === "active") || json.data[0];
         setKeyData(active);
+        setErrorMsg("");
         // Load scopes from the key
         if (active.scopes) {
           setScopes({
@@ -8373,11 +8376,17 @@ function APIIntegrationsPanel({ onClose, companyId, memberstackId }) {
             "projects:read:docs": active.scopes.includes("projects:read:docs"),
           });
         }
+      } else if (json.ok) {
+        setKeyData(null);
       } else {
         setKeyData(null);
+        const msg = (json.error && json.error.message) || "Failed to load API keys.";
+        setErrorMsg(msg);
+        console.error("Load keys error:", json);
       }
     } catch (e) {
       console.error("Failed to load API keys:", e);
+      setErrorMsg("Could not connect to the server to load API keys.");
     }
     setKeyLoading(false);
   }, [companyId, memberstackId]);
@@ -8387,6 +8396,7 @@ function APIIntegrationsPanel({ onClose, companyId, memberstackId }) {
   // Generate new key
   const handleGenerate = async () => {
     setGenerating(true);
+    setErrorMsg("");
     try {
       const res = await fetch("/.netlify/functions/api-keys", {
         method: "POST",
@@ -8399,10 +8409,12 @@ function APIIntegrationsPanel({ onClose, companyId, memberstackId }) {
           scopes: Object.entries(scopes).filter(([,v]) => v).map(([k]) => k),
         }),
       });
-      const json = await res.json();
+      let json;
+      try { json = await res.json(); } catch { json = { ok: false, error: { message: "Server returned an invalid response (status " + res.status + ")." } }; }
       if (json.ok && json.data) {
         setRawKey(json.data.apiKey);
         setKeyRevealed(true);
+        setErrorMsg("");
         // Save to Firestore integrations settings
         try {
           const ref = doc(db, `companies/${companyId}/settings`, "integrations");
@@ -8415,9 +8427,14 @@ function APIIntegrationsPanel({ onClose, companyId, memberstackId }) {
           }, { merge: true });
         } catch (_) {}
         await loadKeys();
+      } else {
+        const msg = (json.error && json.error.message) || "Failed to generate API key. Please try again.";
+        setErrorMsg(msg);
+        console.error("Generate key error:", json);
       }
     } catch (e) {
       console.error("Generate key failed:", e);
+      setErrorMsg("Network error — could not reach the server. Please check your connection and try again.");
     }
     setGenerating(false);
   };
@@ -8426,13 +8443,15 @@ function APIIntegrationsPanel({ onClose, companyId, memberstackId }) {
   const handleRevoke = async () => {
     if (!keyData) return;
     setRevoking(true);
+    setErrorMsg("");
     try {
       const res = await fetch("/.netlify/functions/api-keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "revoke", companyId, memberstackId, keyId: keyData.id }),
       });
-      const json = await res.json();
+      let json;
+      try { json = await res.json(); } catch { json = { ok: false, error: { message: "Server returned an invalid response." } }; }
       if (json.ok) {
         setKeyData(null);
         setRawKey("");
@@ -8442,9 +8461,13 @@ function APIIntegrationsPanel({ onClose, companyId, memberstackId }) {
           const ref = doc(db, `companies/${companyId}/settings`, "integrations");
           await setDoc(ref, { enabled: false }, { merge: true });
         } catch (_) {}
+      } else {
+        const msg = (json.error && json.error.message) || "Failed to revoke API key.";
+        setErrorMsg(msg);
       }
     } catch (e) {
       console.error("Revoke key failed:", e);
+      setErrorMsg("Network error — could not reach the server.");
     }
     setRevoking(false);
     setShowRevokeModal(false);
@@ -8577,6 +8600,11 @@ function APIIntegrationsPanel({ onClose, companyId, memberstackId }) {
                         </button>
                       )}
                     </div>
+
+                    {/* Error message */}
+                    {errorMsg && (
+                      <div style={{marginTop:12,padding:"10px 14px",background:"rgba(228,53,49,.1)",border:"1px solid rgba(228,53,49,.3)",borderRadius:8,fontSize:12,color:"var(--acc)",lineHeight:1.5}}>{errorMsg}</div>
+                    )}
 
                     {/* Created date */}
                     {createdDate && (
