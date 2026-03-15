@@ -12252,6 +12252,289 @@ function FirestoreDiagnosticCard({ companyId }) {
   );
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   CLASSIC MIGRATION TAB — Import data from Job-Dox Classic
+══════════════════════════════════════════════════════════════════ */
+function ClassicMigrationTab({ companyId, currentMemberId }) {
+  const [screen, setScreen]           = useState("loading"); // loading | connect | preview | running | complete | already
+  const [classicUrl, setClassicUrl]   = useState("");
+  const [classicToken, setClassicToken] = useState("");
+  const [probeResult, setProbeResult] = useState(null);
+  const [previewData, setPreviewData] = useState(null);
+  const [migStatus, setMigStatus]     = useState(null);
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState("");
+  const [confirmed, setConfirmed]     = useState(false);
+  const pollRef = useRef(null);
+
+  const headers = { "Content-Type": "application/json", "x-company-id": companyId, "x-cortex-uid": currentMemberId };
+
+  // Check migration status on mount
+  useEffect(() => {
+    if (!companyId) return;
+    fetch("/.netlify/functions/classic-migration?action=status", { method: "POST", headers, body: "{}" })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === "complete") { setMigStatus(data); setScreen("already"); }
+        else if (data.status === "running") { setMigStatus(data); setScreen("running"); startPolling(); }
+        else { setScreen("connect"); }
+      })
+      .catch(() => setScreen("connect"));
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId]);
+
+  // Warn before navigating away during migration
+  useEffect(() => {
+    if (screen !== "running") return;
+    const handler = (e) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [screen]);
+
+  const startPolling = () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(() => {
+      fetch("/.netlify/functions/classic-migration?action=status", { method: "POST", headers, body: "{}" })
+        .then(r => r.json())
+        .then(data => {
+          setMigStatus(data);
+          if (data.status === "complete" || data.status === "failed") {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+            setScreen(data.status === "complete" ? "complete" : "running");
+          }
+        })
+        .catch(() => {});
+    }, 4000);
+  };
+
+  const doProbe = async () => {
+    if (!classicUrl.trim() || !classicToken.trim()) { setError("Both URL and token are required."); return; }
+    setLoading(true); setError("");
+    try {
+      const res = await fetch("/.netlify/functions/classic-migration?action=probe", {
+        method: "POST", headers, body: JSON.stringify({ classicBaseUrl: classicUrl.trim(), classicToken: classicToken.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Probe failed");
+      if (data.alreadyMigrated) { setMigStatus(data); setScreen("already"); return; }
+      setProbeResult(data);
+    } catch (e) { setError(e.message); }
+    setLoading(false);
+  };
+
+  const doPreview = async () => {
+    setLoading(true); setError("");
+    try {
+      const res = await fetch("/.netlify/functions/classic-migration?action=preview", {
+        method: "POST", headers, body: JSON.stringify({ classicBaseUrl: classicUrl.trim(), classicToken: classicToken.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Preview failed");
+      setPreviewData(data);
+      setScreen("preview");
+    } catch (e) { setError(e.message); }
+    setLoading(false);
+  };
+
+  const doExecute = async () => {
+    setLoading(true); setError("");
+    try {
+      const res = await fetch("/.netlify/functions/classic-migration?action=execute", {
+        method: "POST", headers, body: JSON.stringify({ classicBaseUrl: classicUrl.trim(), classicToken: classicToken.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Migration failed to start");
+      setMigStatus(data);
+      if (data.status === "complete") { setScreen("complete"); }
+      else { setScreen("running"); startPolling(); }
+    } catch (e) { setError(e.message); setLoading(false); }
+  };
+
+  const pctDone = migStatus?.counts ? Math.round((migStatus.counts.projectsMigrated / Math.max(migStatus.counts.projectsTotal, 1)) * 100) : 0;
+
+  // ── Screen: Loading ──
+  if (screen === "loading") {
+    return <div style={{padding:32,textAlign:"center",color:"var(--t2)",fontSize:13}}>Checking migration status...</div>;
+  }
+
+  // ── Screen: Already Migrated ──
+  if (screen === "already") {
+    return (
+      <div style={{maxWidth:520,margin:"0 auto"}}>
+        <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:14,padding:32,textAlign:"center"}}>
+          <div style={{width:56,height:56,borderRadius:"50%",background:"rgba(26,217,138,.12)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="var(--green)"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+          </div>
+          <div style={{fontSize:16,fontWeight:700,marginBottom:6}}>Migration Complete</div>
+          <div style={{fontSize:12,color:"var(--t2)",marginBottom:16}}>
+            Your Job-Dox Classic data was imported on {migStatus?.completedAt ? new Date(migStatus.completedAt).toLocaleDateString() : migStatus?.migrationDate ? new Date(migStatus.migrationDate).toLocaleDateString() : "a previous date"}.
+          </div>
+          {migStatus?.counts && (
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:20}}>
+              {[["Projects",migStatus.counts.projectsMigrated],["Notes",migStatus.counts.notesMigrated],["Tasks",migStatus.counts.tasksMigrated]].map(([l,v])=>(
+                <div key={l} style={{background:"var(--s3)",borderRadius:8,padding:"10px 8px"}}>
+                  <div style={{fontSize:18,fontWeight:800,color:"var(--t1)"}}>{v||0}</div>
+                  <div style={{fontSize:10,color:"var(--t3)"}}>{l}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{fontSize:11,color:"var(--t3)"}}>This is a one-time import. If something looks wrong, contact <a href="mailto:support@job-dox.com" style={{color:"var(--acc)"}}>support@job-dox.com</a>.</div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Screen: Complete ──
+  if (screen === "complete") {
+    const c = migStatus?.counts || {};
+    return (
+      <div style={{maxWidth:520,margin:"0 auto"}}>
+        <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:14,padding:32,textAlign:"center"}}>
+          <div style={{width:64,height:64,borderRadius:"50%",background:"rgba(26,217,138,.12)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="var(--green)"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+          </div>
+          <div style={{fontSize:18,fontWeight:800,marginBottom:6,color:"var(--green)"}}>Migration Complete</div>
+          <div style={{fontSize:13,color:"var(--t2)",marginBottom:20}}>
+            {c.projectsMigrated||0} projects, {c.notesMigrated||0} notes, {c.tasksMigrated||0} tasks, {c.documentsMigrated||0} documents imported.
+          </div>
+          {(migStatus?.errors?.length > 0) && (
+            <div style={{background:"var(--s3)",borderRadius:8,padding:12,marginBottom:16,textAlign:"left",maxHeight:160,overflowY:"auto"}}>
+              <div style={{fontSize:11,fontWeight:700,color:"var(--amber)",marginBottom:6}}>Skipped / Warnings ({migStatus.errors.length})</div>
+              {migStatus.errors.map((e,i)=><div key={i} style={{fontSize:10,color:"var(--t3)",marginBottom:3}}>{e}</div>)}
+            </div>
+          )}
+          <button onClick={()=>{ window.location.hash=""; window.location.reload(); }} style={{background:"var(--green)",color:"#fff",border:"none",padding:"10px 24px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"var(--ui)"}}>Go to Portfolio</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Screen: Running ──
+  if (screen === "running") {
+    const c = migStatus?.counts || {};
+    return (
+      <div style={{maxWidth:520,margin:"0 auto"}}>
+        <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:14,padding:32}}>
+          <div style={{fontSize:16,fontWeight:700,marginBottom:4,textAlign:"center"}}>Migration In Progress</div>
+          <div style={{fontSize:11,color:"var(--t3)",textAlign:"center",marginBottom:20}}>Do not close this tab.</div>
+          {/* Progress bar */}
+          <div style={{background:"var(--s3)",borderRadius:6,height:10,marginBottom:16,overflow:"hidden"}}>
+            <div style={{height:"100%",background:"var(--acc)",borderRadius:6,width:`${pctDone}%`,transition:"width .4s ease"}}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginBottom:16}}>
+            {[["Projects",`${c.projectsMigrated||0} / ${c.projectsTotal||0}`],["Notes",c.notesMigrated||0],["Tasks",c.tasksMigrated||0],["Documents",c.documentsMigrated||0]].map(([l,v])=>(
+              <div key={l} style={{background:"var(--s3)",borderRadius:8,padding:"10px 12px"}}>
+                <div style={{fontSize:15,fontWeight:700,color:"var(--t1)"}}>{v}</div>
+                <div style={{fontSize:10,color:"var(--t3)"}}>{l}</div>
+              </div>
+            ))}
+          </div>
+          {(migStatus?.errors?.length > 0) && (
+            <div style={{background:"var(--s3)",borderRadius:8,padding:10,maxHeight:120,overflowY:"auto"}}>
+              <div style={{fontSize:10,fontWeight:700,color:"var(--amber)",marginBottom:4}}>Warnings</div>
+              {migStatus.errors.slice(-10).map((e,i)=><div key={i} style={{fontSize:9,color:"var(--t3)",marginBottom:2}}>{e}</div>)}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Screen: Preview ──
+  if (screen === "preview" && previewData) {
+    return (
+      <div style={{maxWidth:640,margin:"0 auto"}}>
+        <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>Migration Preview</div>
+        <div style={{fontSize:12,color:"var(--t2)",marginBottom:16}}>
+          {previewData.newProjectsCount} project{previewData.newProjectsCount!==1?"s":""} will be imported.
+          {previewData.skippedCount > 0 && <span style={{color:"var(--t3)"}}> ({previewData.skippedCount} already migrated, will be skipped)</span>}
+        </div>
+        {/* Config items */}
+        {(previewData.workTypes.length > 0 || previewData.statuses.length > 0 || previewData.projectTypes.length > 0) && (
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+            {previewData.workTypes.length > 0 && <div style={{background:"var(--s3)",borderRadius:6,padding:"4px 10px",fontSize:11,color:"var(--t2)"}}>{previewData.workTypes.length} work types</div>}
+            {previewData.statuses.length > 0 && <div style={{background:"var(--s3)",borderRadius:6,padding:"4px 10px",fontSize:11,color:"var(--t2)"}}>{previewData.statuses.length} statuses</div>}
+            {previewData.projectTypes.length > 0 && <div style={{background:"var(--s3)",borderRadius:6,padding:"4px 10px",fontSize:11,color:"var(--t2)"}}>{previewData.projectTypes.length} project types</div>}
+          </div>
+        )}
+        {/* Project list */}
+        <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:10,maxHeight:320,overflowY:"auto",marginBottom:16}}>
+          {previewData.projects.map((p,i)=>(
+            <div key={i} style={{padding:"10px 14px",borderBottom:"1px solid var(--br)",display:"flex",justifyContent:"space-between",alignItems:"center",opacity:p.alreadyMigrated?.6:1}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:600,color:"var(--t1)"}}>{p.name}</div>
+                <div style={{fontSize:10,color:"var(--t3)"}}>{p.address}</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:10,color:"var(--t2)"}}>{p.workType}</div>
+                <div style={{fontSize:10,color:p.alreadyMigrated?"var(--green)":"var(--t3)"}}>{p.alreadyMigrated?"Already imported":p.status}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Warning */}
+        <div style={{background:"rgba(232,156,24,.08)",border:"1px solid rgba(232,156,24,.2)",borderRadius:8,padding:"12px 14px",marginBottom:16,display:"flex",alignItems:"flex-start",gap:10}}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--amber)" style={{flexShrink:0,marginTop:1}}><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+          <div style={{fontSize:11,color:"var(--t2)",lineHeight:1.5}}>Once started, do not close this tab. Migration typically takes 2-10 minutes depending on project count.</div>
+        </div>
+        {/* Confirm checkbox */}
+        <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,cursor:"pointer",fontSize:12,color:"var(--t2)"}}>
+          <input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)} style={{accentColor:"var(--acc)"}}/>
+          I understand this is a one-time import and cannot be undone.
+        </label>
+        {error && <div style={{color:"var(--acc)",fontSize:11,marginBottom:10}}>{error}</div>}
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={()=>{setScreen("connect");setPreviewData(null);setConfirmed(false);}} style={{background:"transparent",border:"1px solid var(--br)",color:"var(--t2)",padding:"10px 20px",borderRadius:8,fontSize:12,cursor:"pointer",fontFamily:"var(--ui)"}}>Back</button>
+          <button onClick={doExecute} disabled={!confirmed||loading} style={{background:confirmed?"var(--acc)":"var(--s3)",color:confirmed?"#fff":"var(--t3)",border:"none",padding:"10px 24px",borderRadius:8,fontSize:13,fontWeight:700,cursor:confirmed?"pointer":"not-allowed",fontFamily:"var(--ui)",opacity:loading?.6:1}}>
+            {loading ? "Starting..." : "Start Migration"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Screen: Connect (default) ──
+  return (
+    <div style={{maxWidth:520,margin:"0 auto"}}>
+      <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>Import from Job-Dox Classic</div>
+      <div style={{fontSize:12,color:"var(--t2)",marginBottom:20,lineHeight:1.6}}>
+        This is a one-time import. Your active projects, notes, tasks, documents, and financial records will be rebuilt in Cortex. This will not affect your Job-Dox Classic account.
+      </div>
+      <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:12,padding:24}}>
+        <div style={{marginBottom:14}}>
+          <label style={{fontSize:11,fontWeight:600,color:"var(--t2)",display:"block",marginBottom:4}}>Classic API Base URL</label>
+          <input className="inp" value={classicUrl} onChange={e=>setClassicUrl(e.target.value)} placeholder="https://classic.job-dox.com" style={{width:"100%"}}/>
+        </div>
+        <div style={{marginBottom:18}}>
+          <label style={{fontSize:11,fontWeight:600,color:"var(--t2)",display:"block",marginBottom:4}}>Classic API Token</label>
+          <input className="inp" type="password" value={classicToken} onChange={e=>setClassicToken(e.target.value)} placeholder="Paste your API token" style={{width:"100%"}}/>
+        </div>
+        {error && <div style={{color:"var(--acc)",fontSize:11,marginBottom:10}}>{error}</div>}
+        {probeResult ? (
+          <div>
+            <div style={{background:"rgba(26,217,138,.08)",border:"1px solid rgba(26,217,138,.2)",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
+              <div style={{fontSize:12,fontWeight:700,color:"var(--green)",marginBottom:4}}>Connected</div>
+              <div style={{fontSize:11,color:"var(--t2)"}}>
+                Found {probeResult.counts.jobs} active project{probeResult.counts.jobs!==1?"s":""}, {probeResult.counts.workTypes} work type{probeResult.counts.workTypes!==1?"s":""}, {probeResult.counts.statuses} status{probeResult.counts.statuses!==1?"es":""}, {probeResult.counts.projectTypes} project type{probeResult.counts.projectTypes!==1?"s":""}.
+              </div>
+            </div>
+            <button onClick={doPreview} disabled={loading} style={{background:"var(--acc)",color:"#fff",border:"none",padding:"10px 24px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"var(--ui)",width:"100%",opacity:loading?.6:1}}>
+              {loading ? "Loading preview..." : "Preview Migration"}
+            </button>
+          </div>
+        ) : (
+          <button onClick={doProbe} disabled={loading||!classicUrl.trim()||!classicToken.trim()} style={{background:"var(--acc)",color:"#fff",border:"none",padding:"10px 24px",borderRadius:8,fontSize:13,fontWeight:700,cursor:loading?"wait":"pointer",fontFamily:"var(--ui)",width:"100%",opacity:(loading||!classicUrl.trim()||!classicToken.trim())?.5:1}}>
+            {loading ? "Verifying..." : "Verify Connection"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission=1, currentMemberId, currentMemberName, currentMemberEmail="", onPermissionChange, offices=[], projects=[], onWorkTypesChange, onStatusesChange, onProjectTypesChange }) {
   const [tab,      setTab]      = useState("staff");
   const [editId,   setEditId]   = useState(null);
@@ -12444,7 +12727,20 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
 
   const isDiagUser = currentMemberEmail.toLowerCase().includes("@job-dox.com");
   const TABS = [["staff","Staff"],["vendors","Vendors"],["offices","Offices"],["phone","Phone & Calls"],["cortex","CortexAI"],["coins","Cortex Coins"],["billing","Billing"],["general","General"],["roadmap","Feature Request"],
+    ...(permLevel >= 10 ? [["migration","Classic Import"]] : []),
     ...(isDiagUser ? [["fs-diag","FS Diagnostic"]] : [])];
+
+  // Auto-navigate to migration tab if URL has ?tab=migration
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("tab") === "migration" && permLevel >= 10) {
+      setTab("migration");
+      const url = new URL(window.location);
+      url.searchParams.delete("tab");
+      window.history.replaceState({}, "", url);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="scroll" style={{flex:1,overflow:"auto"}}>
@@ -13157,6 +13453,9 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
         ))}
         {tab==="roadmap" && (
           <FeatureRequestForm userName={currentMemberName} companyName={loadCoInfo().name} />
+        )}
+        {tab==="migration" && permLevel >= 10 && (
+          <ClassicMigrationTab companyId={companyId} currentMemberId={currentMemberId} />
         )}
         {tab==="fs-diag" && isDiagUser && (
           <FirestoreDiagnosticCard companyId={companyId} />
