@@ -3360,6 +3360,555 @@
     </div>
   </div>
 
+  <!-- 10-A  Calls & Transcription -->
+  <div id="view-call-transcription" class="content-view">
+    <div class="article-area">
+      <div class="article-hero">
+        <div class="eyebrow">Phone &amp; SMS</div>
+        <h1 class="art-title">Calls &amp; <span class="red">Transcription</span></h1>
+        <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>7 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>Advanced</span></div>
+      </div>
+      <p>Job-Dox integrates with Twilio to record inbound calls and automatically transcribe them using Cortex AI. The transcription engine extracts customer name, phone number, project address, event type, and insurance details — then optionally auto-creates a new project when it detects a new service request with high confidence.</p>
+      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/></svg></div><div><span class="callout-lbl">Pro tip</span><p>Configure custom keywords (e.g., "emergency", "mold", "insurance claim") in your Phone settings. The transcriber flags any keyword matches so your team can prioritize urgent calls.</p></div></div>
+      <h2>Step-by-Step: Enabling Call Transcription</h2>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Go to Settings › Phone › Call Transcriber</div><p class="step-desc">Navigate to your company's phone settings and toggle the Call Transcriber switch to On. This enables AI transcription for all recorded inbound calls.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Configure keywords and work types</div><p class="step-desc">Add custom keywords to flag (e.g., "water damage", "emergency", "insurance"). Set your available work types so the AI can classify calls accurately.</p></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Enable auto-project creation (optional)</div><p class="step-desc">Toggle "Auto-Create Projects" to let the system create new projects from calls automatically. The AI checks for existing customers by name, phone, or address to prevent duplicates. Projects are only created when confidence is medium or high.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">View transcribed calls</div><p class="step-desc">After a call is recorded, the transcription appears within seconds. Open any call record to see the full transcript, extracted data, and linked project.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z"/></svg>
+      <span style="color:#fff;font-weight:600;font-size:14px;">Transcribed Call</span>
+    </div>
+    <span style="background:#22c55e;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;">AUTO-CREATED PROJECT</span>
+  </div>
+  <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:14px;margin-bottom:12px;">
+    <div style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;margin-bottom:8px;">Summary</div>
+    <div style="color:#c8c8c8;font-size:12px;line-height:1.5;">Homeowner reported water damage in basement after pipe burst overnight. Requesting emergency mitigation service at 742 Evergreen Terrace. Has State Farm insurance, claim pending.</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:10px;">
+      <div style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;margin-bottom:4px;">Customer</div>
+      <div style="color:#fff;font-size:12px;font-weight:500;">Jane Mitchell</div>
+      <div style="color:#c8c8c8;font-size:11px;">(555) 867-5309</div>
+    </div>
+    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:10px;">
+      <div style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;margin-bottom:4px;">Event Type</div>
+      <div style="color:#fff;font-size:12px;font-weight:500;">Water Damage</div>
+      <div style="color:#c8c8c8;font-size:11px;">Confidence: <span style="color:#22c55e;">High</span></div>
+    </div>
+    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:10px;">
+      <div style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;margin-bottom:4px;">Address</div>
+      <div style="color:#fff;font-size:12px;font-weight:500;">742 Evergreen Terrace</div>
+      <div style="color:#c8c8c8;font-size:11px;">Springfield, IL 62704</div>
+    </div>
+    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:10px;">
+      <div style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;margin-bottom:4px;">Insurance</div>
+      <div style="color:#fff;font-size:12px;font-weight:500;">State Farm</div>
+      <div style="color:#c8c8c8;font-size:11px;">Claim: Pending</div>
+    </div>
+  </div>
+  <div style="margin-top:10px;display:flex;gap:6px;">
+    <span style="background:#2a1a1a;color:#f05757;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;">emergency</span>
+    <span style="background:#2a1a1a;color:#f05757;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;">water damage</span>
+  </div>
+</div></div></div>
+      </div>
+      <div class="callout warn"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#eab308" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg></div><div><span class="callout-lbl">Important</span><p>Each transcription consumes 1 Cortex Coin. If your company runs out of coins, calls will still be recorded but transcription will be skipped until your cycle resets.</p></div></div>
+      <div class="quiz-section" id="quiz-call-transcription">
+        <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Calls &amp; Transcription</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
+        <div class="progress-bar"><div class="progress-fill" id="prog-call-transcription" style="width:0%"></div></div>
+        <div class="quiz-question" id="q-ct2-1"><div class="q-num">Question 1 of 3</div><div class="q-text">What happens when the AI detects a new service request with high confidence?</div><div class="options"><div class="option" onclick="pick(this,'q-ct2-1','a')"><div class="opt-marker">A</div>It sends an email to the company owner</div><div class="option" onclick="pick(this,'q-ct2-1','b')"><div class="opt-marker">B</div>It auto-creates a project after checking for existing customers</div><div class="option" onclick="pick(this,'q-ct2-1','c')"><div class="opt-marker">C</div>It deletes the call recording for privacy</div></div><div class="opt-feedback" id="fb-ct2-1"></div></div>
+        <div class="quiz-question" id="q-ct2-2"><div class="q-num">Question 2 of 3</div><div class="q-text">How does the system prevent duplicate projects from transcribed calls?</div><div class="options"><div class="option" onclick="pick(this,'q-ct2-2','a')"><div class="opt-marker">A</div>It only creates projects on weekdays</div><div class="option" onclick="pick(this,'q-ct2-2','b')"><div class="opt-marker">B</div>It matches by customer name, phone number, and address against existing projects</div><div class="option" onclick="pick(this,'q-ct2-2','c')"><div class="opt-marker">C</div>It requires manual approval for every project</div></div><div class="opt-feedback" id="fb-ct2-2"></div></div>
+        <div class="quiz-question" id="q-ct2-3"><div class="q-num">Question 3 of 3</div><div class="q-text">What resource does each call transcription consume?</div><div class="options"><div class="option" onclick="pick(this,'q-ct2-3','a')"><div class="opt-marker">A</div>A monthly subscription fee</div><div class="option" onclick="pick(this,'q-ct2-3','b')"><div class="opt-marker">B</div>1 Cortex Coin from the company's billing cycle</div><div class="option" onclick="pick(this,'q-ct2-3','c')"><div class="opt-marker">C</div>No resource — transcription is free and unlimited</div></div><div class="opt-feedback" id="fb-ct2-3"></div></div>
+        <div class="quiz-score" id="score-call-transcription"><div class="score-ring"><span class="score-num" id="sn-call-transcription">0</span><span class="score-denom">/ 3</span></div><p class="score-msg" id="sm-call-transcription"></p><button class="btn btn-ghost" onclick="resetQuiz('call-transcription')">Try Again</button></div>
+        <div class="quiz-actions" id="qa-call-transcription"><button class="btn btn-red" onclick="grade('call-transcription')">Submit Answers</button><button class="btn btn-ghost" onclick="resetQuiz('call-transcription')">Reset</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10-B  SMS Messaging -->
+  <div id="view-sms-messaging" class="content-view">
+    <div class="article-area">
+      <div class="article-hero">
+        <div class="eyebrow">Phone &amp; SMS</div>
+        <h1 class="art-title">SMS <span class="red">Messaging</span></h1>
+        <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>4 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>Intermediate</span></div>
+      </div>
+      <p>Send and receive SMS messages to clients directly from any project view. Powered by Twilio, all messages are logged in the project activity feed — giving your team a complete communication trail for every job. SMS is used for signing requests, appointment reminders, status updates, and review requests.</p>
+      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/></svg></div><div><span class="callout-lbl">Pro tip</span><p>Combine SMS with automation triggers — e.g., auto-send a "We're on our way" text when a task status changes to "En Route". Clients love the real-time updates.</p></div></div>
+      <h2>Step-by-Step: Sending an SMS from a Project</h2>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Open the project and click the SMS tab</div><p class="step-desc">Navigate to any project and open the SMS / Messages tab. You'll see the conversation history with the client.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Compose and send your message</div><p class="step-desc">Type your message in the input field and click Send. The message is delivered via Twilio and logged in the project activity feed.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z"/></svg>
+    <span style="color:#fff;font-weight:600;font-size:14px;">SMS · Jane Mitchell</span>
+    <span style="color:#777;font-size:11px;margin-left:auto;">(555) 867-5309</span>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+    <div style="align-self:flex-start;max-width:75%;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:12px 12px 12px 4px;padding:10px 14px;">
+      <div style="color:#c8c8c8;font-size:12px;line-height:1.4;">Hi, I have water in my basement. Can someone come look at it today?</div>
+      <div style="color:#555;font-size:10px;margin-top:4px;">10:32 AM</div>
+    </div>
+    <div style="align-self:flex-end;max-width:75%;background:#6b1a1a;border:1px solid #8b2a2a;border-radius:12px 12px 4px 12px;padding:10px 14px;">
+      <div style="color:#fff;font-size:12px;line-height:1.4;">Hi Jane! We can have a crew out this afternoon between 2-4 PM. Does that work for you?</div>
+      <div style="color:#f05757;font-size:10px;margin-top:4px;">10:35 AM · Sent</div>
+    </div>
+    <div style="align-self:flex-start;max-width:75%;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:12px 12px 12px 4px;padding:10px 14px;">
+      <div style="color:#c8c8c8;font-size:12px;line-height:1.4;">Yes that works! Thank you so much.</div>
+      <div style="color:#555;font-size:10px;margin-top:4px;">10:37 AM</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <input type="text" disabled value="Type a message..." style="flex:1;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:10px 14px;color:#555;font-size:12px;outline:none;">
+    <div style="background:#e03535;color:#fff;font-size:11px;font-weight:600;padding:10px 16px;border-radius:8px;cursor:pointer;">Send</div>
+  </div>
+</div></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">View replies in real time</div><p class="step-desc">When the client replies, their message appears in the thread and a notification is sent to the project owner. All messages are saved as part of the permanent project record.</p></div></div>
+      </div>
+      <div class="callout warn"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#eab308" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg></div><div><span class="callout-lbl">Important</span><p>SMS requires a valid Twilio phone number configured in your company settings. Messages sent to landlines or invalid numbers will fail silently — always verify client phone numbers are mobile.</p></div></div>
+      <div class="quiz-section" id="quiz-sms-messaging">
+        <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: SMS Messaging</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
+        <div class="progress-bar"><div class="progress-fill" id="prog-sms-messaging" style="width:0%"></div></div>
+        <div class="quiz-question" id="q-sm-1"><div class="q-num">Question 1 of 3</div><div class="q-text">Where are SMS messages logged within Job-Dox?</div><div class="options"><div class="option" onclick="pick(this,'q-sm-1','a')"><div class="opt-marker">A</div>In a separate messaging app</div><div class="option" onclick="pick(this,'q-sm-1','b')"><div class="opt-marker">B</div>In the project activity feed as a permanent record</div><div class="option" onclick="pick(this,'q-sm-1','c')"><div class="opt-marker">C</div>They are not logged anywhere</div></div><div class="opt-feedback" id="fb-sm-1"></div></div>
+        <div class="quiz-question" id="q-sm-2"><div class="q-num">Question 2 of 3</div><div class="q-text">What service powers SMS delivery in Job-Dox?</div><div class="options"><div class="option" onclick="pick(this,'q-sm-2','a')"><div class="opt-marker">A</div>SendGrid email-to-SMS bridge</div><div class="option" onclick="pick(this,'q-sm-2','b')"><div class="opt-marker">B</div>Twilio</div><div class="option" onclick="pick(this,'q-sm-2','c')"><div class="opt-marker">C</div>Google Voice</div></div><div class="opt-feedback" id="fb-sm-2"></div></div>
+        <div class="quiz-question" id="q-sm-3"><div class="q-num">Question 3 of 3</div><div class="q-text">What is a best practice when combining SMS with automations?</div><div class="options"><div class="option" onclick="pick(this,'q-sm-3','a')"><div class="opt-marker">A</div>Send an SMS for every single task update</div><div class="option" onclick="pick(this,'q-sm-3','b')"><div class="opt-marker">B</div>Trigger targeted texts on status changes like "En Route" or "Completed"</div><div class="option" onclick="pick(this,'q-sm-3','c')"><div class="opt-marker">C</div>Only use SMS for billing disputes</div></div><div class="opt-feedback" id="fb-sm-3"></div></div>
+        <div class="quiz-score" id="score-sms-messaging"><div class="score-ring"><span class="score-num" id="sn-sms-messaging">0</span><span class="score-denom">/ 3</span></div><p class="score-msg" id="sm-sms-messaging"></p><button class="btn btn-ghost" onclick="resetQuiz('sms-messaging')">Try Again</button></div>
+        <div class="quiz-actions" id="qa-sms-messaging"><button class="btn btn-red" onclick="grade('sms-messaging')">Submit Answers</button><button class="btn btn-ghost" onclick="resetQuiz('sms-messaging')">Reset</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10-C  Cortex Coins -->
+  <div id="view-cortex-coins" class="content-view">
+    <div class="article-area">
+      <div class="article-hero">
+        <div class="eyebrow">Cortex AI</div>
+        <h1 class="art-title">Cortex <span class="red">Coins</span></h1>
+        <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>5 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>Intermediate</span></div>
+      </div>
+      <p>Cortex Coins are Job-Dox's AI usage currency. Every company receives 300 coins per 28-day billing cycle, and each AI-powered feature (call transcription, financial analysis, adjuster response, SOP generation, comparable lookup) consumes 1 coin per use. Unused coins roll over to the next cycle, so none are wasted.</p>
+      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/></svg></div><div><span class="callout-lbl">Pro tip</span><p>Check your coin balance weekly. When usage hits 80%, you'll get an automatic alert — plan your remaining AI calls carefully or wait for the cycle reset.</p></div></div>
+      <h2>Step-by-Step: Checking Your Coin Balance</h2>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Open Settings › Billing › Cortex Coins</div><p class="step-desc">Navigate to the billing section of your company settings to view your current Cortex Coins dashboard.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Review your balance and usage</div><p class="step-desc">The dashboard shows total available coins (base + rollover), coins used this cycle, remaining balance, and the cycle reset date.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125"/></svg>
+    <span style="color:#fff;font-weight:600;font-size:14px;">Cortex Coins</span>
+    <span style="color:#777;font-size:11px;margin-left:auto;">Cycle resets: 04/01/2026</span>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:16px;">
+    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:12px;text-align:center;">
+      <div style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;margin-bottom:4px;">Available</div>
+      <div style="color:#fff;font-size:22px;font-weight:700;">342</div>
+      <div style="color:#555;font-size:10px;">300 base + 42 rollover</div>
+    </div>
+    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:12px;text-align:center;">
+      <div style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;margin-bottom:4px;">Used</div>
+      <div style="color:#f05757;font-size:22px;font-weight:700;">187</div>
+      <div style="color:#555;font-size:10px;">this cycle</div>
+    </div>
+    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:12px;text-align:center;">
+      <div style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;margin-bottom:4px;">Remaining</div>
+      <div style="color:#22c55e;font-size:22px;font-weight:700;">155</div>
+      <div style="color:#555;font-size:10px;">45% left</div>
+    </div>
+    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:12px;text-align:center;">
+      <div style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;margin-bottom:4px;">Usage</div>
+      <div style="color:#e89c18;font-size:22px;font-weight:700;">55%</div>
+      <div style="color:#555;font-size:10px;">of cycle</div>
+    </div>
+  </div>
+  <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;height:8px;overflow:hidden;margin-bottom:14px;">
+    <div style="background:linear-gradient(90deg,#f05757,#e89c18);height:100%;width:55%;border-radius:6px;"></div>
+  </div>
+  <div style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;margin-bottom:8px;">Recent Usage</div>
+  <div style="border:1px solid #2a2a2a;border-radius:6px;overflow:hidden;">
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr;padding:6px 10px;border-bottom:1px solid #2a2a2a;"><span style="color:#c8c8c8;font-size:11px;">Call Transcription</span><span style="color:#777;font-size:11px;">Mike R.</span><span style="color:#555;font-size:11px;">2 min ago</span></div>
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr;padding:6px 10px;border-bottom:1px solid #2a2a2a;"><span style="color:#c8c8c8;font-size:11px;">Financial Analysis</span><span style="color:#777;font-size:11px;">Sarah J.</span><span style="color:#555;font-size:11px;">1 hr ago</span></div>
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr;padding:6px 10px;"><span style="color:#c8c8c8;font-size:11px;">SOP Generation</span><span style="color:#777;font-size:11px;">Admin</span><span style="color:#555;font-size:11px;">3 hrs ago</span></div>
+  </div>
+</div></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Monitor the 80% alert</div><p class="step-desc">When your team has used 80% of available coins, an alert banner appears in the dashboard. This gives you time to ration remaining AI calls or plan for the cycle reset.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Understand rollover</div><p class="step-desc">Any coins unused at cycle end automatically roll over. If you used 250 of 300, the remaining 50 carry forward, giving you 350 total next cycle.</p></div></div>
+      </div>
+      <div class="callout warn"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#eab308" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg></div><div><span class="callout-lbl">Important</span><p>When coins are exhausted, all AI features are paused — not disabled. Calls still record, but transcription is skipped. Financial reports still work, but AI analysis is unavailable. Everything resumes when the cycle resets.</p></div></div>
+      <div class="quiz-section" id="quiz-cortex-coins">
+        <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Cortex Coins</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
+        <div class="progress-bar"><div class="progress-fill" id="prog-cortex-coins" style="width:0%"></div></div>
+        <div class="quiz-question" id="q-cc-1"><div class="q-num">Question 1 of 3</div><div class="q-text">How many Cortex Coins does each company receive per billing cycle?</div><div class="options"><div class="option" onclick="pick(this,'q-cc-1','a')"><div class="opt-marker">A</div>100 coins per month</div><div class="option" onclick="pick(this,'q-cc-1','b')"><div class="opt-marker">B</div>300 coins per 28-day cycle, with unused coins rolling over</div><div class="option" onclick="pick(this,'q-cc-1','c')"><div class="opt-marker">C</div>Unlimited coins on the Pro plan</div></div><div class="opt-feedback" id="fb-cc-1"></div></div>
+        <div class="quiz-question" id="q-cc-2"><div class="q-num">Question 2 of 3</div><div class="q-text">What happens when a company exhausts all Cortex Coins?</div><div class="options"><div class="option" onclick="pick(this,'q-cc-2','a')"><div class="opt-marker">A</div>The company's account is suspended</div><div class="option" onclick="pick(this,'q-cc-2','b')"><div class="opt-marker">B</div>AI features are paused until the next billing cycle resets</div><div class="option" onclick="pick(this,'q-cc-2','c')"><div class="opt-marker">C</div>Additional coins are auto-purchased at $1 each</div></div><div class="opt-feedback" id="fb-cc-2"></div></div>
+        <div class="quiz-question" id="q-cc-3"><div class="q-num">Question 3 of 3</div><div class="q-text">At what usage threshold does the system send an alert?</div><div class="options"><div class="option" onclick="pick(this,'q-cc-3','a')"><div class="opt-marker">A</div>50% usage</div><div class="option" onclick="pick(this,'q-cc-3','b')"><div class="opt-marker">B</div>80% usage</div><div class="option" onclick="pick(this,'q-cc-3','c')"><div class="opt-marker">C</div>100% usage (only when exhausted)</div></div><div class="opt-feedback" id="fb-cc-3"></div></div>
+        <div class="quiz-score" id="score-cortex-coins"><div class="score-ring"><span class="score-num" id="sn-cortex-coins">0</span><span class="score-denom">/ 3</span></div><p class="score-msg" id="sm-cortex-coins"></p><button class="btn btn-ghost" onclick="resetQuiz('cortex-coins')">Try Again</button></div>
+        <div class="quiz-actions" id="qa-cortex-coins"><button class="btn btn-red" onclick="grade('cortex-coins')">Submit Answers</button><button class="btn btn-ghost" onclick="resetQuiz('cortex-coins')">Reset</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10-D  Adjuster Response AI -->
+  <div id="view-adjuster-ai" class="content-view">
+    <div class="article-area">
+      <div class="article-hero">
+        <div class="eyebrow">Cortex AI</div>
+        <h1 class="art-title">Adjuster <span class="red">Response AI</span></h1>
+        <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>6 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>Advanced</span></div>
+      </div>
+      <p>The Adjuster Response AI drafts professional, standards-backed replies to insurance adjuster emails and scope disputes. Every response is grounded in IICRC standards (S500, S520, S540, S600), Xactimate billing guidelines, and O&amp;P entitlements — saving your estimators hours of research and writing.</p>
+      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/></svg></div><div><span class="callout-lbl">Pro tip</span><p>Add detailed project notes before generating a response — the AI uses them as context. The more specific your documentation (moisture readings, photos, equipment logs), the stronger the AI's argument.</p></div></div>
+      <h2>Step-by-Step: Generating an Adjuster Response</h2>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Open the project and navigate to Adjuster Response</div><p class="step-desc">From the project view, open the Cortex AI panel and select "Adjuster Response". Paste or summarize the adjuster's email/dispute.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Select the dispute category</div><p class="step-desc">Choose from: Equipment Charge Dispute, Scope Disagreement, O&amp;P Dispute, Category/Class Dispute, or General Response. This focuses the AI on the right standards and references.</p></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Generate and review the response</div><p class="step-desc">Click Generate (costs 1 Cortex Coin). The AI drafts a professional response citing specific IICRC standards, Xactimate line items, and industry practices.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z"/></svg>
+    <span style="color:#fff;font-weight:600;font-size:14px;">Adjuster Response AI</span>
+    <span style="background:#2a1a1a;color:#f05757;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;margin-left:auto;">1 COIN</span>
+  </div>
+  <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:12px;margin-bottom:12px;">
+    <div style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;margin-bottom:6px;">Adjuster's Message</div>
+    <div style="color:#c8c8c8;font-size:12px;line-height:1.5;font-style:italic;">"We are denying the equipment charges for the LGR dehumidifier beyond day 3. The drying should have been completed within 72 hours per our guidelines."</div>
+  </div>
+  <div style="background:#0d1a0d;border:1px solid #1a3a1a;border-radius:8px;padding:12px;margin-bottom:12px;">
+    <div style="color:#22c55e;font-size:10px;font-weight:600;text-transform:uppercase;margin-bottom:6px;">AI-Generated Response</div>
+    <div style="color:#c8c8c8;font-size:12px;line-height:1.6;">Thank you for your review. Per IICRC S500 Section 12.2, drying timeframes are determined by actual moisture content readings, not arbitrary time limits. Our daily moisture logs (attached) show the affected materials had not reached the drying goal of &lt;16% WME through Day 5.<br><br>The LGR dehumidifier was necessary to maintain the required grain depression of 30+ GPP as documented in our psychrometric readings. Removing equipment prematurely would violate IICRC standards and risk secondary damage...<br><br><span style="color:#777;font-style:italic;">References: IICRC S500 §12.2, §10.4.3 | Xactimate line: WTRDRY</span></div>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <div style="background:#e03535;color:#fff;font-size:11px;font-weight:600;padding:8px 16px;border-radius:6px;cursor:pointer;">Copy to Clipboard</div>
+    <div style="background:#1c1c1c;border:1px solid #2a2a2a;color:#c8c8c8;font-size:11px;font-weight:600;padding:8px 16px;border-radius:6px;cursor:pointer;">Regenerate</div>
+  </div>
+</div></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Edit and send</div><p class="step-desc">Review the AI draft, customize it for your specific situation, then copy it to your email client. Always verify cited standards match your actual documentation before sending.</p></div></div>
+      </div>
+      <div class="callout warn"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#eab308" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg></div><div><span class="callout-lbl">Important</span><p>The AI response is a draft — always review it against your actual project documentation. Verify that cited moisture readings, equipment logs, and standards match your records before sending to an adjuster.</p></div></div>
+      <div class="quiz-section" id="quiz-adjuster-ai">
+        <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Adjuster Response AI</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
+        <div class="progress-bar"><div class="progress-fill" id="prog-adjuster-ai" style="width:0%"></div></div>
+        <div class="quiz-question" id="q-ar-1"><div class="q-num">Question 1 of 3</div><div class="q-text">What standards does the Adjuster Response AI reference in its responses?</div><div class="options"><div class="option" onclick="pick(this,'q-ar-1','a')"><div class="opt-marker">A</div>Only company-specific internal policies</div><div class="option" onclick="pick(this,'q-ar-1','b')"><div class="opt-marker">B</div>IICRC standards (S500, S520, S540, S600), Xactimate guidelines, and O&amp;P entitlements</div><div class="option" onclick="pick(this,'q-ar-1','c')"><div class="opt-marker">C</div>General business communication templates</div></div><div class="opt-feedback" id="fb-ar-1"></div></div>
+        <div class="quiz-question" id="q-ar-2"><div class="q-num">Question 2 of 3</div><div class="q-text">What should you do before sending an AI-generated adjuster response?</div><div class="options"><div class="option" onclick="pick(this,'q-ar-2','a')"><div class="opt-marker">A</div>Send it immediately without review</div><div class="option" onclick="pick(this,'q-ar-2','b')"><div class="opt-marker">B</div>Verify cited standards and data match your actual project documentation</div><div class="option" onclick="pick(this,'q-ar-2','c')"><div class="opt-marker">C</div>Forward it to the insurance carrier's legal department</div></div><div class="opt-feedback" id="fb-ar-2"></div></div>
+        <div class="quiz-question" id="q-ar-3"><div class="q-num">Question 3 of 3</div><div class="q-text">How does adding detailed project notes improve AI responses?</div><div class="options"><div class="option" onclick="pick(this,'q-ar-3','a')"><div class="opt-marker">A</div>It doesn't — the AI ignores project notes</div><div class="option" onclick="pick(this,'q-ar-3','b')"><div class="opt-marker">B</div>The AI uses notes as context to build more specific, evidence-backed arguments</div><div class="option" onclick="pick(this,'q-ar-3','c')"><div class="opt-marker">C</div>It makes the response longer but not more accurate</div></div><div class="opt-feedback" id="fb-ar-3"></div></div>
+        <div class="quiz-score" id="score-adjuster-ai"><div class="score-ring"><span class="score-num" id="sn-adjuster-ai">0</span><span class="score-denom">/ 3</span></div><p class="score-msg" id="sm-adjuster-ai"></p><button class="btn btn-ghost" onclick="resetQuiz('adjuster-ai')">Try Again</button></div>
+        <div class="quiz-actions" id="qa-adjuster-ai"><button class="btn btn-red" onclick="grade('adjuster-ai')">Submit Answers</button><button class="btn btn-ghost" onclick="resetQuiz('adjuster-ai')">Reset</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10-E  SOP Generation -->
+  <div id="view-sop-generation" class="content-view">
+    <div class="article-area">
+      <div class="article-hero">
+        <div class="eyebrow">Cortex AI</div>
+        <h1 class="art-title">SOP <span class="red">Generation</span></h1>
+        <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>6 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>Advanced</span></div>
+      </div>
+      <p>The SOP Generation tool uses Cortex AI to create complete standard operating procedures for any restoration work type. Enter a work type like "Water Damage" or "Mold Remediation" and the AI generates 5–7 phases with 3–8 tasks each — including checklists, role assignments, duration estimates, and IICRC/OSHA compliance references.</p>
+      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/></svg></div><div><span class="callout-lbl">Pro tip</span><p>Configure your company's roles (Project Manager, Lead Tech, etc.) and status triggers before generating — the AI will assign tasks to your actual team roles and wire up status automations.</p></div></div>
+      <h2>Step-by-Step: Generating an SOP</h2>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Open MindFlow and select SOP Generator</div><p class="step-desc">Navigate to the MindFlow section (Cortex AI tools) and choose "Generate SOP". Select the work type you want to create a procedure for.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Configure roles and status triggers</div><p class="step-desc">Optionally set your team roles (the AI assigns tasks to these roles) and status triggers (e.g., "When task 'Final Walkthrough' completes → move project to 'Completed'").</p></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Add context notes</div><p class="step-desc">Include any specific requirements — "include PPE checklist", "reference OSHA confined space protocols", etc. The AI incorporates these into the generated workflow.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Generate and review the SOP</div><p class="step-desc">Click Generate (costs 1 Cortex Coin). The AI returns a complete, phased workflow.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z"/></svg>
+    <span style="color:#fff;font-weight:600;font-size:14px;">Generated SOP: Water Damage</span>
+  </div>
+  <!-- Phase 1 -->
+  <div style="border:1px solid #2a2a2a;border-radius:8px;overflow:hidden;margin-bottom:10px;">
+    <div style="background:#1c1c1c;padding:10px 14px;border-bottom:1px solid #2a2a2a;display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="background:#f05757;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;">Phase 1</span>
+        <span style="color:#fff;font-size:12px;font-weight:600;">Emergency Response &amp; Assessment</span>
+      </div>
+      <span style="color:#777;font-size:10px;">2–4 hrs · 5 tasks</span>
+    </div>
+    <div style="padding:10px 14px;">
+      <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;">
+        <div style="width:16px;height:16px;border:1.5px solid #2a2a2a;border-radius:4px;flex-shrink:0;margin-top:1px;"></div>
+        <div>
+          <div style="color:#fff;font-size:12px;font-weight:500;">Dispatch crew to site</div>
+          <div style="color:#777;font-size:10px;">Lead Tech · Critical · 30 min</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;">
+        <div style="width:16px;height:16px;border:1.5px solid #2a2a2a;border-radius:4px;flex-shrink:0;margin-top:1px;"></div>
+        <div>
+          <div style="color:#fff;font-size:12px;font-weight:500;">Document initial conditions (photos + moisture)</div>
+          <div style="color:#777;font-size:10px;">Field Tech · Critical · 45 min · <span style="color:#f05757;">IICRC S500 §10</span></div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:8px;">
+        <div style="width:16px;height:16px;border:1.5px solid #22c55e;border-radius:4px;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;"><svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="#22c55e" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg></div>
+        <div>
+          <div style="color:#fff;font-size:12px;font-weight:500;">Set up containment barriers</div>
+          <div style="color:#777;font-size:10px;">Lead Tech · High · 60 min · <span style="color:#f05757;">OSHA 1926.502</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Phase 2 -->
+  <div style="border:1px solid #2a2a2a;border-radius:8px;overflow:hidden;">
+    <div style="background:#1c1c1c;padding:10px 14px;border-bottom:1px solid #2a2a2a;display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="background:#e89c18;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;">Phase 2</span>
+        <span style="color:#fff;font-size:12px;font-weight:600;">Water Extraction &amp; Mitigation</span>
+      </div>
+      <span style="color:#777;font-size:10px;">4–8 hrs · 6 tasks</span>
+    </div>
+    <div style="padding:10px 14px;color:#777;font-size:11px;font-style:italic;">+ 6 tasks including equipment setup, extraction, antimicrobial treatment...</div>
+  </div>
+  <div style="color:#555;font-size:11px;text-align:center;margin-top:10px;">+ 5 more phases: Drying & Monitoring, Documentation, Reconstruction...</div>
+</div></div></div>
+        <div class="step"><div class="step-num">5</div><div class="step-body"><div class="step-title">Apply the SOP as a workflow template</div><p class="step-desc">Click "Apply to Project" to load the generated phases and tasks into any project, or save it as a reusable workflow template for future jobs of the same type.</p></div></div>
+      </div>
+      <div class="callout warn"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#eab308" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg></div><div><span class="callout-lbl">Important</span><p>Generated SOPs are starting templates, not final procedures. Always review task durations, role assignments, and compliance references against your company's actual capabilities and local regulations.</p></div></div>
+      <div class="quiz-section" id="quiz-sop-generation">
+        <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: SOP Generation</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
+        <div class="progress-bar"><div class="progress-fill" id="prog-sop-generation" style="width:0%"></div></div>
+        <div class="quiz-question" id="q-sg-1"><div class="q-num">Question 1 of 3</div><div class="q-text">How many phases does the AI typically generate for a standard SOP?</div><div class="options"><div class="option" onclick="pick(this,'q-sg-1','a')"><div class="opt-marker">A</div>1–2 phases with many tasks each</div><div class="option" onclick="pick(this,'q-sg-1','b')"><div class="opt-marker">B</div>5–7 phases with 3–8 tasks each</div><div class="option" onclick="pick(this,'q-sg-1','c')"><div class="opt-marker">C</div>10+ phases with 1 task each</div></div><div class="opt-feedback" id="fb-sg-1"></div></div>
+        <div class="quiz-question" id="q-sg-2"><div class="q-num">Question 2 of 3</div><div class="q-text">What compliance standards does the SOP generator reference?</div><div class="options"><div class="option" onclick="pick(this,'q-sg-2','a')"><div class="opt-marker">A</div>Only state-specific building codes</div><div class="option" onclick="pick(this,'q-sg-2','b')"><div class="opt-marker">B</div>IICRC standards (S500, S520, S540) and OSHA regulations</div><div class="option" onclick="pick(this,'q-sg-2','c')"><div class="opt-marker">C</div>No compliance references are included</div></div><div class="opt-feedback" id="fb-sg-2"></div></div>
+        <div class="quiz-question" id="q-sg-3"><div class="q-num">Question 3 of 3</div><div class="q-text">What can you do with a generated SOP after reviewing it?</div><div class="options"><div class="option" onclick="pick(this,'q-sg-3','a')"><div class="opt-marker">A</div>Only view it — it cannot be applied</div><div class="option" onclick="pick(this,'q-sg-3','b')"><div class="opt-marker">B</div>Apply it to a project or save it as a reusable workflow template</div><div class="option" onclick="pick(this,'q-sg-3','c')"><div class="opt-marker">C</div>Email it to IICRC for certification</div></div><div class="opt-feedback" id="fb-sg-3"></div></div>
+        <div class="quiz-score" id="score-sop-generation"><div class="score-ring"><span class="score-num" id="sn-sop-generation">0</span><span class="score-denom">/ 3</span></div><p class="score-msg" id="sm-sop-generation"></p><button class="btn btn-ghost" onclick="resetQuiz('sop-generation')">Try Again</button></div>
+        <div class="quiz-actions" id="qa-sop-generation"><button class="btn btn-red" onclick="grade('sop-generation')">Submit Answers</button><button class="btn btn-ghost" onclick="resetQuiz('sop-generation')">Reset</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10-F  Review Requests -->
+  <div id="view-review-requests" class="content-view">
+    <div class="article-area">
+      <div class="article-hero">
+        <div class="eyebrow">Reputation</div>
+        <h1 class="art-title">Review <span class="red">Requests</span></h1>
+        <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>4 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>Intermediate</span></div>
+      </div>
+      <p>Automatically request Google reviews from satisfied clients when their project is marked as Completed. Job-Dox sends an SMS with a personalized link, and you can track sent, clicked, and completed reviews in the reputation dashboard. This automation runs without manual effort — just configure it once and let every completed job drive your online presence.</p>
+      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/></svg></div><div><span class="callout-lbl">Pro tip</span><p>Time your review requests right — the SMS goes out when the project status changes to "Completed". Make sure your final walkthrough is done and the client is happy before marking the project complete.</p></div></div>
+      <h2>Step-by-Step: Setting Up Review Requests</h2>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Create an automation trigger</div><p class="step-desc">Go to Automations › Triggers &amp; Rules. Create a new trigger with: Event = "Project Status Changed", Condition = status equals "Completed", Action = "Send Review Request".</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Configure your review link</div><p class="step-desc">Add your Google Business review URL in Settings › Reputation. This is the link clients receive in the SMS.</p></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Watch the automation in action</div><p class="step-desc">When a project is marked Completed, an SMS is auto-sent to the client with a friendly message and review link. The system tracks delivery, clicks, and completions.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"/></svg>
+    <span style="color:#fff;font-weight:600;font-size:14px;">Review Request Flow</span>
+  </div>
+  <!-- Flow steps -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:10px 14px;flex:1;text-align:center;">
+      <div style="color:#22c55e;font-size:10px;font-weight:700;margin-bottom:4px;">TRIGGER</div>
+      <div style="color:#fff;font-size:11px;font-weight:500;">Status → Completed</div>
+    </div>
+    <span style="color:#555;font-size:16px;">→</span>
+    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:10px 14px;flex:1;text-align:center;">
+      <div style="color:#f05757;font-size:10px;font-weight:700;margin-bottom:4px;">SMS SENT</div>
+      <div style="color:#fff;font-size:11px;font-weight:500;">Review link texted</div>
+    </div>
+    <span style="color:#555;font-size:16px;">→</span>
+    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:10px 14px;flex:1;text-align:center;">
+      <div style="color:#e89c18;font-size:10px;font-weight:700;margin-bottom:4px;">CLICKED</div>
+      <div style="color:#fff;font-size:11px;font-weight:500;">Client opens link</div>
+    </div>
+    <span style="color:#555;font-size:16px;">→</span>
+    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:10px 14px;flex:1;text-align:center;">
+      <div style="color:#22c55e;font-size:10px;font-weight:700;margin-bottom:4px;">REVIEWED</div>
+      <div style="color:#fff;font-size:11px;font-weight:500;">Review posted</div>
+    </div>
+  </div>
+  <!-- Stats row -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:10px;text-align:center;">
+      <div style="color:#fff;font-size:20px;font-weight:700;">47</div>
+      <div style="color:#777;font-size:10px;">Requests Sent</div>
+    </div>
+    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:10px;text-align:center;">
+      <div style="color:#e89c18;font-size:20px;font-weight:700;">32</div>
+      <div style="color:#777;font-size:10px;">Links Clicked</div>
+    </div>
+    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:10px;text-align:center;">
+      <div style="color:#22c55e;font-size:20px;font-weight:700;">19</div>
+      <div style="color:#777;font-size:10px;">Reviews Posted</div>
+    </div>
+  </div>
+</div></div></div>
+      </div>
+      <div class="callout warn"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#eab308" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg></div><div><span class="callout-lbl">Important</span><p>Review requests require a valid mobile phone number on the client record. If the client's phone field is empty or a landline, the SMS will not be delivered.</p></div></div>
+      <div class="quiz-section" id="quiz-review-requests">
+        <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Review Requests</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
+        <div class="progress-bar"><div class="progress-fill" id="prog-review-requests" style="width:0%"></div></div>
+        <div class="quiz-question" id="q-rr-1"><div class="q-num">Question 1 of 3</div><div class="q-text">What event triggers an automatic review request?</div><div class="options"><div class="option" onclick="pick(this,'q-rr-1','a')"><div class="opt-marker">A</div>When a new project is created</div><div class="option" onclick="pick(this,'q-rr-1','b')"><div class="opt-marker">B</div>When the project status changes to "Completed"</div><div class="option" onclick="pick(this,'q-rr-1','c')"><div class="opt-marker">C</div>When the first invoice is sent</div></div><div class="opt-feedback" id="fb-rr-1"></div></div>
+        <div class="quiz-question" id="q-rr-2"><div class="q-num">Question 2 of 3</div><div class="q-text">How is the review request delivered to the client?</div><div class="options"><div class="option" onclick="pick(this,'q-rr-2','a')"><div class="opt-marker">A</div>By email with a PDF attachment</div><div class="option" onclick="pick(this,'q-rr-2','b')"><div class="opt-marker">B</div>By SMS with a personalized review link</div><div class="option" onclick="pick(this,'q-rr-2','c')"><div class="opt-marker">C</div>By phone call from the project manager</div></div><div class="opt-feedback" id="fb-rr-2"></div></div>
+        <div class="quiz-question" id="q-rr-3"><div class="q-num">Question 3 of 3</div><div class="q-text">What metrics can you track in the reputation dashboard?</div><div class="options"><div class="option" onclick="pick(this,'q-rr-3','a')"><div class="opt-marker">A</div>Only the number of requests sent</div><div class="option" onclick="pick(this,'q-rr-3','b')"><div class="opt-marker">B</div>Requests sent, links clicked, and reviews posted</div><div class="option" onclick="pick(this,'q-rr-3','c')"><div class="opt-marker">C</div>Only star ratings received</div></div><div class="opt-feedback" id="fb-rr-3"></div></div>
+        <div class="quiz-score" id="score-review-requests"><div class="score-ring"><span class="score-num" id="sn-review-requests">0</span><span class="score-denom">/ 3</span></div><p class="score-msg" id="sm-review-requests"></p><button class="btn btn-ghost" onclick="resetQuiz('review-requests')">Try Again</button></div>
+        <div class="quiz-actions" id="qa-review-requests"><button class="btn btn-red" onclick="grade('review-requests')">Submit Answers</button><button class="btn btn-ghost" onclick="resetQuiz('review-requests')">Reset</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10-G  API Keys & Scopes -->
+  <div id="view-api-keys" class="content-view">
+    <div class="article-area">
+      <div class="article-hero">
+        <div class="eyebrow">Integrations</div>
+        <h1 class="art-title">API Keys &amp; <span class="red">Scopes</span></h1>
+        <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>5 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>Advanced</span></div>
+      </div>
+      <p>Job-Dox provides a REST API for integrating with external tools, custom dashboards, and automation platforms. API keys are scoped — you choose exactly which resources each key can access (projects, contacts, staff, events, webhooks) and whether it has read-only or read-write permissions.</p>
+      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/></svg></div><div><span class="callout-lbl">Pro tip</span><p>Create separate API keys for each integration (one for Zapier, one for your BI dashboard, etc.). This way you can revoke a single key without disrupting other integrations.</p></div></div>
+      <h2>Step-by-Step: Creating an API Key</h2>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Go to Settings › Integrations › API Keys</div><p class="step-desc">Open the Integrations section in your company settings and select API Keys. You'll see all existing keys with their creation dates and scopes.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Click "Create New Key"</div><p class="step-desc">Name your key descriptively (e.g., "Zapier Production" or "BI Dashboard Read-Only") and select the scopes you need.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z"/></svg>
+    <span style="color:#fff;font-weight:600;font-size:14px;">Create API Key</span>
+  </div>
+  <div style="margin-bottom:12px;">
+    <div style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;margin-bottom:4px;">Key Name</div>
+    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:8px 12px;color:#fff;font-size:12px;">Zapier Production</div>
+  </div>
+  <div style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;margin-bottom:8px;">Scopes</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:6px;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:8px 10px;">
+      <div style="width:14px;height:14px;border-radius:3px;background:#f05757;display:flex;align-items:center;justify-content:center;"><svg width="9" height="9" fill="none" viewBox="0 0 24 24" stroke="#fff" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg></div>
+      <span style="color:#fff;font-size:11px;">projects:read</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:8px 10px;">
+      <div style="width:14px;height:14px;border-radius:3px;background:#f05757;display:flex;align-items:center;justify-content:center;"><svg width="9" height="9" fill="none" viewBox="0 0 24 24" stroke="#fff" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg></div>
+      <span style="color:#fff;font-size:11px;">projects:write</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:8px 10px;">
+      <div style="width:14px;height:14px;border-radius:3px;background:#f05757;display:flex;align-items:center;justify-content:center;"><svg width="9" height="9" fill="none" viewBox="0 0 24 24" stroke="#fff" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg></div>
+      <span style="color:#fff;font-size:11px;">contacts:read</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:8px 10px;">
+      <div style="width:14px;height:14px;border-radius:3px;border:1.5px solid #2a2a2a;"></div>
+      <span style="color:#777;font-size:11px;">contacts:write</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:8px 10px;">
+      <div style="width:14px;height:14px;border-radius:3px;border:1.5px solid #2a2a2a;"></div>
+      <span style="color:#777;font-size:11px;">staff:read</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:8px 10px;">
+      <div style="width:14px;height:14px;border-radius:3px;background:#f05757;display:flex;align-items:center;justify-content:center;"><svg width="9" height="9" fill="none" viewBox="0 0 24 24" stroke="#fff" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg></div>
+      <span style="color:#fff;font-size:11px;">webhooks:manage</span>
+    </div>
+  </div>
+  <div style="background:#0d1a0d;border:1px solid #1a3a1a;border-radius:8px;padding:12px;margin-bottom:12px;">
+    <div style="color:#22c55e;font-size:10px;font-weight:600;text-transform:uppercase;margin-bottom:4px;">Generated Key — Copy Now</div>
+    <div style="color:#fff;font-size:11px;font-family:monospace;word-break:break-all;">jdx_live_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8</div>
+  </div>
+  <div style="color:#e89c18;font-size:11px;display:flex;align-items:center;gap:6px;">
+    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#e89c18" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+    This key will only be shown once. Copy it now.
+  </div>
+</div></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Copy the key immediately</div><p class="step-desc">The API key is shown only once on creation. Copy it to your password manager or integration config right away. If you lose it, you'll need to create a new key.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Revoking a compromised key</div><p class="step-desc">If a key is leaked or no longer needed, click the revoke button next to it. The key is disabled instantly — any integrations using it will stop working immediately.</p></div></div>
+      </div>
+      <div class="callout warn"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#eab308" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg></div><div><span class="callout-lbl">Important</span><p>Never share API keys in emails, chat messages, or public repositories. Treat them like passwords. Use environment variables or secret managers for production integrations.</p></div></div>
+      <div class="quiz-section" id="quiz-api-keys">
+        <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: API Keys &amp; Scopes</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
+        <div class="progress-bar"><div class="progress-fill" id="prog-api-keys" style="width:0%"></div></div>
+        <div class="quiz-question" id="q-ak-1"><div class="q-num">Question 1 of 3</div><div class="q-text">Why should you create separate API keys for each integration?</div><div class="options"><div class="option" onclick="pick(this,'q-ak-1','a')"><div class="opt-marker">A</div>It makes the keys easier to remember</div><div class="option" onclick="pick(this,'q-ak-1','b')"><div class="opt-marker">B</div>So you can revoke one key without disrupting other integrations</div><div class="option" onclick="pick(this,'q-ak-1','c')"><div class="opt-marker">C</div>Job-Dox limits each key to one API call per minute</div></div><div class="opt-feedback" id="fb-ak-1"></div></div>
+        <div class="quiz-question" id="q-ak-2"><div class="q-num">Question 2 of 3</div><div class="q-text">How many times can you view an API key after creation?</div><div class="options"><div class="option" onclick="pick(this,'q-ak-2','a')"><div class="opt-marker">A</div>As many times as you want from the settings page</div><div class="option" onclick="pick(this,'q-ak-2','b')"><div class="opt-marker">B</div>Only once — it's shown only at creation time</div><div class="option" onclick="pick(this,'q-ak-2','c')"><div class="opt-marker">C</div>Three times within 24 hours</div></div><div class="opt-feedback" id="fb-ak-2"></div></div>
+        <div class="quiz-question" id="q-ak-3"><div class="q-num">Question 3 of 3</div><div class="q-text">What happens when you revoke an API key?</div><div class="options"><div class="option" onclick="pick(this,'q-ak-3','a')"><div class="opt-marker">A</div>It's disabled after a 30-day grace period</div><div class="option" onclick="pick(this,'q-ak-3','b')"><div class="opt-marker">B</div>It's disabled instantly and all integrations using it stop working</div><div class="option" onclick="pick(this,'q-ak-3','c')"><div class="opt-marker">C</div>It's moved to a "paused" state that can be reactivated</div></div><div class="opt-feedback" id="fb-ak-3"></div></div>
+        <div class="quiz-score" id="score-api-keys"><div class="score-ring"><span class="score-num" id="sn-api-keys">0</span><span class="score-denom">/ 3</span></div><p class="score-msg" id="sm-api-keys"></p><button class="btn btn-ghost" onclick="resetQuiz('api-keys')">Try Again</button></div>
+        <div class="quiz-actions" id="qa-api-keys"><button class="btn btn-red" onclick="grade('api-keys')">Submit Answers</button><button class="btn btn-ghost" onclick="resetQuiz('api-keys')">Reset</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10-H  Webhooks -->
+  <div id="view-webhooks" class="content-view">
+    <div class="article-area">
+      <div class="article-hero">
+        <div class="eyebrow">Integrations</div>
+        <h1 class="art-title">Web<span class="red">hooks</span></h1>
+        <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>5 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>Advanced</span></div>
+      </div>
+      <p>Webhooks let external systems receive real-time notifications when events happen in Job-Dox — project created, status changed, task completed, document signed, and more. Register an endpoint URL, select the events you care about, and Job-Dox will POST event data to your URL as it happens. Perfect for Zapier, Make, or custom integrations.</p>
+      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/></svg></div><div><span class="callout-lbl">Pro tip</span><p>Use the "webhook.test" event to verify your endpoint is receiving payloads before subscribing to production events. This avoids silent failures in your integrations.</p></div></div>
+      <h2>Step-by-Step: Registering a Webhook</h2>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Navigate to Settings › Integrations › Webhooks</div><p class="step-desc">Open the Webhooks management page to see existing endpoints and their delivery status.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Add a new webhook endpoint</div><p class="step-desc">Enter your endpoint URL and select which events should trigger deliveries. Choose from project events, task events, document events, and more.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5"/></svg>
+    <span style="color:#fff;font-weight:600;font-size:14px;">Register Webhook</span>
+  </div>
+  <div style="margin-bottom:12px;">
+    <div style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;margin-bottom:4px;">Endpoint URL</div>
+    <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:8px 12px;color:#fff;font-size:11px;font-family:monospace;">https://hooks.zapier.com/hooks/catch/123456/abcdef/</div>
+  </div>
+  <div style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;margin-bottom:8px;">Events</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:6px;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:6px 10px;">
+      <div style="width:14px;height:14px;border-radius:3px;background:#f05757;display:flex;align-items:center;justify-content:center;"><svg width="9" height="9" fill="none" viewBox="0 0 24 24" stroke="#fff" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg></div>
+      <span style="color:#fff;font-size:11px;">project.created</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:6px 10px;">
+      <div style="width:14px;height:14px;border-radius:3px;background:#f05757;display:flex;align-items:center;justify-content:center;"><svg width="9" height="9" fill="none" viewBox="0 0 24 24" stroke="#fff" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg></div>
+      <span style="color:#fff;font-size:11px;">project.status_changed</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:6px 10px;">
+      <div style="width:14px;height:14px;border-radius:3px;background:#f05757;display:flex;align-items:center;justify-content:center;"><svg width="9" height="9" fill="none" viewBox="0 0 24 24" stroke="#fff" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg></div>
+      <span style="color:#fff;font-size:11px;">task.completed</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:6px 10px;">
+      <div style="width:14px;height:14px;border-radius:3px;border:1.5px solid #2a2a2a;"></div>
+      <span style="color:#777;font-size:11px;">document.signed</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:6px 10px;">
+      <div style="width:14px;height:14px;border-radius:3px;border:1.5px solid #2a2a2a;"></div>
+      <span style="color:#777;font-size:11px;">invoice.sent</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:6px;padding:6px 10px;">
+      <div style="width:14px;height:14px;border-radius:3px;background:#f05757;display:flex;align-items:center;justify-content:center;"><svg width="9" height="9" fill="none" viewBox="0 0 24 24" stroke="#fff" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg></div>
+      <span style="color:#fff;font-size:11px;">webhook.test</span>
+    </div>
+  </div>
+  <div style="color:#777;font-size:10px;font-weight:600;text-transform:uppercase;margin-bottom:8px;">Delivery Log</div>
+  <div style="border:1px solid #2a2a2a;border-radius:6px;overflow:hidden;">
+    <div style="display:grid;grid-template-columns:auto 2fr 1fr 1fr;padding:6px 10px;border-bottom:1px solid #2a2a2a;gap:8px;">
+      <span style="color:#22c55e;font-size:10px;font-weight:700;">200</span>
+      <span style="color:#c8c8c8;font-size:11px;">project.status_changed</span>
+      <span style="color:#777;font-size:11px;">142ms</span>
+      <span style="color:#555;font-size:11px;">2 min ago</span>
+    </div>
+    <div style="display:grid;grid-template-columns:auto 2fr 1fr 1fr;padding:6px 10px;border-bottom:1px solid #2a2a2a;gap:8px;">
+      <span style="color:#22c55e;font-size:10px;font-weight:700;">200</span>
+      <span style="color:#c8c8c8;font-size:11px;">task.completed</span>
+      <span style="color:#777;font-size:11px;">89ms</span>
+      <span style="color:#555;font-size:11px;">15 min ago</span>
+    </div>
+    <div style="display:grid;grid-template-columns:auto 2fr 1fr 1fr;padding:6px 10px;gap:8px;">
+      <span style="color:#f05757;font-size:10px;font-weight:700;">500</span>
+      <span style="color:#c8c8c8;font-size:11px;">webhook.test</span>
+      <span style="color:#777;font-size:11px;">timeout</span>
+      <span style="color:#555;font-size:11px;">1 hr ago</span>
+    </div>
+  </div>
+</div></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Test your endpoint</div><p class="step-desc">Click "Send Test" to fire a webhook.test event to your URL. Check the delivery log for a 200 status code confirming your endpoint received the payload.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Monitor delivery health</div><p class="step-desc">The delivery log shows every webhook attempt with HTTP status, response time, and timestamp. Failed deliveries (4xx/5xx) are retried automatically with exponential backoff.</p></div></div>
+      </div>
+      <div class="callout warn"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#eab308" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg></div><div><span class="callout-lbl">Important</span><p>Webhook endpoints must respond with a 2xx status within 10 seconds. If your endpoint consistently times out or returns errors, deliveries will be paused after 10 consecutive failures.</p></div></div>
+      <div class="quiz-section" id="quiz-webhooks">
+        <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Webhooks</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
+        <div class="progress-bar"><div class="progress-fill" id="prog-webhooks" style="width:0%"></div></div>
+        <div class="quiz-question" id="q-wh-1"><div class="q-num">Question 1 of 3</div><div class="q-text">What should you use the "webhook.test" event for?</div><div class="options"><div class="option" onclick="pick(this,'q-wh-1','a')"><div class="opt-marker">A</div>Testing if your Job-Dox account is active</div><div class="option" onclick="pick(this,'q-wh-1','b')"><div class="opt-marker">B</div>Verifying your endpoint receives payloads before subscribing to production events</div><div class="option" onclick="pick(this,'q-wh-1','c')"><div class="opt-marker">C</div>Deleting all existing webhook registrations</div></div><div class="opt-feedback" id="fb-wh-1"></div></div>
+        <div class="quiz-question" id="q-wh-2"><div class="q-num">Question 2 of 3</div><div class="q-text">What happens when a webhook delivery fails?</div><div class="options"><div class="option" onclick="pick(this,'q-wh-2','a')"><div class="opt-marker">A</div>The event data is permanently lost</div><div class="option" onclick="pick(this,'q-wh-2','b')"><div class="opt-marker">B</div>Job-Dox retries automatically with exponential backoff</div><div class="option" onclick="pick(this,'q-wh-2','c')"><div class="opt-marker">C</div>The webhook is immediately deleted</div></div><div class="opt-feedback" id="fb-wh-2"></div></div>
+        <div class="quiz-question" id="q-wh-3"><div class="q-num">Question 3 of 3</div><div class="q-text">What is the timeout requirement for webhook endpoints?</div><div class="options"><div class="option" onclick="pick(this,'q-wh-3','a')"><div class="opt-marker">A</div>60 seconds</div><div class="option" onclick="pick(this,'q-wh-3','b')"><div class="opt-marker">B</div>10 seconds with a 2xx status response</div><div class="option" onclick="pick(this,'q-wh-3','c')"><div class="opt-marker">C</div>No timeout — endpoints can take as long as needed</div></div><div class="opt-feedback" id="fb-wh-3"></div></div>
+        <div class="quiz-score" id="score-webhooks"><div class="score-ring"><span class="score-num" id="sn-webhooks">0</span><span class="score-denom">/ 3</span></div><p class="score-msg" id="sm-webhooks"></p><button class="btn btn-ghost" onclick="resetQuiz('webhooks')">Try Again</button></div>
+        <div class="quiz-actions" id="qa-webhooks"><button class="btn btn-red" onclick="grade('webhooks')">Submit Answers</button><button class="btn btn-ghost" onclick="resetQuiz('webhooks')">Reset</button></div>
+      </div>
+    </div>
+  </div>
+
   <!-- PLACEHOLDER -->
   <div id="view-placeholder" class="content-view">
     <div class="article-area">
@@ -3469,14 +4018,22 @@ const QUIZZES = {
   'invoicing':{answers:{'q-iv-1':'b','q-iv-2':'b','q-iv-3':'b'},feedback:{'q-iv-1':{ok:'Correct! Auto-populate pulls all recorded expenses into line items instantly.',bad:'✗ The button pulls recorded expenses into invoice line items automatically.'},'q-iv-2':{ok:'Correct! Invoice statuses are Sent, Viewed, Paid, and Overdue.',bad:'✗ The four invoice statuses are Sent, Viewed, Paid, and Overdue.'},'q-iv-3':{ok:'Correct! You can email directly or download as PDF.',bad:'✗ Invoices can be emailed directly to clients or downloaded as PDF.'}},total:3},
   'profit-margin':{answers:{'q-pm-1':'b','q-pm-2':'b','q-pm-3':'a'},feedback:{'q-pm-1':{ok:'Correct! The profit report compares total invoiced revenue against all recorded expenses.',bad:'✗ It compares total invoiced revenue vs. all recorded expenses.'},'q-pm-2':{ok:'Correct! Run reports weekly to catch margin erosion early.',bad:'✗ Weekly reporting helps you catch margin erosion before it\'s too late.'},'q-pm-3':{ok:'Correct! Reports can be exported as PDF or CSV.',bad:'✗ Financial reports can be downloaded as PDF or CSV.'}},total:3},
   'first-login':{answers:{'q-fl-1':'b','q-fl-2':'b','q-fl-3':'b'},feedback:{'q-fl-1':{ok:'Correct! The portal lives at app.job-dox.ai.',bad:'✗ The correct URL is app.job-dox.ai.'},'q-fl-2':{ok:'Correct! Accepting the invite links you to your company workspace.',bad:'✗ Click Accept Invite to join the shared workspace.'},'q-fl-3':{ok:'Correct! Settings › Notifications is where you manage alerts.',bad:'✗ Go to Settings › Notifications to change preferences.'}},total:3},
-  'dashboard-tour':{answers:{'q-dt-1':'b','q-dt-2':'c','q-dt-3':'b'},feedback:{'q-dt-1':{ok:'Correct! Each card shows job name, client, status, and progress.',bad:'✗ Cards display job name, client, status badge, and progress bar.'},'q-dt-2':{ok:'Correct! Red numbers flag overdue tasks that need attention.',bad:'✗ A red number in the stats ribbon means overdue tasks.'},'q-dt-3':{ok:'Correct! Missing jobs usually mean a permissions issue.',bad:'✗ You may lack permission — ask your Admin to check your role.'}},total:3}
+  'dashboard-tour':{answers:{'q-dt-1':'b','q-dt-2':'c','q-dt-3':'b'},feedback:{'q-dt-1':{ok:'Correct! Each card shows job name, client, status, and progress.',bad:'✗ Cards display job name, client, status badge, and progress bar.'},'q-dt-2':{ok:'Correct! Red numbers flag overdue tasks that need attention.',bad:'✗ A red number in the stats ribbon means overdue tasks.'},'q-dt-3':{ok:'Correct! Missing jobs usually mean a permissions issue.',bad:'✗ You may lack permission — ask your Admin to check your role.'}},total:3},
+  'call-transcription':{answers:{'q-ct2-1':'b','q-ct2-2':'b','q-ct2-3':'b'},feedback:{'q-ct2-1':{ok:'Correct! The AI auto-creates a project after checking for existing customers.',bad:'✗ With auto-create enabled, the AI creates a project after checking for duplicates by name, phone, and address.'},'q-ct2-2':{ok:'Correct! It matches by customer name, phone number, and address against existing projects.',bad:'✗ The system checks name, phone, and address to prevent duplicate project creation.'},'q-ct2-3':{ok:'Correct! Each transcription costs 1 Cortex Coin from the billing cycle.',bad:'✗ Each transcription deducts 1 Cortex Coin from your company\'s billing cycle.'}},total:3},
+  'sms-messaging':{answers:{'q-sm-1':'b','q-sm-2':'b','q-sm-3':'b'},feedback:{'q-sm-1':{ok:'Correct! All SMS messages are logged in the project activity feed.',bad:'✗ Messages are saved as permanent records in the project activity feed.'},'q-sm-2':{ok:'Correct! SMS delivery is powered by Twilio.',bad:'✗ Job-Dox uses Twilio for SMS delivery.'},'q-sm-3':{ok:'Correct! Trigger targeted texts on meaningful status changes.',bad:'✗ Use automation triggers for status changes like "En Route" or "Completed" — not every update.'}},total:3},
+  'cortex-coins':{answers:{'q-cc-1':'b','q-cc-2':'b','q-cc-3':'b'},feedback:{'q-cc-1':{ok:'Correct! 300 coins per 28-day cycle with unused coins rolling over.',bad:'✗ Companies get 300 coins per 28-day cycle, and unused coins roll over.'},'q-cc-2':{ok:'Correct! AI features are paused until the next billing cycle resets.',bad:'✗ AI features pause — they\'re not disabled. Everything resumes when the cycle resets.'},'q-cc-3':{ok:'Correct! An alert is sent when usage reaches 80%.',bad:'✗ The 80% threshold triggers an automatic alert to help you ration remaining coins.'}},total:3},
+  'adjuster-ai':{answers:{'q-ar-1':'b','q-ar-2':'b','q-ar-3':'b'},feedback:{'q-ar-1':{ok:'Correct! Responses reference IICRC standards, Xactimate guidelines, and O&P entitlements.',bad:'✗ The AI cites IICRC standards (S500, S520, S540, S600), Xactimate, and O&P entitlements.'},'q-ar-2':{ok:'Correct! Always verify cited standards match your actual project documentation.',bad:'✗ AI responses are drafts — verify all cited data against your records before sending.'},'q-ar-3':{ok:'Correct! The AI uses project notes as context for stronger, evidence-backed arguments.',bad:'✗ Detailed notes give the AI more context to build specific, evidence-backed responses.'}},total:3},
+  'sop-generation':{answers:{'q-sg-1':'b','q-sg-2':'b','q-sg-3':'b'},feedback:{'q-sg-1':{ok:'Correct! The AI generates 5–7 phases with 3–8 tasks each.',bad:'✗ SOPs are structured as 5–7 phases, each containing 3–8 actionable tasks.'},'q-sg-2':{ok:'Correct! IICRC standards and OSHA regulations are referenced.',bad:'✗ The generator references IICRC standards (S500, S520, S540) and OSHA regulations.'},'q-sg-3':{ok:'Correct! Apply it to a project or save as a reusable workflow template.',bad:'✗ Generated SOPs can be applied directly to projects or saved as reusable templates.'}},total:3},
+  'review-requests':{answers:{'q-rr-1':'b','q-rr-2':'b','q-rr-3':'b'},feedback:{'q-rr-1':{ok:'Correct! Review requests trigger when a project status changes to "Completed".',bad:'✗ The automation fires when a project\'s status changes to Completed.'},'q-rr-2':{ok:'Correct! Clients receive an SMS with a personalized review link.',bad:'✗ Review requests are delivered via SMS with a link to leave a review.'},'q-rr-3':{ok:'Correct! You can track requests sent, links clicked, and reviews posted.',bad:'✗ The reputation dashboard tracks sent, clicked, and completed reviews.'}},total:3},
+  'api-keys':{answers:{'q-ak-1':'b','q-ak-2':'b','q-ak-3':'b'},feedback:{'q-ak-1':{ok:'Correct! Separate keys let you revoke one without disrupting others.',bad:'✗ One key per integration means you can revoke individually without disrupting other integrations.'},'q-ak-2':{ok:'Correct! API keys are shown only once — at creation time.',bad:'✗ Keys are displayed only at creation. Copy immediately or create a new one.'},'q-ak-3':{ok:'Correct! Revocation is instant and all integrations using the key stop immediately.',bad:'✗ Revoking a key disables it instantly — any integration using it will stop working.'}},total:3},
+  'webhooks':{answers:{'q-wh-1':'b','q-wh-2':'b','q-wh-3':'b'},feedback:{'q-wh-1':{ok:'Correct! Use webhook.test to verify your endpoint before subscribing to production events.',bad:'✗ The test event confirms your endpoint receives payloads correctly.'},'q-wh-2':{ok:'Correct! Failed deliveries are retried with exponential backoff.',bad:'✗ Job-Dox automatically retries failed webhook deliveries with exponential backoff.'},'q-wh-3':{ok:'Correct! Endpoints must respond within 10 seconds with a 2xx status.',bad:'✗ The timeout is 10 seconds and the response must be a 2xx status code.'}},total:3}
 };
 const picks={};
 function pick(el,qId,val){const q=document.getElementById(qId);if(q.classList.contains('answered'))return;q.querySelectorAll('.option').forEach(o=>o.classList.remove('selected'));el.classList.add('selected');picks[qId]=val;}
 function grade(quizId){const data=QUIZZES[quizId];let score=0;const letters=['a','b','c','d'];Object.keys(data.answers).forEach(qId=>{const q=document.getElementById(qId);const correct=data.answers[qId];const chosen=picks[qId];q.classList.add('answered');q.querySelectorAll('.option').forEach((o,i)=>{o.classList.add('locked');if(letters[i]===correct)o.classList.add('correct');else if(letters[i]===chosen&&chosen!==correct)o.classList.add('incorrect');});const fbKey=qId.replace('q-','');const fbEl=document.getElementById('fb-'+fbKey);if(chosen===correct){score++;fbEl.textContent=data.feedback[qId].ok;fbEl.className='opt-feedback show ok';}else{fbEl.textContent=data.feedback[qId].bad;fbEl.className='opt-feedback show bad';}});document.getElementById('prog-'+quizId).style.width='100%';document.getElementById('sn-'+quizId).textContent=score;const pct=Math.round(score/data.total*100);document.getElementById('sm-'+quizId).textContent=pct===100?'★ Perfect! You\'ve mastered this section.':pct>=70?'+ Good work! Review any missed questions above.':'→ Keep studying — try again when ready.';document.getElementById('score-'+quizId).classList.add('show');document.getElementById('qa-'+quizId).style.display='none';}
 function resetQuiz(quizId){const data=QUIZZES[quizId];Object.keys(data.answers).forEach(qId=>{delete picks[qId];const q=document.getElementById(qId);q.classList.remove('answered');q.querySelectorAll('.option').forEach(o=>o.classList.remove('selected','correct','incorrect','locked'));const fbKey=qId.replace('q-','');const fb=document.getElementById('fb-'+fbKey);if(fb){fb.className='opt-feedback';fb.textContent='';}});document.getElementById('prog-'+quizId).style.width='0%';document.getElementById('score-'+quizId).classList.remove('show');document.getElementById('qa-'+quizId).style.display='flex';}
-const VIEW_META={'welcome':{title:'Welcome',eyebrow:''},'account-setup':{title:'Account Setup',eyebrow:'Onboarding'},'first-login':{title:'First Login Walkthrough',eyebrow:'Onboarding'},'dashboard-tour':{title:'Dashboard Tour',eyebrow:'Onboarding'},'create-job':{title:'Creating a Job',eyebrow:'Projects & Jobs'},'job-status':{title:'Job Status & Phases',eyebrow:'Projects & Jobs'},'job-notes':{title:'Notes & Activity Log',eyebrow:'Projects & Jobs'},'job-photos':{title:'Attaching Photos',eyebrow:'Projects & Jobs'},'create-task':{title:'Creating Tasks',eyebrow:'Tasks & Scheduling'},'assign-task':{title:'Assigning to Team Members',eyebrow:'Tasks & Scheduling'},'task-calendar':{title:'Calendar View',eyebrow:'Tasks & Scheduling'},'recurring-tasks':{title:'Recurring Tasks',eyebrow:'Tasks & Scheduling'},'add-user':{title:'Adding Users',eyebrow:'Team & CRM'},'roles':{title:'Roles & Permissions',eyebrow:'Team & CRM'},'clients':{title:'Managing Clients',eyebrow:'Team & CRM'},'contacts':{title:'Contacts & Leads',eyebrow:'Team & CRM'},'budget-setup':{title:'Setting a Budget',eyebrow:'Budgeting & Finance'},'expenses':{title:'Recording Expenses',eyebrow:'Budgeting & Finance'},'invoicing':{title:'Invoicing',eyebrow:'Budgeting & Finance'},'profit-margin':{title:'Profit & Margin Reports',eyebrow:'Budgeting & Finance'},'upload-docs':{title:'Uploading Documents',eyebrow:'Documents & Files'},'doc-templates':{title:'Document Templates',eyebrow:'Documents & Files'},'esignature':{title:'E-Signatures',eyebrow:'Documents & Files'},'ai-alerts':{title:'Budget Overrun Alerts',eyebrow:'Cortex AI'},'ai-health':{title:'Project Health Scoring',eyebrow:'Cortex AI'},'ai-tasks':{title:'AI Auto-Tasks',eyebrow:'Cortex AI'},'crew-analytics':{title:'Crew Utilization Analytics',eyebrow:'Cortex AI'},'auto-triggers':{title:'Triggers & Rules',eyebrow:'Automations'},'auto-notifications':{title:'Automated Notifications',eyebrow:'Automations'},'auto-workflows':{title:'Workflow Templates',eyebrow:'Automations'},'job-reports':{title:'Job Summary Reports',eyebrow:'Reporting'},'crew-reports':{title:'Crew Performance',eyebrow:'Reporting'},'financial-reports':{title:'Financial Reports',eyebrow:'Reporting'}};
-const DEDICATED=new Set(['welcome','account-setup','first-login','dashboard-tour','create-job','job-status','job-notes','job-photos','create-task','assign-task','task-calendar','recurring-tasks','add-user','roles','clients','contacts','budget-setup','expenses','invoicing','profit-margin','upload-docs','doc-templates','esignature','ai-alerts','ai-health','ai-tasks','crew-analytics','auto-triggers','auto-notifications','auto-workflows','job-reports','crew-reports','financial-reports']);
+const VIEW_META={'welcome':{title:'Welcome',eyebrow:''},'account-setup':{title:'Account Setup',eyebrow:'Onboarding'},'first-login':{title:'First Login Walkthrough',eyebrow:'Onboarding'},'dashboard-tour':{title:'Dashboard Tour',eyebrow:'Onboarding'},'create-job':{title:'Creating a Job',eyebrow:'Projects & Jobs'},'job-status':{title:'Job Status & Phases',eyebrow:'Projects & Jobs'},'job-notes':{title:'Notes & Activity Log',eyebrow:'Projects & Jobs'},'job-photos':{title:'Attaching Photos',eyebrow:'Projects & Jobs'},'create-task':{title:'Creating Tasks',eyebrow:'Tasks & Scheduling'},'assign-task':{title:'Assigning to Team Members',eyebrow:'Tasks & Scheduling'},'task-calendar':{title:'Calendar View',eyebrow:'Tasks & Scheduling'},'recurring-tasks':{title:'Recurring Tasks',eyebrow:'Tasks & Scheduling'},'add-user':{title:'Adding Users',eyebrow:'Team & CRM'},'roles':{title:'Roles & Permissions',eyebrow:'Team & CRM'},'clients':{title:'Managing Clients',eyebrow:'Team & CRM'},'contacts':{title:'Contacts & Leads',eyebrow:'Team & CRM'},'budget-setup':{title:'Setting a Budget',eyebrow:'Budgeting & Finance'},'expenses':{title:'Recording Expenses',eyebrow:'Budgeting & Finance'},'invoicing':{title:'Invoicing',eyebrow:'Budgeting & Finance'},'profit-margin':{title:'Profit & Margin Reports',eyebrow:'Budgeting & Finance'},'upload-docs':{title:'Uploading Documents',eyebrow:'Documents & Files'},'doc-templates':{title:'Document Templates',eyebrow:'Documents & Files'},'esignature':{title:'E-Signatures',eyebrow:'Documents & Files'},'ai-alerts':{title:'Budget Overrun Alerts',eyebrow:'Cortex AI'},'ai-health':{title:'Project Health Scoring',eyebrow:'Cortex AI'},'ai-tasks':{title:'AI Auto-Tasks',eyebrow:'Cortex AI'},'crew-analytics':{title:'Crew Utilization Analytics',eyebrow:'Cortex AI'},'auto-triggers':{title:'Triggers & Rules',eyebrow:'Automations'},'auto-notifications':{title:'Automated Notifications',eyebrow:'Automations'},'auto-workflows':{title:'Workflow Templates',eyebrow:'Automations'},'job-reports':{title:'Job Summary Reports',eyebrow:'Reporting'},'crew-reports':{title:'Crew Performance',eyebrow:'Reporting'},'financial-reports':{title:'Financial Reports',eyebrow:'Reporting'},'call-transcription':{title:'Calls & Transcription',eyebrow:'Phone & SMS'},'sms-messaging':{title:'SMS Messaging',eyebrow:'Phone & SMS'},'cortex-coins':{title:'Cortex Coins',eyebrow:'Cortex AI'},'adjuster-ai':{title:'Adjuster Response AI',eyebrow:'Cortex AI'},'sop-generation':{title:'SOP Generation',eyebrow:'Cortex AI'},'review-requests':{title:'Review Requests',eyebrow:'Reputation'},'api-keys':{title:'API Keys & Scopes',eyebrow:'Integrations'},'webhooks':{title:'Webhooks',eyebrow:'Integrations'}};
+const DEDICATED=new Set(['welcome','account-setup','first-login','dashboard-tour','create-job','job-status','job-notes','job-photos','create-task','assign-task','task-calendar','recurring-tasks','add-user','roles','clients','contacts','budget-setup','expenses','invoicing','profit-margin','upload-docs','doc-templates','esignature','ai-alerts','ai-health','ai-tasks','crew-analytics','auto-triggers','auto-notifications','auto-workflows','job-reports','crew-reports','financial-reports','call-transcription','sms-messaging','cortex-coins','adjuster-ai','sop-generation','review-requests','api-keys','webhooks']);
 function showView(id){document.querySelectorAll('.content-view').forEach(v=>v.classList.remove('active'));if(DEDICATED.has(id)){document.getElementById('view-'+id).classList.add('active');}else{const meta=VIEW_META[id]||{title:id,eyebrow:''};document.getElementById('ph-eyebrow').textContent=meta.eyebrow;document.getElementById('ph-title').textContent=meta.title;document.getElementById('view-placeholder').classList.add('active');}const meta=VIEW_META[id]||{title:id};document.getElementById('bc-current').textContent=meta.title;document.querySelectorAll('.nav-item').forEach(el=>el.classList.toggle('active',el.getAttribute('onclick')?.includes("'"+id+"'")));if(window.innerWidth<=768)closeSidebar();window.scrollTo(0,0);}
 function toggleGroup(id){document.getElementById(id).classList.toggle('open');}
 function toggleSidebar(){
