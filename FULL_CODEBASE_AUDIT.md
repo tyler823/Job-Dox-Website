@@ -508,6 +508,16 @@ Covers: Every file in the repository
 | **Google Maps geocoding in Dispatch** | JobDoxDispatch.jsx uses Google Maps Geocoding API for address-to-coordinates. No API key management visible — likely needs a Google Maps API key configured somewhere. |
 | **LiDAR plugin** | Swift plugin exists and appears complete, but requires a compiled iOS app via Capacitor to function. Web fallback returns `{ supported: false }`. |
 | **Webhook event delivery trigger** | `api-webhooks-deliver.js` exists but there's no code that calls it when events are emitted. The event bus (`emitEvent` in shared/firebase.js) writes to Firestore but doesn't trigger webhook delivery. |
+| **DryDox: completedBy stub** | DryDoxMoisture.jsx line 432: `completedBy: ""` with comment "Would be filled from auth context" — user identity not wired in when marking drying complete. |
+| **DryDox: ESX export is XML not ZIP** | DryDoxESX.jsx generates raw XML, but real Xactimate ESX files are ZIP archives. Direct import into Xactimate may fail. |
+| **DryDox: Floor plan room positioning** | DryDoxFloorPlan.jsx references `room._x`/`room._y` for positioning but these are never set — rooms always use fallback sequential layout. |
+| **DryDox: Touch drag incomplete** | DryDoxEquipment.jsx has `onTouchStart` handler but no `onTouchMove`/`onTouchEnd` — drag on touch devices may not work. |
+| **DryDox: PDF generation** | DryDoxReport.jsx uses browser `window.print()` only, despite comment mentioning jsPDF. No server-side PDF generation. |
+| **LiDAR: Room label hardcoded** | Swift plugin labels all scanned rooms "Scanned Room" — no user-editable label during scan. |
+| **LiDAR: Max 4 walls** | Swift plugin only processes first 4 walls (`prefix(4)`) — rooms with more than 4 walls lose data. |
+| **LiDAR: Ceiling height fallback** | Defaults to 8.0 ft when floor-only scan detected — not always accurate. |
+| **No test suite** | No test framework, test scripts, or test files anywhere in the repository. |
+| **No linter configured** | No ESLint, Prettier, or any code quality tooling. |
 
 ### Inconsistencies
 
