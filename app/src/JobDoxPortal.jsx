@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback, Component } from "react";
 import { DocumentsTab, LogoUploadSection, DocumentTemplateCenter, setDocsCompanyId, PdfQuickSignModal } from "./JobDoxDocuments.jsx";
 import { FinancialTab, FinancialHealthBadge, FinancialDashboard } from "./JobDoxFinance.jsx";
 import { ReportsDashboard } from "./JobDoxReports.jsx";
@@ -96,6 +96,25 @@ const sendSMS            = data => callFn("send-sms",             data);
 const sendReviewRequest  = data => callFn("send-review-request", data);
 const initiateCall       = data => callFn("initiate-call",       data);
 const savePhoneSettings  = data => callFn("save-phone-settings", data);
+
+/* ── Error Boundary ── */
+class SettingsErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(err, info) { console.error("Settings tab error:", err, info); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="card" style={{padding:28,textAlign:"center",color:"var(--acc)"}}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>Something went wrong</div>
+          <div style={{fontSize:11,color:"var(--t3)",marginBottom:12,lineHeight:1.6}}>{String(this.state.error)}</div>
+          <button className="btn btn-ghost btn-sm" onClick={()=>this.setState({error:null})}>Try Again</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 /* ── Google Maps key — restrict this to your domain in Google Cloud Console ── */
 const GMAPS_KEY = "AIzaSyB63wo4pFCRReosTWPlkZ6eETg7zdPaQpM"; // ← replace with real key
@@ -10149,11 +10168,11 @@ function UsageBar({ label, color }) {
 
 function GeneralSettingsTab({ onWorkTypesChange, onStatusesChange, onProjectTypesChange }) {
   const [sec, setSec]         = useState("company");
-  const [coInfo, setCoInfo]   = useState(loadCoInfo);
+  const [coInfo, setCoInfo]   = useState(() => { try { const v = loadCoInfo(); return (v && typeof v === "object" && !Array.isArray(v)) ? v : {}; } catch { return {}; } });
   const [coSaved, setCoSaved] = useState(false);
-  const [workTypes, setWT]    = useState(loadCWT);
-  const [statuses,  setST]    = useState(loadCST);
-  const [projTypes, setPT]    = useState(loadCPT);
+  const [workTypes, setWT]    = useState(() => { try { const v = loadCWT(); return Array.isArray(v) ? v : []; } catch { return []; } });
+  const [statuses,  setST]    = useState(() => { try { const v = loadCST(); return Array.isArray(v) ? v : []; } catch { return []; } });
+  const [projTypes, setPT]    = useState(() => { try { const v = loadCPT(); return Array.isArray(v) ? v : []; } catch { return []; } });
   const [editId,    setEditId]= useState(null);
 
   const saveCompany = () => {
@@ -10224,7 +10243,7 @@ function GeneralSettingsTab({ onWorkTypesChange, onStatusesChange, onProjectType
   };
   const deletePT = (id) => savePT(projTypes.filter(p=>p.id!==id));
 
-  const [billingCfg, setBillingCfg] = useState(loadBilling);
+  const [billingCfg, setBillingCfg] = useState(() => { try { const v = loadBilling(); return (v && typeof v === "object") ? v : {}; } catch { return {}; } });
   const [billingSaved, setBillingSaved] = useState(false);
 
   const saveBillingSettings = () => {
@@ -10252,7 +10271,7 @@ function GeneralSettingsTab({ onWorkTypesChange, onStatusesChange, onProjectType
   };
 
   /* ── BUDGET CATEGORY TEMPLATES ── */
-  const [budgetTpls,  setBudgetTpls]  = useState(loadBudgetTemplates);
+  const [budgetTpls,  setBudgetTpls]  = useState(() => { try { const v = loadBudgetTemplates(); return Array.isArray(v) ? v : []; } catch { return []; } });
   const [budgetSaved, setBudgetSaved] = useState(false);
   const saveBudgetTpls = () => { saveBudgetTemplates(budgetTpls); setBudgetSaved(true); setTimeout(()=>setBudgetSaved(false),2000); };
   const addBudgetCat = () => {
@@ -12945,7 +12964,9 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
         )}
 
         {tab==="general" && (permLevel >= 8 ? (
-          <GeneralSettingsTab onWorkTypesChange={onWorkTypesChange} onStatusesChange={onStatusesChange} onProjectTypesChange={onProjectTypesChange}/>
+          <SettingsErrorBoundary>
+            <GeneralSettingsTab onWorkTypesChange={onWorkTypesChange} onStatusesChange={onStatusesChange} onProjectTypesChange={onProjectTypesChange}/>
+          </SettingsErrorBoundary>
         ) : (
           <div className="card" style={{padding:28,textAlign:"center",color:"var(--t3)"}}>
             <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:6}}>Access Restricted</div>
