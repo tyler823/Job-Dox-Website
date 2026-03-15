@@ -12236,11 +12236,11 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     setOfficeGeoStatus(null);
   };
   const openEditOffice = o => {
-    setOfficeForm({ name:o.name||"", street:o.street||"", street2:o.street2||"", city:o.city||"", state:o.state||"", zip:o.zip||"", color:o.color||"#22d3ee", lat:o.lat||null, lng:o.lng||null, googleBusinessUrl:o.googleBusinessUrl||"" });
+    setOfficeForm({ name:o.name||"", street:o.street||"", street2:o.street2||"", city:o.city||"", state:o.state||"", zip:o.zip||"", color:o.color||"#22d3ee", lat:o.lat ?? null, lng:o.lng ?? null, googleBusinessUrl:o.googleBusinessUrl||"" });
     setOfficeEditId(o.id);
     setShowOfficeForm(true);
     setOfficeError("");
-    setOfficeGeoStatus(o.lat ? "ok" : null);
+    setOfficeGeoStatus(o.lat != null && o.lng != null ? "ok" : null);
   };
   const geocodeOffice = async () => {
     const parts = [officeForm.street, officeForm.street2, officeForm.city, officeForm.state, officeForm.zip].filter(Boolean);
@@ -12782,10 +12782,10 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                 {/* Geocode button + status */}
                 <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,padding:"10px 13px",background:"var(--s3)",borderRadius:8,border:"1px solid var(--br)"}}>
                   <div style={{flex:1}}>
-                    {officeGeoStatus === "ok" && officeForm.lat ? (
+                    {officeGeoStatus === "ok" && officeForm.lat != null && officeForm.lng != null ? (
                       <div style={{fontSize:11,color:"var(--green)"}}>
                         <span style={{fontWeight:700,fontFamily:"var(--mono)"}}>✓ GEOCODED</span>
-                        <span style={{color:"var(--t3)",marginLeft:8}}>{officeForm.lat.toFixed(5)}, {officeForm.lng.toFixed(5)}</span>
+                        <span style={{color:"var(--t3)",marginLeft:8}}>{Number(officeForm.lat).toFixed(5)}, {Number(officeForm.lng).toFixed(5)}</span>
                       </div>
                     ) : officeGeoStatus === "pending" ? (
                       <div style={{fontSize:11,color:"var(--amber)",fontFamily:"var(--mono)"}}>Geocoding…</div>
@@ -12801,18 +12801,43 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                   </button>
                 </div>
 
-                {/* Manual lat/lng override */}
+                {/* Manual lat/lng override — supports pasting "lat, lng" pairs from Google Maps */}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
                   <div>
-                    <label className="lbl">Latitude <span style={{color:"var(--t3)",fontWeight:400,textTransform:"none",letterSpacing:0}}>(or enter manually)</span></label>
-                    <input className="inp" type="number" step="0.00001" value={officeForm.lat||""}
-                      onChange={e=>{ const v=parseFloat(e.target.value); setOfficeForm(f=>({...f,lat:isNaN(v)?null:v})); setOfficeGeoStatus(v?"ok":null); }}
+                    <label className="lbl">Latitude <span style={{color:"var(--t3)",fontWeight:400,textTransform:"none",letterSpacing:0}}>(or paste lat, lng pair)</span></label>
+                    <input className="inp" type="text" inputMode="decimal" value={officeForm.lat ?? ""}
+                      onChange={e=>{
+                        const raw = e.target.value.trim();
+                        // Handle pasted "lat, lng" pair (e.g. "35.46756, -97.51643")
+                        const pair = raw.split(/[\s,]+/).filter(Boolean);
+                        if (pair.length >= 2) {
+                          const lat = parseFloat(pair[0]), lng = parseFloat(pair[1]);
+                          if (!isNaN(lat) && !isNaN(lng)) {
+                            setOfficeForm(f => ({ ...f, lat, lng }));
+                            setOfficeGeoStatus("ok");
+                            return;
+                          }
+                        }
+                        const v = parseFloat(raw);
+                        setOfficeForm(f => {
+                          const newLat = isNaN(v) ? null : v;
+                          setOfficeGeoStatus(newLat != null && f.lng != null ? "ok" : null);
+                          return { ...f, lat: isNaN(v) ? null : v };
+                        });
+                      }}
                       placeholder="35.46756"/>
                   </div>
                   <div>
                     <label className="lbl">Longitude</label>
-                    <input className="inp" type="number" step="0.00001" value={officeForm.lng||""}
-                      onChange={e=>{ const v=parseFloat(e.target.value); setOfficeForm(f=>({...f,lng:isNaN(v)?null:v})); }}
+                    <input className="inp" type="text" inputMode="decimal" value={officeForm.lng ?? ""}
+                      onChange={e=>{
+                        const v = parseFloat(e.target.value);
+                        setOfficeForm(f => {
+                          const newLng = isNaN(v) ? null : v;
+                          setOfficeGeoStatus(f.lat != null && newLng != null ? "ok" : null);
+                          return { ...f, lng: isNaN(v) ? null : v };
+                        });
+                      }}
                       placeholder="-97.51643"/>
                   </div>
                 </div>
