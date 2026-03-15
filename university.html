@@ -612,6 +612,8 @@
       <div class="nav-items">
         <div class="nav-item" onclick="showView('add-user')">Adding Users</div>
         <div class="nav-item" onclick="showView('roles')">Roles &amp; Permissions</div>
+        <div class="nav-item" onclick="showView('clients')">Managing Clients</div>
+        <div class="nav-item" onclick="showView('contacts')">Contacts &amp; Leads</div>
       </div>
     </div>
     <div class="nav-group" id="grp-cl-budget">
@@ -1665,6 +1667,277 @@
     </div>
   </div>
 
+  <!-- ADDING USERS -->
+  <div id="view-add-user" class="content-view">
+    <div class="article-area">
+      <div class="article-hero">
+        <div class="eyebrow">Team &amp; CRM</div>
+        <h1 class="art-title">Adding <span class="red">Users</span></h1>
+        <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>4 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>Beginner</span></div>
+      </div>
+      <p>Every person on your crew needs a Job-Dox account. Adding users is how you invite team members to your workspace — they'll get email invitations with login instructions.</p>
+      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/></svg></div><div><span class="callout-lbl">Tip</span><p>Each user counts toward your plan's seat limit. Remove inactive users to free up seats.</p></div></div>
+      <h2>Step-by-Step</h2>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Go to Settings › Team</div><p class="step-desc">Navigate to the Team management section under your workspace settings.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Click "+ Invite User"</div><p class="step-desc">Open the invite form where you enter the new team member's details and choose their role.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
+  <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:14px;">Invite User</div>
+  <div style="margin-bottom:12px;">
+    <div style="font-size:11px;color:#777;margin-bottom:4px;">Email Address</div>
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;color:#555;">teammate@company.com</div>
+  </div>
+  <div style="margin-bottom:14px;">
+    <div style="font-size:11px;color:#777;margin-bottom:4px;">Role</div>
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;">
+      <span>Project Manager</span>
+      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+    </div>
+    <div style="font-size:10px;color:#555;margin-top:6px;">Options: Admin · Project Manager · Field Staff</div>
+  </div>
+  <div style="background:#e03535;color:#fff;text-align:center;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">Send Invite</div>
+</div></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Choose their role</div><p class="step-desc"><strong>Admin</strong> — full access, can manage billing and users. <strong>Project Manager</strong> — can view rates, manage projects, but not users. <strong>Field Staff</strong> — limited to assigned jobs, no rate visibility.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Send the invitation</div><p class="step-desc">They receive an email with a link to set up their account. The invite expires after 7 days.</p></div></div>
+        <div class="step"><div class="step-num">5</div><div class="step-body"><div class="step-title">Monitor pending invites</div><p class="step-desc">Track who has accepted and who still needs to join from the Team list.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
+  <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:14px;">Team Members</div>
+  <div style="display:flex;align-items:center;padding:10px 0;border-bottom:1px solid #2a2a2a;">
+    <div style="width:32px;height:32px;border-radius:50%;background:#e03535;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff;margin-right:10px;">JD</div>
+    <div style="flex:1;">
+      <div style="font-size:13px;color:#fff;">John Doe</div>
+      <div style="font-size:11px;color:#777;">john@company.com</div>
+    </div>
+    <span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(224,53,53,0.15);color:#f05757;margin-right:8px;">Admin</span>
+    <span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(34,197,94,0.15);color:#22c55e;">Active</span>
+  </div>
+  <div style="display:flex;align-items:center;padding:10px 0;border-bottom:1px solid #2a2a2a;">
+    <div style="width:32px;height:32px;border-radius:50%;background:#444;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff;margin-right:10px;">SM</div>
+    <div style="flex:1;">
+      <div style="font-size:13px;color:#fff;">Sarah Miller</div>
+      <div style="font-size:11px;color:#777;">sarah@company.com</div>
+    </div>
+    <span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(59,130,246,0.15);color:#3b82f6;margin-right:8px;">PM</span>
+    <span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(245,158,11,0.15);color:#f59e0b;">Pending</span>
+  </div>
+  <div style="display:flex;align-items:center;padding:10px 0;">
+    <div style="width:32px;height:32px;border-radius:50%;background:#333;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#555;margin-right:10px;">MR</div>
+    <div style="flex:1;">
+      <div style="font-size:13px;color:#777;">Mike Robinson</div>
+      <div style="font-size:11px;color:#555;">mike@company.com</div>
+    </div>
+    <span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(119,119,119,0.1);color:#777;margin-right:8px;">Field</span>
+    <span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(119,119,119,0.1);color:#777;">Deactivated</span>
+  </div>
+</div></div></div>
+      </div>
+      <div class="quiz-section" id="quiz-add-user">
+        <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Adding Users</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
+        <div class="progress-bar"><div class="progress-fill" id="prog-add-user" style="width:0%"></div></div>
+        <div class="quiz-question" id="q-au-1"><div class="q-num">Question 1 of 3</div><div class="q-text">Which role can manage other users?</div><div class="options"><div class="option" onclick="pick(this,'q-au-1','a')"><div class="opt-marker">A</div>Field Staff</div><div class="option" onclick="pick(this,'q-au-1','b')"><div class="opt-marker">B</div>Admin</div><div class="option" onclick="pick(this,'q-au-1','c')"><div class="opt-marker">C</div>Project Manager</div></div><div class="opt-feedback" id="fb-au-1"></div></div>
+        <div class="quiz-question" id="q-au-2"><div class="q-num">Question 2 of 3</div><div class="q-text">Can Field Staff view pay rates?</div><div class="options"><div class="option" onclick="pick(this,'q-au-2','a')"><div class="opt-marker">A</div>Yes, all rates are visible to everyone</div><div class="option" onclick="pick(this,'q-au-2','b')"><div class="opt-marker">B</div>No</div><div class="option" onclick="pick(this,'q-au-2','c')"><div class="opt-marker">C</div>Only if an Admin grants access</div></div><div class="opt-feedback" id="fb-au-2"></div></div>
+        <div class="quiz-question" id="q-au-3"><div class="q-num">Question 3 of 3</div><div class="q-text">How does a new user join?</div><div class="options"><div class="option" onclick="pick(this,'q-au-3','a')"><div class="opt-marker">A</div>They create their own account on the website</div><div class="option" onclick="pick(this,'q-au-3','b')"><div class="opt-marker">B</div>Via email invitation</div><div class="option" onclick="pick(this,'q-au-3','c')"><div class="opt-marker">C</div>An admin creates their password for them</div></div><div class="opt-feedback" id="fb-au-3"></div></div>
+        <div class="quiz-score" id="score-add-user"><div class="score-ring"><span class="score-num" id="sn-add-user">0</span><span class="score-denom">/ 3</span></div><p class="score-msg" id="sm-add-user"></p><button class="btn btn-ghost" onclick="resetQuiz('add-user')">Try Again</button></div>
+        <div class="quiz-actions" id="qa-add-user"><button class="btn btn-red" onclick="grade('add-user')">Submit Answers</button><button class="btn btn-ghost" onclick="resetQuiz('add-user')">Reset</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROLES & PERMISSIONS -->
+  <div id="view-roles" class="content-view">
+    <div class="article-area">
+      <div class="article-hero">
+        <div class="eyebrow">Team &amp; CRM</div>
+        <h1 class="art-title">Roles &amp; <span class="red">Permissions</span></h1>
+        <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>5 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>Intermediate</span></div>
+      </div>
+      <p>Job-Dox has three built-in roles that control what each team member can see and do. Understanding roles prevents accidental data exposure and keeps your workspace secure.</p>
+      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg></div><div><span class="callout-lbl">Warning</span><p>Only Admins can change another user's role. If someone needs elevated access, contact your account Admin.</p></div></div>
+      <h2>Step-by-Step</h2>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Understand the three roles</div><p class="step-desc">Each role has specific permissions that determine access levels across the platform.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
+  <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:14px;">Role Comparison</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0;border:1px solid #2a2a2a;border-radius:6px;overflow:hidden;">
+    <div style="padding:8px 10px;background:#1a1a1a;font-size:11px;color:#777;border-bottom:1px solid #2a2a2a;"></div>
+    <div style="padding:8px 10px;background:#1a1a1a;font-size:11px;color:#f05757;font-weight:600;text-align:center;border-bottom:1px solid #2a2a2a;border-left:1px solid #2a2a2a;">Admin</div>
+    <div style="padding:8px 10px;background:#1a1a1a;font-size:11px;color:#3b82f6;font-weight:600;text-align:center;border-bottom:1px solid #2a2a2a;border-left:1px solid #2a2a2a;">PM</div>
+    <div style="padding:8px 10px;background:#1a1a1a;font-size:11px;color:#777;font-weight:600;text-align:center;border-bottom:1px solid #2a2a2a;border-left:1px solid #2a2a2a;">Field</div>
+    <div style="padding:8px 10px;font-size:11px;color:#c8c8c8;border-bottom:1px solid #2a2a2a;">View all jobs</div>
+    <div style="padding:8px 10px;text-align:center;border-bottom:1px solid #2a2a2a;border-left:1px solid #2a2a2a;color:#22c55e;">&#10003;</div>
+    <div style="padding:8px 10px;text-align:center;border-bottom:1px solid #2a2a2a;border-left:1px solid #2a2a2a;color:#22c55e;">&#10003;</div>
+    <div style="padding:8px 10px;text-align:center;border-bottom:1px solid #2a2a2a;border-left:1px solid #2a2a2a;color:#f05757;">&#10007;</div>
+    <div style="padding:8px 10px;font-size:11px;color:#c8c8c8;border-bottom:1px solid #2a2a2a;">View pay rates</div>
+    <div style="padding:8px 10px;text-align:center;border-bottom:1px solid #2a2a2a;border-left:1px solid #2a2a2a;color:#22c55e;">&#10003;</div>
+    <div style="padding:8px 10px;text-align:center;border-bottom:1px solid #2a2a2a;border-left:1px solid #2a2a2a;color:#22c55e;">&#10003;</div>
+    <div style="padding:8px 10px;text-align:center;border-bottom:1px solid #2a2a2a;border-left:1px solid #2a2a2a;color:#f05757;">&#10007;</div>
+    <div style="padding:8px 10px;font-size:11px;color:#c8c8c8;border-bottom:1px solid #2a2a2a;">Manage users</div>
+    <div style="padding:8px 10px;text-align:center;border-bottom:1px solid #2a2a2a;border-left:1px solid #2a2a2a;color:#22c55e;">&#10003;</div>
+    <div style="padding:8px 10px;text-align:center;border-bottom:1px solid #2a2a2a;border-left:1px solid #2a2a2a;color:#f05757;">&#10007;</div>
+    <div style="padding:8px 10px;text-align:center;border-bottom:1px solid #2a2a2a;border-left:1px solid #2a2a2a;color:#f05757;">&#10007;</div>
+    <div style="padding:8px 10px;font-size:11px;color:#c8c8c8;border-bottom:1px solid #2a2a2a;">Edit budgets</div>
+    <div style="padding:8px 10px;text-align:center;border-bottom:1px solid #2a2a2a;border-left:1px solid #2a2a2a;color:#22c55e;">&#10003;</div>
+    <div style="padding:8px 10px;text-align:center;border-bottom:1px solid #2a2a2a;border-left:1px solid #2a2a2a;color:#22c55e;">&#10003;</div>
+    <div style="padding:8px 10px;text-align:center;border-bottom:1px solid #2a2a2a;border-left:1px solid #2a2a2a;color:#f05757;">&#10007;</div>
+    <div style="padding:8px 10px;font-size:11px;color:#c8c8c8;">Delete jobs</div>
+    <div style="padding:8px 10px;text-align:center;border-left:1px solid #2a2a2a;color:#22c55e;">&#10003;</div>
+    <div style="padding:8px 10px;text-align:center;border-left:1px solid #2a2a2a;color:#f05757;">&#10007;</div>
+    <div style="padding:8px 10px;text-align:center;border-left:1px solid #2a2a2a;color:#f05757;">&#10007;</div>
+  </div>
+</div></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Change a user's role</div><p class="step-desc">Go to <strong>Settings › Team</strong>, click on a user, and select the new role from the dropdown. The change takes effect immediately.</p></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Custom permissions (coming soon)</div><p class="step-desc">Granular, per-user permission overrides are on the <strong>Cortex roadmap</strong>. For now, use the three built-in roles to manage access.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Audit who has access</div><p class="step-desc">Periodically review your team list for inactive or over-permissioned users. Deactivate anyone who no longer needs access to keep your workspace secure.</p></div></div>
+      </div>
+      <div class="quiz-section" id="quiz-roles">
+        <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Roles &amp; Permissions</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
+        <div class="progress-bar"><div class="progress-fill" id="prog-roles" style="width:0%"></div></div>
+        <div class="quiz-question" id="q-rl-1"><div class="q-num">Question 1 of 3</div><div class="q-text">Who can change a user's role?</div><div class="options"><div class="option" onclick="pick(this,'q-rl-1','a')"><div class="opt-marker">A</div>Any team member</div><div class="option" onclick="pick(this,'q-rl-1','b')"><div class="opt-marker">B</div>Only Admins</div><div class="option" onclick="pick(this,'q-rl-1','c')"><div class="opt-marker">C</div>Project Managers and Admins</div></div><div class="opt-feedback" id="fb-rl-1"></div></div>
+        <div class="quiz-question" id="q-rl-2"><div class="q-num">Question 2 of 3</div><div class="q-text">Can a Project Manager delete jobs?</div><div class="options"><div class="option" onclick="pick(this,'q-rl-2','a')"><div class="opt-marker">A</div>Yes, all Project Managers can delete jobs</div><div class="option" onclick="pick(this,'q-rl-2','b')"><div class="opt-marker">B</div>No, only Admins can delete jobs</div><div class="option" onclick="pick(this,'q-rl-2','c')"><div class="opt-marker">C</div>Only if given custom permissions</div></div><div class="opt-feedback" id="fb-rl-2"></div></div>
+        <div class="quiz-question" id="q-rl-3"><div class="q-num">Question 3 of 3</div><div class="q-text">Are custom per-user permissions available today?</div><div class="options"><div class="option" onclick="pick(this,'q-rl-3','a')"><div class="opt-marker">A</div>Yes, fully customizable</div><div class="option" onclick="pick(this,'q-rl-3','b')"><div class="opt-marker">B</div>No, they are on the Cortex roadmap</div><div class="option" onclick="pick(this,'q-rl-3','c')"><div class="opt-marker">C</div>Only for enterprise plans</div></div><div class="opt-feedback" id="fb-rl-3"></div></div>
+        <div class="quiz-score" id="score-roles"><div class="score-ring"><span class="score-num" id="sn-roles">0</span><span class="score-denom">/ 3</span></div><p class="score-msg" id="sm-roles"></p><button class="btn btn-ghost" onclick="resetQuiz('roles')">Try Again</button></div>
+        <div class="quiz-actions" id="qa-roles"><button class="btn btn-red" onclick="grade('roles')">Submit Answers</button><button class="btn btn-ghost" onclick="resetQuiz('roles')">Reset</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MANAGING CLIENTS -->
+  <div id="view-clients" class="content-view">
+    <div class="article-area">
+      <div class="article-hero">
+        <div class="eyebrow">Team &amp; CRM</div>
+        <h1 class="art-title">Managing <span class="red">Clients</span></h1>
+        <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>4 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>Beginner</span></div>
+      </div>
+      <p>Clients are the people or companies you do work for. Every job in Job-Dox links to a client record — this is how invoices, review requests, and communications stay organized.</p>
+      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/></svg></div><div><span class="callout-lbl">Tip</span><p>Add the client before creating the job. You can't attach invoices to a job without a linked client.</p></div></div>
+      <h2>Step-by-Step</h2>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Go to Contacts › Clients</div><p class="step-desc">Navigate to the Clients section from the Contacts menu in the sidebar.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Click "+ New Client"</div><p class="step-desc">Open the new client form to enter their information.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
+  <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:14px;">New Client</div>
+  <div style="margin-bottom:10px;">
+    <div style="font-size:11px;color:#777;margin-bottom:4px;">Client Name</div>
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;color:#555;">Jane Smith</div>
+  </div>
+  <div style="margin-bottom:10px;">
+    <div style="font-size:11px;color:#777;margin-bottom:4px;">Company</div>
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;color:#555;">Smith Properties LLC</div>
+  </div>
+  <div style="margin-bottom:10px;">
+    <div style="font-size:11px;color:#777;margin-bottom:4px;">Email</div>
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;color:#555;">jane@smithproperties.com</div>
+  </div>
+  <div style="margin-bottom:10px;">
+    <div style="font-size:11px;color:#777;margin-bottom:4px;">Phone</div>
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;color:#555;">(555) 123-4567</div>
+  </div>
+  <div style="margin-bottom:10px;">
+    <div style="font-size:11px;color:#777;margin-bottom:4px;">Address</div>
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;color:#555;">123 Main St, Austin, TX 78701</div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <span style="font-size:12px;color:#c8c8c8;">Primary Contact</span>
+    <div style="width:36px;height:20px;border-radius:10px;background:#e03535;position:relative;cursor:pointer;"><div style="width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:2px;right:2px;"></div></div>
+  </div>
+</div></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Fill in client details</div><p class="step-desc">Enter the client's name, company (optional), email, phone, and physical address. Toggle <strong>Primary Contact</strong> if this is the main point of contact.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Link client to jobs</div><p class="step-desc">Once created, the client appears in the job creation dropdown. Select them when creating a new job to link invoices, communications, and documents.</p></div></div>
+        <div class="step"><div class="step-num">5</div><div class="step-body"><div class="step-title">View client history</div><p class="step-desc">Click on any client to see their full history — linked jobs, invoices, and total revenue.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
+  <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:14px;">Client Detail</div>
+  <div style="margin-bottom:14px;">
+    <div style="font-size:16px;color:#fff;font-weight:600;">Jane Smith</div>
+    <div style="font-size:12px;color:#777;">Smith Properties LLC</div>
+  </div>
+  <div style="font-size:11px;color:#777;margin-bottom:8px;">Linked Jobs</div>
+  <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:8px 10px;">
+      <span style="font-size:12px;color:#fff;">Water Damage — 123 Main St</span>
+      <span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(34,197,94,0.15);color:#22c55e;">Completed</span>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:8px 10px;">
+      <span style="font-size:12px;color:#fff;">Mold Remediation — 456 Oak Ave</span>
+      <span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(59,130,246,0.15);color:#3b82f6;">In Progress</span>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:8px 10px;">
+      <span style="font-size:12px;color:#fff;">Fire Restoration — 789 Elm Dr</span>
+      <span style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(232,156,24,0.15);color:#e89c18;">Mitigation</span>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px solid #2a2a2a;padding-top:12px;">
+    <span style="font-size:12px;color:#777;">Total Revenue</span>
+    <span style="font-size:16px;color:#22c55e;font-weight:600;">$42,800</span>
+  </div>
+</div></div></div>
+      </div>
+      <div class="quiz-section" id="quiz-clients">
+        <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Managing Clients</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
+        <div class="progress-bar"><div class="progress-fill" id="prog-clients" style="width:0%"></div></div>
+        <div class="quiz-question" id="q-cl-1"><div class="q-num">Question 1 of 3</div><div class="q-text">Why should you add a client before creating a job?</div><div class="options"><div class="option" onclick="pick(this,'q-cl-1','a')"><div class="opt-marker">A</div>It's optional — jobs don't need clients</div><div class="option" onclick="pick(this,'q-cl-1','b')"><div class="opt-marker">B</div>You can't attach invoices to a job without a linked client</div><div class="option" onclick="pick(this,'q-cl-1','c')"><div class="opt-marker">C</div>Clients are only for billing purposes</div></div><div class="opt-feedback" id="fb-cl-1"></div></div>
+        <div class="quiz-question" id="q-cl-2"><div class="q-num">Question 2 of 3</div><div class="q-text">Where do you find the client list?</div><div class="options"><div class="option" onclick="pick(this,'q-cl-2','a')"><div class="opt-marker">A</div>Settings › General</div><div class="option" onclick="pick(this,'q-cl-2','b')"><div class="opt-marker">B</div>Contacts › Clients</div><div class="option" onclick="pick(this,'q-cl-2','c')"><div class="opt-marker">C</div>Dashboard › People</div></div><div class="opt-feedback" id="fb-cl-2"></div></div>
+        <div class="quiz-question" id="q-cl-3"><div class="q-num">Question 3 of 3</div><div class="q-text">What information is shown in the client detail view?</div><div class="options"><div class="option" onclick="pick(this,'q-cl-3','a')"><div class="opt-marker">A</div>Only their contact information</div><div class="option" onclick="pick(this,'q-cl-3','b')"><div class="opt-marker">B</div>Linked jobs, status badges, and total revenue</div><div class="option" onclick="pick(this,'q-cl-3','c')"><div class="opt-marker">C</div>Their payment history only</div></div><div class="opt-feedback" id="fb-cl-3"></div></div>
+        <div class="quiz-score" id="score-clients"><div class="score-ring"><span class="score-num" id="sn-clients">0</span><span class="score-denom">/ 3</span></div><p class="score-msg" id="sm-clients"></p><button class="btn btn-ghost" onclick="resetQuiz('clients')">Try Again</button></div>
+        <div class="quiz-actions" id="qa-clients"><button class="btn btn-red" onclick="grade('clients')">Submit Answers</button><button class="btn btn-ghost" onclick="resetQuiz('clients')">Reset</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTACTS & LEADS -->
+  <div id="view-contacts" class="content-view">
+    <div class="article-area">
+      <div class="article-hero">
+        <div class="eyebrow">Team &amp; CRM</div>
+        <h1 class="art-title">Contacts &amp; <span class="red">Leads</span></h1>
+        <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>3 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>Beginner</span></div>
+      </div>
+      <p>Beyond clients, Job-Dox tracks adjusters, referral partners, subcontractors, and incoming leads. Contacts are your address book; leads are potential new business.</p>
+      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/></svg></div><div><span class="callout-lbl">Tip</span><p>When a lead converts to a client, click 'Convert to Client' — all their info carries over automatically.</p></div></div>
+      <h2>Step-by-Step</h2>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Go to Contacts in the sidebar</div><p class="step-desc">Open the Contacts section from the main sidebar navigation to see all your contacts and leads.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Add a contact</div><p class="step-desc">Click "+ New Contact" and fill in their details including type classification.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
+  <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:14px;">New Contact</div>
+  <div style="margin-bottom:10px;">
+    <div style="font-size:11px;color:#777;margin-bottom:4px;">Name</div>
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;color:#555;">Tom Garcia</div>
+  </div>
+  <div style="margin-bottom:10px;">
+    <div style="font-size:11px;color:#777;margin-bottom:4px;">Company</div>
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;color:#555;">State Farm Insurance</div>
+  </div>
+  <div style="margin-bottom:10px;">
+    <div style="font-size:11px;color:#777;margin-bottom:4px;">Type</div>
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;">
+      <span>Adjuster</span>
+      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+    </div>
+    <div style="font-size:10px;color:#555;margin-top:6px;">Options: Adjuster · Subcontractor · Referral Partner · Other</div>
+  </div>
+  <div style="margin-bottom:10px;">
+    <div style="font-size:11px;color:#777;margin-bottom:4px;">Phone</div>
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;color:#555;">(555) 987-6543</div>
+  </div>
+  <div style="margin-bottom:10px;">
+    <div style="font-size:11px;color:#777;margin-bottom:4px;">Email</div>
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;color:#555;">tgarcia@statefarm.com</div>
+  </div>
+  <div style="margin-bottom:10px;">
+    <div style="font-size:11px;color:#777;margin-bottom:4px;">Notes</div>
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;color:#555;min-height:48px;">Handles water damage claims in Austin area</div>
+  </div>
+</div></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Track leads</div><p class="step-desc">Leads come from inbound calls, web forms, or manual entry. Each lead has a status: <strong>New</strong>, <strong>Contacted</strong>, <strong>Qualified</strong>, or <strong>Converted</strong>. Update the status as you work the lead through your pipeline.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Convert a lead to a client</div><p class="step-desc">Click <strong>"Convert to Client"</strong> on any qualified lead to create a client record. All contact info, notes, and history carry over automatically — no re-entry needed.</p></div></div>
+      </div>
+      <div class="quiz-section" id="quiz-contacts">
+        <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Contacts &amp; Leads</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
+        <div class="progress-bar"><div class="progress-fill" id="prog-contacts" style="width:0%"></div></div>
+        <div class="quiz-question" id="q-co-1"><div class="q-num">Question 1 of 3</div><div class="q-text">What types of contacts can you track in Job-Dox?</div><div class="options"><div class="option" onclick="pick(this,'q-co-1','a')"><div class="opt-marker">A</div>Only clients</div><div class="option" onclick="pick(this,'q-co-1','b')"><div class="opt-marker">B</div>Adjusters, subcontractors, referral partners, and others</div><div class="option" onclick="pick(this,'q-co-1','c')"><div class="opt-marker">C</div>Only insurance adjusters</div></div><div class="opt-feedback" id="fb-co-1"></div></div>
+        <div class="quiz-question" id="q-co-2"><div class="q-num">Question 2 of 3</div><div class="q-text">What are the lead statuses in order?</div><div class="options"><div class="option" onclick="pick(this,'q-co-2','a')"><div class="opt-marker">A</div>Open, Closed, Won</div><div class="option" onclick="pick(this,'q-co-2','b')"><div class="opt-marker">B</div>New, Contacted, Qualified, Converted</div><div class="option" onclick="pick(this,'q-co-2','c')"><div class="opt-marker">C</div>Hot, Warm, Cold</div></div><div class="opt-feedback" id="fb-co-2"></div></div>
+        <div class="quiz-question" id="q-co-3"><div class="q-num">Question 3 of 3</div><div class="q-text">What happens when you convert a lead to a client?</div><div class="options"><div class="option" onclick="pick(this,'q-co-3','a')"><div class="opt-marker">A</div>You have to re-enter all their information</div><div class="option" onclick="pick(this,'q-co-3','b')"><div class="opt-marker">B</div>All their info carries over automatically</div><div class="option" onclick="pick(this,'q-co-3','c')"><div class="opt-marker">C</div>The lead is deleted and a new record is created</div></div><div class="opt-feedback" id="fb-co-3"></div></div>
+        <div class="quiz-score" id="score-contacts"><div class="score-ring"><span class="score-num" id="sn-contacts">0</span><span class="score-denom">/ 3</span></div><p class="score-msg" id="sm-contacts"></p><button class="btn btn-ghost" onclick="resetQuiz('contacts')">Try Again</button></div>
+        <div class="quiz-actions" id="qa-contacts"><button class="btn btn-red" onclick="grade('contacts')">Submit Answers</button><button class="btn btn-ghost" onclick="resetQuiz('contacts')">Reset</button></div>
+      </div>
+    </div>
+  </div>
+
   <!-- AI ALERTS -->
   <div id="view-ai-alerts" class="content-view">
     <div class="article-area">
@@ -1783,6 +2056,10 @@ const QUIZZES = {
   'assign-task':{answers:{'q-at-1':'b','q-at-2':'b','q-at-3':'b'},feedback:{'q-at-1':{ok:'Correct! The assignee gets notified and the task appears on their dashboard.',bad:'✗ Assigning sends an in-app and push notification and adds it to their dashboard.'},'q-at-2':{ok:'Correct! You can reassign at any time and the new assignee is notified instantly.',bad:'✗ Tasks can be reassigned at any time — the new assignee gets notified instantly.'},'q-at-3':{ok:'Correct! The primary assignee owns the task.',bad:'✗ The first person assigned is the primary assignee who owns the task.'}},total:3},
   'task-calendar':{answers:{'q-tc-1':'b','q-tc-2':'b','q-tc-3':'b'},feedback:{'q-tc-1':{ok:'Correct! Clicking a day quick-creates a task with the due date auto-filled.',bad:'✗ Clicking a day opens the quick-create form with the due date pre-filled.'},'q-tc-2':{ok:'Correct! Drag and drop a task pill to reschedule it instantly.',bad:'✗ Drag the task pill to a new date to update its due date.'},'q-tc-3':{ok:'Correct! Day, Week, and Month are the three calendar view modes.',bad:'✗ The three view modes are Day, Week, and Month.'}},total:3},
   'recurring-tasks':{answers:{'q-rt-1':'b','q-rt-2':'b','q-rt-3':'b'},feedback:{'q-rt-1':{ok:'Correct! Recurring generation pauses when a job is On Hold.',bad:'✗ Recurring tasks pause when the job is On Hold and resume when reactivated.'},'q-rt-2':{ok:'Correct! Daily, Weekly, Bi-weekly, and Monthly are available.',bad:'✗ The frequency options are Daily, Weekly, Bi-weekly, and Monthly.'},'q-rt-3':{ok:'Correct! Each recurring task instance can be completed independently.',bad:'✗ Each instance is independent and can be completed on its own.'}},total:3},
+  'add-user':{answers:{'q-au-1':'b','q-au-2':'b','q-au-3':'b'},feedback:{'q-au-1':{ok:'Correct! Only Admins can manage other users.',bad:'✗ Only the Admin role has user management permissions.'},'q-au-2':{ok:'Correct! Field Staff cannot view pay rates.',bad:'✗ Field Staff have no rate visibility — only Admins and PMs can.'},'q-au-3':{ok:'Correct! New users join via email invitation.',bad:'✗ Users receive an email invitation with a link to set up their account.'}},total:3},
+  'roles':{answers:{'q-rl-1':'b','q-rl-2':'b','q-rl-3':'b'},feedback:{'q-rl-1':{ok:'Correct! Only Admins can change another user\'s role.',bad:'✗ Only Admins have permission to change roles.'},'q-rl-2':{ok:'Correct! Only Admins can delete jobs.',bad:'✗ Job deletion is restricted to the Admin role.'},'q-rl-3':{ok:'Correct! Custom per-user permissions are on the Cortex roadmap.',bad:'✗ Custom permissions are coming soon — they\'re on the Cortex roadmap.'}},total:3},
+  'clients':{answers:{'q-cl-1':'b','q-cl-2':'b','q-cl-3':'b'},feedback:{'q-cl-1':{ok:'Correct! You can\'t attach invoices to a job without a linked client.',bad:'✗ A client must be linked to the job for invoicing to work.'},'q-cl-2':{ok:'Correct! The client list is under Contacts › Clients.',bad:'✗ Navigate to Contacts › Clients to find the client list.'},'q-cl-3':{ok:'Correct! Client detail shows linked jobs, status badges, and total revenue.',bad:'✗ The detail view shows jobs, statuses, and revenue — not just contact info.'}},total:3},
+  'contacts':{answers:{'q-co-1':'b','q-co-2':'b','q-co-3':'b'},feedback:{'q-co-1':{ok:'Correct! Job-Dox tracks adjusters, subcontractors, referral partners, and others.',bad:'✗ Contacts include adjusters, subcontractors, referral partners, and more.'},'q-co-2':{ok:'Correct! Lead statuses are New, Contacted, Qualified, Converted.',bad:'✗ The four lead statuses are New, Contacted, Qualified, and Converted.'},'q-co-3':{ok:'Correct! All info carries over automatically when converting a lead.',bad:'✗ Converting a lead to a client transfers all their information automatically.'}},total:3},
   'ai-alerts':{answers:{'q-aa-1':'b','q-aa-2':'b','q-aa-3':'b'},feedback:{'q-aa-1':{ok:'Correct! 80% warning and 100% critical are the defaults.',bad:'✗ Default thresholds are 80% warning and 100% critical.'},'q-aa-2':{ok:'Correct! Settings › Notifications › Budget Alerts.',bad:'✗ Go to Settings › Notifications › Budget Alerts.'},'q-aa-3':{ok:'Correct! Labor, materials, and subcontractors are all counted.',bad:'✗ All three expense types are included.'}},total:3},
   'first-login':{answers:{'q-fl-1':'b','q-fl-2':'b','q-fl-3':'b'},feedback:{'q-fl-1':{ok:'Correct! The portal lives at app.job-dox.ai.',bad:'✗ The correct URL is app.job-dox.ai.'},'q-fl-2':{ok:'Correct! Accepting the invite links you to your company workspace.',bad:'✗ Click Accept Invite to join the shared workspace.'},'q-fl-3':{ok:'Correct! Settings › Notifications is where you manage alerts.',bad:'✗ Go to Settings › Notifications to change preferences.'}},total:3},
   'dashboard-tour':{answers:{'q-dt-1':'b','q-dt-2':'c','q-dt-3':'b'},feedback:{'q-dt-1':{ok:'Correct! Each card shows job name, client, status, and progress.',bad:'✗ Cards display job name, client, status badge, and progress bar.'},'q-dt-2':{ok:'Correct! Red numbers flag overdue tasks that need attention.',bad:'✗ A red number in the stats ribbon means overdue tasks.'},'q-dt-3':{ok:'Correct! Missing jobs usually mean a permissions issue.',bad:'✗ You may lack permission — ask your Admin to check your role.'}},total:3}
@@ -1792,7 +2069,7 @@ function pick(el,qId,val){const q=document.getElementById(qId);if(q.classList.co
 function grade(quizId){const data=QUIZZES[quizId];let score=0;const letters=['a','b','c','d'];Object.keys(data.answers).forEach(qId=>{const q=document.getElementById(qId);const correct=data.answers[qId];const chosen=picks[qId];q.classList.add('answered');q.querySelectorAll('.option').forEach((o,i)=>{o.classList.add('locked');if(letters[i]===correct)o.classList.add('correct');else if(letters[i]===chosen&&chosen!==correct)o.classList.add('incorrect');});const fbKey=qId.replace('q-','');const fbEl=document.getElementById('fb-'+fbKey);if(chosen===correct){score++;fbEl.textContent=data.feedback[qId].ok;fbEl.className='opt-feedback show ok';}else{fbEl.textContent=data.feedback[qId].bad;fbEl.className='opt-feedback show bad';}});document.getElementById('prog-'+quizId).style.width='100%';document.getElementById('sn-'+quizId).textContent=score;const pct=Math.round(score/data.total*100);document.getElementById('sm-'+quizId).textContent=pct===100?'★ Perfect! You\'ve mastered this section.':pct>=70?'+ Good work! Review any missed questions above.':'→ Keep studying — try again when ready.';document.getElementById('score-'+quizId).classList.add('show');document.getElementById('qa-'+quizId).style.display='none';}
 function resetQuiz(quizId){const data=QUIZZES[quizId];Object.keys(data.answers).forEach(qId=>{delete picks[qId];const q=document.getElementById(qId);q.classList.remove('answered');q.querySelectorAll('.option').forEach(o=>o.classList.remove('selected','correct','incorrect','locked'));const fbKey=qId.replace('q-','');const fb=document.getElementById('fb-'+fbKey);if(fb){fb.className='opt-feedback';fb.textContent='';}});document.getElementById('prog-'+quizId).style.width='0%';document.getElementById('score-'+quizId).classList.remove('show');document.getElementById('qa-'+quizId).style.display='flex';}
 const VIEW_META={'welcome':{title:'Welcome',eyebrow:''},'account-setup':{title:'Account Setup',eyebrow:'Onboarding'},'first-login':{title:'First Login Walkthrough',eyebrow:'Onboarding'},'dashboard-tour':{title:'Dashboard Tour',eyebrow:'Onboarding'},'create-job':{title:'Creating a Job',eyebrow:'Projects & Jobs'},'job-status':{title:'Job Status & Phases',eyebrow:'Projects & Jobs'},'job-notes':{title:'Notes & Activity Log',eyebrow:'Projects & Jobs'},'job-photos':{title:'Attaching Photos',eyebrow:'Projects & Jobs'},'create-task':{title:'Creating Tasks',eyebrow:'Tasks & Scheduling'},'assign-task':{title:'Assigning to Team Members',eyebrow:'Tasks & Scheduling'},'task-calendar':{title:'Calendar View',eyebrow:'Tasks & Scheduling'},'recurring-tasks':{title:'Recurring Tasks',eyebrow:'Tasks & Scheduling'},'add-user':{title:'Adding Users',eyebrow:'Team & CRM'},'roles':{title:'Roles & Permissions',eyebrow:'Team & CRM'},'clients':{title:'Managing Clients',eyebrow:'Team & CRM'},'contacts':{title:'Contacts & Leads',eyebrow:'Team & CRM'},'budget-setup':{title:'Setting a Budget',eyebrow:'Budgeting & Finance'},'expenses':{title:'Recording Expenses',eyebrow:'Budgeting & Finance'},'invoicing':{title:'Invoicing',eyebrow:'Budgeting & Finance'},'profit-margin':{title:'Profit & Margin Reports',eyebrow:'Budgeting & Finance'},'upload-docs':{title:'Uploading Documents',eyebrow:'Documents & Files'},'doc-templates':{title:'Document Templates',eyebrow:'Documents & Files'},'esignature':{title:'E-Signatures',eyebrow:'Documents & Files'},'ai-alerts':{title:'Budget Overrun Alerts',eyebrow:'Operations AI'},'ai-health':{title:'Project Health Scoring',eyebrow:'Operations AI'},'ai-tasks':{title:'AI Auto-Tasks',eyebrow:'Operations AI'},'crew-analytics':{title:'Crew Utilization Analytics',eyebrow:'Operations AI'},'job-reports':{title:'Job Summary Reports',eyebrow:'Reporting'},'crew-reports':{title:'Crew Performance',eyebrow:'Reporting'},'financial-reports':{title:'Financial Reports',eyebrow:'Reporting'}};
-const DEDICATED=new Set(['welcome','account-setup','first-login','dashboard-tour','create-job','job-status','job-notes','job-photos','create-task','assign-task','task-calendar','recurring-tasks','ai-alerts']);
+const DEDICATED=new Set(['welcome','account-setup','first-login','dashboard-tour','create-job','job-status','job-notes','job-photos','create-task','assign-task','task-calendar','recurring-tasks','add-user','roles','clients','contacts','ai-alerts']);
 function showView(id){document.querySelectorAll('.content-view').forEach(v=>v.classList.remove('active'));if(DEDICATED.has(id)){document.getElementById('view-'+id).classList.add('active');}else{const meta=VIEW_META[id]||{title:id,eyebrow:''};document.getElementById('ph-eyebrow').textContent=meta.eyebrow;document.getElementById('ph-title').textContent=meta.title;document.getElementById('view-placeholder').classList.add('active');}const meta=VIEW_META[id]||{title:id};document.getElementById('bc-current').textContent=meta.title;document.querySelectorAll('.nav-item').forEach(el=>el.classList.toggle('active',el.getAttribute('onclick')?.includes("'"+id+"'")));if(window.innerWidth<=768)closeSidebar();window.scrollTo(0,0);}
 function toggleGroup(id){document.getElementById(id).classList.toggle('open');}
 function toggleSidebar(){
