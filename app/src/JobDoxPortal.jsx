@@ -9540,13 +9540,246 @@ function ColorPicker({ value, onChange }) {
 }
 
 /* ══════════════════════════════════════════════════════════════════
+   BILLING TAB — Stripe Subscription Management
+   Shows current plan, upgrade option, and subscription management.
+══════════════════════════════════════════════════════════════════ */
+function BillingTab({ companyId, memberEmail }) {
+  const [billingData, setBillingData] = useState(null);
+  const [loading, setLoading]         = useState(true);
+  const [upgrading, setUpgrading]     = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
+
+  // Real-time listener on billing/cortexCoins doc
+  useEffect(() => {
+    if (!companyId) return;
+    const ref = doc(db, "companies", companyId, "billing", "cortexCoins");
+    const unsub = onSnapshot(ref, snap => {
+      if (snap.exists()) {
+        setBillingData(snap.data());
+      } else {
+        setBillingData({ baseAllowance: 300, usedThisCycle: 0, totalAvailable: 300, rolloverCoins: 0, plan: "standard" });
+      }
+      setLoading(false);
+    }, err => {
+      console.warn("Billing snapshot error:", err);
+      setLoading(false);
+    });
+    return () => unsub();
+  }, [companyId]);
+
+  const handleUpgrade = async () => {
+    setUpgrading(true);
+    try {
+      const res = await fetch("/.netlify/functions/create-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          memberEmail,
+          successUrl: window.location.origin + "/portal.html?billing=success",
+          cancelUrl: window.location.origin + "/portal.html?billing=cancelled",
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to start checkout");
+      window.location.href = json.url;
+    } catch (err) {
+      alert("Could not start checkout: " + err.message);
+      setUpgrading(false);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    if (!billingData?.stripeCustomerId) return;
+    setPortalLoading(true);
+    try {
+      const res = await fetch("/.netlify/functions/create-portal-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stripeCustomerId: billingData.stripeCustomerId,
+          returnUrl: window.location.origin + "/portal.html?page=settings",
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to open portal");
+      window.location.href = json.url;
+    } catch (err) {
+      alert("Could not open billing portal: " + err.message);
+      setPortalLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="card" style={{padding:40,textAlign:"center"}}>
+        <div style={{width:20,height:20,border:"2px solid var(--br)",borderTopColor:"var(--acc)",
+          borderRadius:"50%",animation:"jd-spin .7s linear infinite",margin:"0 auto 12px"}}/>
+        <div style={{fontSize:12,color:"var(--t3)"}}>Loading billing info...</div>
+      </div>
+    );
+  }
+
+  if (!billingData) return null;
+
+  const isPremium = billingData.plan === "premium";
+  const used = billingData.usedThisCycle || 0;
+  const base = billingData.baseAllowance || 300;
+  const total = billingData.totalAvailable || base;
+  const remaining = Math.max(total - used, 0);
+  const rollover = billingData.rolloverCoins || 0;
+  const pct = total > 0 ? Math.round((used / total) * 100) : 0;
+  const cycleEnd = billingData.cycleEnd
+    ? (billingData.cycleEnd.toDate ? billingData.cycleEnd.toDate() : new Date(billingData.cycleEnd)).toLocaleDateString()
+    : "—";
+  const cycleStart = billingData.cycleStart
+    ? (billingData.cycleStart.toDate ? billingData.cycleStart.toDate() : new Date(billingData.cycleStart)).toLocaleDateString()
+    : "—";
+  const barColor = pct >= 90 ? "var(--acc)" : pct >= 80 ? "var(--amber)" : "var(--green)";
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      {/* ── Payment failed warning ── */}
+      {billingData.paymentFailed && (
+        <div style={{
+          background:"rgba(232,156,24,.12)",border:"1px solid rgba(232,156,24,.3)",
+          borderRadius:10,padding:"14px 18px",display:"flex",alignItems:"center",gap:12,
+        }}>
+          <div style={{fontSize:20,flexShrink:0}}>{"\u26A0"}</div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13,fontWeight:700,color:"var(--amber)"}}>
+              Your last payment failed. Please update your payment method to keep your Premium plan active.
+            </div>
+          </div>
+          {billingData.stripeCustomerId && (
+            <button className="btn btn-primary" style={{flexShrink:0,fontSize:11}} onClick={handleManageSubscription}
+              disabled={portalLoading}>
+              {portalLoading ? "Opening..." : "Manage subscription"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Current plan card ── */}
+      <div className="card" style={{padding:0,overflow:"hidden"}}>
+        <div style={{padding:"22px 24px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+            <div style={{fontSize:16,fontWeight:800,color:"var(--t1)"}}>
+              Cortex Coins — {isPremium ? "Premium" : "Standard"}
+            </div>
+            {isPremium && (
+              <span style={{
+                display:"inline-flex",alignItems:"center",gap:4,borderRadius:20,
+                padding:"2px 10px",fontSize:10,fontWeight:700,
+                background:"rgba(26,217,138,.12)",border:"1px solid rgba(26,217,138,.3)",color:"var(--green)",
+              }}>Premium</span>
+            )}
+          </div>
+
+          {/* Usage stats */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10,marginBottom:16}}>
+            {[
+              ["Plan Allowance", base, "var(--blue)"],
+              ["Used This Cycle", used, "var(--t1)"],
+              ["Remaining", remaining, barColor],
+              ["Rollover Bonus", rollover, "var(--purple)"],
+            ].map(([label, val, color]) => (
+              <div key={label} style={{background:"var(--s2)",borderRadius:8,padding:"10px 12px",
+                border:"1px solid var(--br)"}}>
+                <div style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",letterSpacing:".05em",
+                  textTransform:"uppercase",marginBottom:3}}>{label}</div>
+                <div style={{fontSize:20,fontWeight:800,color}}>{val}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Usage bar */}
+          <div style={{marginBottom:6}}>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--t3)",marginBottom:4}}>
+              <span>{used} / {total} coins used</span>
+              <span>{pct}%</span>
+            </div>
+            <div className="bar-track" style={{height:6}}>
+              <div className="bar-fill" style={{width:`${Math.min(pct,100)}%`,background:barColor}}/>
+            </div>
+          </div>
+
+          {/* Cycle dates */}
+          <div style={{fontSize:11,color:"var(--t3)",display:"flex",gap:16}}>
+            <span>Cycle started <strong style={{color:"var(--t2)"}}>{cycleStart}</strong></span>
+            <span>Resets on <strong style={{color:"var(--t1)"}}>{cycleEnd}</strong></span>
+          </div>
+        </div>
+
+        {/* Plan action footer */}
+        {isPremium && billingData.stripeCustomerId && (
+          <div style={{padding:"12px 24px",background:"var(--s2)",borderTop:"1px solid var(--br)",
+            display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{fontSize:11,color:"var(--t3)"}}>
+              Manage your payment method, invoices, or cancel your subscription.
+            </div>
+            <button className="btn btn-ghost" style={{fontSize:11}} onClick={handleManageSubscription}
+              disabled={portalLoading}>
+              {portalLoading ? "Opening..." : "Manage subscription"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Upgrade card (Standard only) ── */}
+      {!isPremium && (
+        <div className="card" style={{padding:0,overflow:"hidden",border:"1px solid rgba(91,163,245,.3)"}}>
+          <div style={{padding:"24px 24px 20px",background:"rgba(91,163,245,.05)"}}>
+            <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:20,flexWrap:"wrap"}}>
+              <div>
+                <div style={{fontSize:16,fontWeight:800,color:"var(--t1)",marginBottom:4}}>
+                  Cortex Coins — Premium
+                </div>
+                <div style={{fontSize:13,color:"var(--t2)",marginBottom:12}}>
+                  1,000 coins per billing cycle
+                </div>
+                <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:14}}>
+                  <span style={{fontSize:32,fontWeight:800,color:"var(--blue)"}}>$199</span>
+                  <span style={{fontSize:13,color:"var(--t3)"}}>/month</span>
+                </div>
+                <ul style={{margin:0,padding:"0 0 0 18px",fontSize:12,color:"var(--t2)",lineHeight:2}}>
+                  <li>3.3x more AI credits per cycle</li>
+                  <li>Same rollover benefits</li>
+                  <li>Cancel anytime from your billing portal</li>
+                </ul>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
+                <button className="btn btn-primary" style={{fontSize:13,padding:"12px 28px"}}
+                  onClick={handleUpgrade} disabled={upgrading}>
+                  {upgrading ? (
+                    <span style={{display:"inline-flex",alignItems:"center",gap:8}}>
+                      <span style={{width:14,height:14,border:"2px solid rgba(255,255,255,.3)",
+                        borderTopColor:"#fff",borderRadius:"50%",animation:"jd-spin .7s linear infinite",
+                        display:"inline-block"}}/>
+                      Redirecting...
+                    </span>
+                  ) : "Upgrade now"}
+                </button>
+                <span style={{fontSize:10,color:"var(--t3)"}}>Powered by Stripe</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════
    CORTEX COINS TAB — AI Usage Tracker
    Shows balance, usage ring, cycle info, and recent usage log.
 ══════════════════════════════════════════════════════════════════ */
-function CortexCoinsTab({ companyId }) {
+function CortexCoinsTab({ companyId, memberEmail }) {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
+  const [plan, setPlan]       = useState("standard");
+  const [upgrading, setUpgrading] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     if (!companyId) return;
@@ -9569,6 +9802,38 @@ function CortexCoinsTab({ companyId }) {
   }, [companyId]);
 
   useEffect(() => { fetchStatus(); }, [fetchStatus]);
+
+  // Listen for plan field changes
+  useEffect(() => {
+    if (!companyId) return;
+    const ref = doc(db, "companies", companyId, "billing", "cortexCoins");
+    const unsub = onSnapshot(ref, snap => {
+      if (snap.exists()) setPlan(snap.data().plan || "standard");
+    });
+    return () => unsub();
+  }, [companyId]);
+
+  const handleUpgradeNudge = async () => {
+    setUpgrading(true);
+    try {
+      const res = await fetch("/.netlify/functions/create-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          memberEmail: memberEmail || "",
+          successUrl: window.location.origin + "/portal.html?billing=success",
+          cancelUrl: window.location.origin + "/portal.html?billing=cancelled",
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to start checkout");
+      window.location.href = json.url;
+    } catch (err) {
+      alert("Could not start checkout: " + err.message);
+      setUpgrading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -9627,6 +9892,25 @@ function CortexCoinsTab({ companyId }) {
               {pct >= 100 && " AI features are paused until your next cycle begins."}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Upgrade nudge when running low on standard plan ── */}
+      {plan !== "premium" && remaining < 60 && (
+        <div style={{
+          background:"rgba(91,163,245,.08)",border:"1px solid rgba(91,163,245,.25)",
+          borderRadius:10,padding:"12px 18px",display:"flex",alignItems:"center",gap:12,
+        }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--blue)" style={{flexShrink:0}}>
+            <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
+          </svg>
+          <div style={{flex:1,fontSize:12,color:"var(--t2)"}}>
+            Running low? <strong style={{color:"var(--blue)"}}>Upgrade to 1,000 coins/cycle for $199/month</strong>
+          </div>
+          <button className="btn btn-primary" style={{fontSize:11,flexShrink:0,padding:"6px 14px"}}
+            onClick={handleUpgradeNudge} disabled={upgrading}>
+            {upgrading ? "Redirecting..." : "Upgrade"}
+          </button>
         </div>
       )}
 
@@ -11675,7 +11959,7 @@ function FeatureRequestForm({ userName, companyName }) {
   );
 }
 
-function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission=1, currentMemberId, currentMemberName, onPermissionChange, offices=[], projects=[] }) {
+function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission=1, currentMemberId, currentMemberName, currentMemberEmail="", onPermissionChange, offices=[], projects=[] }) {
   const [tab,      setTab]      = useState("staff");
   const [editId,   setEditId]   = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -11850,7 +12134,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     </div>
   );
 
-  const TABS = [["staff","Staff"],["vendors","Vendors"],["offices","Offices"],["phone","Phone & Calls"],["cortex","CortexAI"],["coins","Cortex Coins"],["general","General"],["roadmap","Feature Request"]];
+  const TABS = [["staff","Staff"],["vendors","Vendors"],["offices","Offices"],["phone","Phone & Calls"],["cortex","CortexAI"],["coins","Cortex Coins"],["billing","Billing"],["general","General"],["roadmap","Feature Request"]];
 
   return (
     <div className="scroll" style={{flex:1,overflow:"auto"}}>
@@ -12519,7 +12803,11 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
         )}
 
         {tab==="coins" && (
-          <CortexCoinsTab companyId={companyId} />
+          <CortexCoinsTab companyId={companyId} memberEmail={currentMemberEmail} />
+        )}
+
+        {tab==="billing" && (
+          <BillingTab companyId={companyId} memberEmail={currentMemberEmail} />
         )}
 
         {tab==="general" && (permLevel >= 8 ? (
@@ -13549,6 +13837,7 @@ export default function JobDoxPortal() {
               currentPermission={permission}
               currentMemberId={currentMember?.id}
               currentMemberName={currentUser?.name}
+              currentMemberEmail={currentMember?.auth?.email || ""}
               offices={offices}
               projects={projects}
               onPermissionChange={(memberId, newPerm) => {
