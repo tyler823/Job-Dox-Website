@@ -8290,6 +8290,10 @@ function MarketDoxView({ companyId, coInfo, projects, customWorkTypes }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const clusterRef = useRef(null);
+  const [adsData, setAdsData] = useState(null);
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [mktLastUpdated, setMktLastUpdated] = useState(null);
+  const [showSetupModal, setShowSetupModal] = useState(false);
 
   // ── Real-time yard_signs listener ──
   useEffect(() => {
@@ -8297,6 +8301,20 @@ function MarketDoxView({ companyId, coInfo, projects, customWorkTypes }) {
     const q = query(collection(db, "yard_signs"), where("companyId","==",companyId));
     const unsub = onSnapshot(q, snap => {
       setYardSigns(snap.docs.map(d => ({ ...d.data(), _id: d.id })));
+    });
+    return () => unsub();
+  }, [companyId]);
+
+  // ── Real-time marketing_data listener ──
+  useEffect(() => {
+    if (!companyId) return;
+    const unsub = onSnapshot(doc(db, "marketing_data", companyId), snap => {
+      if (!snap.exists()) { setAdsData(null); setAnalyticsData(null); setMktLastUpdated(null); return; }
+      const d = snap.data();
+      setAdsData(d.googleAds || null);
+      setAnalyticsData(d.googleAnalytics || null);
+      const lu = d.lastUpdated;
+      setMktLastUpdated(lu?.toDate ? lu.toDate() : lu ? new Date(lu) : null);
     });
     return () => unsub();
   }, [companyId]);
@@ -8396,8 +8414,8 @@ function MarketDoxView({ companyId, coInfo, projects, customWorkTypes }) {
           <div className="topbar-sub">MARKETING INTELLIGENCE</div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-          <span style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>Last Updated: —</span>
-          <button className="btn btn-ghost btn-xs" style={{fontSize:10}}>How to Connect</button>
+          <span style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>Last Updated: {mktLastUpdated ? mktLastUpdated.toLocaleString([],{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}) : "—"}</span>
+          <button className="btn btn-ghost btn-xs" style={{fontSize:10}} onClick={()=>setShowSetupModal(true)}>How to Connect</button>
         </div>
       </div>
       <div className="tabs">
@@ -8477,32 +8495,294 @@ function MarketDoxView({ companyId, coInfo, projects, customWorkTypes }) {
             </div>
           )
         )}
+        {/* ══════════════════════════════════════════════════════════
+            TAB 2: AD PERFORMANCE
+        ══════════════════════════════════════════════════════════ */}
         {mdTab==="adperf" && (
-          <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:300,gap:12,color:"var(--t3)"}}>
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="var(--t3)" style={{opacity:.4}}>
-              <path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/>
-            </svg>
-            <div style={{fontSize:13,fontWeight:600,color:"var(--t2)"}}>Connect Your Google Ads Account</div>
-            <div style={{fontSize:11,maxWidth:380,textAlign:"center",lineHeight:1.6}}>
-              Job-Dox pulls your ad performance through Zapier. Setup takes about 5 minutes.
+          !adsData ? (
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:300,gap:12,color:"var(--t3)"}}>
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="var(--t3)" style={{opacity:.4}}>
+                <path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/>
+              </svg>
+              <div style={{fontSize:13,fontWeight:600,color:"var(--t2)"}}>Connect Your Google Ads Account</div>
+              <div style={{fontSize:11,maxWidth:380,textAlign:"center",lineHeight:1.6}}>
+                Job-Dox pulls your ad performance through Zapier. Setup takes about 5 minutes.
+              </div>
+              <button className="btn btn-primary" style={{marginTop:8,fontSize:11}} onClick={()=>setShowSetupModal(true)}>Connect via Zapier</button>
             </div>
-            <button className="btn btn-primary" style={{marginTop:8,fontSize:11}}>Connect via Zapier</button>
-          </div>
+          ) : (()=>{
+            const camps = adsData.campaigns || [];
+            const active = camps.filter(c=>(c.status||"").toUpperCase()!=="PAUSED");
+            const totalSpend = camps.reduce((s,c)=>s+(c.spend||0),0);
+            const totalBudget = camps.reduce((s,c)=>s+(c.budget||0),0);
+            const totalConv = camps.reduce((s,c)=>s+(c.conversions||0),0);
+            const avgCPL = totalConv > 0 ? totalSpend / totalConv : 0;
+            const lastRcv = adsData.lastReceived;
+            const lastRcvStr = lastRcv?.toDate ? lastRcv.toDate().toLocaleString([],{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}) : lastRcv ? new Date(lastRcv).toLocaleString([],{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}) : "—";
+            const fmt$ = (n)=>"$"+n.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
+            return (
+              <div style={{display:"flex",flexDirection:"column",gap:16}}>
+                <div className="kpi-bar">
+                  {[
+                    ["Monthly Spend", fmt$(totalSpend)],
+                    ["Total Budget",  fmt$(totalBudget)],
+                    ["Avg. Cost/Lead",avgCPL>0?"$"+avgCPL.toFixed(0):"—"],
+                    ["Conversions",   totalConv],
+                  ].map(([lbl,val])=>(
+                    <div className="kpi" key={lbl}><div className="kpi-val">{val}</div><div className="kpi-lbl">{lbl}</div></div>
+                  ))}
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {camps.map((c,i)=>{
+                    const isPaused = (c.status||"").toUpperCase()==="PAUSED";
+                    const pct = c.budget > 0 ? Math.min((c.spend/c.budget)*100, 120) : 0;
+                    const barColor = pct >= 100 ? "var(--acc)" : pct >= 80 ? "var(--amber)" : "var(--green)";
+                    return (
+                      <div key={i} className="card" style={{padding:"16px 18px"}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                          <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>{c.campaignName||"Campaign"}</div>
+                          <span style={{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:5,
+                            background:isPaused?"rgba(232,156,24,.12)":"rgba(26,217,138,.12)",
+                            color:isPaused?"var(--amber)":"var(--green)"}}>
+                            {isPaused?"PAUSED":"ACTIVE"}
+                          </span>
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
+                          <div><div className="lbl">Spend</div><div style={{fontSize:14,fontWeight:700,color:"var(--t1)"}}>{fmt$(c.spend||0)}</div></div>
+                          <div><div className="lbl">Cost/Lead</div><div style={{fontSize:14,fontWeight:700,color:"var(--t1)"}}>{c.conversions>0?"$"+(c.spend/c.conversions).toFixed(0):"—"}</div></div>
+                          <div><div className="lbl">Conversions</div><div style={{fontSize:14,fontWeight:700,color:"var(--t1)"}}>{c.conversions||0}</div></div>
+                        </div>
+                        <div className="lbl" style={{marginBottom:3}}>Spend vs Budget</div>
+                        <div className="bar-track"><div className="bar-fill" style={{width:`${Math.min(pct,100)}%`,background:barColor}}/></div>
+                        <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
+                          <span style={{fontSize:10,color:"var(--t3)"}}>{fmt$(c.spend||0)} of {fmt$(c.budget||0)}</span>
+                          <span style={{fontSize:10,color:"var(--t3)"}}>{pct.toFixed(0)}%</span>
+                        </div>
+                        <div style={{display:"flex",gap:16,marginTop:10}}>
+                          <div><span className="lbl">Clicks</span> <span style={{fontSize:11,color:"var(--t1)",fontWeight:600}}>{(c.clicks||0).toLocaleString()}</span></div>
+                          <div><span className="lbl">Impressions</span> <span style={{fontSize:11,color:"var(--t1)",fontWeight:600}}>{(c.impressions||0).toLocaleString()}</span></div>
+                        </div>
+                        {c.dateRange && <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",marginTop:8}}>{c.dateRange}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{fontSize:10,color:"var(--t3)",textAlign:"center",padding:"8px 0"}}>
+                  Data delivered via Zapier &middot; Last updated {lastRcvStr}
+                  <span style={{marginLeft:10,color:"var(--blue)",cursor:"pointer"}} onClick={()=>setShowSetupModal(true)}>Reconnect / Update Setup</span>
+                </div>
+              </div>
+            );
+          })()
         )}
+
+        {/* ══════════════════════════════════════════════════════════
+            TAB 3: SEO & TRAFFIC
+        ══════════════════════════════════════════════════════════ */}
         {mdTab==="seotraffic" && (
-          <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:300,gap:12,color:"var(--t3)"}}>
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="var(--t3)" style={{opacity:.4}}>
-              <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
-            </svg>
-            <div style={{fontSize:13,fontWeight:600,color:"var(--t2)"}}>Connect Your Google Analytics</div>
-            <div style={{fontSize:11,maxWidth:380,textAlign:"center",lineHeight:1.6}}>
-              Job-Dox pulls your organic traffic data through Zapier. Setup takes about 5 minutes.
+          !analyticsData ? (
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:300,gap:12,color:"var(--t3)"}}>
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="var(--t3)" style={{opacity:.4}}>
+                <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+              </svg>
+              <div style={{fontSize:13,fontWeight:600,color:"var(--t2)"}}>Connect Your Google Analytics</div>
+              <div style={{fontSize:11,maxWidth:380,textAlign:"center",lineHeight:1.6}}>
+                Job-Dox pulls your organic traffic data through Zapier. Setup takes about 5 minutes.
+              </div>
+              <button className="btn btn-primary" style={{marginTop:8,fontSize:11}} onClick={()=>setShowSetupModal(true)}>Connect via Zapier</button>
             </div>
-            <button className="btn btn-primary" style={{marginTop:8,fontSize:11}}>Connect via Zapier</button>
-          </div>
+          ) : (()=>{
+            const oSessions = analyticsData.organicSessions || 0;
+            const oUsers = analyticsData.organicUsers || 0;
+            const topPages = analyticsData.topOrganicPages || [];
+            const lastRcv = analyticsData.lastReceived;
+            const lastRcvStr = lastRcv?.toDate ? lastRcv.toDate().toLocaleString([],{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}) : lastRcv ? new Date(lastRcv).toLocaleString([],{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}) : "—";
+            const ysCities = new Set(publishedSigns.map(y=>y.city).filter(Boolean));
+            const ysNeighborhoods = new Set(publishedSigns.map(y=>y.neighborhood).filter(Boolean));
+            const ysWorkTypes = [...new Set(publishedSigns.flatMap(y=>y.workTypes||[]))];
+            return (
+              <div style={{display:"flex",flexDirection:"column",gap:16}}>
+                <div className="kpi-bar">
+                  {[
+                    ["Organic Sessions", oSessions.toLocaleString()],
+                    ["Organic Users",    oUsers.toLocaleString()],
+                    ["Published Signs",  totalPublished],
+                  ].map(([lbl,val])=>(
+                    <div className="kpi" key={lbl}><div className="kpi-val">{val}</div><div className="kpi-lbl">{lbl}</div></div>
+                  ))}
+                </div>
+                {/* SEO Coverage Insight */}
+                <div className="card" style={{padding:"18px 20px",borderLeft:"3px solid var(--acc)"}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",marginBottom:8}}>SEO Coverage</div>
+                  <div style={{fontSize:12,lineHeight:1.7,color:"var(--t2)"}}>
+                    {totalPublished > 0
+                      ? `You have ${totalPublished} digital yard sign${totalPublished!==1?"s":""} published across ${ysNeighborhoods.size} neighborhood${ysNeighborhoods.size!==1?"s":""} in ${ysCities.size} ${ysCities.size!==1?"cities":"city"}. These pages are actively building your local search presence for ${ysWorkTypes.join(", ")||"your services"}.`
+                      : "No yard signs published yet. Complete jobs to start building local SEO coverage."}
+                    {oSessions > 0 && (<><br/><br/>Your website received {oSessions.toLocaleString()} organic visits this period — traffic driven by search engines finding your work.</>)}
+                  </div>
+                </div>
+                {/* Top Organic Pages */}
+                {topPages.length > 0 && (
+                  <div>
+                    <div style={{fontSize:12,fontWeight:700,color:"var(--t1)",marginBottom:8}}>Top Organic Pages</div>
+                    <div style={{border:"1px solid var(--br)",borderRadius:8,overflow:"hidden"}}>
+                      <div className="row" style={{display:"grid",gridTemplateColumns:"1fr 80px 120px",padding:"8px 12px",background:"var(--s1)",borderBottom:"1px solid var(--br)"}}>
+                        <span className="mono" style={{fontSize:9,color:"var(--t3)"}}>PAGE</span>
+                        <span className="mono" style={{fontSize:9,color:"var(--t3)",textAlign:"right"}}>SESSIONS</span>
+                        <span className="mono" style={{fontSize:9,color:"var(--t3)",textAlign:"right"}}>SOURCE</span>
+                      </div>
+                      {topPages.map((pg,i)=>(
+                        <div key={i} className="row" style={{display:"grid",gridTemplateColumns:"1fr 80px 120px",padding:"8px 12px",borderBottom:i<topPages.length-1?"1px solid var(--br)":"none"}}>
+                          <span style={{fontSize:11,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pg.pagePath}</span>
+                          <span style={{fontSize:11,color:"var(--t1)",textAlign:"right",fontWeight:600}}>{(pg.sessions||0).toLocaleString()}</span>
+                          <span style={{fontSize:10,color:"var(--t3)",textAlign:"right",fontFamily:"var(--mono)"}}>{pg.source||"google / organic"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {analyticsData.dateRange && <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",textAlign:"center",padding:"4px 0"}}>{analyticsData.dateRange}</div>}
+                <div style={{fontSize:10,color:"var(--t3)",textAlign:"center",padding:"4px 0"}}>
+                  Data delivered via Zapier &middot; Last updated {lastRcvStr}
+                  <span style={{marginLeft:10,color:"var(--blue)",cursor:"pointer"}} onClick={()=>setShowSetupModal(true)}>Reconnect / Update Setup</span>
+                </div>
+              </div>
+            );
+          })()
         )}
       </div>
+
+      {/* ══════════════════════════════════════════════════════════
+          SETUP MODAL — How to Connect (Zapier Instructions)
+      ══════════════════════════════════════════════════════════ */}
+      {showSetupModal && <MarketDoxSetupModal companyId={companyId} onClose={()=>setShowSetupModal(false)}/>}
     </>
+  );
+}
+
+function MarketDoxSetupModal({ companyId, onClose }) {
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const [showAdsDetail, setShowAdsDetail] = useState(false);
+  const [showGaDetail, setShowGaDetail] = useState(false);
+
+  useEffect(() => {
+    if (!companyId) return;
+    setLoading(true);
+    fetch("/api/generate-webhook-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyId }),
+    })
+      .then(r => r.json())
+      .then(d => { setWebhookUrl(d.webhookUrl || ""); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [companyId]);
+
+  const copyUrl = () => {
+    if (!webhookUrl) return;
+    navigator.clipboard.writeText(webhookUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const StepRow = ({ num, text }) => (
+    <div style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:10}}>
+      <span style={{flexShrink:0,width:22,height:22,borderRadius:"50%",background:"var(--acc-lo)",color:"var(--acc)",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{num}</span>
+      <span style={{fontSize:12,color:"var(--t2)",lineHeight:1.5}}>{text}</span>
+    </div>
+  );
+
+  return (
+    <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="modal anim" style={{width:"min(620px,96vw)",maxHeight:"90vh",display:"flex",flexDirection:"column"}}>
+        <div className="modal-hd">
+          <div>
+            <div className="modal-ttl">How to Connect</div>
+            <div style={{fontSize:10,color:"var(--t3)",marginTop:1,fontFamily:"var(--mono)"}}>ZAPIER INTEGRATION SETUP</div>
+          </div>
+          <button className="btn btn-ghost btn-xs" onClick={onClose}>{Ic.close}</button>
+        </div>
+        <div className="modal-body" style={{gap:20}}>
+          {/* Webhook URL Block */}
+          <div>
+            <div className="lbl" style={{marginBottom:6}}>Your Unique Webhook URL</div>
+            {loading ? (
+              <div style={{background:"var(--s3)",borderRadius:8,padding:"12px 14px",fontSize:11,color:"var(--t3)"}}>Generating webhook URL...</div>
+            ) : (
+              <div style={{display:"flex",gap:6,alignItems:"stretch"}}>
+                <div style={{flex:1,background:"var(--bg)",border:"1px solid var(--br)",borderRadius:8,padding:"10px 12px",fontSize:11,fontFamily:"var(--mono)",color:"var(--t1)",wordBreak:"break-all",lineHeight:1.5}}>
+                  {webhookUrl || "Failed to generate URL"}
+                </div>
+                <button className={`btn ${copied?"btn-green":"btn-primary"}`} style={{fontSize:11,flexShrink:0}} onClick={copyUrl}>
+                  {copied ? "\u2713 Copied" : "Copy URL"}
+                </button>
+              </div>
+            )}
+            <div style={{fontSize:10,color:"var(--t3)",marginTop:5}}>This single URL handles both Google Ads and Google Analytics data. The system auto-detects which service sent the data.</div>
+          </div>
+
+          {/* SECTION 1: Google Ads */}
+          <div style={{border:"1px solid var(--br)",borderRadius:10,overflow:"hidden"}}>
+            <div style={{padding:"14px 16px",background:"var(--s2)",display:"flex",alignItems:"center",gap:8}}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--amber)"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>
+              <span style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>Google Ads Setup</span>
+            </div>
+            <div style={{padding:"14px 16px"}}>
+              <StepRow num="1" text='Go to zapier.com and create a free account if you don&#39;t have one.'/>
+              <StepRow num="2" text='Create a New Zap. Set the Trigger to "Google Ads".'/>
+              <StepRow num="3" text='Choose the trigger event: "Campaign Report" and connect your Google Ads account.'/>
+              <StepRow num="4" text='Set the Action to "Webhooks by Zapier" → "POST".'/>
+              <StepRow num="5" text="Paste your unique Job-Dox webhook URL (above) into the URL field."/>
+              <StepRow num="6" text="Set the schedule to Daily. Turn on your Zap."/>
+              <button className="btn btn-ghost btn-xs" style={{fontSize:10,marginTop:4}} onClick={()=>setShowAdsDetail(!showAdsDetail)}>
+                {showAdsDetail ? "Hide" : "Show"} expected data fields
+              </button>
+              {showAdsDetail && (
+                <div style={{background:"var(--s3)",borderRadius:6,padding:"10px 12px",marginTop:8,fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",lineHeight:1.8}}>
+                  Job-Dox expects these fields from your Zap:<br/>
+                  campaignName, status, spend, budget, conversions,<br/>
+                  costPerConversion, clicks, impressions, dateRange<br/>
+                  <span style={{color:"var(--t2)"}}>Map these from your Google Ads trigger output.</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* SECTION 2: Google Analytics */}
+          <div style={{border:"1px solid var(--br)",borderRadius:10,overflow:"hidden"}}>
+            <div style={{padding:"14px 16px",background:"var(--s2)",display:"flex",alignItems:"center",gap:8}}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--green)"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
+              <span style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>Google Analytics 4 Setup</span>
+            </div>
+            <div style={{padding:"14px 16px"}}>
+              <StepRow num="1" text='Go to zapier.com and create a free account if you don&#39;t have one.'/>
+              <StepRow num="2" text='Create a New Zap. Set the Trigger to "Google Analytics 4".'/>
+              <StepRow num="3" text='Choose the trigger event: "New Report Row" for Organic Traffic. Connect your GA4 property.'/>
+              <StepRow num="4" text='Set the Action to "Webhooks by Zapier" → "POST".'/>
+              <StepRow num="5" text="Paste the same unique Job-Dox webhook URL (above) into the URL field."/>
+              <StepRow num="6" text="Set the schedule to Daily. Turn on your Zap."/>
+              <button className="btn btn-ghost btn-xs" style={{fontSize:10,marginTop:4}} onClick={()=>setShowGaDetail(!showGaDetail)}>
+                {showGaDetail ? "Hide" : "Show"} expected data fields
+              </button>
+              {showGaDetail && (
+                <div style={{background:"var(--s3)",borderRadius:6,padding:"10px 12px",marginTop:8,fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",lineHeight:1.8}}>
+                  Job-Dox expects these fields from your Zap:<br/>
+                  organicSessions, organicUsers, topOrganicPages<br/>
+                  (array of pagePath + sessions), dateRange<br/>
+                  <span style={{color:"var(--t2)"}}>Map these from your GA4 trigger output.</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="modal-ft">
+          <button className="btn btn-ghost" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
