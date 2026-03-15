@@ -44,19 +44,24 @@ exports.handler = async (event) => {
     return error(400, "missing_fields", "companyId and memberstackId are required.");
   }
 
-  // Verify caller has admin permission (>= 8)
-  const db = getDb();
-  const staffSnap = await db.doc(`companies/${companyId}/staff/${memberstackId}`).get();
-  if (!staffSnap.exists || (staffSnap.data().permission || 0) < 8) {
-    return error(403, "forbidden", "Only admins (permission >= 8) can manage API keys.");
-  }
+  try {
+    // Verify caller has admin permission (>= 8)
+    const db = getDb();
+    const staffSnap = await db.doc(`companies/${companyId}/staff/${memberstackId}`).get();
+    if (!staffSnap.exists || (staffSnap.data().permission || 0) < 8) {
+      return error(403, "forbidden", "Only admins (permission >= 8) can manage API keys.");
+    }
 
-  switch (action) {
-    case "generate": return handleGenerate(db, body, staffSnap.data());
-    case "list":     return handleList(db, companyId);
-    case "revoke":   return handleRevoke(db, body);
-    default:
-      return error(400, "invalid_action", "action must be 'generate', 'list', or 'revoke'.");
+    switch (action) {
+      case "generate": return handleGenerate(db, body, staffSnap.data());
+      case "list":     return handleList(db, companyId);
+      case "revoke":   return handleRevoke(db, body);
+      default:
+        return error(400, "invalid_action", "action must be 'generate', 'list', or 'revoke'.");
+    }
+  } catch (err) {
+    console.error("api-keys handler error:", err);
+    return error(500, "internal_error", err.message || "An unexpected error occurred.");
   }
 };
 
@@ -71,6 +76,7 @@ async function handleGenerate(db, body, staffData) {
   // Default scopes if not specified
   const validScopes = [
     "projects:read", "projects:write",
+    "projects:read:docs",
     "contacts:read", "contacts:write",
     "staff:read",
     "events:read", "events:write",
