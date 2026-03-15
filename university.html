@@ -2738,6 +2738,279 @@
     </div>
   </div>
 
+  <!-- TRIGGERS & RULES -->
+  <div id="view-auto-triggers" class="content-view">
+    <div class="article-area">
+      <div class="article-hero">
+        <div class="eyebrow">Automations</div>
+        <h1 class="art-title">Triggers &amp; <span class="red">Rules</span></h1>
+        <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>6 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>Intermediate</span></div>
+      </div>
+      <p>Automations in Job-Dox follow a simple pattern: when something happens (trigger), do something else (action). You define the rules, and the system executes them 24/7 without anyone lifting a finger.</p>
+      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.355a3 3 0 0 1-3 0M9 12.75a3 3 0 1 1 6 0c0 1.657-1.343 3-3 3S9 14.407 9 12.75Z"/></svg></div><div><span class="callout-lbl">Pro Tip</span><p>Start with 2–3 simple automations before building complex chains. The most popular first automation: "When project status changes to Active, send SMS to client."</p></div></div>
+      <h2>Step-by-Step: Building Your First Automation</h2>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Go to Settings › Automations</div><p class="step-desc">Click your avatar → Settings → Automations tab to access the rule builder.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Click "+ New Automation"</div><p class="step-desc">Opens the automation rule builder with trigger and action sections.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
+  <!-- Automation Rule Builder Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>
+      <span style="color:#fff;font-weight:600;font-size:14px;">New Automation</span>
+    </div>
+    <span style="background:#6b1a1a;color:#f05757;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;">DRAFT</span>
+  </div>
+  <!-- TRIGGER Section -->
+  <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:14px;margin-bottom:12px;">
+    <div style="color:#f05757;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">TRIGGER — When</div>
+    <!-- Dropdown -->
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:10px 12px;margin-bottom:12px;">
+      <div style="color:#777;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Project</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+        <span style="background:rgba(240,87,87,0.12);border:1px solid rgba(240,87,87,0.28);color:#f05757;font-size:11px;padding:4px 10px;border-radius:4px;font-weight:500;">Project Created</span>
+        <span style="background:#1a1a1a;border:1px solid #333;color:#c8c8c8;font-size:11px;padding:4px 10px;border-radius:4px;">Status Changed</span>
+        <span style="background:#1a1a1a;border:1px solid #333;color:#c8c8c8;font-size:11px;padding:4px 10px;border-radius:4px;">Staff Assigned</span>
+      </div>
+      <div style="color:#777;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Notes</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+        <span style="background:#1a1a1a;border:1px solid #333;color:#c8c8c8;font-size:11px;padding:4px 10px;border-radius:4px;">Daily Note Added</span>
+      </div>
+      <div style="color:#777;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Tasks</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+        <span style="background:#1a1a1a;border:1px solid #333;color:#c8c8c8;font-size:11px;padding:4px 10px;border-radius:4px;">Task Completed</span>
+      </div>
+      <div style="color:#777;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Documents</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+        <span style="background:#1a1a1a;border:1px solid #333;color:#c8c8c8;font-size:11px;padding:4px 10px;border-radius:4px;">Document Uploaded</span>
+      </div>
+      <div style="color:#777;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Schedule</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        <span style="background:#1a1a1a;border:1px solid #333;color:#c8c8c8;font-size:11px;padding:4px 10px;border-radius:4px;">End of Day</span>
+        <span style="background:#1a1a1a;border:1px solid #333;color:#c8c8c8;font-size:11px;padding:4px 10px;border-radius:4px;">X Days After Start</span>
+      </div>
+    </div>
+  </div>
+  <!-- ACTION Section -->
+  <div style="background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:14px;">
+    <div style="color:#22c55e;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">ACTION — Then</div>
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:10px 12px;">
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        <span style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.25);color:#22c55e;font-size:11px;padding:4px 10px;border-radius:4px;font-weight:500;">Send SMS to Client</span>
+        <span style="background:#1a1a1a;border:1px solid #333;color:#c8c8c8;font-size:11px;padding:4px 10px;border-radius:4px;">Send Email</span>
+        <span style="background:#1a1a1a;border:1px solid #333;color:#c8c8c8;font-size:11px;padding:4px 10px;border-radius:4px;">Create Task</span>
+        <span style="background:#1a1a1a;border:1px solid #333;color:#c8c8c8;font-size:11px;padding:4px 10px;border-radius:4px;">Update Project Status</span>
+        <span style="background:#1a1a1a;border:1px solid #333;color:#c8c8c8;font-size:11px;padding:4px 10px;border-radius:4px;">Notify Staff</span>
+        <span style="background:#1a1a1a;border:1px solid #333;color:#c8c8c8;font-size:11px;padding:4px 10px;border-radius:4px;">Send Webhook</span>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Configure the trigger</div><p class="step-desc">Select the event and any conditions (e.g., "only when status changes TO Active").</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Configure the action</div><p class="step-desc">Fill in the details — e.g., SMS message text with merge fields like <code>{{client_name}}</code>, <code>{{job_name}}</code>.</p></div></div>
+        <div class="step"><div class="step-num">5</div><div class="step-body"><div class="step-title">Enable and save</div><p class="step-desc">Toggle the automation ON. It runs on all future matching events.</p></div></div>
+      </div>
+      <div class="callout warn"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#eab308" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg></div><div><span class="callout-lbl">Important</span><p>Automations are forward-only. They won't retroactively apply to jobs that already passed the trigger point.</p></div></div>
+      <div class="quiz-section" id="quiz-auto-triggers">
+        <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Triggers &amp; Rules</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
+        <div class="progress-bar"><div class="progress-fill" id="prog-auto-triggers" style="width:0%"></div></div>
+        <div class="quiz-question" id="q-atr-1"><div class="q-num">Question 1 of 3</div><div class="q-text">What is the basic pattern of a Job-Dox automation?</div><div class="options"><div class="option" onclick="pick(this,'q-atr-1','a')"><div class="opt-marker">A</div>If/else conditional logic</div><div class="option" onclick="pick(this,'q-atr-1','b')"><div class="opt-marker">B</div>When something happens (trigger), do something else (action)</div><div class="option" onclick="pick(this,'q-atr-1','c')"><div class="opt-marker">C</div>Scheduled cron jobs only</div></div><div class="opt-feedback" id="fb-atr-1"></div></div>
+        <div class="quiz-question" id="q-atr-2"><div class="q-num">Question 2 of 3</div><div class="q-text">Will an automation apply to jobs that already passed the trigger point?</div><div class="options"><div class="option" onclick="pick(this,'q-atr-2','a')"><div class="opt-marker">A</div>Yes, all automations are retroactive</div><div class="option" onclick="pick(this,'q-atr-2','b')"><div class="opt-marker">B</div>No, automations are forward-only</div><div class="option" onclick="pick(this,'q-atr-2','c')"><div class="opt-marker">C</div>Only if you enable the "backfill" option</div></div><div class="opt-feedback" id="fb-atr-2"></div></div>
+        <div class="quiz-question" id="q-atr-3"><div class="q-num">Question 3 of 3</div><div class="q-text">Where do you create a new automation in Job-Dox?</div><div class="options"><div class="option" onclick="pick(this,'q-atr-3','a')"><div class="opt-marker">A</div>Dashboard › Quick Actions</div><div class="option" onclick="pick(this,'q-atr-3','b')"><div class="opt-marker">B</div>Settings › Automations</div><div class="option" onclick="pick(this,'q-atr-3','c')"><div class="opt-marker">C</div>Reports › Automations</div></div><div class="opt-feedback" id="fb-atr-3"></div></div>
+        <div class="quiz-score" id="score-auto-triggers"><div class="score-ring"><span class="score-num" id="sn-auto-triggers">0</span><span class="score-denom">/ 3</span></div><p class="score-msg" id="sm-auto-triggers"></p><button class="btn btn-ghost" onclick="resetQuiz('auto-triggers')">Try Again</button></div>
+        <div class="quiz-actions" id="qa-auto-triggers"><button class="btn btn-red" onclick="grade('auto-triggers')">Submit Answers</button><button class="btn btn-ghost" onclick="resetQuiz('auto-triggers')">Reset</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AUTOMATED NOTIFICATIONS -->
+  <div id="view-auto-notifications" class="content-view">
+    <div class="article-area">
+      <div class="article-hero">
+        <div class="eyebrow">Automations</div>
+        <h1 class="art-title">Automated <span class="red">Notifications</span></h1>
+        <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>4 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>Beginner</span></div>
+      </div>
+      <p>Stop manually texting clients and chasing your crew. Automated notifications send the right message to the right person at the right time — via SMS, email, or in-app push.</p>
+      <div class="callout tip"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.355a3 3 0 0 1-3 0M9 12.75a3 3 0 1 1 6 0c0 1.657-1.343 3-3 3S9 14.407 9 12.75Z"/></svg></div><div><span class="callout-lbl">Pro Tip</span><p>Use the "Email Daily Notes to Client" action to auto-send a summary every evening. Clients love the transparency, and it reduces "what's happening?" calls.</p></div></div>
+      <h2>Step-by-Step: Setting Up Notifications</h2>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Create an automation with a notification action</div><p class="step-desc">Follow the Triggers &amp; Rules guide to create a new automation, selecting a notification-type action.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Choose the channel — SMS, Email, or In-App</div><p class="step-desc">Select the delivery method and configure the recipient and message body.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
+  <!-- Notification Config Panel -->
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0"/></svg>
+    <span style="color:#fff;font-weight:600;font-size:14px;">Notification Configuration</span>
+  </div>
+  <!-- Channel Tabs -->
+  <div style="display:flex;gap:0;border-bottom:1.5px solid #2a2a2a;margin-bottom:14px;">
+    <div style="padding:8px 16px;color:#fff;font-size:12px;font-weight:600;border-bottom:2px solid #f05757;margin-bottom:-1.5px;">SMS</div>
+    <div style="padding:8px 16px;color:#777;font-size:12px;font-weight:500;cursor:pointer;">Email</div>
+    <div style="padding:8px 16px;color:#777;font-size:12px;font-weight:500;cursor:pointer;">In-App</div>
+  </div>
+  <!-- Recipient -->
+  <div style="margin-bottom:12px;">
+    <div style="color:#777;font-size:11px;font-weight:500;margin-bottom:4px;">Recipient</div>
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="color:#fff;font-size:12px;">Project Client</span>
+      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+    </div>
+    <div style="color:#444;font-size:10px;margin-top:4px;">Options: Project Client / Project Manager / All Staff on Job</div>
+  </div>
+  <!-- Message Body -->
+  <div style="margin-bottom:12px;">
+    <div style="color:#777;font-size:11px;font-weight:500;margin-bottom:4px;">Message Body</div>
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:10px 12px;min-height:60px;">
+      <span style="color:#c8c8c8;font-size:12px;line-height:1.5;">Hi <span style="color:#f05757;font-weight:500;">{{client_name}}</span>, your project <span style="color:#f05757;font-weight:500;">{{job_name}}</span> has been updated to <span style="color:#f05757;font-weight:500;">{{status}}</span>. Questions? Reply to this text.</span>
+    </div>
+  </div>
+  <!-- Character Count -->
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <div style="display:flex;gap:6px;">
+      <span style="background:rgba(240,87,87,0.12);color:#f05757;font-size:10px;font-weight:500;padding:3px 8px;border-radius:4px;">{{client_name}}</span>
+      <span style="background:rgba(240,87,87,0.12);color:#f05757;font-size:10px;font-weight:500;padding:3px 8px;border-radius:4px;">{{job_name}}</span>
+      <span style="background:rgba(240,87,87,0.12);color:#f05757;font-size:10px;font-weight:500;padding:3px 8px;border-radius:4px;">{{status}}</span>
+    </div>
+    <span style="color:#777;font-size:11px;">142 / 160 chars</span>
+  </div>
+</div></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Customize the message</div><p class="step-desc">Use merge fields to personalize — <code>{{client_name}}</code>, <code>{{job_name}}</code>, <code>{{status}}</code>, and more.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Preview and activate</div><p class="step-desc">Use "Send Test" to preview the notification before going live.</p></div></div>
+      </div>
+      <div class="quiz-section" id="quiz-auto-notifications">
+        <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Automated Notifications</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
+        <div class="progress-bar"><div class="progress-fill" id="prog-auto-notifications" style="width:0%"></div></div>
+        <div class="quiz-question" id="q-an-1"><div class="q-num">Question 1 of 3</div><div class="q-text">Which channels can automated notifications be sent through?</div><div class="options"><div class="option" onclick="pick(this,'q-an-1','a')"><div class="opt-marker">A</div>Email only</div><div class="option" onclick="pick(this,'q-an-1','b')"><div class="opt-marker">B</div>SMS, Email, and In-App</div><div class="option" onclick="pick(this,'q-an-1','c')"><div class="opt-marker">C</div>Push notifications only</div></div><div class="opt-feedback" id="fb-an-1"></div></div>
+        <div class="quiz-question" id="q-an-2"><div class="q-num">Question 2 of 3</div><div class="q-text">What does the "Email Daily Notes to Client" action do?</div><div class="options"><div class="option" onclick="pick(this,'q-an-2','a')"><div class="opt-marker">A</div>Sends all project files to the client</div><div class="option" onclick="pick(this,'q-an-2','b')"><div class="opt-marker">B</div>Auto-sends a daily notes summary to the client every evening</div><div class="option" onclick="pick(this,'q-an-2','c')"><div class="opt-marker">C</div>Creates a task for the client to review</div></div><div class="opt-feedback" id="fb-an-2"></div></div>
+        <div class="quiz-question" id="q-an-3"><div class="q-num">Question 3 of 3</div><div class="q-text">What should you do before activating a notification automation?</div><div class="options"><div class="option" onclick="pick(this,'q-an-3','a')"><div class="opt-marker">A</div>Delete all existing automations</div><div class="option" onclick="pick(this,'q-an-3','b')"><div class="opt-marker">B</div>Use "Send Test" to preview the notification</div><div class="option" onclick="pick(this,'q-an-3','c')"><div class="opt-marker">C</div>Disable all other notifications first</div></div><div class="opt-feedback" id="fb-an-3"></div></div>
+        <div class="quiz-score" id="score-auto-notifications"><div class="score-ring"><span class="score-num" id="sn-auto-notifications">0</span><span class="score-denom">/ 3</span></div><p class="score-msg" id="sm-auto-notifications"></p><button class="btn btn-ghost" onclick="resetQuiz('auto-notifications')">Try Again</button></div>
+        <div class="quiz-actions" id="qa-auto-notifications"><button class="btn btn-red" onclick="grade('auto-notifications')">Submit Answers</button><button class="btn btn-ghost" onclick="resetQuiz('auto-notifications')">Reset</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WORKFLOW TEMPLATES -->
+  <div id="view-auto-workflows" class="content-view">
+    <div class="article-area">
+      <div class="article-hero">
+        <div class="eyebrow">Automations</div>
+        <h1 class="art-title">Workflow <span class="red">Templates</span></h1>
+        <div class="art-meta"><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/></svg>5 min read</span><span><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>Intermediate</span></div>
+      </div>
+      <p>A workflow template is a bundle of automations that fire in sequence across a job's lifecycle. Instead of building 10 individual rules, create one workflow template and apply it to every new job of that type.</p>
+      <div class="callout warn"><div class="callout-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#eab308" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg></div><div><span class="callout-lbl">Important</span><p>Workflow templates are applied at job creation. Changing a template later won't affect jobs already using it — only new jobs pick up the changes.</p></div></div>
+      <h2>Step-by-Step: Creating a Workflow Template</h2>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Go to Settings › Automations › Workflow Templates</div><p class="step-desc">Navigate to the Workflow Templates section within Automations settings.</p></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Click "+ New Workflow"</div><p class="step-desc">Opens the workflow builder where you chain automation steps in sequence.</p><div style="background:#141414;border:1.5px solid #2a2a2a;border-radius:10px;padding:18px;margin-top:12px;font-family:'Inter',sans-serif;font-size:13px;color:#c8c8c8;overflow:hidden;">
+  <!-- Workflow Builder Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+      <span style="color:#fff;font-weight:600;font-size:14px;">Water Damage — Standard Workflow</span>
+    </div>
+    <span style="background:rgba(34,197,94,0.15);color:#22c55e;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;">5 STEPS</span>
+  </div>
+  <!-- Step 1 -->
+  <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:4px;">
+    <div style="display:flex;flex-direction:column;align-items:center;">
+      <div style="width:10px;height:10px;border-radius:50%;background:#22c55e;margin-top:4px;"></div>
+      <div style="width:2px;height:40px;background:#2a2a2a;"></div>
+    </div>
+    <div style="flex:1;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="color:#fff;font-size:12px;font-weight:500;">Project Created → Send welcome SMS to client</div>
+        <div style="color:#777;font-size:10px;margin-top:2px;">Trigger: project.created • Action: send_sms</div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="1.8" style="cursor:pointer;"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="1.8" style="cursor:pointer;"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
+      </div>
+    </div>
+  </div>
+  <!-- Step 2 -->
+  <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:4px;">
+    <div style="display:flex;flex-direction:column;align-items:center;">
+      <div style="width:10px;height:10px;border-radius:50%;background:#22c55e;margin-top:4px;"></div>
+      <div style="width:2px;height:40px;background:#2a2a2a;"></div>
+    </div>
+    <div style="flex:1;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="color:#fff;font-size:12px;font-weight:500;">Status → Active → Create task: Schedule initial inspection</div>
+        <div style="color:#777;font-size:10px;margin-top:2px;">Trigger: project.status_changed • Action: create_task</div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="1.8" style="cursor:pointer;"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="1.8" style="cursor:pointer;"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
+      </div>
+    </div>
+  </div>
+  <!-- Step 3 -->
+  <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:4px;">
+    <div style="display:flex;flex-direction:column;align-items:center;">
+      <div style="width:10px;height:10px;border-radius:50%;background:#3b82f6;margin-top:4px;"></div>
+      <div style="width:2px;height:40px;background:#2a2a2a;"></div>
+    </div>
+    <div style="flex:1;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="color:#fff;font-size:12px;font-weight:500;">Day 3 → Email daily notes summary to client</div>
+        <div style="color:#777;font-size:10px;margin-top:2px;">Trigger: day.3 • Action: send_notes</div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="1.8" style="cursor:pointer;"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="1.8" style="cursor:pointer;"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
+      </div>
+    </div>
+  </div>
+  <!-- Step 4 -->
+  <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:4px;">
+    <div style="display:flex;flex-direction:column;align-items:center;">
+      <div style="width:10px;height:10px;border-radius:50%;background:#3b82f6;margin-top:4px;"></div>
+      <div style="width:2px;height:40px;background:#2a2a2a;"></div>
+    </div>
+    <div style="flex:1;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="color:#fff;font-size:12px;font-weight:500;">Status → Completed → Send review request to client</div>
+        <div style="color:#777;font-size:10px;margin-top:2px;">Trigger: project.status_changed • Action: send_review</div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="1.8" style="cursor:pointer;"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="1.8" style="cursor:pointer;"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
+      </div>
+    </div>
+  </div>
+  <!-- Step 5 -->
+  <div style="display:flex;align-items:flex-start;gap:12px;">
+    <div style="display:flex;flex-direction:column;align-items:center;">
+      <div style="width:10px;height:10px;border-radius:50%;background:#777;margin-top:4px;"></div>
+    </div>
+    <div style="flex:1;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="color:#fff;font-size:12px;font-weight:500;">Day 7 after Completed → Send follow-up email</div>
+        <div style="color:#777;font-size:10px;margin-top:2px;">Trigger: day.7 • Action: send_email</div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="1.8" style="cursor:pointer;"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#777" stroke-width="1.8" style="cursor:pointer;"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Add automation steps</div><p class="step-desc">Each step is a trigger + action pair. Chain them in the order they should fire across the job lifecycle.</p></div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Assign to project types</div><p class="step-desc">Apply this workflow to specific job types — Water Damage, Mold Remediation, Fire Restoration, etc.</p></div></div>
+        <div class="step"><div class="step-num">5</div><div class="step-body"><div class="step-title">Save and apply</div><p class="step-desc">New jobs of the assigned type will automatically load this workflow's automation steps.</p></div></div>
+      </div>
+      <div class="quiz-section" id="quiz-auto-workflows">
+        <div class="quiz-header"><div class="quiz-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#f05757" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg></div><div><div class="quiz-ttl">Knowledge Check: Workflow Templates</div><div class="quiz-sub">3 questions · ~1 minute</div></div></div>
+        <div class="progress-bar"><div class="progress-fill" id="prog-auto-workflows" style="width:0%"></div></div>
+        <div class="quiz-question" id="q-aw-1"><div class="q-num">Question 1 of 3</div><div class="q-text">What is a workflow template?</div><div class="options"><div class="option" onclick="pick(this,'q-aw-1','a')"><div class="opt-marker">A</div>A single automation rule</div><div class="option" onclick="pick(this,'q-aw-1','b')"><div class="opt-marker">B</div>A bundle of automations that fire in sequence across a job's lifecycle</div><div class="option" onclick="pick(this,'q-aw-1','c')"><div class="opt-marker">C</div>A project status template</div></div><div class="opt-feedback" id="fb-aw-1"></div></div>
+        <div class="quiz-question" id="q-aw-2"><div class="q-num">Question 2 of 3</div><div class="q-text">When are workflow templates applied to a job?</div><div class="options"><div class="option" onclick="pick(this,'q-aw-2','a')"><div class="opt-marker">A</div>At job creation</div><div class="option" onclick="pick(this,'q-aw-2','b')"><div class="opt-marker">B</div>When the job is marked complete</div><div class="option" onclick="pick(this,'q-aw-2','c')"><div class="opt-marker">C</div>They can be applied at any time</div></div><div class="opt-feedback" id="fb-aw-2"></div></div>
+        <div class="quiz-question" id="q-aw-3"><div class="q-num">Question 3 of 3</div><div class="q-text">If you change a workflow template, what happens to jobs already using it?</div><div class="options"><div class="option" onclick="pick(this,'q-aw-3','a')"><div class="opt-marker">A</div>All existing jobs update automatically</div><div class="option" onclick="pick(this,'q-aw-3','b')"><div class="opt-marker">B</div>Nothing — only new jobs pick up the changes</div><div class="option" onclick="pick(this,'q-aw-3','c')"><div class="opt-marker">C</div>Existing jobs are paused until you re-apply</div></div><div class="opt-feedback" id="fb-aw-3"></div></div>
+        <div class="quiz-score" id="score-auto-workflows"><div class="score-ring"><span class="score-num" id="sn-auto-workflows">0</span><span class="score-denom">/ 3</span></div><p class="score-msg" id="sm-auto-workflows"></p><button class="btn btn-ghost" onclick="resetQuiz('auto-workflows')">Try Again</button></div>
+        <div class="quiz-actions" id="qa-auto-workflows"><button class="btn btn-red" onclick="grade('auto-workflows')">Submit Answers</button><button class="btn btn-ghost" onclick="resetQuiz('auto-workflows')">Reset</button></div>
+      </div>
+    </div>
+  </div>
+
   <!-- PLACEHOLDER -->
   <div id="view-placeholder" class="content-view">
     <div class="article-area">
@@ -2837,6 +3110,9 @@ const QUIZZES = {
   'ai-health':{answers:{'q-ah-1':'b','q-ah-2':'b','q-ah-3':'b'},feedback:{'q-ah-1':{ok:'Correct! Budget, Schedule, Tasks, and Documentation are the four sub-metrics.',bad:'✗ The four sub-metrics are Budget, Schedule, Tasks, and Documentation.'},'q-ah-2':{ok:'Correct! A score below 60 triggers an automatic notification to the project owner.',bad:'✗ The project owner is automatically notified when the score drops below 60.'},'q-ah-3':{ok:'Correct! Amber/orange indicates a "Fair" health score.',bad:'✗ Amber/orange is the color for a Fair health score.'}},total:3},
   'ai-tasks':{answers:{'q-ait-1':'b','q-ait-2':'b','q-ait-3':'b'},feedback:{'q-ait-1':{ok:'Correct! Each auto-task creation costs 1 Cortex Coin.',bad:'✗ Each auto-task costs exactly 1 Cortex Coin.'},'q-ait-2':{ok:'Correct! Auto-task rules are configured in Settings › Cortex AI › Auto-Tasks.',bad:'✗ Go to Settings › Cortex AI › Auto-Tasks.'},'q-ait-3':{ok:'Correct! Test Rule verifies the rule without consuming a coin.',bad:'✗ Test Rule lets you verify without spending a Cortex Coin.'}},total:3},
   'crew-analytics':{answers:{'q-ca-1':'b','q-ca-2':'b','q-ca-3':'b'},feedback:{'q-ca-1':{ok:'Correct! Over 85% utilization marks a crew member as overloaded.',bad:'✗ The overloaded threshold is above 85%.'},'q-ca-2':{ok:'Correct! Crew Utilization is found under Reports.',bad:'✗ Navigate to Reports › Crew Utilization.'},'q-ca-3':{ok:'Correct! Shift data, task assignments, and job schedules all power the analysis.',bad:'✗ The analysis uses shift data, task assignments, and job schedules.'}},total:3},
+  'auto-triggers':{answers:{'q-atr-1':'b','q-atr-2':'b','q-atr-3':'b'},feedback:{'q-atr-1':{ok:'Correct! Automations follow a trigger → action pattern.',bad:'✗ The basic pattern is: when something happens (trigger), do something else (action).'},'q-atr-2':{ok:'Correct! Automations are forward-only and won\'t retroactively apply.',bad:'✗ Automations only apply to future events — they are forward-only.'},'q-atr-3':{ok:'Correct! Automations are created in Settings › Automations.',bad:'✗ Go to Settings › Automations to create new rules.'}},total:3},
+  'auto-notifications':{answers:{'q-an-1':'b','q-an-2':'b','q-an-3':'b'},feedback:{'q-an-1':{ok:'Correct! Notifications can be sent via SMS, Email, and In-App.',bad:'✗ All three channels are available: SMS, Email, and In-App.'},'q-an-2':{ok:'Correct! It auto-sends a daily notes summary every evening.',bad:'✗ The action emails a summary of daily notes to the client each evening.'},'q-an-3':{ok:'Correct! Always use "Send Test" to preview before activating.',bad:'✗ Use the "Send Test" button to preview your notification first.'}},total:3},
+  'auto-workflows':{answers:{'q-aw-1':'b','q-aw-2':'a','q-aw-3':'b'},feedback:{'q-aw-1':{ok:'Correct! A workflow template bundles multiple automations into a sequence.',bad:'✗ A workflow template is a bundle of automations that fire in sequence across a job\'s lifecycle.'},'q-aw-2':{ok:'Correct! Workflow templates are applied at job creation.',bad:'✗ Templates are applied when a job is created — not after.'},'q-aw-3':{ok:'Correct! Changes only affect new jobs — existing jobs keep the original workflow.',bad:'✗ Existing jobs are not affected — only new jobs pick up template changes.'}},total:3},
   'expenses':{answers:{'q-ex-1':'b','q-ex-2':'b','q-ex-3':'b'},feedback:{'q-ex-1':{ok:'Correct! Saving an expense immediately updates the budget bar and triggers AI checks.',bad:'✗ Expenses update the budget bar and trigger AI checks in real time.'},'q-ex-2':{ok:'Correct! Expenses can only be voided, creating an audit trail.',bad:'✗ Expenses cannot be deleted — only voided to maintain an audit trail.'},'q-ex-3':{ok:'Correct! Receipts are critical for insurance reimbursement and audit trails.',bad:'✗ Attaching receipts is critical for insurance reimbursement and creating audit trails.'}},total:3},
   'invoicing':{answers:{'q-iv-1':'b','q-iv-2':'b','q-iv-3':'b'},feedback:{'q-iv-1':{ok:'Correct! Auto-populate pulls all recorded expenses into line items instantly.',bad:'✗ The button pulls recorded expenses into invoice line items automatically.'},'q-iv-2':{ok:'Correct! Invoice statuses are Sent, Viewed, Paid, and Overdue.',bad:'✗ The four invoice statuses are Sent, Viewed, Paid, and Overdue.'},'q-iv-3':{ok:'Correct! You can email directly or download as PDF.',bad:'✗ Invoices can be emailed directly to clients or downloaded as PDF.'}},total:3},
   'profit-margin':{answers:{'q-pm-1':'b','q-pm-2':'b','q-pm-3':'a'},feedback:{'q-pm-1':{ok:'Correct! The profit report compares total invoiced revenue against all recorded expenses.',bad:'✗ It compares total invoiced revenue vs. all recorded expenses.'},'q-pm-2':{ok:'Correct! Run reports weekly to catch margin erosion early.',bad:'✗ Weekly reporting helps you catch margin erosion before it\'s too late.'},'q-pm-3':{ok:'Correct! Reports can be exported as PDF or CSV.',bad:'✗ Financial reports can be downloaded as PDF or CSV.'}},total:3},
@@ -2847,8 +3123,8 @@ const picks={};
 function pick(el,qId,val){const q=document.getElementById(qId);if(q.classList.contains('answered'))return;q.querySelectorAll('.option').forEach(o=>o.classList.remove('selected'));el.classList.add('selected');picks[qId]=val;}
 function grade(quizId){const data=QUIZZES[quizId];let score=0;const letters=['a','b','c','d'];Object.keys(data.answers).forEach(qId=>{const q=document.getElementById(qId);const correct=data.answers[qId];const chosen=picks[qId];q.classList.add('answered');q.querySelectorAll('.option').forEach((o,i)=>{o.classList.add('locked');if(letters[i]===correct)o.classList.add('correct');else if(letters[i]===chosen&&chosen!==correct)o.classList.add('incorrect');});const fbKey=qId.replace('q-','');const fbEl=document.getElementById('fb-'+fbKey);if(chosen===correct){score++;fbEl.textContent=data.feedback[qId].ok;fbEl.className='opt-feedback show ok';}else{fbEl.textContent=data.feedback[qId].bad;fbEl.className='opt-feedback show bad';}});document.getElementById('prog-'+quizId).style.width='100%';document.getElementById('sn-'+quizId).textContent=score;const pct=Math.round(score/data.total*100);document.getElementById('sm-'+quizId).textContent=pct===100?'★ Perfect! You\'ve mastered this section.':pct>=70?'+ Good work! Review any missed questions above.':'→ Keep studying — try again when ready.';document.getElementById('score-'+quizId).classList.add('show');document.getElementById('qa-'+quizId).style.display='none';}
 function resetQuiz(quizId){const data=QUIZZES[quizId];Object.keys(data.answers).forEach(qId=>{delete picks[qId];const q=document.getElementById(qId);q.classList.remove('answered');q.querySelectorAll('.option').forEach(o=>o.classList.remove('selected','correct','incorrect','locked'));const fbKey=qId.replace('q-','');const fb=document.getElementById('fb-'+fbKey);if(fb){fb.className='opt-feedback';fb.textContent='';}});document.getElementById('prog-'+quizId).style.width='0%';document.getElementById('score-'+quizId).classList.remove('show');document.getElementById('qa-'+quizId).style.display='flex';}
-const VIEW_META={'welcome':{title:'Welcome',eyebrow:''},'account-setup':{title:'Account Setup',eyebrow:'Onboarding'},'first-login':{title:'First Login Walkthrough',eyebrow:'Onboarding'},'dashboard-tour':{title:'Dashboard Tour',eyebrow:'Onboarding'},'create-job':{title:'Creating a Job',eyebrow:'Projects & Jobs'},'job-status':{title:'Job Status & Phases',eyebrow:'Projects & Jobs'},'job-notes':{title:'Notes & Activity Log',eyebrow:'Projects & Jobs'},'job-photos':{title:'Attaching Photos',eyebrow:'Projects & Jobs'},'create-task':{title:'Creating Tasks',eyebrow:'Tasks & Scheduling'},'assign-task':{title:'Assigning to Team Members',eyebrow:'Tasks & Scheduling'},'task-calendar':{title:'Calendar View',eyebrow:'Tasks & Scheduling'},'recurring-tasks':{title:'Recurring Tasks',eyebrow:'Tasks & Scheduling'},'add-user':{title:'Adding Users',eyebrow:'Team & CRM'},'roles':{title:'Roles & Permissions',eyebrow:'Team & CRM'},'clients':{title:'Managing Clients',eyebrow:'Team & CRM'},'contacts':{title:'Contacts & Leads',eyebrow:'Team & CRM'},'budget-setup':{title:'Setting a Budget',eyebrow:'Budgeting & Finance'},'expenses':{title:'Recording Expenses',eyebrow:'Budgeting & Finance'},'invoicing':{title:'Invoicing',eyebrow:'Budgeting & Finance'},'profit-margin':{title:'Profit & Margin Reports',eyebrow:'Budgeting & Finance'},'upload-docs':{title:'Uploading Documents',eyebrow:'Documents & Files'},'doc-templates':{title:'Document Templates',eyebrow:'Documents & Files'},'esignature':{title:'E-Signatures',eyebrow:'Documents & Files'},'ai-alerts':{title:'Budget Overrun Alerts',eyebrow:'Cortex AI'},'ai-health':{title:'Project Health Scoring',eyebrow:'Cortex AI'},'ai-tasks':{title:'AI Auto-Tasks',eyebrow:'Cortex AI'},'crew-analytics':{title:'Crew Utilization Analytics',eyebrow:'Cortex AI'},'job-reports':{title:'Job Summary Reports',eyebrow:'Reporting'},'crew-reports':{title:'Crew Performance',eyebrow:'Reporting'},'financial-reports':{title:'Financial Reports',eyebrow:'Reporting'}};
-const DEDICATED=new Set(['welcome','account-setup','first-login','dashboard-tour','create-job','job-status','job-notes','job-photos','create-task','assign-task','task-calendar','recurring-tasks','add-user','roles','clients','contacts','budget-setup','expenses','invoicing','profit-margin','upload-docs','doc-templates','esignature','ai-alerts','ai-health','ai-tasks','crew-analytics']);
+const VIEW_META={'welcome':{title:'Welcome',eyebrow:''},'account-setup':{title:'Account Setup',eyebrow:'Onboarding'},'first-login':{title:'First Login Walkthrough',eyebrow:'Onboarding'},'dashboard-tour':{title:'Dashboard Tour',eyebrow:'Onboarding'},'create-job':{title:'Creating a Job',eyebrow:'Projects & Jobs'},'job-status':{title:'Job Status & Phases',eyebrow:'Projects & Jobs'},'job-notes':{title:'Notes & Activity Log',eyebrow:'Projects & Jobs'},'job-photos':{title:'Attaching Photos',eyebrow:'Projects & Jobs'},'create-task':{title:'Creating Tasks',eyebrow:'Tasks & Scheduling'},'assign-task':{title:'Assigning to Team Members',eyebrow:'Tasks & Scheduling'},'task-calendar':{title:'Calendar View',eyebrow:'Tasks & Scheduling'},'recurring-tasks':{title:'Recurring Tasks',eyebrow:'Tasks & Scheduling'},'add-user':{title:'Adding Users',eyebrow:'Team & CRM'},'roles':{title:'Roles & Permissions',eyebrow:'Team & CRM'},'clients':{title:'Managing Clients',eyebrow:'Team & CRM'},'contacts':{title:'Contacts & Leads',eyebrow:'Team & CRM'},'budget-setup':{title:'Setting a Budget',eyebrow:'Budgeting & Finance'},'expenses':{title:'Recording Expenses',eyebrow:'Budgeting & Finance'},'invoicing':{title:'Invoicing',eyebrow:'Budgeting & Finance'},'profit-margin':{title:'Profit & Margin Reports',eyebrow:'Budgeting & Finance'},'upload-docs':{title:'Uploading Documents',eyebrow:'Documents & Files'},'doc-templates':{title:'Document Templates',eyebrow:'Documents & Files'},'esignature':{title:'E-Signatures',eyebrow:'Documents & Files'},'ai-alerts':{title:'Budget Overrun Alerts',eyebrow:'Cortex AI'},'ai-health':{title:'Project Health Scoring',eyebrow:'Cortex AI'},'ai-tasks':{title:'AI Auto-Tasks',eyebrow:'Cortex AI'},'crew-analytics':{title:'Crew Utilization Analytics',eyebrow:'Cortex AI'},'auto-triggers':{title:'Triggers & Rules',eyebrow:'Automations'},'auto-notifications':{title:'Automated Notifications',eyebrow:'Automations'},'auto-workflows':{title:'Workflow Templates',eyebrow:'Automations'},'job-reports':{title:'Job Summary Reports',eyebrow:'Reporting'},'crew-reports':{title:'Crew Performance',eyebrow:'Reporting'},'financial-reports':{title:'Financial Reports',eyebrow:'Reporting'}};
+const DEDICATED=new Set(['welcome','account-setup','first-login','dashboard-tour','create-job','job-status','job-notes','job-photos','create-task','assign-task','task-calendar','recurring-tasks','add-user','roles','clients','contacts','budget-setup','expenses','invoicing','profit-margin','upload-docs','doc-templates','esignature','ai-alerts','ai-health','ai-tasks','crew-analytics','auto-triggers','auto-notifications','auto-workflows']);
 function showView(id){document.querySelectorAll('.content-view').forEach(v=>v.classList.remove('active'));if(DEDICATED.has(id)){document.getElementById('view-'+id).classList.add('active');}else{const meta=VIEW_META[id]||{title:id,eyebrow:''};document.getElementById('ph-eyebrow').textContent=meta.eyebrow;document.getElementById('ph-title').textContent=meta.title;document.getElementById('view-placeholder').classList.add('active');}const meta=VIEW_META[id]||{title:id};document.getElementById('bc-current').textContent=meta.title;document.querySelectorAll('.nav-item').forEach(el=>el.classList.toggle('active',el.getAttribute('onclick')?.includes("'"+id+"'")));if(window.innerWidth<=768)closeSidebar();window.scrollTo(0,0);}
 function toggleGroup(id){document.getElementById(id).classList.toggle('open');}
 function toggleSidebar(){
