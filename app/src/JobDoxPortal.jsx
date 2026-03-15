@@ -1080,9 +1080,12 @@ async function fsFindInviteByEmail(companyId, email) {
 }
 
 /* ── Offices helpers ── */
-function fsListenOffices(companyId, cb) {
+function fsListenOffices(companyId, cb, onErr) {
   const q = collection(db, "companies", companyId, "offices");
-  return onSnapshot(q, snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+  return onSnapshot(q, snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))), err => {
+    console.error("Offices listener error:", err);
+    if (onErr) onErr(err);
+  });
 }
 function fsListenReviewRequests(companyId, cb) {
   const q = query(collection(db, "companies", companyId, "reviewRequests"), orderBy("createdAt", "desc"));
@@ -1568,6 +1571,7 @@ function permCaps(level) {
     canViewBillingScope: lv >= 7,                // 7+: billing rates on scope/invoice
     canViewPayRates:     lv >= 8,                // 8+: staff pay rates in shifts
     canAccessSettings:   lv >= 8,                // 8+: general settings tab
+    canManageOffices:    lv >= 8,                // 8+: create/edit/delete offices
     canManageStaff:      lv >= 9,                // 9+: edit staff records
     canManagePermissions:lv >= 10,               // 10 only: change permission levels
     // convenience alias kept for existing canViewRates call sites
@@ -12135,6 +12139,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
   const fileRef = useRef();
   const permLevel = normPerm(currentPermission);
   const isAdmin = permLevel >= 10;
+  const canManageOfficesLocal = permLevel >= 8;
   const canManageStaffLocal = permLevel >= 9;
   const canChangePerms = permLevel >= 10;
 
@@ -12257,18 +12262,32 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     }
   };
   const saveOffice = async () => {
-    if (!officeForm.name.trim() || !companyId) { setOfficeError("Office name is required."); return; }
+    if (!officeForm.name.trim()) { setOfficeError("Office name is required."); return; }
+    if (!companyId) { setOfficeError("Company not loaded yet — please refresh and try again."); return; }
     setOfficeSaving(true); setOfficeError("");
     try {
       const oid = officeEditId || `office-${Date.now()}`;
       await fsSetOffice(companyId, oid, { ...officeForm, id: oid });
       setShowOfficeForm(false); setOfficeEditId(null); setOfficeGeoStatus(null);
-    } catch(e) { setOfficeError(e?.message || "Save failed — check your connection."); }
+    } catch(e) {
+      const msg = e?.message || "";
+      if (msg.includes("permission") || e?.code === "permission-denied") {
+        setOfficeError("Firestore permission denied — your database security rules may need an 'offices' subcollection rule. Ask your admin to update Firestore rules.");
+      } else {
+        setOfficeError(msg || "Save failed — check your connection.");
+      }
+    }
     setOfficeSaving(false);
   };
   const deleteOffice = async (officeId) => {
     if (!companyId || !window.confirm("Remove this office? Projects assigned to it will lose their office assignment.")) return;
-    try { await fsDeleteOffice(companyId, officeId); } catch(e) { console.error(e); }
+    try { await fsDeleteOffice(companyId, officeId); } catch(e) {
+      console.error("Delete office failed:", e);
+      const msg = e?.message || "";
+      if (msg.includes("permission") || e?.code === "permission-denied") {
+        alert("Firestore permission denied — your database security rules may need an 'offices' subcollection rule.");
+      }
+    }
   };
 
   const inviteLink = companyId ? `${window.location.origin}${window.location.pathname}?invite=${companyId}` : "";
@@ -12709,13 +12728,13 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                   Define your company's office locations. Assign staff and projects to offices so CortexAI knows which pool of people to draw from when auto-assigning tasks.
                 </div>
               </div>
-              {canManageStaffLocal && !showOfficeForm && (
+              {canManageOfficesLocal && !showOfficeForm && (
                 <button className="btn btn-primary" onClick={openAddOffice}>{Ic.plus} Add Office</button>
               )}
             </div>
 
             {/* ── OFFICE FORM ── */}
-            {showOfficeForm && canManageStaffLocal && (
+            {showOfficeForm && canManageOfficesLocal && (
               <div style={{background:"var(--s2)",border:"1px solid var(--blue)",borderRadius:10,padding:20,marginBottom:20}}>
                 <div style={{fontSize:13,fontWeight:700,marginBottom:16,color:"var(--t1)"}}>
                   {officeEditId ? "Edit Office" : "Add Office"}
@@ -12894,7 +12913,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                           )}
                         </div>
                       </div>
-                      {canManageStaffLocal && (
+                      {canManageOfficesLocal && (
                         <div style={{display:"flex",gap:5,flexShrink:0}}>
                           <button className="btn btn-ghost btn-xs" onClick={()=>openEditOffice(o)}>{Ic.doc} Edit</button>
                           <button className="btn btn-danger btn-xs" onClick={()=>deleteOffice(o.id)}>{Ic.trash}</button>
