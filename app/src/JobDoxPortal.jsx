@@ -8250,10 +8250,141 @@ function CompanyTasksPage({ projects=[], globalStaff=[], companyId="", currentMe
    MarketDox — Marketing Intelligence Module
    Three tabs: Yard Signs · Ad Performance · SEO & Traffic
    ══════════════════════════════════════════════════════════════════ */
-function MarketDoxView({ companyId, coInfo }) {
+const _leafletLoaded = { css:false, js:false, cluster:false, clusterCss:false, clusterDefCss:false };
+function loadLeaflet(cb) {
+  const head = document.head;
+  const inject = (tag, attrs, key) => {
+    if (_leafletLoaded[key]) return;
+    _leafletLoaded[key] = true;
+    const el = document.createElement(tag);
+    Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v));
+    if (cb && tag === "script") el.onload = cb;
+    head.appendChild(el);
+  };
+  inject("link",{rel:"stylesheet",href:"https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"},"css");
+  inject("link",{rel:"stylesheet",href:"https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"},"clusterCss");
+  inject("link",{rel:"stylesheet",href:"https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"},"clusterDefCss");
+  if (!_leafletLoaded.js) {
+    _leafletLoaded.js = true;
+    const s1 = document.createElement("script");
+    s1.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    s1.onload = () => {
+      if (!_leafletLoaded.cluster) {
+        _leafletLoaded.cluster = true;
+        const s2 = document.createElement("script");
+        s2.src = "https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js";
+        s2.onload = () => { if (cb) cb(); };
+        head.appendChild(s2);
+      }
+    };
+    head.appendChild(s1);
+  } else if (window.L && window.L.markerClusterGroup) {
+    if (cb) cb();
+  }
+}
+
+function MarketDoxView({ companyId, coInfo, projects, customWorkTypes }) {
   const [mdTab, setMdTab] = useState("yardsigns");
+  const [yardSigns, setYardSigns] = useState([]);
+  const [leafletReady, setLeafletReady] = useState(!!(window.L && window.L.markerClusterGroup));
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const clusterRef = useRef(null);
+
+  // ── Real-time yard_signs listener ──
+  useEffect(() => {
+    if (!companyId) return;
+    const q = query(collection(db, "yard_signs"), where("companyId","==",companyId));
+    const unsub = onSnapshot(q, snap => {
+      setYardSigns(snap.docs.map(d => ({ ...d.data(), _id: d.id })));
+    });
+    return () => unsub();
+  }, [companyId]);
+
+  // ── Load Leaflet from CDN ──
+  useEffect(() => {
+    if (leafletReady) return;
+    loadLeaflet(() => setLeafletReady(true));
+  }, [leafletReady]);
+
+  // ── Initialize / update Leaflet map ──
+  const publishedSigns = yardSigns.filter(y => y.published);
+  useEffect(() => {
+    if (!leafletReady || mdTab !== "yardsigns" || !mapRef.current) return;
+    const L = window.L;
+    if (!L) return;
+    // Initialize map once
+    if (!mapInstanceRef.current) {
+      mapInstanceRef.current = L.map(mapRef.current, { scrollWheelZoom: true, zoomControl: true })
+        .setView([39.8283, -98.5795], 4);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; OpenStreetMap',
+        maxZoom: 18,
+      }).addTo(mapInstanceRef.current);
+    }
+    const map = mapInstanceRef.current;
+    // Clear old clusters
+    if (clusterRef.current) { map.removeLayer(clusterRef.current); }
+    const cluster = L.markerClusterGroup();
+    clusterRef.current = cluster;
+    // Geocode and add pins
+    const bounds = [];
+    let pending = publishedSigns.length;
+    if (pending === 0) return;
+    publishedSigns.forEach(ys => {
+      const addr = [ys.city, ys.stateAbbr, ys.zipCode].filter(Boolean).join(", ");
+      if (!addr) { pending--; return; }
+      geocodeAddress(addr).then(geo => {
+        if (geo) {
+          const wt = (ys.workTypes||[])[0] || "";
+          const wtm = WT_META[wt];
+          const color = wtm ? wtm.color : "var(--t2)";
+          const marker = L.circleMarker([geo.lat, geo.lng], {
+            radius: 8, fillColor: color, color: "#fff", weight: 2, opacity: 1, fillOpacity: 0.85,
+          });
+          marker.bindPopup(`<strong>${wt}</strong><br/>${ys.neighborhood||ys.city}, ${ys.city}, ${ys.stateAbbr}`);
+          cluster.addLayer(marker);
+          bounds.push([geo.lat, geo.lng]);
+        }
+        pending--;
+        if (pending <= 0) {
+          map.addLayer(cluster);
+          if (bounds.length) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 12 });
+        }
+      }).catch(() => { pending--; });
+    });
+    return () => {
+      if (clusterRef.current && mapInstanceRef.current) {
+        mapInstanceRef.current.removeLayer(clusterRef.current);
+      }
+    };
+  }, [leafletReady, mdTab, publishedSigns.length]);
+
+  // ── Cleanup map on unmount ──
+  useEffect(() => {
+    return () => {
+      if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; }
+    };
+  }, []);
+
+  // ── Toggle publish/unpublish ──
+  const togglePublish = async (sign) => {
+    try {
+      await updateDoc(doc(db, "yard_signs", sign._id), { published: !sign.published });
+    } catch (e) { console.error("[MarketDox] Toggle publish failed:", e); }
+  };
+
+  // ── KPI computations ──
+  const totalPublished = publishedSigns.length;
+  const citiesCovered = new Set(publishedSigns.map(y=>y.city).filter(Boolean)).size;
+  const neighborhoodsCovered = new Set(publishedSigns.map(y=>y.neighborhood).filter(Boolean)).size;
+  const workTypesCovered = new Set(publishedSigns.flatMap(y=>y.workTypes||[])).size;
+
+  const toSlug = (str) => (str||"").toLowerCase().replace(/[^a-z0-9\s-]/g,"").replace(/\s+/g,"-").trim();
+  const companySlug = toSlug((coInfo||{}).name||"");
+
   const MDTABS = [
-    { key:"yardsigns",   label:"Yard Signs",     icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg> },
+    { key:"yardsigns",   label:"Yard Signs",     icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>, count:totalPublished },
     { key:"adperf",      label:"Ad Performance",  icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg> },
     { key:"seotraffic",  label:"SEO & Traffic",   icon:<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg> },
   ];
@@ -8273,20 +8404,78 @@ function MarketDoxView({ companyId, coInfo }) {
         {MDTABS.map(t=>(
           <button key={t.key} className={`tab${mdTab===t.key?" active":""}`} onClick={()=>setMdTab(t.key)}>
             <span style={{opacity:.7}}>{t.icon}</span>{t.label}
+            {t.count>0 && <span className="mono" style={{fontSize:9,marginLeft:3}}>{t.count}</span>}
           </button>
         ))}
       </div>
       <div style={{flex:1,overflowY:"auto",padding:18}}>
         {mdTab==="yardsigns" && (
-          <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:300,gap:12,color:"var(--t3)"}}>
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="var(--t3)" style={{opacity:.4}}>
-              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/>
-            </svg>
-            <div style={{fontSize:13,fontWeight:600,color:"var(--t2)"}}>Digital Yard Signs</div>
-            <div style={{fontSize:11,maxWidth:380,textAlign:"center",lineHeight:1.6}}>
-              Your first yard sign will appear automatically when a job is marked Completed. Each completed job becomes a permanent SEO signal in that neighborhood — a digital yard sign that works 24/7.
+          publishedSigns.length === 0 && yardSigns.length === 0 ? (
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:300,gap:12,color:"var(--t3)"}}>
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="var(--t3)" style={{opacity:.4}}>
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/>
+              </svg>
+              <div style={{fontSize:13,fontWeight:600,color:"var(--t2)"}}>Digital Yard Signs</div>
+              <div style={{fontSize:11,maxWidth:380,textAlign:"center",lineHeight:1.6}}>
+                Your first yard sign will appear automatically when a job is marked Completed. Each completed job becomes a permanent SEO signal in that neighborhood — a digital yard sign that works 24/7.
+              </div>
             </div>
-          </div>
+          ) : (
+            <div style={{display:"flex",flexDirection:"column",gap:16}}>
+              {/* KPI Bar */}
+              <div className="kpi-bar">
+                {[
+                  ["Total Published",  totalPublished],
+                  ["Cities Covered",   citiesCovered],
+                  ["Neighborhoods",    neighborhoodsCovered],
+                  ["Work Types",       workTypesCovered],
+                ].map(([lbl,val])=>(
+                  <div className="kpi" key={lbl}>
+                    <div className="kpi-val">{val}</div>
+                    <div className="kpi-lbl">{lbl}</div>
+                  </div>
+                ))}
+              </div>
+              {/* Leaflet Map */}
+              <div style={{borderRadius:10,overflow:"hidden",border:"1px solid var(--br)",background:"var(--s2)"}}>
+                <div ref={mapRef} style={{height:340,width:"100%"}}/>
+              </div>
+              {/* Yard Signs List */}
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                <div style={{fontSize:12,fontWeight:700,color:"var(--t1)",marginBottom:4}}>All Yard Signs ({yardSigns.length})</div>
+                {yardSigns.map(ys => {
+                  const wt = (ys.workTypes||[])[0]||"";
+                  const wtm = WT_META[wt];
+                  const color = wtm ? wtm.color : "var(--t2)";
+                  const completedDate = ys.completedAt?.toDate ? ys.completedAt.toDate() : ys.completedAt ? new Date(ys.completedAt) : null;
+                  const dateStr = completedDate ? completedDate.toLocaleDateString("en-US",{month:"long",year:"numeric"}) : "—";
+                  const publicUrl = companySlug && ys.slug ? `https://jobdox.com/pros/${companySlug}/${ys.slug}` : null;
+                  return (
+                    <div key={ys._id} className="row" style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background: ys.published ? "var(--s2)" : "var(--s1)",borderRadius:8,border:"1px solid var(--br)",opacity: ys.published ? 1 : 0.5}}>
+                      <span style={{display:"inline-flex",alignItems:"center",gap:5,background:`${color}18`,color,borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700,flexShrink:0}}>
+                        {wtm?.icon || null}{wt}
+                      </span>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:12,fontWeight:600,color:"var(--t1)"}}>{ys.neighborhood||ys.city}, {ys.city}, {ys.stateAbbr}</div>
+                        <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>{dateStr}</div>
+                      </div>
+                      {publicUrl && (
+                        <a href={publicUrl} target="_blank" rel="noopener noreferrer"
+                          style={{fontSize:10,color:"var(--blue)",textDecoration:"none",flexShrink:0}}
+                          title={publicUrl}>
+                          View Page
+                        </a>
+                      )}
+                      <button className="btn btn-ghost btn-xs" style={{fontSize:10,color: ys.published ? "var(--acc)" : "var(--green)"}}
+                        onClick={()=>togglePublish(ys)}>
+                        {ys.published ? "Unpublish" : "Publish"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )
         )}
         {mdTab==="adperf" && (
           <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:300,gap:12,color:"var(--t3)"}}>
@@ -11879,6 +12068,87 @@ export default function JobDoxPortal() {
         position: currentMember.customFields?.systemRole || "Project Manager" }
     : CURRENT_USER;
 
+  // ── MarketDox: Yard Sign auto-publish on status change to completed/closed ──
+  const _prevStatusMap = useRef({});
+  useEffect(() => {
+    if (!companyId || !projects.length) return;
+    const isComplete = (status) => {
+      if (!status) return false;
+      const s = status.toLowerCase();
+      return s === "completed" || s.includes("complete") || s.includes("closed");
+    };
+    const toSlug = (str) => (str||"").toLowerCase().replace(/[^a-z0-9\s-]/g,"").replace(/\s+/g,"-").trim();
+    const parseAddress = (addr) => {
+      if (!addr) return { city:"", state:"", stateAbbr:"", zipCode:"" };
+      const parts = addr.split(",").map(p=>p.trim());
+      const city = parts[1] || "";
+      const stZip = (parts[2] || "").trim().split(/\s+/);
+      const stateAbbr = stZip[0] || "";
+      const zipCode = stZip[1] || "";
+      const STATE_NAMES = {AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"North Carolina",ND:"North Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"South Carolina",SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",WA:"Washington",WV:"West Virginia",WI:"Wisconsin",WY:"Wyoming"};
+      return { city, state: STATE_NAMES[stateAbbr.toUpperCase()] || stateAbbr, stateAbbr: stateAbbr.toUpperCase(), zipCode };
+    };
+    const writeYardSigns = async (proj) => {
+      const co = coInfo || {};
+      const companyName = co.name || "";
+      const companySlug = toSlug(companyName);
+      if (!companySlug) return;
+      const wts = (proj.worktypes || []).filter(w => w.status !== "off").map(w => w.type);
+      if (!wts.length) return;
+      const parsed = parseAddress(proj.address);
+      const neighborhood = parsed.city; // fallback: city
+      for (const wt of wts) {
+        const slug = toSlug(`${wt} ${neighborhood} ${parsed.city} ${parsed.stateAbbr}`);
+        if (!slug) continue;
+        // Idempotency check: does this jobId+workType combo already exist?
+        try {
+          const q = query(collection(db, "yard_signs"),
+            where("companyId","==",companyId),
+            where("jobId","==",proj.id),
+            where("workTypes","array-contains",wt));
+          const snap = await getDocs(q);
+          if (!snap.empty) continue; // already exists
+          await addDoc(collection(db, "yard_signs"), {
+            companyId,
+            companyName,
+            companySlug,
+            workTypes: [wt],
+            city: parsed.city,
+            neighborhood,
+            state: parsed.state,
+            stateAbbr: parsed.stateAbbr,
+            zipCode: parsed.zipCode,
+            completedAt: serverTimestamp(),
+            jobId: proj.id,
+            published: true,
+            slug,
+          });
+        } catch (e) { console.error("[MarketDox] Yard sign write failed:", e); }
+      }
+    };
+    const unpublishYardSigns = async (projId) => {
+      try {
+        const q = query(collection(db, "yard_signs"), where("companyId","==",companyId), where("jobId","==",projId));
+        const snap = await getDocs(q);
+        for (const d of snap.docs) {
+          if (d.data().published) await updateDoc(doc(db, "yard_signs", d.id), { published: false });
+        }
+      } catch (e) { console.error("[MarketDox] Yard sign unpublish failed:", e); }
+    };
+    const prev = _prevStatusMap.current;
+    for (const proj of projects) {
+      const oldStatus = prev[proj.id];
+      const newStatus = proj.status;
+      if (oldStatus === newStatus) continue;
+      if (isComplete(newStatus) && !isComplete(oldStatus)) writeYardSigns(proj);
+      else if (!isComplete(newStatus) && isComplete(oldStatus)) unpublishYardSigns(proj.id);
+    }
+    // Update map for next render
+    const next = {};
+    for (const p of projects) next[p.id] = p.status;
+    _prevStatusMap.current = next;
+  }, [projects, companyId, coInfo]);
+
   // ── Resolve companyId + permission from Memberstack, then stream Firestore ──
   useEffect(() => {
     let unsubProjects = null;
@@ -12732,7 +13002,7 @@ export default function JobDoxPortal() {
         )}
 
         {page==="marketdox" ? (
-          <MarketDoxView companyId={companyId} coInfo={coInfo}/>
+          <MarketDoxView companyId={companyId} coInfo={coInfo} projects={projects} customWorkTypes={customWorkTypes}/>
         ) : page==="settings" ? (
           <>
             <div className="topbar">
