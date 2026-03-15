@@ -13320,15 +13320,17 @@ export default function JobDoxPortal() {
       // ── Support Mode: detect @job-dox.com staff ──
       if (email.toLowerCase().endsWith("@job-dox.com")) {
         setIsSupportUser(true);
-        // Sign in to Firebase Auth so Firestore security rules see request.auth != null.
-        // This must complete before querying the root companies collection.
+        // Sign in to Firebase Auth so Firestore security rules see request.auth != null
+        // when we later operate inside a customer's data.
         try { await signInAnonymously(fbAuth); } catch (e) {
           console.warn("Firebase anonymous sign-in failed:", e);
         }
-        // Load all companies for the selector
+        // Load company list from the server-side Netlify function
+        // (calls Memberstack Admin API — keeps secret key off the client)
         try {
-          const snap = await getDocs(collection(db, "companies"));
-          const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          const res = await fetch("/.netlify/functions/support-companies");
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const list = await res.json();
           setAllCompanies(list);
         } catch (e) { console.warn("Failed to load companies for support mode:", e); }
         // Track member ID for tab-close cleanup
@@ -13914,9 +13916,11 @@ export default function JobDoxPortal() {
       if (!supportSearch) return true;
       const s = supportSearch.toLowerCase();
       const name = (c.companyName || c.name || "").toLowerCase();
-      const id = (c.id || "").toLowerCase();
-      return name.includes(s) || id.includes(s);
+      const email = (c.email || "").toLowerCase();
+      const id = (c.companyId || c.id || "").toLowerCase();
+      return name.includes(s) || email.includes(s) || id.includes(s);
     });
+    const statusColor = (st) => st === "active" ? "var(--green)" : st === "trialing" ? "var(--amber)" : "var(--t3)";
     return (
       <div className={`jdp${isLight?" lt":""}`} style={{alignItems:"center",justifyContent:"center"}}>
         <div className="support-selector">
@@ -13931,7 +13935,7 @@ export default function JobDoxPortal() {
           </div>
           <input
             className="support-search"
-            placeholder="Search companies by name or ID..."
+            placeholder="Search by company name, email, or ID..."
             value={supportSearch}
             onChange={e => setSupportSearch(e.target.value)}
             autoFocus
@@ -13940,30 +13944,34 @@ export default function JobDoxPortal() {
             {filtered.length === 0 && (
               <div style={{padding:30,textAlign:"center",color:"var(--t3)",fontSize:12}}>No companies found</div>
             )}
-            {filtered.map(c => (
-              <button key={c.id} className="support-company-row" onClick={() => handleSupportCompanySelect(c)}>
+            {filtered.map(c => {
+              // Use companyId (Firestore namespace) when available, fall back to member id
+              const selectPayload = { id: c.companyId || c.id, companyName: c.companyName || c.name || "Unnamed Company" };
+              return (
+              <button key={c.id} className="support-company-row" onClick={() => handleSupportCompanySelect(selectPayload)}>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:13,fontWeight:600,color:"var(--t1)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
                     {c.companyName || c.name || "Unnamed Company"}
                   </div>
-                  <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",marginTop:3}}>
-                    ID: {c.id}
+                  <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",marginTop:3,display:"flex",gap:8,alignItems:"center"}}>
+                    <span>{c.email || "No email"}</span>
+                    <span style={{color:statusColor(c.status),fontWeight:600,textTransform:"uppercase"}}>{c.status || ""}</span>
+                  </div>
+                  <div style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",marginTop:2}}>
+                    {c.companyId ? `Firestore: ${c.companyId}` : `Member: ${c.id}`}
                   </div>
                 </div>
                 {(c.createdAt) && (
                   <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",flexShrink:0}}>
-                    {typeof c.createdAt === "object" && c.createdAt.toDate
-                      ? c.createdAt.toDate().toLocaleDateString()
-                      : typeof c.createdAt === "string"
-                        ? new Date(c.createdAt).toLocaleDateString()
-                        : ""}
+                    {typeof c.createdAt === "string" ? new Date(c.createdAt).toLocaleDateString() : ""}
                   </div>
                 )}
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--t3)" style={{flexShrink:0}}>
                   <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/>
                 </svg>
               </button>
-            ))}
+              );
+            })}
           </div>
           <div style={{padding:"14px 20px",borderTop:"1px solid var(--br)",display:"flex",justifyContent:"center"}}>
             <button className="btn btn-ghost" onClick={handleSupportExitMode}>
