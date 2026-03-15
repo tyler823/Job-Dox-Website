@@ -63,6 +63,8 @@ function _onPageHide(e) {
 
 async function claimPortalSession(memberId) {
   try {
+    const _path = `activeSessions/${memberId}`;
+    console.log("[FS-DIAG] setDoc →", _path);
     await setDoc(doc(db, "activeSessions", memberId), {
       token: PORTAL_SESSION_TOKEN,
       app: "portal",
@@ -1036,10 +1038,14 @@ function fsListenInvites(companyId, cb) {
 }
 // Save or update a staff member doc (keyed by memberstackId)
 async function fsSetStaff(companyId, memberstackId, data) {
+  const _path = `companies/${companyId}/staff/${memberstackId}`;
+  console.log("[FS-DIAG] setDoc →", _path);
   await setDoc(doc(db, "companies", companyId, "staff", memberstackId), data, { merge: true });
 }
 // Update a specific field on a staff member (e.g. permission)
 async function fsUpdateStaffField(companyId, memberstackId, fields) {
+  const _path = `companies/${companyId}/staff/${memberstackId}`;
+  console.log("[FS-DIAG] updateDoc →", _path);
   await updateDoc(doc(db, "companies", companyId, "staff", memberstackId), fields);
 }
 // Remove a staff member
@@ -1053,6 +1059,8 @@ async function fsGetStaff(companyId, memberstackId) {
 }
 // Create an invite
 async function fsCreateInvite(companyId, email, permission, invitedByName) {
+  const _path = `companies/${companyId}/invites`;
+  console.log("[FS-DIAG] addDoc →", _path);
   const ref = await addDoc(collection(db, "companies", companyId, "invites"), {
     email: email.toLowerCase().trim(),
     permission,
@@ -1092,6 +1100,8 @@ function fsListenReviewRequests(companyId, cb) {
   return onSnapshot(q, snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
 }
 async function fsSetOffice(companyId, officeId, data) {
+  const _path = `companies/${companyId}/offices/${officeId}`;
+  console.log("[FS-DIAG] setDoc →", _path);
   await setDoc(doc(db, "companies", companyId, "offices", officeId), data, { merge: true });
 }
 async function fsDeleteOffice(companyId, officeId) {
@@ -1109,6 +1119,8 @@ async function fsDeleteOffice(companyId, officeId) {
 async function fsSaveProjField(companyId, projId, key, value) {
   if (!companyId || !projId) return;
   try {
+    const _path = `companies/${companyId}/projects/${projId}`;
+    console.log("[FS-DIAG] updateDoc →", _path, `field="${key}"`);
     await updateDoc(doc(db, "companies", companyId, "projects", projId), {
       [key]: JSON.parse(JSON.stringify(value)),
       updatedAt: serverTimestamp(),
@@ -1137,6 +1149,8 @@ function fsSaveProjFieldDebounced(companyId, projId, key, value, delay = 800) {
 async function fsSaveCompanySettings(companyId, settingsKey, value) {
   if (!companyId) return;
   try {
+    const _path = `companies/${companyId}/settings/${settingsKey}`;
+    console.log("[FS-DIAG] setDoc →", _path);
     await setDoc(doc(db, "companies", companyId, "settings", settingsKey), {
       data: JSON.parse(JSON.stringify(value)),
       updatedAt: serverTimestamp(),
@@ -1165,6 +1179,8 @@ async function fsLoadCompanySettings(companyId, settingsKey) {
 async function fsSaveMyDayTasks(companyId, memberId, tasks) {
   if (!companyId || !memberId) return;
   try {
+    const _path = `companies/${companyId}/myDayTasks/${memberId}`;
+    console.log("[FS-DIAG] setDoc →", _path);
     await setDoc(doc(db, "companies", companyId, "myDayTasks", memberId), {
       tasks: JSON.parse(JSON.stringify(tasks)),
       updatedAt: serverTimestamp(),
@@ -1199,6 +1215,7 @@ function fsSaveMyDayTasksDebounced(companyId, memberId, tasks, delay = 800) {
 async function fsSaveDispatchAppts(companyId, appts) {
   if (!companyId) return;
   try {
+    console.log("[FS-DIAG] setDoc →", `companies/${companyId}/settings/dispatchAppts`);
     await setDoc(doc(db, "companies", companyId, "settings", "dispatchAppts"), {
       data: JSON.parse(JSON.stringify(appts)),
       updatedAt: serverTimestamp(),
@@ -1219,12 +1236,13 @@ async function fsLoadDispatchAppts(companyId) {
 async function fsSaveDispatchResources(companyId, resources) {
   if (!companyId) return;
   try {
+    console.log("[FS-DIAG] setDoc →", `companies/${companyId}/settings/dispatchResources`);
     await setDoc(doc(db, "companies", companyId, "settings", "dispatchResources"), {
       data: JSON.parse(JSON.stringify(resources)),
       updatedAt: serverTimestamp(),
     }, { merge: true });
   } catch(e) {
-    console.warn("[Job-Dox] Firestore save failed for dispatch resources:", e);
+    console.warn("[FS-DIAG] Firestore save failed for dispatch resources:", e);
   }
 }
 
@@ -1243,6 +1261,7 @@ async function fsLoadDispatchResources(companyId) {
 async function fsSaveActivity(companyId, entries) {
   if (!companyId) return;
   try {
+    console.log("[FS-DIAG] setDoc →", `companies/${companyId}/settings/activityFeed`);
     await setDoc(doc(db, "companies", companyId, "settings", "activityFeed"), {
       data: JSON.parse(JSON.stringify(entries.slice(0, 200))),
       updatedAt: serverTimestamp(),
@@ -1265,6 +1284,7 @@ function fsSaveActivityDebounced(companyId, entries) {
 async function fsSaveInvoices(companyId, invoices) {
   if (!companyId) return;
   try {
+    console.log("[FS-DIAG] setDoc →", `companies/${companyId}/settings/invoices`);
     await setDoc(doc(db, "companies", companyId, "settings", "invoices"), {
       data: JSON.parse(JSON.stringify(invoices)),
       updatedAt: serverTimestamp(),
@@ -1283,6 +1303,7 @@ async function fsLoadInvoices(companyId) {
 async function fsSaveProjDocs(companyId, allDocs) {
   if (!companyId) return;
   try {
+    console.log("[FS-DIAG] setDoc →", `companies/${companyId}/settings/projDocs`);
     await setDoc(doc(db, "companies", companyId, "settings", "projDocs"), {
       data: JSON.parse(JSON.stringify(allDocs)),
       updatedAt: serverTimestamp(),
@@ -1301,6 +1322,7 @@ async function fsLoadProjDocs(companyId) {
 async function fsSaveProjMsgs(companyId, allMsgs) {
   if (!companyId) return;
   try {
+    console.log("[FS-DIAG] setDoc →", `companies/${companyId}/settings/projMsgs`);
     await setDoc(doc(db, "companies", companyId, "settings", "projMsgs"), {
       data: JSON.parse(JSON.stringify(allMsgs)),
       updatedAt: serverTimestamp(),
@@ -1319,6 +1341,7 @@ async function fsLoadProjMsgs(companyId) {
 async function fsSaveVendors(companyId, vendors) {
   if (!companyId) return;
   try {
+    console.log("[FS-DIAG] setDoc →", `companies/${companyId}/settings/vendors`);
     await setDoc(doc(db, "companies", companyId, "settings", "vendors"), {
       data: JSON.parse(JSON.stringify(vendors)),
       updatedAt: serverTimestamp(),
@@ -1337,6 +1360,7 @@ async function fsLoadVendors(companyId) {
 async function fsSaveVendorBills(companyId, bills) {
   if (!companyId) return;
   try {
+    console.log("[FS-DIAG] setDoc →", `companies/${companyId}/settings/vendorBills`);
     await setDoc(doc(db, "companies", companyId, "settings", "vendorBills"), {
       data: JSON.parse(JSON.stringify(bills)),
       updatedAt: serverTimestamp(),
@@ -8436,6 +8460,7 @@ function MarketDoxView({ companyId, coInfo, projects, customWorkTypes, onNavTo }
   // ── Toggle publish/unpublish ──
   const togglePublish = async (sign) => {
     try {
+      console.log("[FS-DIAG] updateDoc →", `yard_signs/${sign._id}`);
       await updateDoc(doc(db, "yard_signs", sign._id), { published: !sign.published });
     } catch (e) { console.error("[MarketDox] Toggle publish failed:", e); }
   };
@@ -9231,6 +9256,7 @@ function APIIntegrationsPanel({ onClose, companyId, memberstackId }) {
         setErrorMsg("");
         // Save to Firestore integrations settings
         try {
+          console.log("[FS-DIAG] setDoc →", `companies/${companyId}/settings/integrations`);
           const ref = doc(db, `companies/${companyId}/settings`, "integrations");
           await setDoc(ref, {
             apiKeyId: json.data.id,
@@ -9272,6 +9298,7 @@ function APIIntegrationsPanel({ onClose, companyId, memberstackId }) {
         setKeyRevealed(false);
         // Update Firestore
         try {
+          console.log("[FS-DIAG] setDoc →", `companies/${companyId}/settings/integrations`);
           const ref = doc(db, `companies/${companyId}/settings`, "integrations");
           await setDoc(ref, { enabled: false }, { merge: true });
         } catch (_) {}
@@ -9292,6 +9319,7 @@ function APIIntegrationsPanel({ onClose, companyId, memberstackId }) {
     setSavingScopes(true);
     try {
       const scopeArr = Object.entries(scopes).filter(([,v]) => v).map(([k]) => k);
+      console.log("[FS-DIAG] setDoc →", `companies/${companyId}/settings/integrations`);
       const ref = doc(db, `companies/${companyId}/settings`, "integrations");
       await setDoc(ref, { scopes: scopeArr }, { merge: true });
       setCopied("scopes");
@@ -12116,6 +12144,114 @@ function FeatureRequestForm({ userName, companyName }) {
   );
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   TEMPORARY DIAGNOSTIC — Firestore collection audit
+   Visible only to @job-dox.com users in the Settings tab.
+══════════════════════════════════════════════════════════════════ */
+function FirestoreDiagnosticCard({ companyId }) {
+  const [result, setResult] = useState(null);
+  const [running, setRunning] = useState(false);
+
+  const runDiagnostic = async () => {
+    setRunning(true);
+    const report = {};
+
+    // 1. Company creation path
+    report.companyCreationPath = `doc(db, "companies", <memberId|companyId>)  →  companies/{cid}`;
+
+    // 2. Probe collections
+    const COLLECTIONS = ["companies", "tenants", "organizations", "accounts", "clients"];
+    report.collections = {};
+    for (const name of COLLECTIONS) {
+      try {
+        const snap = await getDocs(collection(db, name));
+        report.collections[name] = { count: snap.size, error: null };
+        // 3. If docs found, dump field list of first doc
+        if (snap.size > 0) {
+          const first = snap.docs[0];
+          const data = first.data();
+          const fields = {};
+          for (const [k, v] of Object.entries(data)) {
+            fields[k] = v === null ? "null"
+              : v instanceof Timestamp ? "Timestamp"
+              : Array.isArray(v) ? "Array"
+              : typeof v === "object" ? "Object"
+              : typeof v;
+          }
+          report.collections[name].firstDocId = first.id;
+          report.collections[name].fields = fields;
+        }
+      } catch (e) {
+        report.collections[name] = { count: 0, error: e.code || e.message };
+      }
+    }
+
+    console.log("[FS-DIAG] Diagnostic report:", report);
+    setResult(report);
+    setRunning(false);
+  };
+
+  const mono = { fontFamily: "monospace", fontSize: 11 };
+  const labelStyle = { fontSize: 10, color: "var(--t3)", textTransform: "uppercase", fontWeight: 700, marginBottom: 4, marginTop: 12 };
+
+  return (
+    <div className="card" style={{ border: "1px solid rgba(255,180,0,0.35)", background: "rgba(255,180,0,0.04)" }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "#e6a700", marginBottom: 4 }}>Firestore Diagnostic (internal)</div>
+      <div style={{ fontSize: 11, color: "var(--t3)", marginBottom: 12 }}>
+        Read-only audit of Firestore collection structure. No data is modified.
+      </div>
+      <button className="btn btn-secondary" onClick={runDiagnostic} disabled={running} style={{ marginBottom: 14 }}>
+        {running ? "Scanning…" : "Run Firestore Audit"}
+      </button>
+
+      {result && (
+        <div>
+          <div style={labelStyle}>Company Document Creation Path</div>
+          <div style={{ ...mono, background: "var(--bg2)", padding: "6px 10px", borderRadius: 6, marginBottom: 8 }}>
+            {result.companyCreationPath}
+          </div>
+
+          <div style={labelStyle}>Collection Probe Results</div>
+          <table style={{ width: "100%", borderCollapse: "collapse", ...mono }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--br)", textAlign: "left" }}>
+                <th style={{ padding: "4px 8px" }}>Collection</th>
+                <th style={{ padding: "4px 8px" }}>Docs</th>
+                <th style={{ padding: "4px 8px" }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(result.collections).map(([name, info]) => (
+                <tr key={name} style={{ borderBottom: "1px solid var(--br)" }}>
+                  <td style={{ padding: "4px 8px" }}>{name}</td>
+                  <td style={{ padding: "4px 8px" }}>{info.error ? "—" : info.count}</td>
+                  <td style={{ padding: "4px 8px", color: info.error ? "#e55" : info.count > 0 ? "#4c4" : "var(--t3)" }}>
+                    {info.error ? `Error: ${info.error}` : info.count > 0 ? "Found" : "Empty / Not found"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Dump first doc fields for collections with data */}
+          {Object.entries(result.collections)
+            .filter(([, info]) => info.fields)
+            .map(([name, info]) => (
+              <div key={name}>
+                <div style={labelStyle}>{name} — First Doc Fields (id: {info.firstDocId})</div>
+                <div style={{ ...mono, background: "var(--bg2)", padding: "8px 10px", borderRadius: 6, lineHeight: 1.7 }}>
+                  {Object.entries(info.fields).map(([k, t]) => (
+                    <div key={k}><span style={{ color: "var(--acc)" }}>{k}</span>: <span style={{ color: "var(--t2)" }}>{t}</span></div>
+                  ))}
+                </div>
+              </div>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission=1, currentMemberId, currentMemberName, currentMemberEmail="", onPermissionChange, offices=[], projects=[], onWorkTypesChange, onStatusesChange, onProjectTypesChange }) {
   const [tab,      setTab]      = useState("staff");
   const [editId,   setEditId]   = useState(null);
@@ -12306,7 +12442,9 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     </div>
   );
 
-  const TABS = [["staff","Staff"],["vendors","Vendors"],["offices","Offices"],["phone","Phone & Calls"],["cortex","CortexAI"],["coins","Cortex Coins"],["billing","Billing"],["general","General"],["roadmap","Feature Request"]];
+  const isDiagUser = currentMemberEmail.toLowerCase().includes("@job-dox.com");
+  const TABS = [["staff","Staff"],["vendors","Vendors"],["offices","Offices"],["phone","Phone & Calls"],["cortex","CortexAI"],["coins","Cortex Coins"],["billing","Billing"],["general","General"],["roadmap","Feature Request"],
+    ...(isDiagUser ? [["fs-diag","FS Diagnostic"]] : [])];
 
   return (
     <div className="scroll" style={{flex:1,overflow:"auto"}}>
@@ -13020,6 +13158,9 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
         {tab==="roadmap" && (
           <FeatureRequestForm userName={currentMemberName} companyName={loadCoInfo().name} />
         )}
+        {tab==="fs-diag" && isDiagUser && (
+          <FirestoreDiagnosticCard companyId={companyId} />
+        )}
       </div>
     </div>
   );
@@ -13121,6 +13262,7 @@ export default function JobDoxPortal() {
             where("workTypes","array-contains",wt));
           const snap = await getDocs(q);
           if (!snap.empty) continue; // already exists
+          console.log("[FS-DIAG] addDoc →", "yard_signs");
           await addDoc(collection(db, "yard_signs"), {
             companyId,
             companyName,
@@ -13145,7 +13287,7 @@ export default function JobDoxPortal() {
         const q = query(collection(db, "yard_signs"), where("companyId","==",companyId), where("jobId","==",projId));
         const snap = await getDocs(q);
         for (const d of snap.docs) {
-          if (d.data().published) await updateDoc(doc(db, "yard_signs", d.id), { published: false });
+          if (d.data().published) { console.log("[FS-DIAG] updateDoc →", `yard_signs/${d.id}`); await updateDoc(doc(db, "yard_signs", d.id), { published: false }); }
         }
       } catch (e) { console.error("[MarketDox] Yard sign unpublish failed:", e); }
     };
@@ -13207,6 +13349,7 @@ export default function JobDoxPortal() {
       setDocsCompanyId(cid);
 
       // ── Save basic company metadata to Firestore (silent, non-blocking) ──
+      console.log("[FS-DIAG] setDoc →", `companies/${cid}`);
       setDoc(doc(db, "companies", cid), {
         companyName: member.customFields?.["company-name"] || "",
         email:       member.auth?.email || "",
@@ -13236,6 +13379,7 @@ export default function JobDoxPortal() {
               joinedAt:   new Date().toISOString(),
             });
             // Mark invite as accepted
+            console.log("[FS-DIAG] updateDoc →", `companies/${inviteCid}/invites/${invite.id}`);
             await updateDoc(doc(db, "companies", inviteCid, "invites", invite.id), { status: "accepted" });
             // Store companyId in Memberstack so future logins know which company they belong to
             if (window.$memberstackDom?.updateMember) {
@@ -13650,6 +13794,7 @@ export default function JobDoxPortal() {
     // NOT as the "id" field — otherwise it collides with d.id from onSnapshot and causes
     // cross-project localStorage data bleed (wrong scope, tasks, worktypes loading across projects).
     const { id: projectNumber, ...rest } = p;
+    console.log("[FS-DIAG] addDoc →", `companies/${companyId}/projects`);
     await addDoc(collection(db, "companies", companyId, "projects"), {
       ...rest,
       projectNumber,            // human-readable display number e.g. "JD-2025-301"
@@ -13661,6 +13806,7 @@ export default function JobDoxPortal() {
   const handleArchiveProject = async (projId, archive = true) => {
     if (!companyId) throw new Error("No company ID available");
     try {
+      console.log("[FS-DIAG] updateDoc →", `companies/${companyId}/projects/${projId}`);
       await updateDoc(doc(db, "companies", companyId, "projects", projId), {
         archived:   archive,
         archivedAt: archive ? new Date().toISOString() : null,
