@@ -283,6 +283,11 @@ All Twilio SDK imports and credential access are properly confined to Netlify fu
 | `JobDoxPortal.jsx` | 12683 | `fetch("/.netlify/functions/cortex-coins")` | `.catch(() => {})` completely ignores errors |
 | `JobDoxPortal.jsx` | 1409 | `fetch("https://photon.komoot.io/api/")` | Geocoding API — silently falls through on failure |
 | `JobDoxPortal.jsx` | 1427 | `fetch("https://nominatim.openstreetmap.org/search")` | Fallback geocoder — empty catch block; if both geocoders fail, user gets no error message |
+| `JobDoxFinance.jsx` | 2487 | `fetch("/.netlify/functions/finance-analyze")` | `.then()` chain without `.catch()` — unhandled promise rejection possible |
+| `JobDoxFinance.jsx` | 3141 | `fetch("/.netlify/functions/finance-analyze")` | Same pattern — missing `.catch()` on promise chain |
+| `ContentsDox.jsx` | 228 | `fetch("/.netlify/functions/cortex-generate")` | No try/catch wrapper — malformed responses crash without error message |
+| `ContentsDox.jsx` | 411 | `fetch("/.netlify/functions/extract-price")` | Has try/catch but doesn't check `res.ok` — may process error responses as success |
+| `JobDoxDispatch.jsx` | 85, 98 | External geocoding APIs (Photon, Nominatim) | Empty try/catch blocks — silent failures with no user feedback |
 
 **Recommended Fix:**
 - Wrap all `await response.json()` calls in try/catch to handle malformed responses
