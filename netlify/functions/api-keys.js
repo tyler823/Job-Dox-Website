@@ -39,19 +39,27 @@ exports.handler = async (event) => {
   }
 
   const { action, companyId, memberstackId } = body;
+  console.log("[api-keys] action:", action, "companyId:", companyId, "memberstackId:", memberstackId);
 
   if (!companyId || !memberstackId) {
+    console.log("[api-keys] REJECTED — missing companyId or memberstackId");
     return error(400, "missing_fields", "companyId and memberstackId are required.");
   }
 
   try {
     // Verify caller has admin permission (>= 8)
     const db = getDb();
+    console.log("[api-keys] Firestore connected, checking staff permission…");
     const staffSnap = await db.doc(`companies/${companyId}/staff/${memberstackId}`).get();
-    if (!staffSnap.exists || (staffSnap.data().permission || 0) < 8) {
+    const staffExists = staffSnap.exists;
+    const staffPerm = staffExists ? (staffSnap.data().permission || 0) : -1;
+    console.log("[api-keys] staffExists:", staffExists, "permission:", staffPerm);
+    if (!staffExists || staffPerm < 8) {
+      console.log("[api-keys] REJECTED — insufficient permission");
       return error(403, "forbidden", "Only admins (permission >= 8) can manage API keys.");
     }
 
+    console.log("[api-keys] Permission OK, routing to action:", action);
     switch (action) {
       case "generate": return handleGenerate(db, body, staffSnap.data());
       case "list":     return handleList(db, companyId);
@@ -60,16 +68,19 @@ exports.handler = async (event) => {
         return error(400, "invalid_action", "action must be 'generate', 'list', or 'revoke'.");
     }
   } catch (err) {
-    console.error("api-keys handler error:", err);
+    console.error("[api-keys] UNCAUGHT handler error:", err);
     return error(500, "internal_error", err.message || "An unexpected error occurred.");
   }
 };
 
 // ── Generate a new API key ──────────────────────────────────────
 async function handleGenerate(db, body, staffData) {
+  console.log("[api-keys:generate] ENTERED handleGenerate");
   const { companyId, name, scopes, expiresInDays } = body;
+  console.log("[api-keys:generate] name:", name, "scopes:", scopes, "expiresInDays:", expiresInDays);
 
   if (!name) {
+    console.log("[api-keys:generate] REJECTED — missing name");
     return error(400, "missing_fields", "name is required for key generation.");
   }
 
@@ -84,10 +95,12 @@ async function handleGenerate(db, body, staffData) {
   ];
   const requestedScopes = (scopes || ["projects:read", "contacts:read", "staff:read", "events:read"])
     .filter(s => validScopes.includes(s));
+  console.log("[api-keys:generate] requestedScopes:", requestedScopes);
 
   const rawKey = generateApiKey();
   const keyHash = hashApiKey(rawKey);
   const keyPrefix = rawKey.slice(0, 16) + "..."; // e.g. "jdx_live_a3f2b1..."
+  console.log("[api-keys:generate] key generated, prefix:", keyPrefix);
 
   const keyData = {
     companyId,
@@ -108,7 +121,15 @@ async function handleGenerate(db, body, staffData) {
     keyData.expiresAt = expires;
   }
 
-  const docRef = await db.collection("apiKeys").add(keyData);
+  console.log("[api-keys:generate] Writing to Firestore apiKeys collection…");
+  let docRef;
+  try {
+    docRef = await db.collection("apiKeys").add(keyData);
+  } catch (writeErr) {
+    console.error("[api-keys:generate] FIRESTORE WRITE FAILED:", writeErr);
+    throw writeErr; // re-throw so the outer catch returns a 500
+  }
+  console.log("[api-keys:generate] SUCCESS — docRef.id:", docRef.id);
 
   return json(201, {
     ok: true,
