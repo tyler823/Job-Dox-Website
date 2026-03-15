@@ -8283,7 +8283,7 @@ function loadLeaflet(cb) {
   }
 }
 
-function MarketDoxView({ companyId, coInfo, projects, customWorkTypes }) {
+function MarketDoxView({ companyId, coInfo, projects, customWorkTypes, onNavTo }) {
   const [mdTab, setMdTab] = useState("yardsigns");
   const [yardSigns, setYardSigns] = useState([]);
   const [leafletReady, setLeafletReady] = useState(!!(window.L && window.L.markerClusterGroup));
@@ -8294,6 +8294,7 @@ function MarketDoxView({ companyId, coInfo, projects, customWorkTypes }) {
   const [analyticsData, setAnalyticsData] = useState(null);
   const [mktLastUpdated, setMktLastUpdated] = useState(null);
   const [showSetupModal, setShowSetupModal] = useState(false);
+  const [websiteBannerDismissed, setWebsiteBannerDismissed] = useState(false);
 
   // ── Real-time yard_signs listener ──
   useEffect(() => {
@@ -8427,8 +8428,16 @@ function MarketDoxView({ companyId, coInfo, projects, customWorkTypes }) {
         ))}
       </div>
       <div style={{flex:1,overflowY:"auto",padding:18}}>
-        {mdTab==="yardsigns" && (
-          publishedSigns.length === 0 && yardSigns.length === 0 ? (
+        {mdTab==="yardsigns" && (<>
+          {yardSigns.length > 0 && !coInfo?.website && !websiteBannerDismissed && (
+            <div style={{background:"var(--acc-lo)",border:"1px solid rgba(228,53,49,0.25)",borderRadius:8,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
+              <span style={{color:"var(--amber)",fontSize:16,flexShrink:0}}>&#9888;</span>
+              <span style={{fontSize:12,color:"var(--t1)",flex:1}}>Add your website in General Settings to activate backlinks on your yard sign pages — this is what boosts your own website's Google rankings.</span>
+              <button className="btn btn-xs btn-secondary" style={{flexShrink:0}} onClick={()=>{if(onNavTo) onNavTo("settings");}}>Open Settings</button>
+              <button style={{background:"none",border:"none",color:"var(--t3)",cursor:"pointer",fontSize:14,padding:"2px 4px",flexShrink:0,marginLeft:"auto"}} onClick={()=>setWebsiteBannerDismissed(true)}>&times;</button>
+            </div>
+          )}
+          {publishedSigns.length === 0 && yardSigns.length === 0 ? (
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:300,gap:12,color:"var(--t3)"}}>
               <svg width="40" height="40" viewBox="0 0 24 24" fill="var(--t3)" style={{opacity:.4}}>
                 <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/>
@@ -8494,7 +8503,7 @@ function MarketDoxView({ companyId, coInfo, projects, customWorkTypes }) {
               </div>
             </div>
           )
-        )}
+        }</>)}
         {/* ══════════════════════════════════════════════════════════
             TAB 2: AD PERFORMANCE
         ══════════════════════════════════════════════════════════ */}
@@ -12402,6 +12411,7 @@ export default function JobDoxPortal() {
             jobId: proj.id,
             published: true,
             slug,
+            companyWebsite: co.website || "",
           });
         } catch (e) { console.error("[MarketDox] Yard sign write failed:", e); }
       }
@@ -13282,7 +13292,7 @@ export default function JobDoxPortal() {
         )}
 
         {page==="marketdox" ? (
-          <MarketDoxView companyId={companyId} coInfo={coInfo} projects={projects} customWorkTypes={customWorkTypes}/>
+          <MarketDoxView companyId={companyId} coInfo={coInfo} projects={projects} customWorkTypes={customWorkTypes} onNavTo={navTo}/>
         ) : page==="settings" ? (
           <>
             <div className="topbar">
