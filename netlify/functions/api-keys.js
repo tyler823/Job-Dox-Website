@@ -151,7 +151,6 @@ async function handleGenerate(db, body, staffData) {
 async function handleList(db, companyId) {
   const snap = await db.collection("apiKeys")
     .where("companyId", "==", companyId)
-    .orderBy("createdAt", "desc")
     .get();
 
   const keys = snap.docs.map(d => {
@@ -168,6 +167,12 @@ async function handleList(db, companyId) {
       requestCount: data.requestCount || 0,
       expiresAt: data.expiresAt || null,
     };
+  });
+
+  keys.sort((a, b) => {
+    const tA = a.createdAt?._seconds || 0;
+    const tB = b.createdAt?._seconds || 0;
+    return tB - tA;
   });
 
   return json(200, { ok: true, data: keys });
