@@ -13,7 +13,7 @@
 const { getDb } = require("./_firebase");
 
 const ALLOWED_ORIGIN = process.env.SITE_URL || "https://job-dox.ai";
-const SITE_URL = "https://jobdox.com";
+const SITE_URL = "https://job-dox.ai";
 
 const COLORS = {
   bg: "#06070d",
@@ -87,7 +87,7 @@ function htmlShell(title, description, canonicalUrl, bodyContent, extraHead = ""
     </div>
   </main>
   <footer class="footer">
-    <div class="wrap">Powered by Job-Dox &middot; <a href="${SITE_URL}" style="color:${COLORS.acc};">jobdox.com</a></div>
+    <div class="wrap">Powered by Job-Dox &middot; <a href="${SITE_URL}" style="color:${COLORS.acc};">job-dox.ai</a></div>
   </footer>
 </body>
 </html>`;

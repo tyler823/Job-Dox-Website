@@ -8467,7 +8467,7 @@ function MarketDoxView({ companyId, coInfo, projects, customWorkTypes }) {
                   const color = wtm ? wtm.color : "var(--t2)";
                   const completedDate = ys.completedAt?.toDate ? ys.completedAt.toDate() : ys.completedAt ? new Date(ys.completedAt) : null;
                   const dateStr = completedDate ? completedDate.toLocaleDateString("en-US",{month:"long",year:"numeric"}) : "—";
-                  const publicUrl = companySlug && ys.slug ? `https://jobdox.com/pros/${companySlug}/${ys.slug}` : null;
+                  const publicUrl = companySlug && ys.slug ? `https://job-dox.ai/pros/${companySlug}/${ys.slug}` : null;
                   return (
                     <div key={ys._id} className="row" style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background: ys.published ? "var(--s2)" : "var(--s1)",borderRadius:8,border:"1px solid var(--br)",opacity: ys.published ? 1 : 0.5}}>
                       <span style={{display:"inline-flex",alignItems:"center",gap:5,background:`${color}18`,color,borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700,flexShrink:0}}>

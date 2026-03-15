@@ -9,7 +9,7 @@
 
 const { getDb } = require("./_firebase");
 
-const SITE_URL = "https://jobdox.com";
+const SITE_URL = "https://job-dox.ai";
 
 exports.handler = async (event) => {
   const headers = {

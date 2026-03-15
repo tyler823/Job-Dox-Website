@@ -15,7 +15,7 @@ const { getDb } = require("./_firebase");
 const crypto = require("crypto");
 
 const ALLOWED_ORIGIN = process.env.SITE_URL || "https://job-dox.ai";
-const SITE_URL = process.env.SITE_URL || "https://jobdox.com";
+const SITE_URL = process.env.SITE_URL || "https://job-dox.ai";
 
 exports.handler = async (event) => {
   const headers = {
