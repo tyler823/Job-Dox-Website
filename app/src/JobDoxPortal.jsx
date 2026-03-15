@@ -8840,13 +8840,14 @@ function CortexCopilotPanel({ onClose, companyId, projects=[], currentMemberId="
     getDoc(coinRef).then(snap => {
       if (snap.exists()) {
         const d = snap.data();
-        setCoins(d.totalAvailable - d.usedThisCycle);
+        const avail = d.totalAvailable || d.baseAllowance || 300;
+        const used = d.usedThisCycle || 0;
+        setCoins(Math.max(0, avail - used));
       } else {
-        // Initialize with 100 coins for first-time use
-        setDoc(coinRef, { totalAvailable: 100, usedThisCycle: 0, baseAllowance: 100, rolloverCoins: 0, log: [], cycleStart: new Date(), cycleEnd: new Date(Date.now() + 28*24*60*60*1000), createdAt: new Date(), updatedAt: new Date() }).then(() => setCoins(100));
+        setCoins(300);
       }
       setCoinsLoading(false);
-    }).catch(() => { setCoins(100); setCoinsLoading(false); });
+    }).catch(() => { setCoins(300); setCoinsLoading(false); });
   }, [companyId]);
 
   // Fetch and summarize project data on mount
@@ -8882,10 +8883,9 @@ Keep responses concise and actionable — under 200 words unless a detailed brea
     const msg = (text || input).trim();
     if (!msg || loading) return;
 
-    // Check coin balance
-    const costEstimate = projectContext && projectContext.length > 0 ? 5 : 3;
-    if (coins !== null && coins < costEstimate) {
-      setMessages(prev => [...prev, { role: "user", content: msg, ts: new Date() }, { role: "assistant", content: "You've run out of Cortex Coins. Please contact your administrator to top up your balance.", ts: new Date() }]);
+    // Check coin balance (backend deducts 1 coin per call)
+    if (coins !== null && coins < 1) {
+      setMessages(prev => [...prev, { role: "user", content: msg, ts: new Date() }, { role: "assistant", content: "You've run out of Cortex Coins for this billing cycle. AI features are paused until your next cycle begins.", ts: new Date() }]);
       setInput("");
       return;
     }
@@ -8910,25 +8910,34 @@ Keep responses concise and actionable — under 200 words unless a detailed brea
         })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to get response");
+      if (!res.ok) {
+        if (data.error === "cortex_coins_exhausted") {
+          setMessages(prev => [...prev, { role: "assistant", content: data.message || "You've used all of your Cortex Coins for this billing cycle. AI features are paused until your next cycle begins.", ts: new Date() }]);
+          setCoins(0);
+          setLoading(false);
+          return;
+        }
+        throw new Error(data.error || "Failed to get response");
+      }
 
       const aiContent = data.content || data.result || "I'm sorry, I couldn't generate a response.";
       const aiMsg = { role: "assistant", content: aiContent, ts: new Date() };
       setMessages(prev => [...prev, aiMsg]);
 
-      // Deduct coins after successful response
-      const cost = projectContext && projectContext.length > 0 ? 5 : 3;
-      setCoins(prev => prev !== null ? Math.max(0, prev - cost) : prev);
-      // Write updated balance to Firebase
+      // Refresh coin balance from Firestore (backend already deducted via cortex-coins)
       if (companyId) {
         const coinRef = doc(db, "companies", companyId, "billing", "cortexCoins");
         getDoc(coinRef).then(snap => {
           if (snap.exists()) {
             const d = snap.data();
-            updateDoc(coinRef, { usedThisCycle: d.usedThisCycle + cost, updatedAt: new Date() });
+            const avail = d.totalAvailable || d.baseAllowance || 300;
+            const used = d.usedThisCycle || 0;
+            setCoins(Math.max(0, avail - used));
           }
         }).catch(() => {});
       }
+      // Dispatch custom event so other usage panels update
+      window.dispatchEvent(new CustomEvent("jd-ai-usage-updated"));
     } catch (err) {
       setMessages(prev => [...prev, { role: "assistant", content: `Sorry, something went wrong: ${err.message}`, ts: new Date() }]);
     } finally {
@@ -9570,23 +9579,26 @@ function BillingTab({ companyId, memberEmail }) {
   const handleUpgrade = async () => {
     setUpgrading(true);
     try {
-      const res = await fetch("/.netlify/functions/create-checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyId,
-          memberEmail,
-          successUrl: window.location.origin + "/portal.html?billing=success",
-          cancelUrl: window.location.origin + "/portal.html?billing=cancelled",
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to start checkout");
-      window.location.href = json.url;
+      // TODO: Insert Cortex Coin Premium Stripe Plan ID here
+      const priceId = "";
+      if (!priceId) {
+        alert("Premium plan is not yet configured. Please contact support.");
+        setUpgrading(false);
+        return;
+      }
+      if (window.$memberstackDom) {
+        await window.$memberstackDom.purchasePlansWithCheckout({
+          priceId,
+          successUrl: window.location.origin + "/app/dist/?stripe=success&billing=success",
+          cancelUrl: window.location.origin + "/app/dist/?billing=cancelled",
+        });
+      } else {
+        alert("Checkout is not available. Please refresh and try again.");
+      }
     } catch (err) {
-      alert("Could not start checkout: " + err.message);
-      setUpgrading(false);
+      alert("Could not start checkout: " + (err.message || "Unknown error"));
     }
+    setUpgrading(false);
   };
 
   const handleManageSubscription = async () => {
@@ -9728,8 +9740,8 @@ function BillingTab({ companyId, memberEmail }) {
 
       {/* ── Upgrade card (Standard only) ── */}
       {!isPremium && (
-        <div className="card" style={{padding:0,overflow:"hidden",border:"1px solid rgba(91,163,245,.3)"}}>
-          <div style={{padding:"24px 24px 20px",background:"rgba(91,163,245,.05)"}}>
+        <div className="card" style={{padding:0,overflow:"hidden",border:"1px solid rgba(228,53,49,.25)"}}>
+          <div style={{padding:"24px 24px 20px",background:"rgba(228,53,49,.04)"}}>
             <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:20,flexWrap:"wrap"}}>
               <div>
                 <div style={{fontSize:16,fontWeight:800,color:"var(--t1)",marginBottom:4}}>
@@ -9739,7 +9751,7 @@ function BillingTab({ companyId, memberEmail }) {
                   1,000 coins per billing cycle
                 </div>
                 <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:14}}>
-                  <span style={{fontSize:32,fontWeight:800,color:"var(--blue)"}}>$199</span>
+                  <span style={{fontSize:32,fontWeight:800,color:"var(--acc)"}}>$199</span>
                   <span style={{fontSize:13,color:"var(--t3)"}}>/month</span>
                 </div>
                 <ul style={{margin:0,padding:"0 0 0 18px",fontSize:12,color:"var(--t2)",lineHeight:2}}>
@@ -9758,11 +9770,27 @@ function BillingTab({ companyId, memberEmail }) {
                         display:"inline-block"}}/>
                       Redirecting...
                     </span>
-                  ) : "Upgrade now"}
+                  ) : "Upgrade to Cortex Coin Premium"}
                 </button>
                 <span style={{fontSize:10,color:"var(--t3)"}}>Powered by Stripe</span>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Premium active card ── */}
+      {isPremium && (
+        <div className="card" style={{padding:20}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{
+              display:"inline-flex",alignItems:"center",gap:5,borderRadius:20,
+              padding:"4px 12px",fontSize:11,fontWeight:700,
+              background:"rgba(26,217,138,.12)",border:"1px solid rgba(26,217,138,.3)",color:"var(--green)",
+            }}>Cortex Coin Premium — Active</span>
+          </div>
+          <div style={{fontSize:12,color:"var(--t2)",marginTop:10,lineHeight:1.7}}>
+            Your workspace has 1,000 Cortex Coins per billing cycle. This add-on can be managed from the billing portal.
           </div>
         </div>
       )}
@@ -9803,6 +9831,13 @@ function CortexCoinsTab({ companyId, memberEmail }) {
 
   useEffect(() => { fetchStatus(); }, [fetchStatus]);
 
+  // Refresh when any AI feature deducts a coin
+  useEffect(() => {
+    const handler = () => fetchStatus();
+    window.addEventListener("jd-ai-usage-updated", handler);
+    return () => window.removeEventListener("jd-ai-usage-updated", handler);
+  }, [fetchStatus]);
+
   // Listen for plan field changes
   useEffect(() => {
     if (!companyId) return;
@@ -9816,23 +9851,26 @@ function CortexCoinsTab({ companyId, memberEmail }) {
   const handleUpgradeNudge = async () => {
     setUpgrading(true);
     try {
-      const res = await fetch("/.netlify/functions/create-checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyId,
-          memberEmail: memberEmail || "",
-          successUrl: window.location.origin + "/portal.html?billing=success",
-          cancelUrl: window.location.origin + "/portal.html?billing=cancelled",
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to start checkout");
-      window.location.href = json.url;
+      // TODO: Insert Cortex Coin Premium Stripe Plan ID here
+      const priceId = "";
+      if (!priceId) {
+        alert("Premium plan is not yet configured. Please contact support.");
+        setUpgrading(false);
+        return;
+      }
+      if (window.$memberstackDom) {
+        await window.$memberstackDom.purchasePlansWithCheckout({
+          priceId,
+          successUrl: window.location.origin + "/app/dist/?stripe=success&billing=success",
+          cancelUrl: window.location.origin + "/app/dist/?billing=cancelled",
+        });
+      } else {
+        alert("Checkout is not available. Please refresh and try again.");
+      }
     } catch (err) {
-      alert("Could not start checkout: " + err.message);
-      setUpgrading(false);
+      alert("Could not start checkout: " + (err.message || "Unknown error"));
     }
+    setUpgrading(false);
   };
 
   if (loading) {
@@ -9895,21 +9933,28 @@ function CortexCoinsTab({ companyId, memberEmail }) {
         </div>
       )}
 
-      {/* ── Upgrade nudge when running low on standard plan ── */}
-      {plan !== "premium" && remaining < 60 && (
+      {/* ── Upgrade prompt (Standard plan only) — prominent at 75%+ ── */}
+      {plan !== "premium" && (
         <div style={{
-          background:"rgba(91,163,245,.08)",border:"1px solid rgba(91,163,245,.25)",
-          borderRadius:10,padding:"12px 18px",display:"flex",alignItems:"center",gap:12,
+          background: pct >= 75 ? "rgba(228,53,49,.08)" : "rgba(228,53,49,.04)",
+          border: `1px solid ${pct >= 75 ? "rgba(228,53,49,.3)" : "rgba(228,53,49,.15)"}`,
+          borderRadius:10, padding: pct >= 75 ? "16px 18px" : "12px 18px",
+          display:"flex", alignItems:"center", gap:12,
         }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--blue)" style={{flexShrink:0}}>
+          <svg width={pct >= 75 ? "20" : "16"} height={pct >= 75 ? "20" : "16"} viewBox="0 0 24 24" fill="var(--acc)" style={{flexShrink:0}}>
             <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
           </svg>
-          <div style={{flex:1,fontSize:12,color:"var(--t2)"}}>
-            Running low? <strong style={{color:"var(--blue)"}}>Upgrade to 1,000 coins/cycle for $199/month</strong>
+          <div style={{flex:1}}>
+            <div style={{fontSize: pct >= 75 ? 13 : 12, color:"var(--t2)"}}>
+              {pct >= 75
+                ? <><strong style={{color:"var(--acc)"}}>Running low on coins.</strong> Upgrade to 1,000 coins/cycle for $199/month</>
+                : <>Need more AI credits? <strong style={{color:"var(--acc)"}}>Upgrade to 1,000 coins/cycle for $199/month</strong></>
+              }
+            </div>
           </div>
-          <button className="btn btn-primary" style={{fontSize:11,flexShrink:0,padding:"6px 14px"}}
+          <button className="btn btn-primary" style={{fontSize:11,flexShrink:0,padding: pct >= 75 ? "8px 18px" : "6px 14px"}}
             onClick={handleUpgradeNudge} disabled={upgrading}>
-            {upgrading ? "Redirecting..." : "Upgrade"}
+            {upgrading ? "Redirecting..." : "Upgrade to Cortex Coin Premium"}
           </button>
         </div>
       )}

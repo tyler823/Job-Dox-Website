@@ -85,14 +85,16 @@ async function ensureCycle(db, companyId) {
     const unused = Math.max(0, data.totalAvailable - data.usedThisCycle);
     const newCycleStart = now;
     const newCycleEnd = new Date(now.getTime() + CYCLE_DAYS * 24 * 60 * 60 * 1000);
+    // Preserve the company's current base allowance (300 standard, 1000 premium)
+    const currentBase = data.baseAllowance || BASE_ALLOWANCE;
 
     data = {
       cycleStart: newCycleStart,
       cycleEnd: newCycleEnd,
-      baseAllowance: BASE_ALLOWANCE,
+      baseAllowance: currentBase,
       rolloverCoins: unused,
       usedThisCycle: 0,
-      totalAvailable: BASE_ALLOWANCE + unused,
+      totalAvailable: currentBase + unused,
       log: [], // Clear log for new cycle
       alertSentAt80: null,
       updatedAt: now,

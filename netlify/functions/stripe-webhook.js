@@ -151,6 +151,7 @@ async function handleCheckoutCompleted(db, session) {
     plan: "premium",
     stripeSubscriptionId: session.subscription || "",
     stripeCustomerId: session.customer || "",
+    paymentFailed: false,
   }, { merge: true });
 
   console.log(`Company ${companyId} upgraded to Premium (1000 coins)`);

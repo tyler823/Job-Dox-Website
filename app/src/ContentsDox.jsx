@@ -194,7 +194,7 @@ const calcAcv = (rcv, depPct) => {
 /* ═══════════════════════════════════════════════════════════════
    AI COMPARABLE FETCH — calls Netlify proxy
 ═══════════════════════════════════════════════════════════════ */
-async function fetchComparable(item) {
+async function fetchComparable(item, companyId) {
   const ageStr = [
     item.ageYears  ? `${item.ageYears} yr`  : "",
     item.ageMonths ? `${item.ageMonths} mo` : ""
@@ -228,10 +228,16 @@ Return ONLY a valid JSON object — no markdown, no backticks, no explanation be
   const res = await fetch("/.netlify/functions/cortex-generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, type: "comparable" })
+    body: JSON.stringify({ prompt, type: "comparable", companyId: companyId || "" })
   });
 
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    if (errData.error === "cortex_coins_exhausted") {
+      throw new Error("cortex_coins_exhausted");
+    }
+    throw new Error(`HTTP ${res.status}`);
+  }
   const data = await res.json();
 
   // Handle various response shapes from the proxy
@@ -389,10 +395,15 @@ function ItemRow({ item, index, onUpdate, onRemove, onDuplicate, companyId, proj
     setAiError(null);
     setAiResult(null);
     try {
-      const result = await fetchComparable(item);
+      const result = await fetchComparable(item, companyId);
       setAiResult(result);
+      window.dispatchEvent(new CustomEvent("jd-ai-usage-updated"));
     } catch (e) {
-      setAiError("Could not retrieve AI estimate. Check your connection or try again. You can still enter a comparable URL manually below.");
+      if (e.message === "cortex_coins_exhausted") {
+        setAiError("You've used all of your Cortex Coins for this billing cycle. AI features are paused until your next cycle begins.");
+      } else {
+        setAiError("Could not retrieve AI estimate. Check your connection or try again. You can still enter a comparable URL manually below.");
+      }
     }
     setLookupLoading(false);
   };

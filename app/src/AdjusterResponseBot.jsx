@@ -109,6 +109,7 @@ export default function AdjusterResponseModal({
       }
       setResponse(data.response || "");
       setEditText(data.response || "");
+      window.dispatchEvent(new CustomEvent("jd-ai-usage-updated"));
     } catch (err) {
       setError(err.message || "Failed to generate response");
     } finally {

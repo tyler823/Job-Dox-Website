@@ -1049,6 +1049,7 @@ function AIAnalytics({ data, companyId }) {
     try {
       const res = await callFn("reports-analyze", { prompt: promptText, mode: "reports", companyId });
       setResult(res.text || "No response from AI.");
+      window.dispatchEvent(new CustomEvent("jd-ai-usage-updated"));
     } catch (err) {
       const msg = err.message || "";
       if (msg === "cortex_coins_exhausted") {
