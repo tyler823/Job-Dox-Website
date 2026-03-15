@@ -60,7 +60,7 @@ exports.handler = async (event) => {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
   }
 
-  const { workType, notes, roles = [], statuses = [], statusTriggers = [], companyId, userId, prompt, type } = context;
+  const { workType, notes, roles = [], statuses = [], statusTriggers = [], companyId, userId, prompt, type, messages: conversationMessages, systemPrompt: copilotSystemPrompt } = context;
 
   // ── Guard: API key must exist ──
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -156,6 +156,59 @@ exports.handler = async (event) => {
 
     } catch (err) {
       console.error('Fetch error (comparable):', err);
+      return {
+        statusCode: 502,
+        headers,
+        body: JSON.stringify({ error: 'Failed to reach AI service. Check network or API key.' }),
+      };
+    }
+  }
+
+  /* ════════════════════════════════════════════════════════════════
+     COPILOT — Conversational AI assistant with multi-turn history
+  ════════════════════════════════════════════════════════════════ */
+  if (type === 'copilot') {
+    if (!conversationMessages || !Array.isArray(conversationMessages) || conversationMessages.length === 0) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'messages array is required for copilot mode' }) };
+    }
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-5',
+          max_tokens: 1024,
+          system: copilotSystemPrompt || 'You are Cortex, a helpful project management assistant for restoration companies using Job-Dox.',
+          messages: conversationMessages.map(m => ({ role: m.role, content: m.content })),
+        }),
+      });
+
+      if (!response.ok) {
+        const errBody = await response.text();
+        console.error('Anthropic API error (copilot):', response.status, errBody);
+        return {
+          statusCode: 502,
+          headers,
+          body: JSON.stringify({ error: `AI service error: ${response.status}` }),
+        };
+      }
+
+      const aiData = await response.json();
+      const content = aiData?.content?.[0]?.text || '';
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ content, coinData: coinCheck.coinData }),
+      };
+
+    } catch (err) {
+      console.error('Fetch error (copilot):', err);
       return {
         statusCode: 502,
         headers,
