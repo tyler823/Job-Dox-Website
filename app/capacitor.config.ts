@@ -1,5 +1,5 @@
-import type { CapacitorConfig } from "@capacitor/cli";
 
+import type { CapacitorConfig } from "@capacitor/cli";
 const config: CapacitorConfig = {
   appId: "ai.jobdox.field",
   appName: "Job-Dox Field",
@@ -9,7 +9,8 @@ const config: CapacitorConfig = {
   server: {
     // Uncomment below for live-reload during development:
     // url: "http://YOUR_LOCAL_IP:5173",
-    androidScheme: "https",
+url: "https://job-dox.ai",   
+ androidScheme: "https",
     iosScheme: "https",
   },
   ios: {
