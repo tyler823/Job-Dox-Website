@@ -112,7 +112,7 @@ export default function AppEntry() {
         window.$memberstackDom.getCurrentMember().then(({ data: m }) => {
           if (cancelled) return;
           if (m) {
-            sessionStorage.setItem("jd_portal_active", "1");
+            localStorage.setItem("jd_portal_active", "1");
             setMember(m);
           }
           setAuthReady(true);
@@ -124,10 +124,10 @@ export default function AppEntry() {
         window.$memberstackDom.onAuthChange((m) => {
           if (cancelled) return;
           if (m) {
-            sessionStorage.setItem("jd_portal_active", "1");
+            localStorage.setItem("jd_portal_active", "1");
             setMember(m);
           } else {
-            sessionStorage.removeItem("jd_portal_active");
+            localStorage.removeItem("jd_portal_active");
             setMember(null);
           }
         });

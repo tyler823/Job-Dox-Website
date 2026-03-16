@@ -117,15 +117,29 @@ body.modal-open{overflow:hidden;}
 .kpi-val{font-family:var(--mono);font-size:18px;font-weight:700;margin-bottom:2px;}
 .kpi-lbl{font-family:var(--mono);font-size:8px;color:var(--t2);text-transform:uppercase;letter-spacing:.07em;}
 .feed-note{background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:12px 14px;margin-bottom:8px;}
-.login-screen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;z-index:300;transition:opacity .35s ease,transform .35s ease;}
+.login-screen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;z-index:300;transition:opacity .35s ease,transform .35s ease;overflow:hidden;}
 .login-screen.fade-out{opacity:0;transform:translateY(-20px);pointer-events:none;}
-.login-brand{display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:60px;}
-.login-logo{width:64px;height:64px;border-radius:18px;background:var(--acc);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:22px;font-weight:700;color:#fff;box-shadow:0 0 32px var(--acc-glo);}
-.login-wordmark{font-size:22px;font-weight:800;color:var(--t1);letter-spacing:-.02em;}
-.login-tagline{font-size:13px;color:var(--t3);margin-top:-4px;}
-.login-action{width:100%;max-width:320px;}
-.login-btn{width:100%;height:52px;border:none;border-radius:12px;background:var(--acc);color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;box-shadow:0 0 20px var(--acc-glo);-webkit-tap-highlight-color:transparent;transition:opacity .15s;}
+/* Animated gradient glow behind the card */
+.login-glow{position:absolute;width:420px;height:420px;border-radius:50%;top:35%;left:50%;transform:translate(-50%,-50%);pointer-events:none;background:radial-gradient(circle,rgba(228,53,49,.18) 0%,rgba(228,53,49,.06) 40%,transparent 70%);animation:login-glow-pulse 4s ease-in-out infinite alternate;}
+@keyframes login-glow-pulse{0%{opacity:.5;transform:translate(-50%,-50%) scale(.9);}100%{opacity:1;transform:translate(-50%,-50%) scale(1.1);}}
+.login-card{position:relative;z-index:1;width:100%;max-width:360px;display:flex;flex-direction:column;align-items:center;}
+.login-logo{width:56px;height:56px;border-radius:16px;background:var(--acc);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:18px;font-weight:700;color:#fff;box-shadow:0 0 28px var(--acc-glo);margin-bottom:20px;}
+.login-headline{font-family:'Outfit',sans-serif;font-weight:800;font-size:30px;color:#eef1f8;letter-spacing:-.02em;margin-bottom:4px;}
+.login-sub{font-family:'Outfit',sans-serif;font-size:13px;color:#8b95b0;margin-bottom:32px;}
+.login-form{width:100%;display:flex;flex-direction:column;gap:12px;}
+.login-input-wrap{position:relative;width:100%;}
+.login-input{width:100%;height:48px;background:#10121e;border:1px solid rgba(255,255,255,.10);border-radius:10px;padding:0 14px;font-size:15px;color:#eef1f8;font-family:'Outfit',sans-serif;outline:none;-webkit-appearance:none;}
+.login-input:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(228,53,49,.12);}
+.login-input::placeholder{color:#404866;}
+.login-eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:#404866;cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;}
+.login-eye:active{color:#8b95b0;}
+.login-btn{width:100%;height:48px;border:none;border-radius:10px;background:#e43531;color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;box-shadow:0 0 20px rgba(228,53,49,.35);-webkit-tap-highlight-color:transparent;transition:opacity .15s;margin-top:8px;display:flex;align-items:center;justify-content:center;}
 .login-btn:active{opacity:.85;}
+.login-btn:disabled{opacity:.6;cursor:not-allowed;}
+@keyframes login-spin{to{transform:rotate(360deg);}}
+.login-spinner{width:20px;height:20px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:login-spin .6s linear infinite;}
+.login-error{width:100%;background:rgba(228,53,49,.09);border:1px solid rgba(228,53,49,.25);border-radius:8px;padding:10px 14px;font-size:12px;color:#e43531;font-family:'Outfit',sans-serif;line-height:1.5;margin-top:4px;}
+.login-version{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);font-family:'Space Mono',monospace;font-size:9px;color:#404866;z-index:1;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .spin{animation:spin .7s linear infinite;display:inline-block;}
 .sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);z-index:200;display:flex;align-items:flex-end;}
@@ -166,54 +180,23 @@ const WORK_COLORS  = {water:"#5ba3f5",fire:"#e43531",mold:"#a78bfa",smoke:"#e89c
 let _id = Date.now();
 const uid     = () => `f${_id++}`;
 
-// ── Single-session enforcement ──────────────────────────────────────────────
-// On login we write a random token to activeSessions/{memberstackId}.
-// A real-time listener watches that doc — if the token changes (someone logged
-// in from another device / browser), this session auto-logs out.
-const SESSION_TOKEN = `fld_${Date.now()}_${Math.random().toString(36).slice(2,10)}`;
-let _sessionUnsub = null;
-let _fieldMemberId = null;        // tracked for tab-close cleanup
+// ── Multi-session support ──────────────────────────────────────────────────
+// Field techs need to be logged in on phone browser AND app simultaneously.
+// We no longer enforce single-session or clear auth on visibility change.
+// Memberstack manages its own session persistence via localStorage cookies.
+let _fieldMemberId = null;
 
-// ── Tab-close / force-quit auto-logout ────────────────────────────────────
-function _fieldTabCloseCleanup() {
-  if (!_fieldMemberId) return;
-  try {
-    navigator.sendBeacon(
-      "/.netlify/functions/clear-session",
-      JSON.stringify({ memberId: _fieldMemberId })
-    );
-  } catch(e) {}
-  localStorage.removeItem("jd_current_user");
-  sessionStorage.clear();
-}
+// REMOVED: _fieldTabCloseCleanup — was sending sendBeacon to delete
+// activeSessions doc and clearing sessionStorage/localStorage on every
+// page hide, which caused logout when swiping the app away.
 
-window.addEventListener("pagehide", function(e) {
-  if (!e.persisted) _fieldTabCloseCleanup();
-});
-document.addEventListener("visibilitychange", function() {
-  if (document.visibilityState === "hidden") _fieldTabCloseCleanup();
-});
+// REMOVED: pagehide listener — was triggering cleanup on app background.
 
-async function claimSession(memberId) {
-  try {
-    await db.collection("activeSessions").doc(memberId).set({
-      token: SESSION_TOKEN,
-      app: "field",
-      claimedAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
-  } catch(e) { /* offline — will sync when back online */ }
-}
+// REMOVED: visibilitychange listener — was calling cleanup when switching
+// apps or swiping away, destroying the auth session.
 
-function watchSession(memberId, onKicked) {
-  if (_sessionUnsub) _sessionUnsub();
-  _sessionUnsub = db.collection("activeSessions").doc(memberId)
-    .onSnapshot(snap => {
-      if (!snap.exists()) return;
-      const remote = snap.data().token;
-      // If the token changed and it wasn't us, we've been kicked
-      if (remote && remote !== SESSION_TOKEN) onKicked();
-    });
-}
+// REMOVED: claimSession / watchSession — single-session enforcement was
+// kicking users out when they logged in on another device/browser.
 const fmtDate = ts => ts?.toDate?ts.toDate().toLocaleDateString("en-US",{month:"short",day:"numeric"}):new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
 const fmtTime = ts => ts?.toDate?ts.toDate().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):"";
 
@@ -265,18 +248,73 @@ function Splash() {
   );
 }
 
-/* ── Login Screen — native app feel ────────────────────── */
-function LoginScreen({ onSignIn }) {
+/* ── Login Screen — native mobile app design ─────────── */
+function LoginScreen({ onLogin }) {
+  const [email, setEmail]       = useState("");
+  const [password, setPassword] = useState("");
+  const [showPw, setShowPw]     = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState("");
+
+  const handleSubmit = async (e) => {
+    if (e) e.preventDefault();
+    const em = email.trim();
+    if (!em || !password) { setError("Enter your email and password."); return; }
+    setError(""); setLoading(true);
+    try {
+      const ms = await waitForMS();
+      const result = await ms.loginMemberEmailPassword({ email: em, password });
+      if (result?.data) {
+        onLogin(result.data);
+      } else {
+        setError("Login failed. Please check your credentials.");
+      }
+    } catch(err) {
+      const msg = err?.message || err?.toString() || "";
+      if (msg.toLowerCase().includes("password")) {
+        setError("Incorrect password. Please try again.");
+      } else if (msg.toLowerCase().includes("not found") || msg.toLowerCase().includes("no member")) {
+        setError("No account found with that email.");
+      } else {
+        setError(msg || "Login failed. Please try again.");
+      }
+    }
+    setLoading(false);
+  };
+
   return (
     <div className="login-screen">
-      <div className="login-brand">
+      <div className="login-glow"/>
+      <div className="login-card">
         <div className="login-logo">JD</div>
-        <div className="login-wordmark">Cortex Field</div>
-        <div className="login-tagline">Job-Dox field operations</div>
+        <div className="login-headline">Field Access</div>
+        <div className="login-sub">Sign in to your account</div>
+        <form className="login-form" onSubmit={handleSubmit}>
+          <div className="login-input-wrap">
+            <input className="login-input" type="email" placeholder="Email address"
+              value={email} onChange={e=>setEmail(e.target.value)}
+              autoComplete="email" autoCapitalize="off" autoCorrect="off"
+              inputMode="email" disabled={loading}/>
+          </div>
+          <div className="login-input-wrap">
+            <input className="login-input" type={showPw?"text":"password"} placeholder="Password"
+              value={password} onChange={e=>setPassword(e.target.value)}
+              autoComplete="current-password" disabled={loading}
+              style={{paddingRight:44}}/>
+            <button type="button" className="login-eye" onClick={()=>setShowPw(v=>!v)}
+              tabIndex={-1} aria-label={showPw?"Hide password":"Show password"}>
+              {showPw
+                ? <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>
+                : <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>}
+            </button>
+          </div>
+          <button type="submit" className="login-btn" disabled={loading}>
+            {loading ? <div className="login-spinner"/> : "Sign In"}
+          </button>
+        </form>
+        {error && <div className="login-error">{error}</div>}
       </div>
-      <div className="login-action">
-        <button className="login-btn" onClick={onSignIn}>Sign In</button>
-      </div>
+      <div className="login-version">v1.4.0</div>
     </div>
   );
 }
@@ -1144,6 +1182,7 @@ function FieldApp() {
   const [member,    setMember]    = useState(null);
   const [fieldUser, setFieldUser] = useState(null);
   const [screen,    setScreen]    = useState("projects");
+  const initMemberRef = useRef(null);
   const [proj,      setProj]      = useState(null);
   const [online,    setOnline]    = useState(navigator.onLine);
   const [clockProjId,   setClockProjId]   = useState(null);
@@ -1155,7 +1194,7 @@ function FieldApp() {
     return()=>{ window.removeEventListener("online",on); window.removeEventListener("offline",off); };
   },[]);
 
-  // ── Memberstack auth — mirrors portal's getMember() exactly ──────────
+  // ── Memberstack auth ──────────────────────────────────────────────────
   useEffect(()=>{
     async function initMember(ms, m) {
       if (!m) {
@@ -1186,16 +1225,8 @@ function FieldApp() {
         .catch(()=>{});
 
       _fieldMemberId = m.id;
-      sessionStorage.setItem("jd_field_active", "1");
-
-      await claimSession(m.id);
-      watchSession(m.id, async () => {
-        if (_sessionUnsub) { _sessionUnsub(); _sessionUnsub = null; }
-        const _ms = await waitForMS();
-        await _ms.logout();
-        setMember(null); setFieldUser(null);
-        setAuthState("login");
-      });
+      // Use localStorage so auth survives app swipe-away / tab close
+      localStorage.setItem("jd_field_active", "1");
 
       setFieldUser(profile);
       // If coming from login screen, animate transition
@@ -1207,23 +1238,22 @@ function FieldApp() {
       }
     }
 
+    // Expose initMember so the inline login form can call it
+    initMemberRef.current = initMember;
+
     async function boot() {
       const ms = await waitForMS();
       const { data: m } = await ms.getCurrentMember();
 
-      if (m && !sessionStorage.getItem("jd_field_active")) {
-        try { await ms.logout(); } catch(e) {}
-        localStorage.removeItem("jd_current_user");
-        sessionStorage.clear();
-        setAuthState("login");
-        return;
-      }
+      // REMOVED: dirty-close detection that force-logged-out users when
+      // sessionStorage marker was missing (always missing after swipe-away).
+      // Memberstack manages its own session — if getCurrentMember() returns
+      // a member, the session is valid.
 
       await initMember(ms, m);
 
       ms.onAuthChange(async updated => {
         if (!updated) {
-          if (_sessionUnsub) { _sessionUnsub(); _sessionUnsub = null; }
           setMember(null); setFieldUser(null);
           setAuthState("login");
           return;
@@ -1233,12 +1263,6 @@ function FieldApp() {
     }
     boot();
   },[]);
-
-  // ── Open Memberstack modal programmatically from login screen ──
-  const handleLoginTap = async () => {
-    const ms = await waitForMS();
-    ms.openModal("login");
-  };
 
   const handleLinked = (companyId, companyName) => {
     if (!member) return;
@@ -1263,8 +1287,14 @@ function FieldApp() {
     setClockProjId(pId||null); setClockProjName(pName||"");
   };
 
+  // When login succeeds via the new inline form, initialize the member
+  const handleLoginSuccess = async (memberData) => {
+    const ms = await waitForMS();
+    await initMemberRef.current(ms, memberData);
+  };
+
   if (authState==="checking") return <Splash/>;
-  if (authState==="login")    return <LoginScreen onSignIn={handleLoginTap}/>;
+  if (authState==="login")    return <LoginScreen onLogin={handleLoginSuccess}/>;
   if (authState==="invite")   return <InviteCodeScreen member={member} onLinked={handleLinked}/>;
 
   const pName = proj?.name||proj?.clientName||"Project";

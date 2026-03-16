@@ -999,7 +999,7 @@ document.querySelectorAll('.roi-charts').forEach(el=>{el.querySelectorAll('.ann-
               });
             } else {
               // No price — go straight to portal
-              sessionStorage.setItem('jd_portal_active', '1');
+              localStorage.setItem('jd_portal_active', '1');
               var invite = sessionStorage.getItem('jd_invite');
               var dest = '/app/dist/';
               if (invite) dest += '?invite=' + invite;
@@ -1014,7 +1014,7 @@ document.querySelectorAll('.roi-charts').forEach(el=>{el.querySelectorAll('.ann-
         e.preventDefault();
         window.$memberstackDom.openModal('LOGIN').then(function(result) {
           if (result && result.data) {
-            sessionStorage.setItem('jd_portal_active', '1');
+            localStorage.setItem('jd_portal_active', '1');
             var invite = sessionStorage.getItem('jd_invite');
             var dest = '/app/dist/';
             if (invite) dest += '?invite=' + invite;

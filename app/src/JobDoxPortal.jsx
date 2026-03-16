@@ -37,60 +37,19 @@ const _fbApp  = initializeApp(FIREBASE_CONFIG);
 const db      = getFirestore(_fbApp);
 const fbAuth  = getAuth(_fbApp);
 
-// ── Single-session enforcement ──────────────────────────────────────────────
-// On login we write a random token to activeSessions/{memberstackId}.
-// A real-time listener watches that doc — if the token changes (someone logged
-// in from another device / browser), this session auto-logs out.
-const PORTAL_SESSION_TOKEN = `ptl_${Date.now()}_${Math.random().toString(36).slice(2,10)}`;
-let _portalSessionUnsub = null;
-let _portalMemberId = null;      // tracked for tab-close cleanup
+// ── Multi-session support ──────────────────────────────────────────────────
+// Users can be logged in on multiple devices/browsers simultaneously.
+// Memberstack manages its own session persistence — we don't interfere.
+let _portalMemberId = null;
 
-// ── Tab-close / force-quit auto-logout ────────────────────────────────────
-// Uses pagehide to catch desktop tab-close and mobile force-quit.
-// Fires sendBeacon to a Netlify function that deletes the activeSessions doc.
-// NOTE: We no longer clear localStorage because all persistent data lives in
-// Firestore.  Only session-specific keys are removed.
-function _portalTabCloseCleanup() {
-  if (!_portalMemberId) return;
-  // Best-effort server call — sendBeacon works during page teardown
-  try {
-    navigator.sendBeacon(
-      "/.netlify/functions/clear-session",
-      JSON.stringify({ memberId: _portalMemberId })
-    );
-  } catch(e) { /* swallow */ }
-  // Only clear session-specific markers — NOT user data
-  try { sessionStorage.removeItem("jd_portal_active"); } catch {}
-}
+// REMOVED: PORTAL_SESSION_TOKEN, single-session enforcement (claimPortalSession,
+// watchPortalSession) — was kicking users out when logging in from another device.
 
-function _onPageHide(e) {
-  // persisted === true means page is going into bfcache (back/forward),
-  // NOT a real close.  Only clean up on actual teardown.
-  if (!e.persisted) _portalTabCloseCleanup();
-}
+// REMOVED: _portalTabCloseCleanup, _onPageHide — was sending sendBeacon to
+// delete activeSessions doc and clearing sessionStorage on tab close/page hide.
+
 // REMOVED: _onVisibilityHidden — was clearing ALL localStorage when page went
 // hidden (e.g. switching tabs on mobile), destroying user data.
-
-async function claimPortalSession(memberId) {
-  try {
-    const _path = `activeSessions/${memberId}`;
-    console.log("[FS-DIAG] setDoc →", _path);
-    await setDoc(doc(db, "activeSessions", memberId), {
-      token: PORTAL_SESSION_TOKEN,
-      app: "portal",
-      claimedAt: serverTimestamp(),
-    });
-  } catch(e) { /* offline or permissions */ }
-}
-
-function watchPortalSession(memberId, onKicked) {
-  if (_portalSessionUnsub) _portalSessionUnsub();
-  _portalSessionUnsub = onSnapshot(doc(db, "activeSessions", memberId), snap => {
-    if (!snap.exists()) return;
-    const remote = snap.data().token;
-    if (remote && remote !== PORTAL_SESSION_TOKEN) onKicked();
-  });
-}
 
 /* ── Netlify function caller — mirrors the Firebase httpsCallable API ── */
 const NETLIFY = "/.netlify/functions";
@@ -13753,7 +13712,7 @@ export default function JobDoxPortal() {
         } catch (e) { console.warn("Failed to load companies for support mode:", e); }
         // Track member ID for tab-close cleanup
         _portalMemberId = member.id;
-        sessionStorage.setItem("jd_portal_active", "1");
+        localStorage.setItem("jd_portal_active", "1");
         return; // Don't load any company data yet — wait for selection
       }
 
@@ -13982,46 +13941,20 @@ export default function JobDoxPortal() {
       // ── Stream pending invites (admin only, but harmless to load) ──
       unsubInvites = fsListenInvites(cid, list => setPendingInvites(list));
 
-      // ── Track member ID for tab-close cleanup ──
+      // ── Track member ID ──
       _portalMemberId = member.id;
-      sessionStorage.setItem("jd_portal_active", "1");
-
-      // ── Single-session: claim this device and watch for kicks ──
-      await claimPortalSession(member.id);
-      watchPortalSession(member.id, async () => {
-        // Another device/browser logged in — sign out here
-        if (_portalSessionUnsub) { _portalSessionUnsub(); _portalSessionUnsub = null; }
-        try { await window.$memberstackDom.logout(); } catch(e) {}
-        // Only clear session markers — data lives in Firestore
-        try { sessionStorage.removeItem("jd_portal_active"); } catch {}
-        exitToLanding();
-      });
+      // Use localStorage so auth survives tab close / app swipe-away
+      localStorage.setItem("jd_portal_active", "1");
     }
 
     function getMember() {
       if (!window.$memberstackDom) { setTimeout(getMember, 250); return; }
       window.$memberstackDom.getCurrentMember().then(async ({ data: member }) => {
         if (member) {
-          // ── Dirty-close detection ──────────────────────────────────
-          // sessionStorage is wiped when the tab/browser closes.
-          // If Memberstack still has a member but our marker is gone,
-          // the previous session ended via tab-close / force-quit.
-          // Force a clean logout so Memberstack config stays consistent.
-          // Exception: skip if user just arrived from login/signup redirect
-          // (indicated by jd_portal_active already set, or referrer from
-          // same origin, or Stripe success redirect).
-          const wasActive = sessionStorage.getItem("jd_portal_active");
-          const params = new URLSearchParams(window.location.search);
-          const fromLogin = document.referrer && document.referrer.startsWith(window.location.origin);
-          const fromStripe = params.has("stripe");
-          const fromInvite = params.has("invite");
-          if (!wasActive && !fromLogin && !fromStripe && !fromInvite) {
-            try { await window.$memberstackDom.logout(); } catch(e) {}
-            // Only clear session markers — data lives in Firestore
-            try { sessionStorage.removeItem("jd_portal_active"); } catch {}
-            exitToLanding();
-            return;
-          }
+          // REMOVED: dirty-close detection — was force-logging-out users when
+          // sessionStorage marker was missing (always missing after tab close).
+          // Memberstack manages its own session — if getCurrentMember() returns
+          // a member, the session is valid. No need to second-guess it.
           try { window.$memberstackDom.closeModal(); } catch(e) {}
           initMember(member);
         } else {
@@ -14029,20 +13962,15 @@ export default function JobDoxPortal() {
           exitToLanding();
         }
       });
-      // Watch for auth changes — handles concurrent login kicks and manual logouts
+      // Watch for auth changes — handles manual logouts
       window.$memberstackDom.onAuthChange((member) => {
         if (!member) {
-          if (_portalSessionUnsub) { _portalSessionUnsub(); _portalSessionUnsub = null; }
-          // Only clear session markers — data lives in Firestore now
-          try { sessionStorage.removeItem("jd_portal_active"); } catch {}
+          try { localStorage.removeItem("jd_portal_active"); } catch {}
           exitToLanding();
         }
       });
     }
     getMember();
-
-    // ── Register tab-close / force-quit listeners ──
-    window.addEventListener("pagehide", _onPageHide);
 
     return () => {
       if (unsubProjects) unsubProjects();
@@ -14050,8 +13978,6 @@ export default function JobDoxPortal() {
       if (unsubInvites)  unsubInvites();
       if (unsubOffices)  unsubOffices();
       if (unsubReviews)  unsubReviews();
-      if (_portalSessionUnsub) _portalSessionUnsub();
-      window.removeEventListener("pagehide", _onPageHide);
       _portalMemberId = null;
     };
   }, []);
@@ -14202,7 +14128,7 @@ export default function JobDoxPortal() {
     setCompanyId(null);
     _globalCompanyId = null;
     try { await window.$memberstackDom.logout(); } catch(e) {}
-    try { sessionStorage.removeItem("jd_portal_active"); } catch {}
+    try { localStorage.removeItem("jd_portal_active"); } catch {}
     exitToLanding();
   }, []);
 
@@ -14514,7 +14440,7 @@ export default function JobDoxPortal() {
             await window.$memberstackDom.logout();
           } catch(e) {
             // If logout fails, force redirect — data lives in Firestore
-            try { sessionStorage.removeItem("jd_portal_active"); } catch {}
+            try { localStorage.removeItem("jd_portal_active"); } catch {}
             exitToLanding();
           }
         }} style={{color:"var(--t3)"}}>
