@@ -11,14 +11,31 @@
  *   setDocsCompanyId        -- set the active company ID
  */
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   getFirestore, doc, getDoc, setDoc, addDoc, deleteDoc, updateDoc,
   collection, query, where, getDocs, serverTimestamp, collectionGroup
 } from "firebase/firestore";
-import { getApps } from "firebase/app";
+import { initializeApp, getApps } from "firebase/app";
 
-const _docsDb = getApps().length > 0 ? getFirestore(getApps()[0]) : null;
+// Firebase config — same as shared/firebase.js, needed for standalone signing page
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyAFwSEDPqKgAUbwbh_2KZNwLDdGCZEiq3E",
+  authDomain:        "cortex-717c6.firebaseapp.com",
+  projectId:         "cortex-717c6",
+  storageBucket:     "cortex-717c6.firebasestorage.app",
+  messagingSenderId: "496631882511",
+  appId:             "1:496631882511:web:3f7be61bcbb83a6ab4d47a",
+};
+
+// Lazy Firestore getter — initializes Firebase if needed (for public signing page)
+function getDb() {
+  if (getApps().length === 0) {
+    initializeApp(FIREBASE_CONFIG);
+  }
+  return getFirestore(getApps()[0]);
+}
+
 let _docsCompanyId = null;
 export function setDocsCompanyId(cid) { _docsCompanyId = cid; }
 
@@ -38,8 +55,8 @@ const LS_CO = "jd_company_info";
 const loadCoInfo = () => { try { return JSON.parse(localStorage.getItem(LS_CO)) || {}; } catch { return {}; } };
 const saveCoInfo = v => {
   try { localStorage.setItem(LS_CO, JSON.stringify(v)); } catch {}
-  if (_docsDb && _docsCompanyId) {
-    setDoc(doc(_docsDb, "companies", _docsCompanyId, "settings", "companyInfo"),
+  if (_docsCompanyId) {
+    setDoc(doc(getDb(), "companies", _docsCompanyId, "settings", "companyInfo"),
       { data: JSON.parse(JSON.stringify(v)), updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
   }
 };
@@ -163,15 +180,15 @@ const Spin = ({ size = 12, color = "var(--t3)" }) => (
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function fsLoadTemplates(companyId) {
-  if (!_docsDb || !companyId) return [];
+  if (!companyId) return [];
   try {
-    const snap = await getDocs(collection(_docsDb, "companies", companyId, "documentTemplates"));
+    const snap = await getDocs(collection(getDb(), "companies", companyId, "documentTemplates"));
     return snap.docs.map(d => ({ templateId: d.id, ...d.data() }));
   } catch (e) { console.warn("[Docs] Failed to load templates:", e); return []; }
 }
 
 async function fsSaveTemplate(companyId, tmpl) {
-  if (!_docsDb || !companyId) return null;
+  if (!companyId) return null;
   const data = {
     name: tmpl.name || "Untitled",
     description: tmpl.description || "",
@@ -191,54 +208,54 @@ async function fsSaveTemplate(companyId, tmpl) {
     updatedAt: serverTimestamp(),
   };
   if (tmpl.templateId && tmpl.templateId !== "new") {
-    const ref = doc(_docsDb, "companies", companyId, "documentTemplates", tmpl.templateId);
+    const ref = doc(getDb(), "companies", companyId, "documentTemplates", tmpl.templateId);
     await setDoc(ref, data, { merge: true });
     return tmpl.templateId;
   } else {
     data.createdAt = serverTimestamp();
-    const ref = await addDoc(collection(_docsDb, "companies", companyId, "documentTemplates"), data);
+    const ref = await addDoc(collection(getDb(), "companies", companyId, "documentTemplates"), data);
     return ref.id;
   }
 }
 
 async function fsDeleteTemplate(companyId, templateId) {
-  if (!_docsDb || !companyId || !templateId) return;
-  await deleteDoc(doc(_docsDb, "companies", companyId, "documentTemplates", templateId));
+  if (!companyId || !templateId) return;
+  await deleteDoc(doc(getDb(), "companies", companyId, "documentTemplates", templateId));
 }
 
 async function fsLoadProjectDocuments(companyId, projectId) {
-  if (!_docsDb || !companyId || !projectId) return [];
+  if (!companyId || !projectId) return [];
   try {
-    const snap = await getDocs(collection(_docsDb, "companies", companyId, "projects", projectId, "documents"));
+    const snap = await getDocs(collection(getDb(), "companies", companyId, "projects", projectId, "documents"));
     return snap.docs.map(d => ({ documentId: d.id, ...d.data() }));
   } catch (e) { console.warn("[Docs] Failed to load project documents:", e); return []; }
 }
 
 async function fsSaveProjectDocument(companyId, projectId, docData) {
-  if (!_docsDb || !companyId || !projectId) return null;
+  if (!companyId || !projectId) return null;
   const data = { ...docData, updatedAt: serverTimestamp() };
   delete data.documentId; // Don't store the ID inside the document
   if (docData.documentId) {
-    const ref = doc(_docsDb, "companies", companyId, "projects", projectId, "documents", docData.documentId);
+    const ref = doc(getDb(), "companies", companyId, "projects", projectId, "documents", docData.documentId);
     await setDoc(ref, data, { merge: true });
     return docData.documentId;
   } else {
     data.createdAt = serverTimestamp();
-    const ref = await addDoc(collection(_docsDb, "companies", companyId, "projects", projectId, "documents"), data);
+    const ref = await addDoc(collection(getDb(), "companies", companyId, "projects", projectId, "documents"), data);
     return ref.id;
   }
 }
 
 async function fsDeleteProjectDocument(companyId, projectId, documentId) {
-  if (!_docsDb || !companyId || !projectId || !documentId) return;
-  await deleteDoc(doc(_docsDb, "companies", companyId, "projects", projectId, "documents", documentId));
+  if (!companyId || !projectId || !documentId) return;
+  await deleteDoc(doc(getDb(), "companies", companyId, "projects", projectId, "documents", documentId));
 }
 
 // Look up document by signingToken using collectionGroup query
 async function fsLookupBySigningToken(token) {
-  if (!_docsDb || !token) return null;
+  if (!token) return null;
   try {
-    const q = query(collectionGroup(_docsDb, "documents"), where("signingToken", "==", token));
+    const q = query(collectionGroup(getDb(), "documents"), where("signingToken", "==", token));
     const snap = await getDocs(q);
     if (snap.empty) return null;
     const d = snap.docs[0];
@@ -258,9 +275,9 @@ async function fsLookupBySigningToken(token) {
 
 // Also try the top-level signingRequests collection as fallback
 async function fsLookupSigningRequest(token) {
-  if (!_docsDb || !token) return null;
+  if (!token) return null;
   try {
-    const q = query(collectionGroup(_docsDb, "signingRequests"), where("token", "==", token));
+    const q = query(collectionGroup(getDb(), "signingRequests"), where("token", "==", token));
     const snap = await getDocs(q);
     if (snap.empty) return null;
     return { id: snap.docs[0].id, ...snap.docs[0].data() };
@@ -1095,13 +1112,24 @@ function SendSignatureModal({ docData, companyId, proj, onClose }) {
     if (!phone.trim()) return;
     setSending(true); setSmsError(null);
     try {
+      // Read Twilio number from phone settings in localStorage
+      let fromNumber = "";
+      try { const ps = JSON.parse(localStorage.getItem("jd_phone_settings") || "{}"); fromNumber = ps.twilioNumber || ""; } catch {}
+      if (!fromNumber) {
+        // Try reading from Firestore phone settings doc
+        try {
+          const psSnap = await getDoc(doc(getDb(), "companies", companyId, "settings", "phone"));
+          if (psSnap.exists()) fromNumber = psSnap.data().twilioNumber || "";
+        } catch {}
+      }
+      if (!fromNumber) throw new Error("No Twilio number configured. Set it in Settings → Phone & Calls.");
       await callFn("send-sms", {
         companyId,
         to: phone.trim(),
-        body: `Your signature is requested on "${docData.name}". Sign here: ${signingUrl}`,
+        messageBody: `Your signature is requested on "${docData.name}". Sign here: ${signingUrl}`,
+        from: fromNumber,
         contactName: proj?.client || proj?.clientName || "Customer",
         projectId: proj?.id,
-        type: "signing_request",
       });
       setSent(true);
     } catch (e) {
@@ -1644,7 +1672,7 @@ export function PublicSigningPage({ token }) {
       } catch {}
 
       // Update document in Firestore
-      const ref = doc(_docsDb, "companies", docData.companyId, "projects", docData.projectId, "documents", docData.documentId);
+      const ref = doc(getDb(), "companies", docData.companyId, "projects", docData.projectId, "documents", docData.documentId);
       await updateDoc(ref, {
         values: values,
         status: "signed",
