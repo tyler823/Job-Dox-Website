@@ -11,6 +11,16 @@ import { TimeOffPanel } from "./JobDoxTimeOff.jsx";
 import DispatchPanel from "./JobDoxDispatch.jsx";
 import html2canvas from "html2canvas";
 import { initializeApp } from "firebase/app";
+import { Capacitor } from "@capacitor/core";
+
+// ── Redirect helper: reload in native Capacitor, redirect on web ─────────
+function exitToLanding() {
+  if (Capacitor.isNativePlatform()) {
+    window.location.reload();
+  } else {
+    window.location.href = "https://job-dox.ai";
+  }
+}
 import { getAuth, signInAnonymously } from "firebase/auth";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
          doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where, Timestamp } from "firebase/firestore";
@@ -13967,7 +13977,7 @@ export default function JobDoxPortal() {
         try { await window.$memberstackDom.logout(); } catch(e) {}
         // Only clear session markers — data lives in Firestore
         try { sessionStorage.removeItem("jd_portal_active"); } catch {}
-        window.location.href = "https://job-dox.ai";
+        exitToLanding();
       });
     }
 
@@ -13992,14 +14002,14 @@ export default function JobDoxPortal() {
             try { await window.$memberstackDom.logout(); } catch(e) {}
             // Only clear session markers — data lives in Firestore
             try { sessionStorage.removeItem("jd_portal_active"); } catch {}
-            window.location.href = "https://job-dox.ai";
+            exitToLanding();
             return;
           }
           try { window.$memberstackDom.closeModal(); } catch(e) {}
           initMember(member);
         } else {
           // Not logged in — send back to landing page
-          window.location.href = "https://job-dox.ai";
+          exitToLanding();
         }
       });
       // Watch for auth changes — handles concurrent login kicks and manual logouts
@@ -14008,7 +14018,7 @@ export default function JobDoxPortal() {
           if (_portalSessionUnsub) { _portalSessionUnsub(); _portalSessionUnsub = null; }
           // Only clear session markers — data lives in Firestore now
           try { sessionStorage.removeItem("jd_portal_active"); } catch {}
-          window.location.href = "https://job-dox.ai";
+          exitToLanding();
         }
       });
     }
@@ -14176,7 +14186,7 @@ export default function JobDoxPortal() {
     _globalCompanyId = null;
     try { await window.$memberstackDom.logout(); } catch(e) {}
     try { sessionStorage.removeItem("jd_portal_active"); } catch {}
-    window.location.href = "https://job-dox.ai";
+    exitToLanding();
   }, []);
 
   // ── Add project ──
@@ -14488,7 +14498,7 @@ export default function JobDoxPortal() {
           } catch(e) {
             // If logout fails, force redirect — data lives in Firestore
             try { sessionStorage.removeItem("jd_portal_active"); } catch {}
-            window.location.href = "https://job-dox.ai";
+            exitToLanding();
           }
         }} style={{color:"var(--t3)"}}>
           {Ic.logout}

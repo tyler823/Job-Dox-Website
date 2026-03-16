@@ -1,5 +1,9 @@
 import { StrictMode, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
+import { Capacitor } from '@capacitor/core'
+
+// Detect native Capacitor app (iOS/Android)
+const isNative = Capacitor.isNativePlatform();
 
 // Detect standalone PWA mode (installed to home screen) or mobile viewport
 const isStandalone =
@@ -12,6 +16,7 @@ const forcePortal = urlParams.has('portal');
 
 const usePWA = forcePortal ? false : (forcePwa || (isStandalone && isMobile));
 
+const AppEntry     = lazy(() => import('./AppEntry.jsx'));
 const JobDoxPortal = lazy(() => import('./JobDoxPortal.jsx'));
 const CortexPWA    = lazy(() => import('./CortexPWA.jsx'));
 
@@ -23,10 +28,16 @@ const Loading = () => (
   }}>Loading…</div>
 );
 
+function App() {
+  if (isNative) return <AppEntry />;
+  if (usePWA)   return <CortexPWA />;
+  return <JobDoxPortal />;
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <Suspense fallback={<Loading />}>
-      {usePWA ? <CortexPWA /> : <JobDoxPortal />}
+      <App />
     </Suspense>
   </StrictMode>
 )
