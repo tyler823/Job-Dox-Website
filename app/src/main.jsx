@@ -5,6 +5,11 @@ import { Capacitor } from '@capacitor/core'
 // Detect native Capacitor app (iOS/Android)
 const isNative = Capacitor.isNativePlatform();
 
+// Detect signing page route: /sign/{token}
+const signingMatch = window.location.pathname.match(/^\/sign\/(.+)/);
+const isSigningPage = !!signingMatch;
+const signingToken = signingMatch ? signingMatch[1] : null;
+
 // Detect standalone PWA mode (installed to home screen) or mobile viewport
 const isStandalone =
   window.matchMedia('(display-mode: standalone)').matches ||
@@ -20,6 +25,13 @@ const AppEntry     = lazy(() => import('./AppEntry.jsx'));
 const JobDoxPortal = lazy(() => import('./JobDoxPortal.jsx'));
 const CortexPWA    = lazy(() => import('./CortexPWA.jsx'));
 
+// Lazy load the signing page component from JobDoxDocuments
+const SigningPageWrapper = lazy(() =>
+  import('./JobDoxDocuments.jsx').then(mod => ({
+    default: () => <mod.PublicSigningPage token={signingToken} />
+  }))
+);
+
 const Loading = () => (
   <div style={{
     display:'flex',alignItems:'center',justifyContent:'center',
@@ -29,6 +41,7 @@ const Loading = () => (
 );
 
 function App() {
+  if (isSigningPage) return <SigningPageWrapper />;
   if (isNative) return <AppEntry />;
   if (usePWA)   return <CortexPWA />;
   return <JobDoxPortal />;

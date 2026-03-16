@@ -23,7 +23,7 @@ const twilio = require("twilio");
 const { getDb, admin } = require("./_firebase");
 const crypto = require("crypto");
 
-const ALLOWED_ORIGIN = process.env.SITE_URL || "https://job-dox.com";
+const ALLOWED_ORIGIN = process.env.SITE_URL || "https://job-dox.ai";
 
 const headers = {
   "Access-Control-Allow-Origin":  ALLOWED_ORIGIN,
@@ -96,7 +96,7 @@ exports.handler = async (event) => {
       expiresAt:   new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 day expiry
     });
 
-    const signingUrl = `${ALLOWED_ORIGIN}/app/dist/#/sign?token=${token}`;
+    const signingUrl = `${ALLOWED_ORIGIN}/sign/${token}`;
     let sendResult = { method: "none", status: "pending" };
 
     // ── Send SMS if Twilio is configured and signer has phone ──
