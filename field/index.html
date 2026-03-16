@@ -60,8 +60,17 @@ body.modal-open{overflow:hidden;}
 .card{background:var(--s2);border:1px solid var(--br);border-radius:12px;padding:14px;}
 .card+.card{margin-top:8px;}
 .row{background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:12px 14px;margin-bottom:6px;}
-.proj-card{background:var(--s2);border:1px solid var(--br);border-radius:12px;overflow:hidden;margin-bottom:10px;display:flex;min-height:60px;-webkit-tap-highlight-color:transparent;}
+.proj-card{background:var(--s2);border:1px solid var(--br);border-radius:12px;overflow:hidden;margin-bottom:10px;display:flex;flex-direction:column;min-height:60px;-webkit-tap-highlight-color:transparent;width:100%;}
 .proj-card:active{opacity:.85;}
+.proj-card-top{display:flex;}
+.proj-actions{padding:0;border-top:1px solid var(--br);display:grid;grid-template-columns:1fr 1fr 1fr 1fr;background:var(--s3);overflow:hidden;width:100%;}
+.proj-actions .pab{display:flex;align-items:center;justify-content:center;gap:4px;padding:9px 2px;font-size:11px;font-weight:600;font-family:'Outfit',sans-serif;color:var(--t2);background:transparent;border:none;cursor:pointer;transition:background .12s,color .12s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;min-height:48px;border-right:1px solid var(--br);-webkit-tap-highlight-color:transparent;}
+.proj-actions .pab:last-child{border-right:none;}
+.proj-actions .pab:active{background:var(--s4);color:var(--t1);}
+.proj-actions .pab-green{color:var(--green);}
+.proj-actions .pab-danger{color:var(--acc);}
+.proj-actions .pab-blue{color:var(--blue);}
+.proj-actions .pab-amber{color:var(--amber);}
 .proj-accent{width:4px;flex-shrink:0;}
 .proj-body{flex:1;padding:13px 14px;cursor:pointer;}
 .subtabs{background:var(--s1);border-bottom:1px solid var(--br);display:flex;overflow-x:auto;flex-shrink:0;-webkit-overflow-scrolling:touch;}
@@ -221,6 +230,9 @@ const I = {
   check: <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>,
   note:  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>,
   out:   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>,
+  phone: <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>,
+  map:   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>,
+  scope: <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 9h-2v2H9v-2H7v-2h2V7h2v2h2v2zm-1-7.5L17.5 9H12V3.5z"/></svg>,
 };
 
 // Wait for Memberstack SDK to initialise
@@ -354,7 +366,7 @@ function InviteCodeScreen({ member, onLinked }) {
 }
 
 /* ── Projects ─────────────────────────────────────────── */
-function ProjectsScreen({ fieldUser, onSelect, clockedProjId }) {
+function ProjectsScreen({ fieldUser, onSelect, clockedProjId, onClockAction }) {
   const [projects, setProjects] = useState([]);
   const [loading,  setLoading]  = useState(true);
 
@@ -363,6 +375,14 @@ function ProjectsScreen({ fieldUser, onSelect, clockedProjId }) {
     return db.collection("companies").doc(fieldUser.companyId).collection("projects")
       .onSnapshot(snap=>{ setProjects(snap.docs.map(d=>({id:d.id,...d.data()}))); setLoading(false); }, ()=>setLoading(false));
   }, [fieldUser?.companyId]);
+
+  const openMaps = (p) => {
+    if (p.address) window.open(`https://maps.apple.com/?q=${encodeURIComponent(p.address)}`, "_blank");
+  };
+  const callProject = (p) => {
+    const ph = p.clientPhone || p.phone || p.contactPhone || "";
+    if (ph) window.open(`tel:${ph.replace(/[^+\d]/g,"")}`);
+  };
 
   const stColor = s => s==="Active"?"var(--green)":s==="Complete"?"var(--blue)":s==="On Hold"?"var(--amber)":"var(--t3)";
   if (loading) return <div className="empty"><span className="spin" style={{fontSize:24,color:"var(--t3)"}}>⟳</span></div>;
@@ -377,21 +397,32 @@ function ProjectsScreen({ fieldUser, onSelect, clockedProjId }) {
         ? <div className="empty"><div className="empty-ico">{I.home}</div><div style={{fontSize:12,color:"var(--t3)"}}>No projects yet. Your office will assign work here.</div></div>
         : projects.map(p=>{
             const wts = Array.isArray(p.workTypes)?p.workTypes:[];
+            const isClocked = clockedProjId===p.id;
             return (
-              <div key={p.id} className="proj-card" onClick={()=>onSelect(p)}>
-                <div className="proj-accent" style={{background:WORK_COLORS[wts[0]]||"var(--acc)"}}/>
-                <div className="proj-body">
-                  <div style={{display:"flex",justifyContent:"space-between",gap:8,marginBottom:6}}>
-                    <div style={{fontWeight:700,fontSize:14,lineHeight:1.3}}>{p.name||p.clientName||"Unnamed Project"}</div>
-                    <span style={{fontSize:10,color:stColor(p.status),fontFamily:"var(--mono)",flexShrink:0,fontWeight:700}}>{p.status||"Active"}</span>
+              <div key={p.id} className="proj-card">
+                <div className="proj-card-top" onClick={()=>onSelect(p)}>
+                  <div className="proj-accent" style={{background:WORK_COLORS[wts[0]]||"var(--acc)"}}/>
+                  <div className="proj-body">
+                    <div style={{display:"flex",justifyContent:"space-between",gap:8,marginBottom:6}}>
+                      <div style={{fontWeight:700,fontSize:14,lineHeight:1.3}}>{p.name||p.clientName||"Unnamed Project"}</div>
+                      <span style={{fontSize:10,color:stColor(p.status),fontFamily:"var(--mono)",flexShrink:0,fontWeight:700}}>{p.status||"Active"}</span>
+                    </div>
+                    {p.address&&<div style={{fontSize:12,color:"var(--t3)",marginBottom:6}}>{p.address}</div>}
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                      {wts.slice(0,3).map(w=>(
+                        <span key={w} style={{background:(WORK_COLORS[w]||"var(--acc)")+"22",color:WORK_COLORS[w]||"var(--acc)",borderRadius:5,padding:"2px 8px",fontSize:10,fontWeight:700,border:`1px solid ${(WORK_COLORS[w]||"var(--acc)")}44`}}>{w}</span>
+                      ))}
+                      {isClocked&&<span style={{background:"rgba(26,217,138,.12)",color:"var(--green)",borderRadius:5,padding:"2px 8px",fontSize:10,fontWeight:700}}>● Clocked In</span>}
+                    </div>
                   </div>
-                  {p.address&&<div style={{fontSize:12,color:"var(--t3)",marginBottom:6}}>{p.address}</div>}
-                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                    {wts.slice(0,3).map(w=>(
-                      <span key={w} style={{background:(WORK_COLORS[w]||"var(--acc)")+"22",color:WORK_COLORS[w]||"var(--acc)",borderRadius:5,padding:"2px 8px",fontSize:10,fontWeight:700,border:`1px solid ${(WORK_COLORS[w]||"var(--acc)")}44`}}>{w}</span>
-                    ))}
-                    {clockedProjId===p.id&&<span style={{background:"rgba(26,217,138,.12)",color:"var(--green)",borderRadius:5,padding:"2px 8px",fontSize:10,fontWeight:700}}>● Clocked In</span>}
-                  </div>
+                </div>
+                <div className="proj-actions" onClick={e=>e.stopPropagation()}>
+                  <button className={`pab ${isClocked?"pab-danger":"pab-green"}`} onClick={()=>onClockAction(isClocked?"out":"in", isClocked?null:p.id, isClocked?"":p.name||"Project")}>
+                    {isClocked ? <>{I.clock} Clock Out</> : <>{I.clock} Clock In</>}
+                  </button>
+                  <button className="pab" onClick={()=>onSelect(p)}>{I.scope} Scope</button>
+                  <button className="pab pab-blue" onClick={()=>openMaps(p)}>{I.map} Nav</button>
+                  <button className="pab pab-amber" onClick={()=>callProject(p)}>{I.phone} Call</button>
                 </div>
               </div>
             );
@@ -1261,7 +1292,7 @@ function FieldApp() {
         )}
       </div>
       <div className="main">
-        {screen==="projects"&&<ProjectsScreen fieldUser={fieldUser} onSelect={p=>{setProj(p);setScreen("project");}} clockedProjId={clockProjId}/>}
+        {screen==="projects"&&<ProjectsScreen fieldUser={fieldUser} onSelect={p=>{setProj(p);setScreen("project");}} clockedProjId={clockProjId} onClockAction={handleClock}/>}
         {screen==="project" &&proj&&<ProjectDetail proj={proj} fieldUser={fieldUser} onBack={()=>{setProj(null);setScreen("projects");}} clockedProjId={clockProjId} onClockAction={handleClock}/>}
         {screen==="feed"    &&<FeedScreen    fieldUser={fieldUser}/>}
         {screen==="profile" &&<ProfileScreen fieldUser={fieldUser} onSignOut={handleSignOut}/>}

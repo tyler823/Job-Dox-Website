@@ -272,7 +272,7 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
 .proj-accent{height:4px;}
 .proj-body{padding:12px 14px;flex:1;cursor:pointer;}
 .proj-actions{padding:0;border-top:1px solid var(--br);display:grid;grid-template-columns:1fr 1fr 1fr 1fr;background:var(--s3);overflow:hidden;max-width:100%;}
-.proj-actions .pab{display:flex;align-items:center;justify-content:center;gap:4px;padding:9px 4px;font-size:10px;font-weight:600;font-family:var(--ui);color:var(--t2);background:transparent;border:none;cursor:pointer;transition:background .12s,color .12s;white-space:nowrap;overflow:hidden;border-right:1px solid var(--br);}
+.proj-actions .pab{display:flex;align-items:center;justify-content:center;gap:4px;padding:9px 4px;font-size:10px;font-weight:600;font-family:var(--ui);color:var(--t2);background:transparent;border:none;cursor:pointer;transition:background .12s,color .12s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;min-height:48px;border-right:1px solid var(--br);}
 .proj-actions .pab:last-child{border-right:none;}
 .proj-actions .pab:hover{background:var(--s4);color:var(--t1);}
 .proj-actions .pab.pab-green{color:var(--green);}
@@ -458,7 +458,8 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
   .contact-card{padding:10px;}
   .modal-body{padding:14px 16px;}
   .report-summary-chips{grid-template-columns:1fr!important;}
-  .proj-actions{grid-template-columns:1fr 1fr;gap:0;}
+  .proj-actions{grid-template-columns:1fr 1fr 1fr 1fr;gap:0;}
+  .proj-actions .pab{font-size:9px;padding:9px 2px;min-height:48px;min-width:0;overflow:hidden;text-overflow:ellipsis;}
 }
 
 /* ── Project Tools Dropdown ── */
@@ -3674,7 +3675,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                             {isClocked ? <>{Ic.stopwatch} Clock Out</> : <>{Ic.clock} Clock In</>}
                           </button>
                           <button className="pab pab-blue" onClick={()=>setNotify(proj)}>{Ic.notify} Notify</button>
-                          <button className="pab" onClick={()=>openMaps(proj)}>{Ic.map} Navigate</button>
+                          <button className="pab" onClick={()=>openMaps(proj)}>{Ic.map} Nav</button>
                           <button className="pab pab-amber" onClick={()=>setComm(proj)}>{Ic.phone} Contact</button>
                         </>
                       ) : (
