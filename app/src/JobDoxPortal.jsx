@@ -5858,6 +5858,7 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
   const [reqSigDoc,   setReqSigDoc]   = useState(null); // doc for "Request Signatures" modal
   const [reqSigners,  setReqSigners]  = useState([]);   // signers being added in request modal
   const [reqSending,  setReqSending]  = useState(false);
+  const [showSignableDocs, setShowSignableDocs] = useState(false);
   const pdfFileRef = useRef();
 
   // Re-load if proj changes OR if an invoice was just generated (docRefreshKey bumped)
@@ -5966,6 +5967,21 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
             </button>
           )}
         </div>
+      </div>
+
+      {/* Signable Documents (template-based, Firestore-backed) */}
+      <div style={{marginBottom:16}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+          <div className="sec" style={{margin:0,fontSize:11}}>Signable Documents</div>
+          <button className="btn btn-ghost btn-xs" onClick={()=>setShowSignableDocs(!showSignableDocs)}>
+            {showSignableDocs ? "Hide" : "Show"}
+          </button>
+        </div>
+        {showSignableDocs && (
+          <div style={{marginBottom:8}}>
+            <DocumentsTab proj={proj} companyId={_globalCompanyId} embedded />
+          </div>
+        )}
       </div>
 
       {/* Upload/Add Document Modal */}

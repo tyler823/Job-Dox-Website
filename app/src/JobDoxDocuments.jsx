@@ -1,56 +1,65 @@
 /**
- * JobDoxDocuments.jsx  v3  — PDF-overlay DocuSign-style document module
- * Drop into app/src/ alongside JobDoxPortal.jsx
+ * JobDoxDocuments.jsx  v4  -- PDF-overlay DocuSign-style document module
+ * REWRITTEN: proper Firestore paths, public signing, end-to-end flow
  *
  * EXPORTS
- *   DocumentsTab            — replaces stub in JobDoxPortal.jsx
- *   LogoUploadSection       — add to GeneralSettingsTab company section
- *   DocumentTemplateCenter  — add to AdvToolsPanel
+ *   DocumentsTab            -- project documents tab (Part 2 + 4)
+ *   LogoUploadSection       -- company logo upload for settings
+ *   DocumentTemplateCenter  -- template management (Part 1)
+ *   PdfQuickSignModal       -- quick-sign any PDF
+ *   PublicSigningPage       -- public signing page (Part 3)
+ *   setDocsCompanyId        -- set the active company ID
  */
 
-import { useState, useRef, useEffect } from "react";
-import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { useState, useRef, useEffect, useMemo } from "react";
+import {
+  getFirestore, doc, getDoc, setDoc, addDoc, deleteDoc, updateDoc,
+  collection, query, where, getDocs, serverTimestamp, collectionGroup
+} from "firebase/firestore";
 import { getApps } from "firebase/app";
 
 const _docsDb = getApps().length > 0 ? getFirestore(getApps()[0]) : null;
 let _docsCompanyId = null;
 export function setDocsCompanyId(cid) { _docsCompanyId = cid; }
 
-// ─── Storage (localStorage cache + Firestore persistence) ─────────────────────
-const LS_TMPL = "jd_doc_templates";
-const LS_DOCS = "jd_documents";
-const LS_CO   = "jd_company_info";
-const loadTemplates = () => { try { return JSON.parse(localStorage.getItem(LS_TMPL)) || []; } catch { return []; } };
-const saveTemplates = v  => {
-  try { localStorage.setItem(LS_TMPL, JSON.stringify(v)); } catch {}
-  if (_docsDb && _docsCompanyId) { setDoc(doc(_docsDb, "companies", _docsCompanyId, "settings", "docTemplates"), { data: JSON.parse(JSON.stringify(v)), updatedAt: serverTimestamp() }, { merge: true }).catch(() => {}); }
-};
-const loadAllDocs   = () => { try { return JSON.parse(localStorage.getItem(LS_DOCS)) || []; } catch { return []; } };
-const saveAllDocs   = v  => {
-  try { localStorage.setItem(LS_DOCS, JSON.stringify(v)); } catch {}
-  if (_docsDb && _docsCompanyId) { setDoc(doc(_docsDb, "companies", _docsCompanyId, "settings", "documents"), { data: JSON.parse(JSON.stringify(v)), updatedAt: serverTimestamp() }, { merge: true }).catch(() => {}); }
-};
-const loadCoInfo    = () => { try { return JSON.parse(localStorage.getItem(LS_CO))   || {}; } catch { return {}; } };
-const saveCoInfo    = v  => {
+const NETLIFY = "/.netlify/functions";
+async function callFn(name, data) {
+  const res = await fetch(NETLIFY + "/" + name, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || name + " failed");
+  return json;
+}
+
+// -- localStorage cache helpers (jd_* prefix) --
+const LS_CO = "jd_company_info";
+const loadCoInfo = () => { try { return JSON.parse(localStorage.getItem(LS_CO)) || {}; } catch { return {}; } };
+const saveCoInfo = v => {
   try { localStorage.setItem(LS_CO, JSON.stringify(v)); } catch {}
-  if (_docsDb && _docsCompanyId) { setDoc(doc(_docsDb, "companies", _docsCompanyId, "settings", "companyInfo"), { data: JSON.parse(JSON.stringify(v)), updatedAt: serverTimestamp() }, { merge: true }).catch(() => {}); }
+  if (_docsDb && _docsCompanyId) {
+    setDoc(doc(_docsDb, "companies", _docsCompanyId, "settings", "companyInfo"),
+      { data: JSON.parse(JSON.stringify(v)), updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
+  }
 };
 
 let _c = 9000;
-const uid = () => `jd-${++_c}-${Math.random().toString(36).slice(2,6)}`;
+const uid = () => "jd-" + (++_c) + "-" + Math.random().toString(36).slice(2, 8);
+const uuid = () => crypto.randomUUID ? crypto.randomUUID() : uid();
 
-// ─── PDF.js (loaded from CDN on first use) ────────────────────────────────────
+// -- PDF.js (loaded from CDN) --
 const PDFJS_VER = "3.11.174";
 let _pdfJsPromise = null;
 const loadPdfJs = () => {
   if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
-  if (_pdfJsPromise)   return _pdfJsPromise;
+  if (_pdfJsPromise) return _pdfJsPromise;
   _pdfJsPromise = new Promise((res, rej) => {
     const s = document.createElement("script");
-    s.src = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VER}/pdf.min.js`;
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/" + PDFJS_VER + "/pdf.min.js";
     s.onload = () => {
       window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-        `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VER}/pdf.worker.min.js`;
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/" + PDFJS_VER + "/pdf.worker.min.js";
       res(window.pdfjsLib);
     };
     s.onerror = rej;
@@ -60,15 +69,15 @@ const loadPdfJs = () => {
 };
 
 const getPdfPageCount = async (b64) => {
-  const lib  = await loadPdfJs();
-  const bin  = atob(b64.split(",")[1]);
-  const buf  = new Uint8Array(bin.length);
+  const lib = await loadPdfJs();
+  const bin = atob(b64.split(",")[1]);
+  const buf = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-  const pdf  = await lib.getDocument({ data: buf }).promise;
+  const pdf = await lib.getDocument({ data: buf }).promise;
   return pdf.numPages;
 };
 
-// ─── SVG icons (matches portal Ic pattern) ────────────────────────────────────
+// ─── SVG Icons ───────────────────────────────────────────────────────────────
 const Di = {
   doc:      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>,
   pen:      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>,
@@ -90,61 +99,181 @@ const Di = {
   calendar: <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"/></svg>,
   text:     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M2.5 4v3h5v12h3V7h5V4h-13zm19 5h-9v3h3v7h3v-7h3V9z"/></svg>,
   checkbox: <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.11 0-2 .89-2 2v14c0 1.11.89 2 2 2h14c1.11 0 2-.89 2-2V5c0-1.11-.89-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>,
-  chev_r:   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>,
   move:     <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>,
   phone:    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>,
+  download: <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>,
+  copy:     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>,
 };
 
-const FIELD_ICONS = { signature: Di.pen, initials: Di.initials, text: Di.text, date: Di.calendar, checkbox: Di.checkbox };
-const FIELD_COLORS = { signature:"var(--acc)", initials:"var(--blue)", text:"var(--green)", date:"var(--purple)", checkbox:"var(--amber)" };
-const FIELD_DEFAULTS = { signature:{w:.36,h:.075}, initials:{w:.15,h:.075}, text:{w:.35,h:.04}, date:{w:.2,h:.04}, checkbox:{w:.025,h:.03} };
+const FIELD_ICONS = { signature: Di.pen, initials: Di.initials, textInput: Di.text, date: Di.calendar, checkbox: Di.checkbox };
+const FIELD_COLORS = { signature: "var(--acc)", initials: "var(--blue)", textInput: "var(--green)", date: "var(--purple)", checkbox: "var(--amber)" };
+const FIELD_DEFAULTS = { signature: { w: .36, h: .075 }, initials: { w: .15, h: .075 }, textInput: { w: .35, h: .04 }, date: { w: .2, h: .04 }, checkbox: { w: .025, h: .03 } };
 
-// ─── Auto-fill tokens ─────────────────────────────────────────────────────────
-const TOKENS = {
-  "project.name":        p    => p.name            || "",
-  "project.date":        ()   => new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}),
-  "project.address":     p    => p.address          || "",
-  "project.clientName":  p    => p.clientName || p.client       || "",
-  "project.clientPhone": p    => p.clientPhone || p.phone       || "",
-  "project.workType":    p    => Array.isArray(p.worktypes) ? p.worktypes.map(w=>w.type||w).join(", ") : (p.type||""),
-  "project.claimNumber": p    => p.claimNumber || p.claim       || "",
-  "project.insuranceCo": p    => p.insuranceCo || p.carrier     || "",
-  "company.name":        (_,c)=> c.name             || "",
-  "company.phone":       (_,c)=> c.phone            || "",
-  "company.email":       (_,c)=> c.email            || "",
-  "company.address":     (_,c)=> [c.address,c.city,c.state,c.zip].filter(Boolean).join(", ") || "",
-};
+// ─── PART 5: Data Mapping Keys ───────────────────────────────────────────────
+const DATA_KEYS = [
+  { key: "project.name",           label: "Project Name" },
+  { key: "project.address",        label: "Project Address" },
+  { key: "project.contactName",    label: "Contact Name" },
+  { key: "project.contactPhone",   label: "Contact Phone" },
+  { key: "project.contactEmail",   label: "Contact Email" },
+  { key: "project.insuranceClaim", label: "Insurance Claim #" },
+  { key: "project.workType",       label: "Work Type" },
+  { key: "project.startDate",      label: "Project Start Date" },
+  { key: "company.name",           label: "Company Name" },
+  { key: "date.today",             label: "Today's Date" },
+  { key: "custom",                 label: "Custom (manual)" },
+];
 
-// ─── Status meta ──────────────────────────────────────────────────────────────
+function resolveDataKey(key, proj, co) {
+  if (!key || key === "custom") return "";
+  const p = proj || {};
+  const c = co || {};
+  switch (key) {
+    case "project.name":           return p.name || "";
+    case "project.address":        return p.address || "";
+    case "project.contactName":    return p.client || p.clientName || "";
+    case "project.contactPhone":   return p.clientPhone || p.phone || "";
+    case "project.contactEmail":   return p.clientEmail || "";
+    case "project.insuranceClaim": return p.claim || p.claimNumber || "";
+    case "project.workType":       return Array.isArray(p.worktypes) ? p.worktypes.map(w => w.type || w).join(", ") : (p.type || "");
+    case "project.startDate":      return p.startDate || "";
+    case "company.name":           return c.name || "";
+    case "date.today":             return new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    default: return "";
+  }
+}
+
+// ─── Status meta ─────────────────────────────────────────────────────────────
 const STATUS_META = {
-  draft:     { label:"Draft",               color:"var(--t3)",    bg:"rgba(128,128,128,.1)"  },
-  pending:   { label:"Awaiting Signatures", color:"var(--amber)", bg:"rgba(232,156,24,.1)"   },
-  partial:   { label:"Partially Signed",    color:"var(--blue)",  bg:"rgba(91,163,245,.1)"   },
-  completed: { label:"Fully Executed",      color:"var(--green)", bg:"rgba(26,217,138,.1)"   },
-  void:      { label:"Void",                color:"var(--acc)",   bg:"rgba(228,53,49,.08)"   },
+  draft:   { label: "Draft",   color: "var(--t3)",    bg: "rgba(128,128,128,.1)" },
+  sent:    { label: "Sent",    color: "var(--amber)",  bg: "rgba(232,156,24,.1)" },
+  signed:  { label: "Signed",  color: "var(--green)",  bg: "rgba(26,217,138,.1)" },
+  expired: { label: "Expired", color: "var(--acc)",    bg: "rgba(228,53,49,.08)" },
 };
 
-const getDocStatus = doc => {
-  if (doc.status === "void") return "void";
-  if (!doc.signers?.length)  return "draft";
-  const signed = doc.signers.filter(s => s.status === "signed").length;
-  if (signed === 0)                return "pending";
-  if (signed < doc.signers.length) return "partial";
-  return "completed";
-};
-
-// ─── Spinner ──────────────────────────────────────────────────────────────────
-const Spin = ({ size=12, color="var(--t3)" }) => (
-  <div style={{ width:size, height:size, border:`2px solid ${color}44`, borderTopColor:color, borderRadius:"50%", animation:"jd-spin .7s linear infinite", display:"inline-block", flexShrink:0 }}/>
+// ─── Spinner ─────────────────────────────────────────────────────────────────
+const Spin = ({ size = 12, color = "var(--t3)" }) => (
+  <div style={{ width: size, height: size, border: `2px solid ${color}44`, borderTopColor: color, borderRadius: "50%", animation: "jd-spin .7s linear infinite", display: "inline-block", flexShrink: 0 }} />
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FIRESTORE HELPERS — PART 1: Proper template & document storage
+// Templates: companies/{companyId}/documentTemplates/{templateId}
+// Documents: companies/{companyId}/projects/{projectId}/documents/{documentId}
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function fsLoadTemplates(companyId) {
+  if (!_docsDb || !companyId) return [];
+  try {
+    const snap = await getDocs(collection(_docsDb, "companies", companyId, "documentTemplates"));
+    return snap.docs.map(d => ({ templateId: d.id, ...d.data() }));
+  } catch (e) { console.warn("[Docs] Failed to load templates:", e); return []; }
+}
+
+async function fsSaveTemplate(companyId, tmpl) {
+  if (!_docsDb || !companyId) return null;
+  const data = {
+    name: tmpl.name || "Untitled",
+    description: tmpl.description || "",
+    color: tmpl.color || "#5ba3f5",
+    pdfBase64: tmpl.pdfData || tmpl.pdfBase64 || "",
+    pageCount: tmpl.pageCount || 1,
+    fields: (tmpl.fields || []).map(f => ({
+      fieldId: f.fieldId || f.id || uid(),
+      type: f.type,
+      page: f.page || 1,
+      x: f.x, y: f.y, width: f.w ?? f.width, height: f.h ?? f.height,
+      dataKey: f.dataKey || f.autoFill || null,
+      label: f.label || f.type,
+      required: f.required !== false,
+      signerRole: f.signerRole || (f.signerIdx === 0 ? "customer" : f.signerIdx === 1 ? "staff" : "customer"),
+    })),
+    updatedAt: serverTimestamp(),
+  };
+  if (tmpl.templateId && tmpl.templateId !== "new") {
+    const ref = doc(_docsDb, "companies", companyId, "documentTemplates", tmpl.templateId);
+    await setDoc(ref, data, { merge: true });
+    return tmpl.templateId;
+  } else {
+    data.createdAt = serverTimestamp();
+    const ref = await addDoc(collection(_docsDb, "companies", companyId, "documentTemplates"), data);
+    return ref.id;
+  }
+}
+
+async function fsDeleteTemplate(companyId, templateId) {
+  if (!_docsDb || !companyId || !templateId) return;
+  await deleteDoc(doc(_docsDb, "companies", companyId, "documentTemplates", templateId));
+}
+
+async function fsLoadProjectDocuments(companyId, projectId) {
+  if (!_docsDb || !companyId || !projectId) return [];
+  try {
+    const snap = await getDocs(collection(_docsDb, "companies", companyId, "projects", projectId, "documents"));
+    return snap.docs.map(d => ({ documentId: d.id, ...d.data() }));
+  } catch (e) { console.warn("[Docs] Failed to load project documents:", e); return []; }
+}
+
+async function fsSaveProjectDocument(companyId, projectId, docData) {
+  if (!_docsDb || !companyId || !projectId) return null;
+  const data = { ...docData, updatedAt: serverTimestamp() };
+  delete data.documentId; // Don't store the ID inside the document
+  if (docData.documentId) {
+    const ref = doc(_docsDb, "companies", companyId, "projects", projectId, "documents", docData.documentId);
+    await setDoc(ref, data, { merge: true });
+    return docData.documentId;
+  } else {
+    data.createdAt = serverTimestamp();
+    const ref = await addDoc(collection(_docsDb, "companies", companyId, "projects", projectId, "documents"), data);
+    return ref.id;
+  }
+}
+
+async function fsDeleteProjectDocument(companyId, projectId, documentId) {
+  if (!_docsDb || !companyId || !projectId || !documentId) return;
+  await deleteDoc(doc(_docsDb, "companies", companyId, "projects", projectId, "documents", documentId));
+}
+
+// Look up document by signingToken using collectionGroup query
+async function fsLookupBySigningToken(token) {
+  if (!_docsDb || !token) return null;
+  try {
+    const q = query(collectionGroup(_docsDb, "documents"), where("signingToken", "==", token));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const d = snap.docs[0];
+    const pathParts = d.ref.path.split("/");
+    // path: companies/{companyId}/projects/{projectId}/documents/{documentId}
+    return {
+      documentId: d.id,
+      companyId: pathParts[1],
+      projectId: pathParts[3],
+      ...d.data(),
+    };
+  } catch (e) {
+    console.warn("[Docs] Token lookup failed:", e);
+    return null;
+  }
+}
+
+// Also try the top-level signingRequests collection as fallback
+async function fsLookupSigningRequest(token) {
+  if (!_docsDb || !token) return null;
+  try {
+    const q = query(collectionGroup(_docsDb, "signingRequests"), where("token", "==", token));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    return { id: snap.docs[0].id, ...snap.docs[0].data() };
+  } catch { return null; }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PDF PAGE CANVAS — renders one page of a PDF to a <canvas>
 // ─────────────────────────────────────────────────────────────────────────────
-function PdfPageCanvas({ pdfData, pageNum=1, width=700, onDims }) {
-  const cvRef   = useRef();
+function PdfPageCanvas({ pdfData, pageNum = 1, width = 700, onDims }) {
+  const cvRef = useRef();
   const [loading, setLoading] = useState(true);
-  const [err,     setErr]     = useState(null);
+  const [err, setErr] = useState(null);
 
   useEffect(() => {
     if (!pdfData) return;
@@ -154,19 +283,20 @@ function PdfPageCanvas({ pdfData, pageNum=1, width=700, onDims }) {
       try {
         const lib = await loadPdfJs();
         if (dead) return;
-        const bin = atob(pdfData.split(",")[1]);
+        const raw = pdfData.includes(",") ? pdfData.split(",")[1] : pdfData;
+        const bin = atob(raw);
         const buf = new Uint8Array(bin.length);
         for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-        const pdf  = await lib.getDocument({ data: buf }).promise;
+        const pdf = await lib.getDocument({ data: buf }).promise;
         if (dead) return;
         const page = await pdf.getPage(pageNum);
         if (dead) return;
-        const vp   = page.getViewport({ scale: 1 });
-        const sc   = width / vp.width;
-        const svp  = page.getViewport({ scale: sc });
-        const cv   = cvRef.current;
+        const vp = page.getViewport({ scale: 1 });
+        const sc = width / vp.width;
+        const svp = page.getViewport({ scale: sc });
+        const cv = cvRef.current;
         if (!cv) return;
-        cv.width  = svp.width;
+        cv.width = svp.width;
         cv.height = svp.height;
         await page.render({ canvasContext: cv.getContext("2d"), viewport: svp }).promise;
         if (!dead) { setLoading(false); if (onDims) onDims({ w: svp.width, h: svp.height }); }
@@ -176,15 +306,15 @@ function PdfPageCanvas({ pdfData, pageNum=1, width=700, onDims }) {
   }, [pdfData, pageNum, width]);
 
   return (
-    <div style={{ position:"relative", display:"inline-block", minHeight:40 }}>
-      <canvas ref={cvRef} style={{ display:"block" }}/>
+    <div style={{ position: "relative", display: "inline-block", minHeight: 40 }}>
+      <canvas ref={cvRef} style={{ display: "block" }} />
       {loading && (
-        <div style={{ position:"absolute", inset:0, background:"var(--s3)", display:"flex", alignItems:"center", justifyContent:"center", borderRadius:3 }}>
-          <Spin size={20} color="var(--t2)"/>
+        <div style={{ position: "absolute", inset: 0, background: "var(--s3)", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 3 }}>
+          <Spin size={20} color="var(--t2)" />
         </div>
       )}
       {err && (
-        <div style={{ position:"absolute", inset:0, background:"var(--s3)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:"var(--acc)" }}>
+        <div style={{ position: "absolute", inset: 0, background: "var(--s3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "var(--acc)" }}>
           {err}
         </div>
       )}
@@ -193,48 +323,27 @@ function PdfPageCanvas({ pdfData, pageNum=1, width=700, onDims }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// COMPANY HEADER — logo + name + address + contact above PDF pages
+// COMPANY HEADER
 // ─────────────────────────────────────────────────────────────────────────────
-function CompanyHeader({ width = 700 }) {
-  const co = loadCoInfo();
+function CompanyHeader({ width = 700, coInfo }) {
+  const co = coInfo || loadCoInfo();
   const hasInfo = co.name || co.logo || co.address || co.phone || co.email;
   if (!hasInfo) return null;
-
   const addressLine = [co.address, co.city, co.state, co.zip].filter(Boolean).join(", ");
-
   return (
     <div style={{
-      width, background:"#fff", borderRadius:"3px 3px 0 0", padding:"16px 24px",
-      display:"flex", alignItems:"center", gap:18,
-      borderBottom:"2px solid #e2e5ea", boxSizing:"border-box",
-      fontFamily:"'Segoe UI', Helvetica, Arial, sans-serif",
+      width, background: "#fff", borderRadius: "3px 3px 0 0", padding: "16px 24px",
+      display: "flex", alignItems: "center", gap: 18,
+      borderBottom: "2px solid #e2e5ea", boxSizing: "border-box",
+      fontFamily: "'Segoe UI', Helvetica, Arial, sans-serif",
     }}>
-      {co.logo && (
-        <img src={co.logo} alt="Company logo"
-          style={{ height:52, maxWidth:120, objectFit:"contain", flexShrink:0 }}/>
-      )}
-      <div style={{ flex:1, minWidth:0 }}>
-        {co.name && (
-          <div style={{ fontWeight:700, fontSize:15, color:"#0d1117", lineHeight:1.3, marginBottom:2 }}>
-            {co.name}
-          </div>
-        )}
-        {addressLine && (
-          <div style={{ fontSize:11, color:"#57606a", lineHeight:1.5 }}>
-            {addressLine}
-          </div>
-        )}
-        <div style={{ display:"flex", gap:14, flexWrap:"wrap", marginTop:2 }}>
-          {co.phone && (
-            <span style={{ fontSize:10, color:"#57606a", display:"flex", alignItems:"center", gap:4 }}>
-              {Di.phone} {co.phone}
-            </span>
-          )}
-          {co.email && (
-            <span style={{ fontSize:10, color:"#57606a", display:"flex", alignItems:"center", gap:4 }}>
-              {Di.mail} {co.email}
-            </span>
-          )}
+      {co.logo && <img src={co.logo} alt="Company logo" style={{ height: 52, maxWidth: 120, objectFit: "contain", flexShrink: 0 }} />}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {co.name && <div style={{ fontWeight: 700, fontSize: 15, color: "#0d1117", lineHeight: 1.3, marginBottom: 2 }}>{co.name}</div>}
+        {addressLine && <div style={{ fontSize: 11, color: "#57606a", lineHeight: 1.5 }}>{addressLine}</div>}
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 2 }}>
+          {co.phone && <span style={{ fontSize: 10, color: "#57606a", display: "flex", alignItems: "center", gap: 4 }}>{Di.phone} {co.phone}</span>}
+          {co.email && <span style={{ fontSize: 10, color: "#57606a", display: "flex", alignItems: "center", gap: 4 }}>{Di.mail} {co.email}</span>}
         </div>
       </div>
     </div>
@@ -244,32 +353,31 @@ function CompanyHeader({ width = 700 }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // FIELD BOX — positioned overlay element on top of a PDF page
 // ─────────────────────────────────────────────────────────────────────────────
-function FieldBox({ field, dims, value, signerIdx, onTap, highlightPending, editorMode, selected, onSelect, onMove }) {
-  const left   = field.x * dims.w;
-  const top    = field.y * dims.h;
-  const fw     = field.w * dims.w;
-  const fh     = field.h * dims.h;
-  const isMine = signerIdx !== null && field.signerIdx === signerIdx;
-  const done   = !!value?.data || !!value?.text || value?.checked;
-  const color  = FIELD_COLORS[field.type] || "var(--t2)";
+function FieldBox({ field, dims, value, isMine, onTap, highlightPending, editorMode, selected, onSelect, onMove }) {
+  const fw = (field.width ?? field.w ?? 0.3) * dims.w;
+  const fh = (field.height ?? field.h ?? 0.05) * dims.h;
+  const left = field.x * dims.w;
+  const top = field.y * dims.h;
+  const done = !!value?.data || !!value?.text || value?.checked;
+  const color = FIELD_COLORS[field.type] || "var(--t2)";
   const pending = isMine && highlightPending && !done;
   const dragging = useRef(false);
-  const dragStart = useRef({ mx:0, my:0, ox:0, oy:0 });
+  const dragStart = useRef({ mx: 0, my: 0, ox: 0, oy: 0 });
 
   const onDragStart = e => {
     if (!editorMode || !onMove) return;
     e.stopPropagation(); e.preventDefault();
     const ev = e.touches ? e.touches[0] : e;
     dragging.current = true;
-    dragStart.current = { mx:ev.clientX, my:ev.clientY, ox:field.x, oy:field.y };
+    dragStart.current = { mx: ev.clientX, my: ev.clientY, ox: field.x, oy: field.y };
     const onDragMove = me => {
       if (!dragging.current) return;
       const mv = me.touches ? me.touches[0] : me;
       const dx = (mv.clientX - dragStart.current.mx) / dims.w;
       const dy = (mv.clientY - dragStart.current.my) / dims.h;
-      const nx = Math.max(0, Math.min(1 - field.w, dragStart.current.ox + dx));
-      const ny = Math.max(0, Math.min(1 - field.h, dragStart.current.oy + dy));
-      onMove(field.id, { x: nx, y: ny });
+      const nx = Math.max(0, Math.min(1 - (field.width ?? field.w ?? 0.3), dragStart.current.ox + dx));
+      const ny = Math.max(0, Math.min(1 - (field.height ?? field.h ?? 0.05), dragStart.current.oy + dy));
+      onMove(field.fieldId || field.id, { x: nx, y: ny });
     };
     const onDragEnd = () => {
       dragging.current = false;
@@ -280,59 +388,47 @@ function FieldBox({ field, dims, value, signerIdx, onTap, highlightPending, edit
     };
     window.addEventListener("mousemove", onDragMove);
     window.addEventListener("mouseup", onDragEnd);
-    window.addEventListener("touchmove", onDragMove, { passive:false });
+    window.addEventListener("touchmove", onDragMove, { passive: false });
     window.addEventListener("touchend", onDragEnd);
   };
 
   return (
     <div
-      onClick={e => { e.stopPropagation(); editorMode ? onSelect?.(field.id) : (isMine && !done && onTap?.(field)); }}
+      onClick={e => { e.stopPropagation(); editorMode ? onSelect?.(field.fieldId || field.id) : (isMine && !done && onTap?.(field)); }}
       onMouseDown={editorMode ? onDragStart : undefined}
       onTouchStart={editorMode ? onDragStart : undefined}
       style={{
-        position:"absolute", left, top, width:fw, height:fh, boxSizing:"border-box",
-        border: done    ? `2px solid ${color}`
-              : selected ? `2px solid var(--blue)`
-              : `1.5px dashed ${color}${pending?"bb":"66"}`,
-        background: selected ? "rgba(91,163,245,.15)"
-                  : done     ? `${color}0a`
-                  : pending  ? `${color}0d`
-                  : `${color}05`,
-        borderRadius: field.type==="checkbox" ? 3 : 5,
-        display:"flex", alignItems:"center", justifyContent:"center",
+        position: "absolute", left, top, width: fw, height: fh, boxSizing: "border-box",
+        border: done ? `2px solid ${color}` : selected ? `2px solid var(--blue)` : `1.5px dashed ${color}${pending ? "bb" : "66"}`,
+        background: selected ? "rgba(91,163,245,.15)" : done ? `${color}0a` : pending ? `${color}0d` : `${color}05`,
+        borderRadius: field.type === "checkbox" ? 3 : 5,
+        display: "flex", alignItems: "center", justifyContent: "center",
         cursor: editorMode ? "grab" : (isMine && !done ? "pointer" : "default"),
         transition: dragging.current ? "none" : "border-color .12s, background .12s",
-        ...(pending ? { boxShadow:`0 0 0 3px ${color}25` } : {}),
-        overflow:"hidden",
-        userSelect: editorMode ? "none" : undefined,
-        touchAction: editorMode ? "none" : undefined,
+        ...(pending ? { boxShadow: `0 0 0 3px ${color}25` } : {}),
+        overflow: "hidden", userSelect: editorMode ? "none" : undefined, touchAction: editorMode ? "none" : undefined,
       }}
     >
-      {/* Filled state */}
-      {done && value?.data && <img src={value.data} alt="" style={{ maxWidth:"100%", maxHeight:"100%", objectFit:"contain" }}/>}
-      {done && value?.text  && (
-        <span style={{ fontSize:Math.max(8, fh*.42), color:"#0d1117", fontFamily:field.type==="signature"?"cursive":"var(--mono)", padding:"0 4px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"100%" }}>
+      {done && value?.data && <img src={value.data} alt="" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />}
+      {done && value?.text && (
+        <span style={{ fontSize: Math.max(8, fh * .42), color: "#0d1117", fontFamily: field.type === "signature" ? "cursive" : "var(--mono)", padding: "0 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
           {value.text}
         </span>
       )}
-      {done && value?.checked && <svg width="16" height="16" viewBox="0 0 24 24" fill={color}><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>}
-
-      {/* Empty state */}
+      {done && value?.checked && <svg width="16" height="16" viewBox="0 0 24 24" fill={color}><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" /></svg>}
       {!done && (
-        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:1, pointerEvents:"none", width:"100%", padding:"0 3px" }}>
-          <span style={{ color:`${color}99`, lineHeight:1, display:"flex" }}>{FIELD_ICONS[field.type]}</span>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, pointerEvents: "none", width: "100%", padding: "0 3px" }}>
+          <span style={{ color: `${color}99`, lineHeight: 1, display: "flex" }}>{FIELD_ICONS[field.type]}</span>
           {fh > 18 && (
-            <span style={{ fontSize:Math.max(7, Math.min(9, fh*.22)), color:`${color}88`, fontFamily:"var(--mono)", textTransform:"uppercase", letterSpacing:".04em", textAlign:"center", lineHeight:1.2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"100%" }}>
-              {field.label || field.type}{field.signerIdx!=null ? ` · S${field.signerIdx+1}` : ""}
+            <span style={{ fontSize: Math.max(7, Math.min(9, fh * .22)), color: `${color}88`, fontFamily: "var(--mono)", textTransform: "uppercase", letterSpacing: ".04em", textAlign: "center", lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
+              {field.label || field.type}
             </span>
           )}
         </div>
       )}
-
-      {/* Editor label + drag handle */}
       {editorMode && selected && (
-        <div style={{ position:"absolute", top:-17, left:0, background:"var(--blue)", color:"#fff", fontSize:8, padding:"1px 6px", borderRadius:"3px 3px 0 0", whiteSpace:"nowrap", fontFamily:"var(--mono)", display:"flex", alignItems:"center", gap:4 }}>
-          {Di.move} {field.type}{field.signerIdx!=null?` · signer ${field.signerIdx+1}`:""}
+        <div style={{ position: "absolute", top: -17, left: 0, background: "var(--blue)", color: "#fff", fontSize: 8, padding: "1px 6px", borderRadius: "3px 3px 0 0", whiteSpace: "nowrap", fontFamily: "var(--mono)", display: "flex", alignItems: "center", gap: 4 }}>
+          {Di.move} {field.type} · {field.signerRole || "customer"}
         </div>
       )}
     </div>
@@ -342,10 +438,10 @@ function FieldBox({ field, dims, value, signerIdx, onTap, highlightPending, edit
 // ─────────────────────────────────────────────────────────────────────────────
 // SIGNATURE PAD
 // ─────────────────────────────────────────────────────────────────────────────
-function SignaturePad({ label="Sign here", height=130, onCapture, onClear }) {
-  const cvRef   = useRef();
+function SignaturePad({ label = "Sign here", height = 130, onCapture, onClear }) {
+  const cvRef = useRef();
   const drawing = useRef(false);
-  const lastPt  = useRef(null);
+  const lastPt = useRef(null);
   const [hasSig, setHasSig] = useState(false);
 
   const getXY = (e, cv) => {
@@ -356,16 +452,17 @@ function SignaturePad({ label="Sign here", height=130, onCapture, onClear }) {
 
   const onStart = e => {
     e.preventDefault(); drawing.current = true;
-    const cv = cvRef.current; const pt = getXY(e, cv); lastPt.current = pt;
+    const cv = cvRef.current; const pt = getXY(e, cv);
+    lastPt.current = pt;
     const ctx = cv.getContext("2d");
-    ctx.beginPath(); ctx.arc(pt.x, pt.y, 1, 0, Math.PI*2); ctx.fillStyle="#0d1117"; ctx.fill();
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, 1, 0, Math.PI * 2); ctx.fillStyle = "#0d1117"; ctx.fill();
   };
   const onMove = e => {
     e.preventDefault(); if (!drawing.current) return;
     const cv = cvRef.current; const pt = getXY(e, cv);
     const ctx = cv.getContext("2d");
     ctx.beginPath(); ctx.moveTo(lastPt.current.x, lastPt.current.y); ctx.lineTo(pt.x, pt.y);
-    ctx.strokeStyle="#0d1117"; ctx.lineWidth=2; ctx.lineCap="round"; ctx.stroke();
+    ctx.strokeStyle = "#0d1117"; ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.stroke();
     lastPt.current = pt; setHasSig(true);
   };
   const onEnd = e => {
@@ -385,18 +482,18 @@ function SignaturePad({ label="Sign here", height=130, onCapture, onClear }) {
   return (
     <div>
       <label className="lbl">{label}</label>
-      <div style={{ border:`1.5px solid ${hasSig?"var(--green)":"var(--br-hi)"}`, borderRadius:7, background:"#fff", position:"relative", height, transition:"border-color .15s" }}>
-        <canvas ref={cvRef} style={{ display:"block", width:"100%", height:"100%", touchAction:"none", cursor:"crosshair" }}
+      <div style={{ border: `1.5px solid ${hasSig ? "var(--green)" : "var(--br-hi)"}`, borderRadius: 7, background: "#fff", position: "relative", height, transition: "border-color .15s" }}>
+        <canvas ref={cvRef} style={{ display: "block", width: "100%", height: "100%", touchAction: "none", cursor: "crosshair" }}
           onMouseDown={onStart} onMouseMove={onMove} onMouseUp={onEnd} onMouseLeave={onEnd}
-          onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd}/>
+          onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd} />
         {!hasSig && (
-          <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", pointerEvents:"none" }}>
-            <span style={{ fontSize:11, color:"rgba(0,0,0,.3)", fontStyle:"italic", fontFamily:"var(--ui)" }}>Draw with finger or mouse</span>
+          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+            <span style={{ fontSize: 11, color: "rgba(0,0,0,.3)", fontStyle: "italic", fontFamily: "var(--ui)" }}>Draw with finger or mouse</span>
           </div>
         )}
       </div>
       {hasSig && (
-        <button onClick={clear} style={{ marginTop:5, fontSize:10, color:"var(--acc)", background:"none", border:"none", cursor:"pointer", padding:0, fontFamily:"var(--ui)", display:"flex", alignItems:"center", gap:4 }}>
+        <button onClick={clear} style={{ marginTop: 5, fontSize: 10, color: "var(--acc)", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "var(--ui)", display: "flex", alignItems: "center", gap: 4 }}>
           {Di.close} Clear
         </button>
       )}
@@ -405,37 +502,47 @@ function SignaturePad({ label="Sign here", height=130, onCapture, onClear }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TEMPLATE BUILDER MODAL
+// TEMPLATE BUILDER MODAL — PART 1
 // Upload a real PDF, then click to place fields on top of it
+// Fields use: type, page, x, y, width, height, dataKey, label, required, signerRole
 // ─────────────────────────────────────────────────────────────────────────────
-function TemplateBuilderModal({ existing, onSave, onClose }) {
-  const blank = { id:uid(), name:"New Template", description:"", color:"#5ba3f5", pdfData:null, pageCount:1, fields:[] };
-  const [tmpl,      setTmpl]    = useState(existing ? JSON.parse(JSON.stringify(existing)) : blank);
-  const [selFld,    setSelFld]  = useState(null);
-  const [addMode,   setAddMode] = useState(null);
-  const [activePage,setActivePage] = useState(1);
-  const [dims,      setDims]    = useState({});   // { [pageNum]: { w, h } }
+function TemplateBuilderModal({ existing, companyId, onSave, onClose }) {
+  const blank = { templateId: "new", name: "New Template", description: "", color: "#5ba3f5", pdfData: null, pageCount: 1, fields: [] };
+  const init = existing ? {
+    ...existing,
+    pdfData: existing.pdfBase64 || existing.pdfData || null,
+    fields: (existing.fields || []).map(f => ({
+      ...f, id: f.fieldId || f.id || uid(),
+      w: f.width ?? f.w, h: f.height ?? f.h,
+    })),
+  } : blank;
+  const [tmpl, setTmpl] = useState(init);
+  const [selFld, setSelFld] = useState(null);
+  const [addMode, setAddMode] = useState(null);
+  const [activePage, setActivePage] = useState(1);
+  const [dims, setDims] = useState({});
   const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const fileRef = useRef();
   const wrapRef = useRef();
 
   const FIELD_TYPES = [
-    { type:"signature", label:"Signature",  color:"var(--acc)"    },
-    { type:"initials",  label:"Initials",   color:"var(--blue)"   },
-    { type:"text",      label:"Text",       color:"var(--green)"  },
-    { type:"date",      label:"Date",       color:"var(--purple)" },
-    { type:"checkbox",  label:"Checkbox",   color:"var(--amber)"  },
+    { type: "signature", label: "Signature", color: "var(--acc)" },
+    { type: "initials", label: "Initials", color: "var(--blue)" },
+    { type: "textInput", label: "Text", color: "var(--green)" },
+    { type: "date", label: "Date", color: "var(--purple)" },
+    { type: "checkbox", label: "Checkbox", color: "var(--amber)" },
   ];
 
   const handlePdfUpload = async e => {
     const file = e.target.files[0]; if (!file) return;
-    if (file.size > 8*1024*1024) { alert("PDF must be under 8 MB."); return; }
+    if (file.size > 8 * 1024 * 1024) { alert("PDF must be under 8 MB."); return; }
     setUploading(true);
     const reader = new FileReader();
     reader.onload = async ev => {
       const b64 = ev.target.result;
       const count = await getPdfPageCount(b64);
-      setTmpl(t => ({ ...t, pdfData:b64, pageCount:count, name: t.name==="New Template" ? file.name.replace(".pdf","") : t.name }));
+      setTmpl(t => ({ ...t, pdfData: b64, pageCount: count, name: t.name === "New Template" ? file.name.replace(".pdf", "") : t.name }));
       setDims({});
       setUploading(false);
     };
@@ -445,143 +552,151 @@ function TemplateBuilderModal({ existing, onSave, onClose }) {
 
   const handleCanvasClick = e => {
     if (!addMode || !wrapRef.current) return;
-    const r   = wrapRef.current.getBoundingClientRect();
+    const r = wrapRef.current.getBoundingClientRect();
     const pgDims = dims[activePage];
     if (!pgDims) return;
     const x = (e.clientX - r.left) / pgDims.w;
-    const y = (e.clientY - r.top)  / pgDims.h;
-    const d = FIELD_DEFAULTS[addMode] || { w:.3, h:.05 };
-    const f = { id:uid(), type:addMode, label:addMode==="signature"?"Signature":addMode==="initials"?"Initials":addMode==="text"?"Text Field":addMode==="date"?"Date":"Checkbox", page:activePage, x:Math.max(0,Math.min(1-d.w,x)), y:Math.max(0,Math.min(1-d.h,y)), ...d, signerIdx:(addMode==="signature"||addMode==="initials")?0:null, autoFill:null };
-    setTmpl(t => ({ ...t, fields:[...t.fields, f] }));
+    const y = (e.clientY - r.top) / pgDims.h;
+    const d = FIELD_DEFAULTS[addMode] || { w: .3, h: .05 };
+    const f = {
+      id: uid(), fieldId: uid(), type: addMode,
+      label: addMode === "signature" ? "Signature" : addMode === "initials" ? "Initials" : addMode === "textInput" ? "Text Field" : addMode === "date" ? "Date" : "Checkbox",
+      page: activePage,
+      x: Math.max(0, Math.min(1 - d.w, x)),
+      y: Math.max(0, Math.min(1 - d.h, y)),
+      w: d.w, h: d.h, width: d.w, height: d.h,
+      signerRole: (addMode === "signature" || addMode === "initials") ? "customer" : "both",
+      dataKey: null, required: true,
+    };
+    setTmpl(t => ({ ...t, fields: [...t.fields, f] }));
     setSelFld(f.id); setAddMode(null);
   };
 
-  const upd = (id, patch) => setTmpl(t => ({ ...t, fields:t.fields.map(f => f.id===id?{...f,...patch}:f) }));
-  const del = id => { setTmpl(t => ({ ...t, fields:t.fields.filter(f=>f.id!==id) })); setSelFld(null); };
+  const upd = (id, patch) => setTmpl(t => ({ ...t, fields: t.fields.map(f => (f.id === id || f.fieldId === id) ? { ...f, ...patch } : f) }));
+  const del = id => { setTmpl(t => ({ ...t, fields: t.fields.filter(f => f.id !== id && f.fieldId !== id) })); setSelFld(null); };
 
-  const save = () => {
+  const save = async () => {
     if (!tmpl.pdfData) { alert("Please upload a PDF first."); return; }
-    const all = loadTemplates();
-    const idx = all.findIndex(t => t.id===tmpl.id);
-    if (idx>=0) all[idx]=tmpl; else all.push(tmpl);
-    saveTemplates(all); onSave(tmpl); onClose();
+    setSaving(true);
+    try {
+      const savedId = await fsSaveTemplate(companyId, tmpl);
+      onSave({ ...tmpl, templateId: savedId });
+      onClose();
+    } catch (e) {
+      alert("Failed to save template: " + e.message);
+    }
+    setSaving(false);
   };
 
-  const sf = tmpl.fields.find(f => f.id===selFld);
-  const pages = Array.from({ length: tmpl.pageCount }, (_, i) => i+1);
-  const pageDims = dims[activePage] || { w:600, h:776 };
+  const sf = tmpl.fields.find(f => f.id === selFld || f.fieldId === selFld);
+  const pages = Array.from({ length: tmpl.pageCount }, (_, i) => i + 1);
+  const pageDims = dims[activePage] || { w: 600, h: 776 };
 
   return (
-    <div className="overlay" onClick={e => e.target===e.currentTarget&&onClose()}>
-      <div className="modal modal-lg anim" style={{ maxWidth:1000, width:"97vw", maxHeight:"96vh", display:"flex", flexDirection:"column" }}>
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal modal-lg anim" style={{ maxWidth: 1000, width: "97vw", maxHeight: "96vh", display: "flex", flexDirection: "column" }}>
         <div className="modal-hd">
-          <input value={tmpl.name} onChange={e => setTmpl(t=>({...t,name:e.target.value}))}
-            style={{ fontWeight:800, fontSize:14, background:"none", border:"none", color:"var(--t1)", fontFamily:"var(--ui)", outline:"none", flex:1 }}/>
-          <div style={{ display:"flex", gap:7 }}>
+          <input value={tmpl.name} onChange={e => setTmpl(t => ({ ...t, name: e.target.value }))}
+            style={{ fontWeight: 800, fontSize: 14, background: "none", border: "none", color: "var(--t1)", fontFamily: "var(--ui)", outline: "none", flex: 1 }} />
+          <div style={{ display: "flex", gap: 7 }}>
             <button className="btn btn-ghost btn-xs" onClick={onClose}>Cancel</button>
-            <button className="btn btn-primary btn-xs" onClick={save}>Save Template</button>
+            <button className="btn btn-primary btn-xs" onClick={save} disabled={saving}>
+              {saving ? <><Spin /> Saving...</> : "Save Template"}
+            </button>
           </div>
         </div>
 
-        <div style={{ display:"flex", flex:1, minHeight:0, overflow:"hidden" }}>
+        <div style={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden" }}>
           {/* LEFT — field type sidebar */}
-          <div style={{ width:184, flexShrink:0, borderRight:"1px solid var(--br)", padding:"14px 11px", overflowY:"auto", background:"var(--s1)", display:"flex", flexDirection:"column", gap:4 }}>
-
-            {/* PDF upload */}
-            <div style={{ marginBottom:8 }}>
-              <div className="sec" style={{ marginBottom:6 }}>PDF Template</div>
-              <button className="btn btn-secondary btn-xs" style={{ width:"100%", justifyContent:"center" }} onClick={() => fileRef.current?.click()}>
-                {uploading ? <Spin/> : Di.upload} {tmpl.pdfData ? "Replace PDF" : "Upload PDF"}
+          <div style={{ width: 184, flexShrink: 0, borderRight: "1px solid var(--br)", padding: "14px 11px", overflowY: "auto", background: "var(--s1)", display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ marginBottom: 8 }}>
+              <div className="sec" style={{ marginBottom: 6 }}>PDF Template</div>
+              <button className="btn btn-secondary btn-xs" style={{ width: "100%", justifyContent: "center" }} onClick={() => fileRef.current?.click()}>
+                {uploading ? <Spin /> : Di.upload} {tmpl.pdfData ? "Replace PDF" : "Upload PDF"}
               </button>
-              <input ref={fileRef} type="file" accept=".pdf" style={{ display:"none" }} onChange={handlePdfUpload}/>
-              {tmpl.pdfData && <div className="mono" style={{ fontSize:9, color:"var(--green)", marginTop:5 }}>{tmpl.pageCount} PAGE{tmpl.pageCount!==1?"S":""} LOADED</div>}
+              <input ref={fileRef} type="file" accept=".pdf" style={{ display: "none" }} onChange={handlePdfUpload} />
+              {tmpl.pdfData && <div className="mono" style={{ fontSize: 9, color: "var(--green)", marginTop: 5 }}>{tmpl.pageCount} PAGE{tmpl.pageCount !== 1 ? "S" : ""} LOADED</div>}
             </div>
 
-            <div style={{ height:1, background:"var(--br)", margin:"4px 0" }}/>
+            <div style={{ height: 1, background: "var(--br)", margin: "4px 0" }} />
 
-            {/* Field types */}
-            <div className="sec" style={{ marginBottom:4 }}>Place Fields</div>
-            {!tmpl.pdfData && <div style={{ fontSize:10, color:"var(--t3)", lineHeight:1.5 }}>Upload a PDF first, then click to place fields on any page.</div>}
+            <div className="sec" style={{ marginBottom: 4 }}>Place Fields</div>
+            {!tmpl.pdfData && <div style={{ fontSize: 10, color: "var(--t3)", lineHeight: 1.5 }}>Upload a PDF first, then click to place fields on any page.</div>}
             {FIELD_TYPES.map(ft => (
-              <button key={ft.type} onClick={() => tmpl.pdfData && setAddMode(addMode===ft.type?null:ft.type)}
-                style={{ width:"100%", background:addMode===ft.type?"var(--acc-lo)":"var(--s3)", border:`1px solid ${addMode===ft.type?"var(--acc)":"var(--br)"}`, borderRadius:8, padding:"7px 10px", cursor:tmpl.pdfData?"pointer":"not-allowed", opacity:tmpl.pdfData?1:.4, display:"flex", alignItems:"center", gap:8, fontFamily:"var(--ui)", transition:"all .12s", color:addMode===ft.type?"var(--acc)":"var(--t2)" }}>
-                <span style={{ color:addMode===ft.type?"var(--acc)":ft.color, flexShrink:0 }}>{FIELD_ICONS[ft.type]}</span>
-                <span style={{ fontSize:11 }}>{ft.label}</span>
+              <button key={ft.type} onClick={() => tmpl.pdfData && setAddMode(addMode === ft.type ? null : ft.type)}
+                style={{ width: "100%", background: addMode === ft.type ? "var(--acc-lo)" : "var(--s3)", border: `1px solid ${addMode === ft.type ? "var(--acc)" : "var(--br)"}`, borderRadius: 8, padding: "7px 10px", cursor: tmpl.pdfData ? "pointer" : "not-allowed", opacity: tmpl.pdfData ? 1 : .4, display: "flex", alignItems: "center", gap: 8, fontFamily: "var(--ui)", transition: "all .12s", color: addMode === ft.type ? "var(--acc)" : "var(--t2)" }}>
+                <span style={{ color: addMode === ft.type ? "var(--acc)" : ft.color, flexShrink: 0 }}>{FIELD_ICONS[ft.type]}</span>
+                <span style={{ fontSize: 11 }}>{ft.label}</span>
               </button>
             ))}
 
             {addMode && (
-              <div style={{ marginTop:4, padding:"7px 9px", background:"rgba(232,156,24,.07)", border:"1px solid rgba(232,156,24,.2)", borderRadius:6, fontSize:10, color:"var(--amber)", lineHeight:1.5 }}>
+              <div style={{ marginTop: 4, padding: "7px 9px", background: "rgba(232,156,24,.07)", border: "1px solid rgba(232,156,24,.2)", borderRadius: 6, fontSize: 10, color: "var(--amber)", lineHeight: 1.5 }}>
                 Click anywhere on the PDF to place a {addMode} field
               </div>
             )}
 
             {/* Field editor */}
             {sf && (
-              <div style={{ marginTop:14, display:"flex", flexDirection:"column", gap:8 }}>
-                <div style={{ height:1, background:"var(--br)" }}/>
-                <div className="sec" style={{ margin:0 }}>Field Settings</div>
-                <div><label className="lbl">Label</label><input className="inp" value={sf.label||""} onChange={e=>upd(sf.id,{label:e.target.value})} style={{ fontSize:11 }}/></div>
-                {(sf.type==="signature"||sf.type==="initials") && (
-                  <div><label className="lbl">Signer</label>
-                    <select className="sel" value={sf.signerIdx??0} onChange={e=>upd(sf.id,{signerIdx:parseInt(e.target.value)})} style={{ fontSize:11 }}>
-                      {[0,1,2,3].map(i=><option key={i} value={i}>Signer {i+1}</option>)}
+              <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ height: 1, background: "var(--br)" }} />
+                <div className="sec" style={{ margin: 0 }}>Field Settings</div>
+                <div><label className="lbl">Label</label><input className="inp" value={sf.label || ""} onChange={e => upd(sf.id, { label: e.target.value })} style={{ fontSize: 11 }} /></div>
+                <div><label className="lbl">Signer Role</label>
+                  <select className="sel" value={sf.signerRole || "customer"} onChange={e => upd(sf.id, { signerRole: e.target.value })} style={{ fontSize: 11 }}>
+                    <option value="customer">Customer</option>
+                    <option value="staff">Staff</option>
+                    <option value="both">Both</option>
+                  </select>
+                </div>
+                {(sf.type === "textInput" || sf.type === "date") && (
+                  <div><label className="lbl">Auto-fill (Data Key)</label>
+                    <select className="sel" value={sf.dataKey || "custom"} onChange={e => upd(sf.id, { dataKey: e.target.value })} style={{ fontSize: 10 }}>
+                      {DATA_KEYS.map(dk => <option key={dk.key} value={dk.key}>{dk.label}</option>)}
                     </select>
                   </div>
                 )}
-                {sf.type==="text" && (
-                  <div><label className="lbl">Auto-fill from project</label>
-                    <select className="sel" value={sf.autoFill||""} onChange={e=>upd(sf.id,{autoFill:e.target.value||null})} style={{ fontSize:10 }}>
-                      <option value="">None (manual entry)</option>
-                      {Object.keys(TOKENS).map(k=><option key={k} value={k}>{k}</option>)}
-                    </select>
-                  </div>
-                )}
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:5 }}>
-                  {[["x","X Pos %"],["y","Y Pos %"],["w","Width %"],["h","Height %"]].map(([k,l])=>(
+                <div><label className="lbl">Required</label>
+                  <select className="sel" value={sf.required !== false ? "yes" : "no"} onChange={e => upd(sf.id, { required: e.target.value === "yes" })} style={{ fontSize: 11 }}>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5 }}>
+                  {[["x", "X Pos %"], ["y", "Y Pos %"], ["w", "Width %"], ["h", "Height %"]].map(([k, l]) => (
                     <div key={k}><label className="lbl">{l}</label>
-                      <input type="number" className="inp" step=".01" min="0" max="1" value={(sf[k]||0).toFixed(3)} onChange={e=>upd(sf.id,{[k]:parseFloat(e.target.value)||0})} style={{ fontSize:10 }}/>
+                      <input type="number" className="inp" step=".01" min="0" max="1" value={(sf[k] || 0).toFixed(3)} onChange={e => upd(sf.id, { [k]: parseFloat(e.target.value) || 0, ...(k === "w" ? { width: parseFloat(e.target.value) || 0 } : {}), ...(k === "h" ? { height: parseFloat(e.target.value) || 0 } : {}) })} style={{ fontSize: 10 }} />
                     </div>
                   ))}
                 </div>
-                <div style={{ fontSize:9, color:"var(--t3)", lineHeight:1.5, display:"flex", alignItems:"center", gap:4 }}>
-                  {Di.move} Drag fields to reposition them
-                </div>
-                <button className="btn btn-ghost btn-xs" style={{ color:"var(--acc)" }} onClick={()=>del(sf.id)}>{Di.trash} Remove Field</button>
+                <button className="btn btn-ghost btn-xs" style={{ color: "var(--acc)" }} onClick={() => del(sf.id)}>{Di.trash} Remove Field</button>
               </div>
             )}
           </div>
 
           {/* CENTER — PDF canvas */}
-          <div style={{ flex:1, overflow:"auto", background:"#2a2d3a", padding:24, display:"flex", flexDirection:"column", alignItems:"center", gap:14 }}>
+          <div style={{ flex: 1, overflow: "auto", background: "#2a2d3a", padding: 24, display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
             {!tmpl.pdfData && (
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", flex:1, gap:12, color:"var(--t3)" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 12, color: "var(--t3)" }}>
                 {Di.doc}
-                <div style={{ fontSize:13, fontWeight:600, color:"var(--t2)" }}>No PDF uploaded yet</div>
-                <div style={{ fontSize:11, color:"var(--t3)" }}>Upload a PDF from the sidebar to get started</div>
-                <button className="btn btn-secondary" onClick={()=>fileRef.current?.click()}>{Di.upload} Upload PDF</button>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--t2)" }}>No PDF uploaded yet</div>
+                <button className="btn btn-secondary" onClick={() => fileRef.current?.click()}>{Di.upload} Upload PDF</button>
               </div>
             )}
-
-            {/* Page tabs */}
             {tmpl.pdfData && tmpl.pageCount > 1 && (
-              <div style={{ display:"flex", gap:5, flexShrink:0 }}>
-                {pages.map(p=>(
-                  <button key={p} onClick={()=>setActivePage(p)} className={`chip${activePage===p?" on":""}`} style={{ fontSize:10 }}>Page {p}</button>
-                ))}
+              <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                {pages.map(p => <button key={p} onClick={() => setActivePage(p)} className={`chip${activePage === p ? " on" : ""}`} style={{ fontSize: 10 }}>Page {p}</button>)}
               </div>
             )}
-
-            {/* PDF + overlay */}
             {tmpl.pdfData && pages.map(p => (
-              <div key={p} style={{ display: activePage===p ? "block" : "none" }}>
-                <div ref={activePage===p ? wrapRef : null}
-                  style={{ position:"relative", cursor:addMode?"crosshair":"default", display:"inline-block", borderRadius:3, overflow:"hidden", boxShadow:"0 8px 32px rgba(0,0,0,.5)" }}
-                  onClick={activePage===p ? handleCanvasClick : undefined}>
-                  <PdfPageCanvas pdfData={tmpl.pdfData} pageNum={p} width={600} onDims={d=>setDims(prev=>({...prev,[p]:d}))}/>
-                  {dims[p] && tmpl.fields.filter(f=>f.page===p).map(f=>(
-                    <FieldBox key={f.id} field={f} dims={dims[p]||{w:600,h:776}} value={{}} signerIdx={null}
-                      editorMode selected={selFld===f.id} onSelect={setSelFld} onMove={upd}/>
+              <div key={p} style={{ display: activePage === p ? "block" : "none" }}>
+                <div ref={activePage === p ? wrapRef : null}
+                  style={{ position: "relative", cursor: addMode ? "crosshair" : "default", display: "inline-block", borderRadius: 3, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,.5)" }}
+                  onClick={activePage === p ? handleCanvasClick : undefined}>
+                  <PdfPageCanvas pdfData={tmpl.pdfData} pageNum={p} width={600} onDims={d => setDims(prev => ({ ...prev, [p]: d }))} />
+                  {dims[p] && tmpl.fields.filter(f => f.page === p).map(f => (
+                    <FieldBox key={f.id} field={f} dims={dims[p] || { w: 600, h: 776 }} value={{}} isMine={false}
+                      editorMode selected={selFld === f.id} onSelect={setSelFld} onMove={upd} />
                   ))}
                 </div>
               </div>
@@ -589,15 +704,15 @@ function TemplateBuilderModal({ existing, onSave, onClose }) {
           </div>
 
           {/* RIGHT — template meta */}
-          <div style={{ width:160, flexShrink:0, borderLeft:"1px solid var(--br)", padding:"14px 11px", background:"var(--s1)", display:"flex", flexDirection:"column", gap:10 }}>
-            <div><label className="lbl">Description</label><textarea className="txa" value={tmpl.description||""} onChange={e=>setTmpl(t=>({...t,description:e.target.value}))} style={{ fontSize:11, minHeight:60 }}/></div>
+          <div style={{ width: 160, flexShrink: 0, borderLeft: "1px solid var(--br)", padding: "14px 11px", background: "var(--s1)", display: "flex", flexDirection: "column", gap: 10 }}>
+            <div><label className="lbl">Description</label><textarea className="txa" value={tmpl.description || ""} onChange={e => setTmpl(t => ({ ...t, description: e.target.value }))} style={{ fontSize: 11, minHeight: 60 }} /></div>
             <div><label className="lbl">Accent Color</label>
-              <input type="color" value={tmpl.color||"#5ba3f5"} onChange={e=>setTmpl(t=>({...t,color:e.target.value}))} style={{ width:"100%", height:34, border:"1px solid var(--br)", borderRadius:7, background:"var(--s3)", cursor:"pointer", padding:2 }}/>
+              <input type="color" value={tmpl.color || "#5ba3f5"} onChange={e => setTmpl(t => ({ ...t, color: e.target.value }))} style={{ width: "100%", height: 34, border: "1px solid var(--br)", borderRadius: 7, background: "var(--s3)", cursor: "pointer", padding: 2 }} />
             </div>
-            <div style={{ height:1, background:"var(--br)" }}/>
-            <div className="mono" style={{ fontSize:9, color:"var(--t3)" }}>
-              {tmpl.fields.length} field{tmpl.fields.length!==1?"s":""} placed<br/>
-              {[...new Set(tmpl.fields.map(f=>f.signerIdx).filter(x=>x!=null))].length} signer{[...new Set(tmpl.fields.map(f=>f.signerIdx).filter(x=>x!=null))].length!==1?"s":""}
+            <div style={{ height: 1, background: "var(--br)" }} />
+            <div className="mono" style={{ fontSize: 9, color: "var(--t3)" }}>
+              {tmpl.fields.length} field{tmpl.fields.length !== 1 ? "s" : ""} placed<br />
+              {[...new Set(tmpl.fields.map(f => f.signerRole).filter(Boolean))].length} signer role{[...new Set(tmpl.fields.map(f => f.signerRole).filter(Boolean))].length !== 1 ? "s" : ""}
             </div>
           </div>
         </div>
@@ -607,370 +722,305 @@ function TemplateBuilderModal({ existing, onSave, onClose }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DOC COMPOSER — choose template, fill signers, create document
+// ADD DOCUMENT MODAL — PART 2
+// Option A: Use a Template
+// Option B: Upload PDF Directly
 // ─────────────────────────────────────────────────────────────────────────────
-function DocComposerModal({ proj, onSave, onClose }) {
-  const allTemplates = loadTemplates();
+function AddDocumentModal({ proj, companyId, onSave, onClose }) {
+  const [step, setStep] = useState("choose"); // choose | templateList | compose | upload | uploadFields
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [tmpl, setTmpl] = useState(null);
+  const [docName, setDocName] = useState("");
+  const [saving, setSaving] = useState(false);
   const co = loadCoInfo();
 
-  const [step,    setStep]    = useState(allTemplates.length===0 ? "empty" : "choose");
-  const [tmpl,    setTmpl]    = useState(null);
-  const [docName, setDocName] = useState("");
-  const [signers, setSigners] = useState(() => {
-    const s = [];
-    if (proj?.clientName||proj?.client) s.push({ id:uid(), name:proj.clientName||proj.client||"", email:proj.clientEmail||"", phone:proj.clientPhone||"", role:"Client", status:"pending" });
-    if (co.name) s.push({ id:uid(), name:"", email:co.email||"", phone:co.phone||"", role:"Contractor", status:"pending" });
-    return s;
-  });
+  // Upload direct state
+  const [uploadPdf, setUploadPdf] = useState(null);
+  const [uploadName, setUploadName] = useState("");
+  const [uploadFields, setUploadFields] = useState([]);
+  const [uploadDims, setUploadDims] = useState({});
+  const [uploadPage, setUploadPage] = useState(1);
+  const [uploadPageCount, setUploadPageCount] = useState(1);
+  const [addMode, setAddMode] = useState(null);
+  const [selFld, setSelFld] = useState(null);
+  const wrapRef = useRef();
+  const fileRef = useRef();
+
+  useEffect(() => {
+    if (step === "templateList" && companyId) {
+      setLoading(true);
+      fsLoadTemplates(companyId).then(t => { setTemplates(t); setLoading(false); }).catch(() => setLoading(false));
+    }
+  }, [step, companyId]);
 
   const selectTemplate = t => {
     setTmpl(t);
-    setDocName(`${t.name} — ${proj?.name||""}`);
+    setDocName(`${t.name} — ${proj?.name || ""}`);
     setStep("compose");
   };
 
-  const signerIdxs = tmpl ? [...new Set(tmpl.fields.filter(f=>f.signerIdx!=null).map(f=>f.signerIdx))].sort() : [];
-
-  // build auto-fill initial values
-  const buildValues = () => {
-    const v = {};
-    tmpl?.fields?.forEach(f => {
-      if (f.type==="text" && f.autoFill && TOKENS[f.autoFill]) v[f.id] = { text: TOKENS[f.autoFill](proj||{}, co) };
-    });
-    return v;
+  const createFromTemplate = async () => {
+    if (!tmpl || !companyId || !proj?.id) return;
+    setSaving(true);
+    try {
+      const signingToken = uuid();
+      const fields = (tmpl.fields || []).map(f => {
+        const field = { ...f, fieldId: f.fieldId || uid() };
+        if (f.dataKey && f.dataKey !== "custom") {
+          field.prefillValue = resolveDataKey(f.dataKey, proj, co);
+        }
+        return field;
+      });
+      const docData = {
+        name: docName.trim() || "Untitled",
+        templateId: tmpl.templateId,
+        templateName: tmpl.name,
+        pdfBase64: tmpl.pdfBase64 || tmpl.pdfData || "",
+        pageCount: tmpl.pageCount || 1,
+        fields,
+        status: "draft",
+        signingToken,
+        signingUrl: `https://job-dox.ai/sign/${signingToken}`,
+        projectId: proj.id,
+        projectName: proj.name || "",
+        companyId,
+        values: {},
+        createdAt: new Date().toISOString(),
+      };
+      // Pre-fill values
+      fields.forEach(f => {
+        if (f.prefillValue) {
+          docData.values[f.fieldId] = { text: f.prefillValue };
+        }
+      });
+      const docId = await fsSaveProjectDocument(companyId, proj.id, docData);
+      onSave({ ...docData, documentId: docId });
+      onClose();
+    } catch (e) {
+      alert("Failed to create document: " + e.message);
+    }
+    setSaving(false);
   };
 
-  const save = (send=false) => {
-    const doc = {
-      id:uid(), templateId:tmpl.id, name:docName.trim()||"Untitled",
-      projectId:proj?.id||null, projectName:proj?.name||"",
-      status:send?"pending":"draft", createdAt:new Date().toISOString(),
-      values:buildValues(), signers:signers.filter(s=>s.name.trim()),
+  // Upload PDF directly handlers
+  const handleUploadPdf = async e => {
+    const file = e.target.files[0]; if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { alert("PDF must be under 10 MB."); return; }
+    const reader = new FileReader();
+    reader.onload = async ev => {
+      const b64 = ev.target.result;
+      const count = await getPdfPageCount(b64);
+      setUploadPdf(b64);
+      setUploadPageCount(count);
+      setUploadName(file.name.replace(/\.pdf$/i, ""));
+      setStep("uploadFields");
     };
-    const all = loadAllDocs(); saveAllDocs([...all, doc]);
-    onSave(doc); onClose();
+    reader.readAsDataURL(file);
+    e.target.value = "";
   };
+
+  const handleUploadCanvasClick = e => {
+    if (!addMode || !wrapRef.current) return;
+    const r = wrapRef.current.getBoundingClientRect();
+    const pgDims = uploadDims[uploadPage];
+    if (!pgDims) return;
+    const x = (e.clientX - r.left) / pgDims.w;
+    const y = (e.clientY - r.top) / pgDims.h;
+    const d = FIELD_DEFAULTS[addMode] || { w: .3, h: .05 };
+    const f = {
+      id: uid(), fieldId: uid(), type: addMode,
+      label: addMode === "signature" ? "Signature" : addMode,
+      page: uploadPage,
+      x: Math.max(0, Math.min(1 - d.w, x)),
+      y: Math.max(0, Math.min(1 - d.h, y)),
+      w: d.w, h: d.h, width: d.w, height: d.h,
+      signerRole: "customer", dataKey: null, required: true,
+    };
+    setUploadFields(prev => [...prev, f]);
+    setSelFld(f.id); setAddMode(null);
+  };
+
+  const saveDirectUpload = async () => {
+    if (!uploadPdf || !companyId || !proj?.id) return;
+    if (uploadFields.filter(f => f.type === "signature").length === 0) {
+      alert("Please place at least one signature field on the document.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const signingToken = uuid();
+      const docData = {
+        name: uploadName.trim() || "Uploaded Document",
+        templateId: null,
+        templateName: "Direct Upload",
+        pdfBase64: uploadPdf,
+        pageCount: uploadPageCount,
+        fields: uploadFields,
+        status: "draft",
+        signingToken,
+        signingUrl: `https://job-dox.ai/sign/${signingToken}`,
+        projectId: proj.id,
+        projectName: proj.name || "",
+        companyId,
+        values: {},
+        createdAt: new Date().toISOString(),
+      };
+      const docId = await fsSaveProjectDocument(companyId, proj.id, docData);
+      onSave({ ...docData, documentId: docId });
+      onClose();
+    } catch (e) {
+      alert("Failed to save document: " + e.message);
+    }
+    setSaving(false);
+  };
+
+  const uploadPages = Array.from({ length: uploadPageCount }, (_, i) => i + 1);
 
   return (
-    <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div className="modal modal-lg anim" style={{ maxWidth:700 }}>
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal modal-lg anim" style={{ maxWidth: step === "uploadFields" ? 900 : 600, width: "97vw", maxHeight: "96vh", display: "flex", flexDirection: "column" }}>
         <div className="modal-hd">
           <div>
-            <div className="modal-ttl">{step==="choose"?"New Document":tmpl?.name||"New Document"}</div>
-            {proj?.name && <div className="mono" style={{ fontSize:9, color:"var(--t3)", marginTop:2 }}>{proj.name}</div>}
+            <div className="modal-ttl">{step === "choose" ? "Add Document" : step === "templateList" ? "Choose Template" : step === "compose" ? tmpl?.name : "Place Signature Fields"}</div>
+            {proj?.name && <div className="mono" style={{ fontSize: 9, color: "var(--t3)", marginTop: 2 }}>{proj.name}</div>}
           </div>
           <button className="btn btn-ghost btn-xs" onClick={onClose}>{Di.close}</button>
         </div>
 
-        <div className="modal-body">
-          {step==="empty" && (
-            <div className="empty" style={{ padding:32 }}>
-              {Di.template}
-              <div style={{ fontWeight:700, fontSize:14, color:"var(--t1)" }}>No templates yet</div>
-              <div style={{ fontSize:11, color:"var(--t3)", maxWidth:320, textAlign:"center", lineHeight:1.65 }}>
-                Create a template first by going to Advanced Tools → Document Templates, uploading a PDF, and placing signature fields on it.
-              </div>
+        <div className="modal-body" style={{ flex: 1, overflow: "auto" }}>
+          {/* Step: choose method */}
+          {step === "choose" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <button onClick={() => setStep("templateList")}
+                style={{ background: "var(--s3)", border: "1px solid var(--br)", borderRadius: 12, padding: 24, cursor: "pointer", textAlign: "center", fontFamily: "var(--ui)", transition: "all .12s" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--acc)"; e.currentTarget.style.background = "var(--acc-lo)"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--br)"; e.currentTarget.style.background = "var(--s3)"; }}>
+                <div style={{ color: "var(--acc)", marginBottom: 8 }}>{Di.template}</div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "var(--t1)", marginBottom: 4 }}>Use a Template</div>
+                <div style={{ fontSize: 10, color: "var(--t3)", lineHeight: 1.5 }}>Select from your saved document templates with pre-configured fields</div>
+              </button>
+              <button onClick={() => { fileRef.current?.click(); }}
+                style={{ background: "var(--s3)", border: "1px solid var(--br)", borderRadius: 12, padding: 24, cursor: "pointer", textAlign: "center", fontFamily: "var(--ui)", transition: "all .12s" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.background = "rgba(91,163,245,.06)"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--br)"; e.currentTarget.style.background = "var(--s3)"; }}>
+                <div style={{ color: "var(--blue)", marginBottom: 8 }}>{Di.upload}</div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "var(--t1)", marginBottom: 4 }}>Upload PDF Directly</div>
+                <div style={{ fontSize: 10, color: "var(--t3)", lineHeight: 1.5 }}>Upload a PDF and mark signature areas on it</div>
+              </button>
+              <input ref={fileRef} type="file" accept=".pdf" style={{ display: "none" }} onChange={handleUploadPdf} />
             </div>
           )}
 
-          {step==="choose" && (
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:9 }}>
-              {allTemplates.map(t => (
-                <button key={t.id} onClick={()=>selectTemplate(t)}
-                  style={{ background:"var(--s3)", border:`1px solid var(--br)`, borderRadius:10, padding:14, cursor:"pointer", textAlign:"left", fontFamily:"var(--ui)", transition:"all .12s", display:"flex", flexDirection:"column", gap:6 }}
-                  onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--br-hi)";e.currentTarget.style.background="var(--s4)";}}
-                  onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--br)";e.currentTarget.style.background="var(--s3)";}}>
-                  <div style={{ display:"flex", alignItems:"center", gap:9 }}>
-                    <div style={{ width:32, height:32, borderRadius:8, background:`${t.color||"var(--blue)"}18`, color:t.color||"var(--blue)", display:"flex", alignItems:"center", justifyContent:"center" }}>{Di.doc}</div>
-                    <div style={{ fontWeight:700, fontSize:12, color:"var(--t1)" }}>{t.name}</div>
-                  </div>
-                  {t.description && <div style={{ fontSize:10, color:"var(--t3)", lineHeight:1.5 }}>{t.description}</div>}
-                  <div className="mono" style={{ fontSize:9, color:"var(--t3)" }}>{t.fields?.length||0} FIELDS · {t.pageCount||1} PAGE{(t.pageCount||1)!==1?"S":""}</div>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {step==="compose" && tmpl && (
+          {/* Step: template list */}
+          {step === "templateList" && (
             <>
-              <div><label className="lbl">Document Title</label><input className="inp" value={docName} onChange={e=>setDocName(e.target.value)}/></div>
-              {signerIdxs.length>0 && (
-                <div>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:9 }}>
-                    <div className="sec" style={{ margin:0 }}>Signers — {signerIdxs.length} signature role{signerIdxs.length!==1?"s":""}</div>
-                    <button className="btn btn-ghost btn-xs" onClick={()=>setSigners(s=>[...s,{id:uid(),name:"",email:"",phone:"",role:"",status:"pending"}])}>{Di.plus} Add</button>
+              {loading && <div style={{ textAlign: "center", padding: 32 }}><Spin size={20} color="var(--t2)" /></div>}
+              {!loading && templates.length === 0 && (
+                <div className="empty" style={{ padding: 32 }}>
+                  {Di.template}
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "var(--t1)" }}>No templates yet</div>
+                  <div style={{ fontSize: 11, color: "var(--t3)", maxWidth: 320, textAlign: "center", lineHeight: 1.65 }}>
+                    Create a template first in Settings → Advanced Tools → Document Templates.
                   </div>
-                  {signerIdxs.map(idx=>{
-                    const s=signers[idx]||{};
-                    return (
-                      <div key={idx} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 80px", gap:8, marginBottom:8, padding:"11px 12px", background:"var(--s3)", borderRadius:8, border:"1px solid var(--br)" }}>
-                        <div><label className="lbl">Name — Signer {idx+1}</label><input className="inp" value={s.name||""} placeholder="Full name" onChange={e=>setSigners(ss=>ss.map((x,i)=>i===idx?{...x,name:e.target.value}:x))} style={{ fontSize:11 }}/></div>
-                        <div><label className="lbl">Email</label><input className="inp" type="email" value={s.email||""} onChange={e=>setSigners(ss=>ss.map((x,i)=>i===idx?{...x,email:e.target.value}:x))} style={{ fontSize:11 }}/></div>
-                        <div><label className="lbl">Phone</label><input className="inp" type="tel" value={s.phone||""} onChange={e=>setSigners(ss=>ss.map((x,i)=>i===idx?{...x,phone:e.target.value}:x))} style={{ fontSize:11 }}/></div>
-                        <div><label className="lbl">Role</label><input className="inp" value={s.role||""} placeholder="Client" onChange={e=>setSigners(ss=>ss.map((x,i)=>i===idx?{...x,role:e.target.value}:x))} style={{ fontSize:11 }}/></div>
-                      </div>
-                    );
-                  })}
                 </div>
               )}
-              <div style={{ padding:"8px 11px", background:"rgba(91,163,245,.06)", border:"1px solid rgba(91,163,245,.18)", borderRadius:6, fontSize:10, color:"var(--blue)", lineHeight:1.6, display:"flex", gap:8, alignItems:"flex-start" }}>
-                {Di.info} Each signer can sign in person on a tablet or receive a secure link via email or SMS. GPS coordinates are recorded with every signature.
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="modal-ft">
-          {step==="choose"
-            ? <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-            : <>
-                <button className="btn btn-ghost" onClick={()=>setStep("choose")}>{Di.back} Back</button>
-                <button className="btn btn-secondary" onClick={()=>save(false)}>Save as Draft</button>
-                <button className="btn btn-primary"   onClick={()=>save(true)}>{Di.send} Save &amp; Send for Signing</button>
-              </>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// IN-PERSON SIGNING MODAL
-// ─────────────────────────────────────────────────────────────────────────────
-function SigningModal({ doc, signerIdx, onComplete, onClose }) {
-  const tmpl     = loadTemplates().find(t => t.id===doc.templateId);
-  const signer   = doc.signers?.[signerIdx];
-  const myFields = tmpl?.fields?.filter(f=>f.signerIdx===signerIdx) || [];
-
-  const [values,      setValues]   = useState({ ...doc.values });
-  const [geo,         setGeo]      = useState(null);
-  const [geoLoading,  setGeoLoad]  = useState(false);
-  const [activeField, setActive]   = useState(null);
-  const [sigData,     setSigData]  = useState(null);
-  const [textDraft,   setTextDraft]= useState("");
-  const [step,        setStep]     = useState("geo");
-  const [activePage,  setActivePage] = useState(1);
-  const [dims,        setDims]     = useState({});
-
-  const pages    = tmpl ? Array.from({ length: tmpl.pageCount||1 }, (_,i)=>i+1) : [1];
-  const unsigned = myFields.filter(f => !values[f.id]?.data && !values[f.id]?.text && !values[f.id]?.checked);
-  const allDone  = unsigned.length === 0;
-
-  const requestGeo = () => {
-    setGeoLoad(true);
-    if (!navigator.geolocation) { setGeo({ lat:"unavailable", lng:"unavailable" }); setGeoLoad(false); setStep("sign"); return; }
-    navigator.geolocation.getCurrentPosition(
-      pos => { setGeo({ lat:pos.coords.latitude.toFixed(6), lng:pos.coords.longitude.toFixed(6) }); setGeoLoad(false); setStep("sign"); },
-      ()  => { setGeo({ lat:"unavailable", lng:"unavailable" }); setGeoLoad(false); setStep("sign"); },
-      { enableHighAccuracy:true, timeout:8000 }
-    );
-  };
-
-  const handleFieldTap = f => {
-    if (!geo) { setStep("geo"); return; }
-    setActive(f); setSigData(null); setTextDraft(values[f.id]?.text||"");
-  };
-
-  const applyValue = val => {
-    if (!activeField) return;
-    const ts = new Date().toLocaleDateString("en-US");
-    setValues(v => ({ ...v, [activeField.id]: val }));
-    // auto-fill date fields for this signer
-    if (activeField.type==="signature"||activeField.type==="initials") {
-      tmpl?.fields?.filter(f=>f.type==="date"&&f.signerIdx===signerIdx).forEach(df=>{
-        setValues(v=>({...v,[df.id]:{text:ts}}));
-      });
-    }
-    setActive(null);
-  };
-
-  const finalize = () => onComplete({ values, geo, signedAt:new Date().toISOString() });
-
-  return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(6,7,13,.94)", backdropFilter:"blur(6px)", zIndex:2000, display:"flex", flexDirection:"column", alignItems:"center", overflowY:"auto", padding:20 }}>
-      {/* Header */}
-      <div style={{ width:"100%", maxWidth:860, display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12, flexShrink:0 }}>
-        <div>
-          <div style={{ color:"var(--t1)", fontWeight:800, fontSize:16 }}>{doc.name}</div>
-          <div className="mono" style={{ fontSize:9, color:"var(--t3)", marginTop:2 }}>
-            SIGNING AS: {signer?.name?.toUpperCase()||`SIGNER ${signerIdx+1}`}
-            {signer?.role && <span style={{ marginLeft:8 }}> · {signer.role.toUpperCase()}</span>}
-          </div>
-        </div>
-        <button className="btn btn-ghost btn-xs" onClick={onClose}>Save &amp; Exit</button>
-      </div>
-
-      {/* Progress */}
-      {myFields.length>0 && (
-        <div style={{ width:"100%", maxWidth:860, display:"flex", gap:6, marginBottom:12, flexShrink:0, flexWrap:"wrap" }}>
-          {myFields.map((f,i) => {
-            const done = !!values[f.id]?.data||!!values[f.id]?.text||values[f.id]?.checked;
-            return (
-              <div key={f.id} style={{ display:"flex", alignItems:"center", gap:6, flex:"1 1 140px", background:done?"rgba(26,217,138,.08)":"rgba(255,255,255,.04)", border:`1px solid ${done?"rgba(26,217,138,.3)":"rgba(255,255,255,.1)"}`, borderRadius:8, padding:"6px 10px" }}>
-                <div style={{ width:20, height:20, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", border:`1.5px solid ${done?"var(--green)":"rgba(255,255,255,.2)"}`, color:done?"var(--green)":"var(--t3)", fontSize:9, fontWeight:700, flexShrink:0 }}>
-                  {done ? Di.check : i+1}
+              {!loading && templates.length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
+                  {templates.map(t => (
+                    <button key={t.templateId} onClick={() => selectTemplate(t)}
+                      style={{ background: "var(--s3)", border: "1px solid var(--br)", borderRadius: 10, padding: 14, cursor: "pointer", textAlign: "left", fontFamily: "var(--ui)", transition: "all .12s", display: "flex", flexDirection: "column", gap: 6 }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--br-hi)"; e.currentTarget.style.background = "var(--s4)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--br)"; e.currentTarget.style.background = "var(--s3)"; }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: 8, background: `${t.color || "var(--blue)"}18`, color: t.color || "var(--blue)", display: "flex", alignItems: "center", justifyContent: "center" }}>{Di.doc}</div>
+                        <div style={{ fontWeight: 700, fontSize: 12, color: "var(--t1)" }}>{t.name}</div>
+                      </div>
+                      {t.description && <div style={{ fontSize: 10, color: "var(--t3)", lineHeight: 1.5 }}>{t.description}</div>}
+                      <div className="mono" style={{ fontSize: 9, color: "var(--t3)" }}>{t.fields?.length || 0} FIELDS · {t.pageCount || 1} PAGE{(t.pageCount || 1) !== 1 ? "S" : ""}</div>
+                    </button>
+                  ))}
                 </div>
-                <span style={{ fontSize:10, color:done?"var(--green)":"var(--t2)" }}>{f.label||f.type}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              )}
+            </>
+          )}
 
-      {/* GEO step */}
-      {step==="geo" && (
-        <div className="card anim" style={{ maxWidth:420, width:"100%", padding:28, textAlign:"center" }}>
-          <div style={{ display:"flex", justifyContent:"center", color:"var(--t2)", marginBottom:10 }}>{Di.pin}</div>
-          <div style={{ fontWeight:700, fontSize:14, color:"var(--t1)", marginBottom:8 }}>Location Verification</div>
-          <div style={{ fontSize:11, color:"var(--t2)", lineHeight:1.75, marginBottom:20 }}>
-            Job-Dox records GPS coordinates with each signature to create a verifiable location record attached to this document.
-          </div>
-          {geoLoading
-            ? <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, color:"var(--amber)", fontSize:11 }}><Spin color="var(--amber)"/> Requesting location...</div>
-            : <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                <button className="btn btn-primary" onClick={requestGeo}>Allow Location Access</button>
-                <button className="btn btn-ghost btn-xs" onClick={()=>{setGeo({lat:"unavailable",lng:"unavailable"});setStep("sign");}}>Skip — no GPS capture</button>
-              </div>}
-        </div>
-      )}
-
-      {/* FIELD INPUT popup */}
-      {activeField && step==="sign" && (
-        <div className="card anim" style={{ maxWidth:480, width:"100%", padding:22, marginBottom:14 }}>
-          <div style={{ fontWeight:700, fontSize:13, color:"var(--t1)", marginBottom:12 }}>{activeField.label||activeField.type}</div>
-          {geo?.lat!=="unavailable" && <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:12, background:"rgba(26,217,138,.08)", border:"1px solid rgba(26,217,138,.2)", borderRadius:6, padding:"5px 10px", fontSize:10, color:"var(--green)" }}>{Di.pin}<span className="mono">{geo.lat}, {geo.lng}</span></div>}
-
-          {(activeField.type==="signature"||activeField.type==="initials") && (
+          {/* Step: compose from template */}
+          {step === "compose" && tmpl && (
             <>
-              <SignaturePad label={activeField.type==="initials"?"Draw your initials":"Draw your full signature"} height={activeField.type==="initials"?80:120} onCapture={setSigData} onClear={()=>setSigData(null)}/>
-              <div style={{ display:"flex", gap:8, marginTop:14 }}>
-                <button className="btn btn-ghost" style={{ flex:1 }} onClick={()=>setActive(null)}>Cancel</button>
-                <button className="btn btn-primary" style={{ flex:2, opacity:sigData?1:.4 }} disabled={!sigData} onClick={()=>applyValue({ data:sigData, timestamp:new Date().toLocaleDateString("en-US"), lat:geo?.lat, lng:geo?.lng })}>
-                  {Di.check} Apply
-                </button>
+              <div><label className="lbl">Document Title</label><input className="inp" value={docName} onChange={e => setDocName(e.target.value)} /></div>
+              <div style={{ padding: "8px 11px", background: "rgba(91,163,245,.06)", border: "1px solid rgba(91,163,245,.18)", borderRadius: 6, fontSize: 10, color: "var(--blue)", lineHeight: 1.6, display: "flex", gap: 8, alignItems: "flex-start", marginTop: 8 }}>
+                {Di.info} This document will be created as a draft. Project data fields will be auto-populated. Use "Send for Signature" to share the signing link.
               </div>
             </>
           )}
 
-          {(activeField.type==="text"||activeField.type==="date") && (
-            <>
-              {activeField.type==="date"
-                ? <input type="date" className="inp" value={textDraft} onChange={e=>setTextDraft(e.target.value)}/>
-                : <input className="inp" value={textDraft} onChange={e=>setTextDraft(e.target.value)} placeholder={activeField.label}/>}
-              <div style={{ display:"flex", gap:8, marginTop:12 }}>
-                <button className="btn btn-ghost" style={{ flex:1 }} onClick={()=>setActive(null)}>Cancel</button>
-                <button className="btn btn-primary" style={{ flex:2 }} disabled={!textDraft.trim()} onClick={()=>applyValue({ text:textDraft.trim() })}>
-                  {Di.check} Apply
-                </button>
+          {/* Step: upload field placement */}
+          {step === "uploadFields" && uploadPdf && (
+            <div style={{ display: "flex", gap: 12 }}>
+              <div style={{ width: 160, flexShrink: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                <div><label className="lbl">Document Name</label><input className="inp" value={uploadName} onChange={e => setUploadName(e.target.value)} style={{ fontSize: 11 }} /></div>
+                <div style={{ height: 1, background: "var(--br)" }} />
+                <div className="sec" style={{ marginBottom: 2 }}>Place Fields</div>
+                {[{ type: "signature", label: "Signature", color: "var(--acc)" }, { type: "textInput", label: "Text", color: "var(--green)" }, { type: "date", label: "Date", color: "var(--purple)" }, { type: "checkbox", label: "Checkbox", color: "var(--amber)" }].map(ft => (
+                  <button key={ft.type} onClick={() => setAddMode(addMode === ft.type ? null : ft.type)}
+                    style={{ width: "100%", background: addMode === ft.type ? "var(--acc-lo)" : "var(--s3)", border: `1px solid ${addMode === ft.type ? "var(--acc)" : "var(--br)"}`, borderRadius: 8, padding: "6px 8px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "var(--ui)", fontSize: 11, color: addMode === ft.type ? "var(--acc)" : "var(--t2)" }}>
+                    <span style={{ color: addMode === ft.type ? "var(--acc)" : ft.color }}>{FIELD_ICONS[ft.type]}</span> {ft.label}
+                  </button>
+                ))}
+                {addMode && <div style={{ fontSize: 10, color: "var(--amber)", lineHeight: 1.5 }}>Click on the PDF to place</div>}
+                {uploadFields.length > 0 && (
+                  <div className="mono" style={{ fontSize: 9, color: "var(--green)", marginTop: 4 }}>{uploadFields.length} field{uploadFields.length !== 1 ? "s" : ""} placed</div>
+                )}
               </div>
-            </>
-          )}
-
-          {activeField.type==="checkbox" && (
-            <div style={{ display:"flex", gap:8, marginTop:8 }}>
-              <button className="btn btn-ghost" style={{ flex:1 }} onClick={()=>setActive(null)}>Cancel</button>
-              <button className="btn btn-primary" style={{ flex:2 }} onClick={()=>applyValue({ checked:true })}>
-                {Di.check} Check
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* PDF + overlay */}
-      {step==="sign" && !activeField && tmpl && (
-        <div style={{ width:"100%", maxWidth:860 }}>
-          {pages.length>1 && (
-            <div style={{ display:"flex", gap:5, marginBottom:10, flexWrap:"wrap" }}>
-              {pages.map(p=>(
-                <button key={p} onClick={()=>setActivePage(p)} className={`chip${activePage===p?" on":""}`} style={{ fontSize:10 }}>Page {p}</button>
-              ))}
-            </div>
-          )}
-          {pages.map(p=>(
-            <div key={p} style={{ display:activePage===p?"block":"none", overflowX:"auto" }}>
-              {p === 1 && <CompanyHeader width={720}/>}
-              <div style={{ position:"relative", display:"inline-block", borderRadius: p===1 ? "0 0 3px 3px" : 3, overflow:"hidden", boxShadow:"0 8px 40px rgba(0,0,0,.5)" }}>
-                <PdfPageCanvas pdfData={tmpl.pdfData} pageNum={p} width={720} onDims={d=>setDims(prev=>({...prev,[p]:d}))}/>
-                {dims[p] && tmpl.fields.filter(f=>f.page===p).map(f=>(
-                  <FieldBox key={f.id} field={f} dims={dims[p]} value={values[f.id]} signerIdx={signerIdx} onTap={handleFieldTap} highlightPending={!allDone}/>
+              <div style={{ flex: 1, overflow: "auto", background: "#2a2d3a", borderRadius: 8, padding: 12, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                {uploadPageCount > 1 && (
+                  <div style={{ display: "flex", gap: 5 }}>
+                    {uploadPages.map(p => <button key={p} onClick={() => setUploadPage(p)} className={`chip${uploadPage === p ? " on" : ""}`} style={{ fontSize: 10 }}>Page {p}</button>)}
+                  </div>
+                )}
+                {uploadPages.map(p => (
+                  <div key={p} style={{ display: uploadPage === p ? "block" : "none" }}>
+                    <div ref={uploadPage === p ? wrapRef : null}
+                      style={{ position: "relative", cursor: addMode ? "crosshair" : "default", display: "inline-block", borderRadius: 3, overflow: "hidden", boxShadow: "0 4px 20px rgba(0,0,0,.4)" }}
+                      onClick={uploadPage === p ? handleUploadCanvasClick : undefined}>
+                      <PdfPageCanvas pdfData={uploadPdf} pageNum={p} width={500} onDims={d => setUploadDims(prev => ({ ...prev, [p]: d }))} />
+                      {uploadDims[p] && uploadFields.filter(f => f.page === p).map(f => (
+                        <FieldBox key={f.id} field={f} dims={uploadDims[p]} value={{}} isMine={false}
+                          editorMode selected={selFld === f.id} onSelect={setSelFld}
+                          onMove={(id, patch) => setUploadFields(fs => fs.map(ff => ff.id === id ? { ...ff, ...patch } : ff))} />
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
-          ))}
-
-          <div style={{ marginTop:14 }}>
-            {!allDone
-              ? <div style={{ padding:"10px 16px", background:"rgba(232,156,24,.1)", border:"1px solid rgba(232,156,24,.28)", borderRadius:8, color:"var(--amber)", fontSize:12, display:"flex", alignItems:"center", gap:8 }}>
-                  {Di.warn} Tap the highlighted fields on the document above to complete signing
-                </div>
-              : <div style={{ textAlign:"center" }}>
-                  <div style={{ padding:"11px 16px", background:"rgba(26,217,138,.1)", border:"1px solid rgba(26,217,138,.28)", borderRadius:8, color:"var(--green)", fontSize:13, fontWeight:700, marginBottom:12, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-                    {Di.check} All fields complete
-                  </div>
-                  <button className="btn btn-primary btn-lg" onClick={finalize}>{Di.check} Finalize and Submit</button>
-                </div>}
-          </div>
+          )}
         </div>
-      )}
-    </div>
-  );
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SEND REMOTE MODAL
-// ─────────────────────────────────────────────────────────────────────────────
-function SendRemoteModal({ doc, onSend, onClose }) {
-  const [method,  setMethod]  = useState("email");
-  const [sending, setSending] = useState(false);
-  const [sent,    setSent]    = useState(false);
-
-  const handleSend = async () => {
-    setSending(true);
-    // TODO: callFn("send-signing-request", { doc, method })
-    await new Promise(r=>setTimeout(r,1000));
-    setSent(true); setSending(false);
-    setTimeout(() => { onSend(); onClose(); }, 1500);
-  };
-
-  return (
-    <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div className="modal anim" style={{ maxWidth:500 }}>
-        <div className="modal-hd">
-          <div><div className="modal-ttl">Send for Signing</div><div style={{ fontSize:11, color:"var(--t3)", marginTop:2 }}>{doc.name}</div></div>
-          <button className="btn btn-ghost btn-xs" onClick={onClose}>{Di.close}</button>
-        </div>
-        <div className="modal-body">
-          <div><label className="lbl">Delivery Method</label>
-            <div style={{ display:"flex", gap:7 }}>
-              {[{k:"email",l:"Email",i:Di.mail},{k:"sms",l:"SMS",i:Di.sms},{k:"both",l:"Both",i:Di.send}].map(m=>(
-                <button key={m.k} onClick={()=>setMethod(m.k)}
-                  style={{ flex:1, padding:"9px 8px", borderRadius:7, border:`1.5px solid ${method===m.k?"var(--acc)":"var(--br)"}`, background:method===m.k?"var(--acc-lo)":"transparent", color:method===m.k?"var(--acc)":"var(--t2)", cursor:"pointer", fontSize:11, fontWeight:method===m.k?700:400, fontFamily:"var(--ui)", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}>
-                  {m.i} {m.l}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="lbl" style={{ marginBottom:8 }}>Signers</div>
-          {doc.signers?.map((s,i)=>(
-            <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom:"1px solid var(--br)" }}>
-              <div style={{ width:28, height:28, borderRadius:"50%", background:"var(--s3)", border:"1px solid var(--br)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, color:"var(--blue)", fontSize:11, flexShrink:0 }}>{(s.name||"?")[0].toUpperCase()}</div>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontSize:12, fontWeight:600, color:"var(--t1)" }}>{s.name}</div>
-                <div style={{ fontSize:10, color:"var(--t3)", marginTop:1 }}>{s.role}{s.email&&` · ${s.email}`}{s.phone&&` · ${s.phone}`}</div>
-              </div>
-              <span className="mono" style={{ fontSize:9, background:s.status==="signed"?"rgba(26,217,138,.1)":"rgba(232,156,24,.1)", color:s.status==="signed"?"var(--green)":"var(--amber)", borderRadius:20, padding:"2px 9px" }}>
-                {s.status==="signed"?"SIGNED":"PENDING"}
-              </span>
-            </div>
-          ))}
-          {sent && <div style={{ display:"flex", alignItems:"center", gap:9, background:"rgba(26,217,138,.08)", border:"1px solid rgba(26,217,138,.28)", borderRadius:8, padding:"10px 14px" }}><span style={{ color:"var(--green)" }}>{Di.check}</span><span style={{ fontSize:12, fontWeight:700, color:"var(--green)" }}>Requests sent</span></div>}
-        </div>
         <div className="modal-ft">
-          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSend} disabled={sending||sent}>
-            {sending ? <><Spin/> Sending...</> : <>{Di.send} Send</>}
-          </button>
+          {step === "choose" && <button className="btn btn-ghost" onClick={onClose}>Cancel</button>}
+          {step === "templateList" && (
+            <>
+              <button className="btn btn-ghost" onClick={() => setStep("choose")}>{Di.back} Back</button>
+            </>
+          )}
+          {step === "compose" && (
+            <>
+              <button className="btn btn-ghost" onClick={() => setStep("templateList")}>{Di.back} Back</button>
+              <button className="btn btn-primary" onClick={createFromTemplate} disabled={saving}>
+                {saving ? <><Spin /> Creating...</> : <>{Di.doc} Create Document</>}
+              </button>
+            </>
+          )}
+          {step === "uploadFields" && (
+            <>
+              <button className="btn btn-ghost" onClick={() => setStep("choose")}>{Di.back} Back</button>
+              <button className="btn btn-primary" onClick={saveDirectUpload} disabled={saving || uploadFields.filter(f => f.type === "signature").length === 0}>
+                {saving ? <><Spin /> Saving...</> : <>{Di.doc} Save Document</>}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -978,395 +1028,209 @@ function SendRemoteModal({ doc, onSend, onClose }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PREVIEW MODAL
+// PREVIEW MODAL — view document with all fields
 // ─────────────────────────────────────────────────────────────────────────────
-function PreviewModal({ doc, onClose }) {
-  const tmpl = loadTemplates().find(t=>t.id===doc.templateId);
-  const [activePage,setActivePage] = useState(1);
-  const [dims,setDims] = useState({});
-  const pages = tmpl ? Array.from({ length: tmpl.pageCount||1 }, (_,i)=>i+1) : [];
+function PreviewModal({ docData, onClose }) {
+  const [activePage, setActivePage] = useState(1);
+  const [dims, setDims] = useState({});
+  const pages = Array.from({ length: docData.pageCount || 1 }, (_, i) => i + 1);
+  const pdfData = docData.pdfBase64 || docData.pdfData;
 
   return (
-    <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div style={{ background:"var(--s1)", borderRadius:14, padding:20, maxWidth:820, width:"96vw", maxHeight:"92vh", overflow:"auto", border:"1px solid var(--br)" }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: "var(--s1)", borderRadius: 14, padding: 20, maxWidth: 820, width: "96vw", maxHeight: "92vh", overflow: "auto", border: "1px solid var(--br)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div>
-            <div style={{ fontWeight:700, color:"var(--t1)", fontSize:14 }}>{doc.name}</div>
-            <div className="mono" style={{ fontSize:9, color:"var(--t3)", marginTop:2 }}>CREATED {new Date(doc.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}).toUpperCase()}</div>
+            <div style={{ fontWeight: 700, color: "var(--t1)", fontSize: 14 }}>{docData.name}</div>
+            <div className="mono" style={{ fontSize: 9, color: "var(--t3)", marginTop: 2 }}>
+              {docData.templateName || "Direct Upload"} · {(docData.status || "draft").toUpperCase()}
+            </div>
           </div>
           <button className="btn btn-ghost btn-xs" onClick={onClose}>{Di.close}</button>
         </div>
-
-        {!tmpl ? (
-          <div style={{ padding:20, textAlign:"center", color:"var(--t3)", fontSize:12 }}>Template no longer exists</div>
+        {!pdfData ? (
+          <div style={{ padding: 20, textAlign: "center", color: "var(--t3)", fontSize: 12 }}>No PDF data available</div>
         ) : (
           <>
-            {pages.length>1 && (
-              <div style={{ display:"flex", gap:5, marginBottom:12, flexWrap:"wrap" }}>
-                {pages.map(p=><button key={p} onClick={()=>setActivePage(p)} className={`chip${activePage===p?" on":""}`} style={{ fontSize:10 }}>Page {p}</button>)}
+            {pages.length > 1 && (
+              <div style={{ display: "flex", gap: 5, marginBottom: 12, flexWrap: "wrap" }}>
+                {pages.map(p => <button key={p} onClick={() => setActivePage(p)} className={`chip${activePage === p ? " on" : ""}`} style={{ fontSize: 10 }}>Page {p}</button>)}
               </div>
             )}
-            {pages.map(p=>(
-              <div key={p} style={{ display:activePage===p?"block":"none", overflowX:"auto", marginBottom:14 }}>
-                {p === 1 && <CompanyHeader width={740}/>}
-                <div style={{ position:"relative", display:"inline-block", borderRadius: p===1 ? "0 0 3px 3px" : 3, overflow:"hidden", boxShadow:"0 4px 20px rgba(0,0,0,.3)" }}>
-                  <PdfPageCanvas pdfData={tmpl.pdfData} pageNum={p} width={740} onDims={d=>setDims(prev=>({...prev,[p]:d}))}/>
-                  {dims[p] && tmpl.fields.filter(f=>f.page===p).map(f=>(
-                    <FieldBox key={f.id} field={f} dims={dims[p]} value={doc.values?.[f.id]}/>
+            {pages.map(p => (
+              <div key={p} style={{ display: activePage === p ? "block" : "none", overflowX: "auto", marginBottom: 14 }}>
+                {p === 1 && <CompanyHeader width={740} />}
+                <div style={{ position: "relative", display: "inline-block", borderRadius: p === 1 ? "0 0 3px 3px" : 3, overflow: "hidden", boxShadow: "0 4px 20px rgba(0,0,0,.3)" }}>
+                  <PdfPageCanvas pdfData={pdfData} pageNum={p} width={740} onDims={d => setDims(prev => ({ ...prev, [p]: d }))} />
+                  {dims[p] && (docData.fields || []).filter(f => f.page === p).map(f => (
+                    <FieldBox key={f.fieldId || f.id} field={f} dims={dims[p]} value={docData.values?.[f.fieldId || f.id]} isMine={false} />
                   ))}
                 </div>
               </div>
             ))}
           </>
         )}
-
-        {doc.signers?.some(s=>s.status==="signed") && (
-          <div style={{ marginTop:4 }}>
-            <div className="sec" style={{ marginBottom:9 }}>Audit Trail</div>
-            {doc.signers.filter(s=>s.status==="signed").map((s,i)=>(
-              <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start", padding:"9px 11px", borderBottom:"1px solid var(--br)", background:"rgba(26,217,138,.03)", borderRadius:6, marginBottom:4 }}>
-                <span style={{ color:"var(--green)", flexShrink:0, marginTop:1 }}>{Di.check}</span>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontWeight:600, fontSize:12, color:"var(--t1)" }}>{s.name} <span style={{ fontWeight:400, color:"var(--t3)" }}>({s.role})</span></div>
-                  <div className="mono" style={{ fontSize:9, color:"var(--t3)", marginTop:2 }}>
-                    SIGNED {s.signedAt?new Date(s.signedAt).toLocaleString("en-US"):""}
-                    {s.lat&&s.lat!=="unavailable" && <span style={{ marginLeft:10, color:"var(--blue)" }}>{Di.pin} {s.lat}, {s.lng}</span>}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PDF QUICK-SIGN MODAL — sign any PDF without a template
-// Opens a PDF, lets user draw a signature, tap to place it, and save.
+// SEND FOR SIGNATURE MODAL — copy link + SMS via Twilio
 // ─────────────────────────────────────────────────────────────────────────────
-export function PdfQuickSignModal({ pdfData, docName="Document", signerName="", signerEmail="", existingSignatures=[], onSave, onClose }) {
-  const [pageCount,    setPageCount]    = useState(1);
-  const [activePage,   setActivePage]   = useState(1);
-  const [dims,         setDims]         = useState({});
-  const [sigData,      setSigData]      = useState(null);
-  const [placedSigs,   setPlacedSigs]   = useState([]);   // [{ id, page, x, y, w, h, data, timestamp, lat, lng, signerName, signerEmail }]
-  const [placingMode,  setPlacingMode]  = useState(false);
-  const [geo,          setGeo]          = useState(null);
-  const [geoLoading,   setGeoLoading]   = useState(false);
-  const [geoAsked,     setGeoAsked]     = useState(false);
-  const [nameInput,    setNameInput]    = useState(signerName);
-  const [emailInput,   setEmailInput]   = useState(signerEmail);
-  const wrapRef = useRef();
+function SendSignatureModal({ docData, companyId, proj, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const [phone, setPhone] = useState(proj?.clientPhone || "");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [smsError, setSmsError] = useState(null);
 
-  useEffect(() => {
-    if (!pdfData) return;
-    getPdfPageCount(pdfData).then(n => setPageCount(n)).catch(() => {});
-  }, [pdfData]);
+  const signingUrl = docData.signingUrl || `https://job-dox.ai/sign/${docData.signingToken}`;
 
-  const requestGeo = () => {
-    setGeoLoading(true);
-    if (!navigator.geolocation) { setGeo({ lat:"unavailable", lng:"unavailable" }); setGeoLoading(false); setGeoAsked(true); return; }
-    navigator.geolocation.getCurrentPosition(
-      pos => { setGeo({ lat:pos.coords.latitude.toFixed(6), lng:pos.coords.longitude.toFixed(6) }); setGeoLoading(false); setGeoAsked(true); },
-      ()  => { setGeo({ lat:"unavailable", lng:"unavailable" }); setGeoLoading(false); setGeoAsked(true); },
-      { enableHighAccuracy:true, timeout:8000 }
-    );
+  const copyLink = () => {
+    navigator.clipboard?.writeText(signingUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2500); });
   };
 
-  const handleCanvasClick = e => {
-    if (!placingMode || !sigData || !wrapRef.current) return;
-    const r   = wrapRef.current.getBoundingClientRect();
-    const pgDims = dims[activePage];
-    if (!pgDims) return;
-    const x = (e.clientX - r.left) / pgDims.w;
-    const y = (e.clientY - r.top)  / pgDims.h;
-    const sig = {
-      id:   uid(),
-      page: activePage,
-      x:    Math.max(0, Math.min(0.65, x)),
-      y:    Math.max(0, Math.min(0.92, y)),
-      w:    0.35,
-      h:    0.075,
-      data: sigData,
-      timestamp: new Date().toISOString(),
-      lat:  geo?.lat || "unavailable",
-      lng:  geo?.lng || "unavailable",
-      signerName:  nameInput  || "",
-      signerEmail: emailInput || "",
-    };
-    setPlacedSigs(prev => [...prev, sig]);
-    setPlacingMode(false);
+  const sendSms = async () => {
+    if (!phone.trim()) return;
+    setSending(true); setSmsError(null);
+    try {
+      await callFn("send-sms", {
+        companyId,
+        to: phone.trim(),
+        body: `Your signature is requested on "${docData.name}". Sign here: ${signingUrl}`,
+        contactName: proj?.client || proj?.clientName || "Customer",
+        projectId: proj?.id,
+        type: "signing_request",
+      });
+      setSent(true);
+    } catch (e) {
+      setSmsError(e.message);
+    }
+    setSending(false);
   };
-
-  const removeSig = id => setPlacedSigs(prev => prev.filter(s => s.id !== id));
-
-  const handleSave = () => {
-    if (placedSigs.length === 0) { alert("Please place at least one signature on the PDF."); return; }
-    onSave({
-      signatures:  placedSigs,
-      signedAt:    new Date().toISOString(),
-      geo,
-      signerName:  nameInput  || "",
-      signerEmail: emailInput || "",
-    });
-  };
-
-  const pages = Array.from({ length: pageCount }, (_, i) => i + 1);
-
-  if (!pdfData) return null;
 
   return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(6,7,13,.94)", backdropFilter:"blur(6px)", zIndex:2000, display:"flex", flexDirection:"column", alignItems:"center", overflowY:"auto", padding:20 }}>
-      {/* Header */}
-      <div style={{ width:"100%", maxWidth:860, display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12, flexShrink:0 }}>
-        <div>
-          <div style={{ color:"var(--t1)", fontWeight:800, fontSize:16 }}>Sign: {docName}</div>
-          <div className="mono" style={{ fontSize:9, color:"var(--t3)", marginTop:2 }}>
-            DRAW YOUR SIGNATURE BELOW, THEN CLICK ON THE PDF TO PLACE IT
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal anim" style={{ maxWidth: 480 }}>
+        <div className="modal-hd">
+          <div><div className="modal-ttl">Send for Signature</div><div style={{ fontSize: 11, color: "var(--t3)", marginTop: 2 }}>{docData.name}</div></div>
+          <button className="btn btn-ghost btn-xs" onClick={onClose}>{Di.close}</button>
+        </div>
+        <div className="modal-body">
+          {/* Copy link */}
+          <div style={{ marginBottom: 14 }}>
+            <label className="lbl">Signing Link</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              <input className="inp" value={signingUrl} readOnly style={{ fontSize: 10, flex: 1 }} />
+              <button className="btn btn-secondary btn-xs" onClick={copyLink}>
+                {copied ? <>{Di.check} Copied</> : <>{Di.copy} Copy</>}
+              </button>
+            </div>
+          </div>
+          {/* SMS */}
+          <div>
+            <label className="lbl">Send via SMS</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              <input className="inp" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone number" style={{ flex: 1, fontSize: 11 }} />
+              <button className="btn btn-primary btn-xs" onClick={sendSms} disabled={sending || sent || !phone.trim()}>
+                {sending ? <Spin /> : sent ? <>{Di.check} Sent</> : <>{Di.sms} Send SMS</>}
+              </button>
+            </div>
+            {smsError && <div style={{ fontSize: 10, color: "var(--acc)", marginTop: 4 }}>{smsError}</div>}
+            {sent && <div style={{ fontSize: 10, color: "var(--green)", marginTop: 4 }}>SMS sent successfully</div>}
           </div>
         </div>
-        <div style={{ display:"flex", gap:7 }}>
-          <button className="btn btn-ghost btn-xs" onClick={onClose}>{Di.close} Cancel</button>
-          <button className="btn btn-primary btn-xs" onClick={handleSave} disabled={placedSigs.length===0}>
-            {Di.check} Save Signed Document
-          </button>
+        <div className="modal-ft">
+          <button className="btn btn-ghost" onClick={onClose}>Done</button>
         </div>
       </div>
-
-      {/* Signer identity — shown if not pre-filled */}
-      {!signerName && !signerEmail && geoAsked && (
-        <div style={{ width:"100%", maxWidth:860, marginBottom:12, background:"var(--s2)", borderRadius:10, border:"1px solid var(--br)", padding:16, display:"flex", gap:12, alignItems:"flex-end" }}>
-          <div style={{ flex:1 }}>
-            <label className="lbl">Your Name</label>
-            <input className="inp" value={nameInput} onChange={e=>setNameInput(e.target.value)} placeholder="Full name"/>
-          </div>
-          <div style={{ flex:1 }}>
-            <label className="lbl">Your Email</label>
-            <input className="inp" type="email" value={emailInput} onChange={e=>setEmailInput(e.target.value)} placeholder="email@example.com"/>
-          </div>
-        </div>
-      )}
-
-      {/* Show existing signatures from other signers */}
-      {existingSignatures.length > 0 && geoAsked && (
-        <div style={{ width:"100%", maxWidth:860, marginBottom:10 }}>
-          <div className="mono" style={{ fontSize:9, color:"var(--t3)", marginBottom:6 }}>PREVIOUS SIGNATURES ON THIS DOCUMENT</div>
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-            {existingSignatures.map((s, i) => (
-              <div key={s.id||i} style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(26,217,138,.06)", border:"1px solid rgba(26,217,138,.18)", borderRadius:6, padding:"4px 10px", fontSize:10, color:"var(--green)" }}>
-                {Di.check} {s.signerName || `Signature ${i+1}`} — Page {s.page}
-                {s.timestamp && <span className="mono" style={{ fontSize:8, color:"var(--t3)", marginLeft:4 }}>{new Date(s.timestamp).toLocaleDateString()}</span>}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* GPS prompt — ask once */}
-      {!geoAsked && (
-        <div className="card anim" style={{ maxWidth:420, width:"100%", padding:28, textAlign:"center", marginBottom:14 }}>
-          <div style={{ display:"flex", justifyContent:"center", color:"var(--t2)", marginBottom:10 }}>{Di.pin}</div>
-          <div style={{ fontWeight:700, fontSize:14, color:"var(--t1)", marginBottom:8 }}>Location Verification</div>
-          <div style={{ fontSize:11, color:"var(--t2)", lineHeight:1.75, marginBottom:20 }}>
-            Job-Dox can record GPS coordinates with your signature for verification purposes.
-          </div>
-          {geoLoading
-            ? <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, color:"var(--amber)", fontSize:11 }}><Spin color="var(--amber)"/> Requesting location...</div>
-            : <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                <button className="btn btn-primary" onClick={requestGeo}>Allow Location Access</button>
-                <button className="btn btn-ghost btn-xs" onClick={()=>{ setGeo({ lat:"unavailable", lng:"unavailable" }); setGeoAsked(true); }}>Skip — no GPS capture</button>
-              </div>}
-        </div>
-      )}
-
-      {geoAsked && (
-        <>
-          {/* Signature pad */}
-          <div style={{ width:"100%", maxWidth:860, marginBottom:14, background:"var(--s2)", borderRadius:10, border:"1px solid var(--br)", padding:16 }}>
-            <SignaturePad
-              label="Draw your signature"
-              height={100}
-              onCapture={d => setSigData(d)}
-              onClear={() => setSigData(null)}
-            />
-            {sigData && (
-              <div style={{ marginTop:10, display:"flex", gap:8, alignItems:"center" }}>
-                <button
-                  className={`btn ${placingMode?"btn-primary":"btn-secondary"} btn-xs`}
-                  onClick={() => setPlacingMode(!placingMode)}
-                >
-                  {placingMode ? "Click on PDF to place ↓" : `${Di.pen} Place Signature on PDF`}
-                </button>
-                {placingMode && (
-                  <span style={{ fontSize:10, color:"var(--amber)", fontWeight:600 }}>
-                    Click anywhere on the PDF below to place your signature
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Placed signatures summary */}
-          {placedSigs.length > 0 && (
-            <div style={{ width:"100%", maxWidth:860, marginBottom:10, display:"flex", gap:6, flexWrap:"wrap" }}>
-              {placedSigs.map((s, i) => (
-                <div key={s.id} style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(26,217,138,.08)", border:"1px solid rgba(26,217,138,.28)", borderRadius:8, padding:"5px 10px" }}>
-                  <span style={{ color:"var(--green)", fontSize:10, fontWeight:700 }}>{Di.check} Signature {i+1} — Page {s.page}</span>
-                  <button onClick={() => removeSig(s.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"var(--acc)", fontSize:10, padding:0 }}>{Di.close}</button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Page tabs */}
-          {pageCount > 1 && (
-            <div style={{ display:"flex", gap:5, marginBottom:10, flexWrap:"wrap" }}>
-              {pages.map(p => (
-                <button key={p} onClick={() => setActivePage(p)} className={`chip${activePage===p?" on":""}`} style={{ fontSize:10 }}>Page {p}</button>
-              ))}
-            </div>
-          )}
-
-          {/* PDF render + signature overlay */}
-          <div style={{ width:"100%", maxWidth:860 }}>
-            {pages.map(p => (
-              <div key={p} style={{ display: activePage===p ? "block" : "none", overflowX:"auto" }}>
-                <div
-                  ref={activePage===p ? wrapRef : null}
-                  style={{ position:"relative", cursor:placingMode?"crosshair":"default", display:"inline-block", borderRadius:3, overflow:"hidden", boxShadow:"0 8px 40px rgba(0,0,0,.5)" }}
-                  onClick={activePage===p ? handleCanvasClick : undefined}
-                >
-                  <PdfPageCanvas pdfData={pdfData} pageNum={p} width={720} onDims={d => setDims(prev => ({ ...prev, [p]:d }))}/>
-                  {/* Render existing signatures from previous signers (read-only) */}
-                  {dims[p] && existingSignatures.filter(s => s.page===p).map((s, i) => (
-                    <div
-                      key={s.id||`ex-${i}`}
-                      style={{
-                        position:"absolute",
-                        left:   s.x * dims[p].w,
-                        top:    s.y * dims[p].h,
-                        width:  s.w * dims[p].w,
-                        height: s.h * dims[p].h,
-                        border:"1.5px solid rgba(26,217,138,.4)",
-                        borderRadius:5,
-                        background:"rgba(26,217,138,.03)",
-                        display:"flex", alignItems:"center", justifyContent:"center",
-                        overflow:"hidden", pointerEvents:"none",
-                      }}
-                    >
-                      <img src={s.data} alt="Previous signature" style={{ maxWidth:"100%", maxHeight:"100%", objectFit:"contain", opacity:.7 }}/>
-                    </div>
-                  ))}
-                  {/* Render newly placed signatures on this page */}
-                  {dims[p] && placedSigs.filter(s => s.page===p).map(s => (
-                    <div
-                      key={s.id}
-                      style={{
-                        position:"absolute",
-                        left:   s.x * dims[p].w,
-                        top:    s.y * dims[p].h,
-                        width:  s.w * dims[p].w,
-                        height: s.h * dims[p].h,
-                        border:"2px solid var(--green)",
-                        borderRadius:5,
-                        background:"rgba(26,217,138,.05)",
-                        display:"flex", alignItems:"center", justifyContent:"center",
-                        overflow:"hidden",
-                      }}
-                    >
-                      <img src={s.data} alt="Signature" style={{ maxWidth:"100%", maxHeight:"100%", objectFit:"contain" }}/>
-                      <button
-                        onClick={e => { e.stopPropagation(); removeSig(s.id); }}
-                        style={{ position:"absolute", top:-8, right:-8, width:18, height:18, borderRadius:"50%", background:"var(--acc)", color:"#fff", border:"none", cursor:"pointer", fontSize:9, display:"flex", alignItems:"center", justifyContent:"center" }}
-                      >{Di.close}</button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DOCUMENT TEMPLATE CENTER  (for AdvToolsPanel)
+// DOCUMENT TEMPLATE CENTER  (for AdvToolsPanel) — PART 1
 // ─────────────────────────────────────────────────────────────────────────────
 export function DocumentTemplateCenter({ onClose }) {
-  const [templates,   setTemplates]   = useState(loadTemplates());
-  const [editTmpl,    setEditTmpl]    = useState(null);
+  const [templates, setTemplates] = useState([]);
+  const [editTmpl, setEditTmpl] = useState(null);
   const [showBuilder, setShowBuilder] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Load from Firestore on mount (source of truth)
-  useEffect(() => {
-    if (!_docsDb || !_docsCompanyId) return;
-    getDoc(doc(_docsDb, "companies", _docsCompanyId, "settings", "docTemplates")).then(snap => {
-      if (snap.exists() && snap.data().data) {
-        const v = snap.data().data;
-        setTemplates(v);
-        try { localStorage.setItem(LS_TMPL, JSON.stringify(v)); } catch {}
-      }
-    }).catch(() => {});
-  }, []);
+  const reload = () => {
+    if (!_docsCompanyId) return;
+    setLoading(true);
+    fsLoadTemplates(_docsCompanyId).then(t => { setTemplates(t); setLoading(false); }).catch(() => setLoading(false));
+  };
 
-  const reload = () => setTemplates(loadTemplates());
+  useEffect(() => { reload(); }, []);
 
-  const deleteTemplate = id => {
-    if (!window.confirm("Delete this template? Any documents using it will lose their PDF.")) return;
-    saveTemplates(loadTemplates().filter(t=>t.id!==id)); reload();
+  const deleteTemplate = async id => {
+    if (!window.confirm("Delete this template? Documents already created from it will keep their PDF.")) return;
+    try {
+      await fsDeleteTemplate(_docsCompanyId, id);
+      reload();
+    } catch (e) { alert("Failed to delete: " + e.message); }
   };
 
   return (
-    <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-      {showBuilder && <TemplateBuilderModal existing={editTmpl} onSave={reload} onClose={()=>{setShowBuilder(false);setEditTmpl(null);reload();}}/>}
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {showBuilder && (
+        <TemplateBuilderModal
+          existing={editTmpl}
+          companyId={_docsCompanyId}
+          onSave={() => reload()}
+          onClose={() => { setShowBuilder(false); setEditTmpl(null); reload(); }}
+        />
+      )}
 
-      <div style={{ padding:"15px 18px", borderBottom:"1px solid var(--br)", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+      <div style={{ padding: "15px 18px", borderBottom: "1px solid var(--br)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
         <div>
-          <div style={{ fontWeight:700, fontSize:14, color:"var(--t1)" }}>Document Templates</div>
-          <div className="mono" style={{ fontSize:9, color:"var(--t3)", marginTop:1 }}>UPLOAD A PDF, PLACE SIGNATURE FIELDS</div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: "var(--t1)" }}>Document Templates</div>
+          <div className="mono" style={{ fontSize: 9, color: "var(--t3)", marginTop: 1 }}>UPLOAD A PDF, PLACE SIGNATURE FIELDS</div>
         </div>
-        <div style={{ display:"flex", gap:7 }}>
+        <div style={{ display: "flex", gap: 7 }}>
           {onClose && <button className="btn btn-ghost btn-xs" onClick={onClose}>{Di.close}</button>}
-          <button className="btn btn-primary btn-xs" onClick={()=>{setEditTmpl(null);setShowBuilder(true);}}>{Di.plus} New Template</button>
+          <button className="btn btn-primary btn-xs" onClick={() => { setEditTmpl(null); setShowBuilder(true); }}>{Di.plus} New Template</button>
         </div>
       </div>
 
       <div className="scroll">
-        {templates.length===0 && (
+        {loading && <div style={{ textAlign: "center", padding: 40 }}><Spin size={20} color="var(--t2)" /></div>}
+        {!loading && templates.length === 0 && (
           <div className="empty">
             {Di.template}
-            <div style={{ fontWeight:700, fontSize:14, color:"var(--t1)" }}>No templates yet</div>
-            <div style={{ fontSize:11, color:"var(--t3)", maxWidth:340, lineHeight:1.65, textAlign:"center" }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "var(--t1)" }}>No templates yet</div>
+            <div style={{ fontSize: 11, color: "var(--t3)", maxWidth: 340, lineHeight: 1.65, textAlign: "center" }}>
               Upload any PDF — a contract, work authorization, change order — then click to place signature, initials, text, and date fields exactly where you need them.
             </div>
-            <button className="btn btn-primary" onClick={()=>{setEditTmpl(null);setShowBuilder(true);}}>{Di.plus} Create First Template</button>
+            <button className="btn btn-primary" onClick={() => { setEditTmpl(null); setShowBuilder(true); }}>{Di.plus} Create First Template</button>
           </div>
         )}
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))", gap:10, padding:18 }}>
-          {templates.map(t=>(
-            <div key={t.id} className="card" style={{ padding:16 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
-                <div style={{ width:36, height:36, borderRadius:9, background:`${t.color||"var(--blue)"}18`, color:t.color||"var(--blue)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{Di.doc}</div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontWeight:700, fontSize:12, color:"var(--t1)" }}>{t.name}</div>
-                  {t.description && <div style={{ fontSize:10, color:"var(--t3)", marginTop:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.description}</div>}
+        {!loading && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10, padding: 18 }}>
+            {templates.map(t => (
+              <div key={t.templateId} className="card" style={{ padding: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 9, background: `${t.color || "var(--blue)"}18`, color: t.color || "var(--blue)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{Di.doc}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 12, color: "var(--t1)" }}>{t.name}</div>
+                    {t.description && <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.description}</div>}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 5, marginBottom: 10, flexWrap: "wrap" }}>
+                  <span className="mono" style={{ fontSize: 9, background: "rgba(91,163,245,.1)", color: "var(--blue)", borderRadius: 20, padding: "2px 9px" }}>{t.fields?.length || 0} FIELDS</span>
+                  <span className="mono" style={{ fontSize: 9, background: "var(--s3)", color: "var(--t3)", borderRadius: 20, padding: "2px 9px" }}>{t.pageCount || 1} PAGE{(t.pageCount || 1) !== 1 ? "S" : ""}</span>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button className="btn btn-secondary btn-xs" style={{ flex: 1 }} onClick={() => { setEditTmpl(t); setShowBuilder(true); }}>{Di.eye} Edit</button>
+                  <button className="btn btn-ghost btn-xs" style={{ color: "var(--acc)" }} onClick={() => deleteTemplate(t.templateId)}>{Di.trash}</button>
                 </div>
               </div>
-              <div style={{ display:"flex", gap:5, marginBottom:10, flexWrap:"wrap" }}>
-                <span className="mono" style={{ fontSize:9, background:"rgba(91,163,245,.1)", color:"var(--blue)", borderRadius:20, padding:"2px 9px" }}>{t.fields?.length||0} FIELDS</span>
-                <span className="mono" style={{ fontSize:9, background:"var(--s3)", color:"var(--t3)", borderRadius:20, padding:"2px 9px" }}>{t.pageCount||1} PAGE{(t.pageCount||1)!==1?"S":""}</span>
-              </div>
-              <div style={{ display:"flex", gap:6 }}>
-                <button className="btn btn-secondary btn-xs" style={{ flex:1 }} onClick={()=>{setEditTmpl(t);setShowBuilder(true);}}>{Di.eye} Edit</button>
-                <button className="btn btn-ghost btn-xs" style={{ color:"var(--acc)" }} onClick={()=>deleteTemplate(t.id)}>{Di.trash}</button>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1381,33 +1245,33 @@ export function LogoUploadSection({ coInfo, setCoInfo }) {
 
   const handleFile = e => {
     const file = e.target.files[0]; if (!file) return;
-    if (file.size > 2*1024*1024) { alert("Logo must be under 2MB."); return; }
+    if (file.size > 2 * 1024 * 1024) { alert("Logo must be under 2MB."); return; }
     const r = new FileReader();
     r.onload = ev => {
-      const u = { ...coInfo, logo:ev.target.result };
-      setCoInfo(u); saveCoInfo(u); setSaved(true); setTimeout(()=>setSaved(false), 2500);
+      const u = { ...coInfo, logo: ev.target.result };
+      setCoInfo(u); saveCoInfo(u); setSaved(true); setTimeout(() => setSaved(false), 2500);
     };
     r.readAsDataURL(file); e.target.value = "";
   };
 
   return (
-    <div style={{ marginBottom:16, padding:"14px 16px", background:"var(--s3)", borderRadius:9, border:"1px solid var(--br)" }}>
-      <div style={{ fontWeight:700, fontSize:12, color:"var(--t1)", marginBottom:2 }}>Company Logo</div>
-      <div style={{ fontSize:11, color:"var(--t3)", marginBottom:12, lineHeight:1.6 }}>Appears on documents and reports.</div>
-      <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-        <div style={{ width:90, height:56, borderRadius:7, border:`1.5px dashed ${coInfo?.logo?"var(--green)":"var(--br)"}`, background:"var(--s2)", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", flexShrink:0 }}>
+    <div style={{ marginBottom: 16, padding: "14px 16px", background: "var(--s3)", borderRadius: 9, border: "1px solid var(--br)" }}>
+      <div style={{ fontWeight: 700, fontSize: 12, color: "var(--t1)", marginBottom: 2 }}>Company Logo</div>
+      <div style={{ fontSize: 11, color: "var(--t3)", marginBottom: 12, lineHeight: 1.6 }}>Appears on documents and reports.</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ width: 90, height: 56, borderRadius: 7, border: `1.5px dashed ${coInfo?.logo ? "var(--green)" : "var(--br)"}`, background: "var(--s2)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
           {coInfo?.logo
-            ? <img src={coInfo.logo} alt="" style={{ width:"100%", height:"100%", objectFit:"contain", padding:4 }}/>
-            : <div style={{ fontSize:10, color:"var(--t3)", textAlign:"center", lineHeight:1.5 }}>No logo</div>}
+            ? <img src={coInfo.logo} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", padding: 4 }} />
+            : <div style={{ fontSize: 10, color: "var(--t3)", textAlign: "center", lineHeight: 1.5 }}>No logo</div>}
         </div>
         <div>
-          <div style={{ display:"flex", gap:7, marginBottom:6 }}>
-            <button className="btn btn-secondary btn-xs" onClick={()=>fileRef.current?.click()}>{Di.upload} Upload Logo</button>
-            {coInfo?.logo && <button className="btn btn-ghost btn-xs" style={{ color:"var(--acc)" }} onClick={()=>{const u={...coInfo,logo:""};setCoInfo(u);saveCoInfo(u);}}>Remove</button>}
-            {saved && <span style={{ fontSize:11, color:"var(--green)", fontWeight:600, alignSelf:"center" }}>Saved</span>}
+          <div style={{ display: "flex", gap: 7, marginBottom: 6 }}>
+            <button className="btn btn-secondary btn-xs" onClick={() => fileRef.current?.click()}>{Di.upload} Upload Logo</button>
+            {coInfo?.logo && <button className="btn btn-ghost btn-xs" style={{ color: "var(--acc)" }} onClick={() => { const u = { ...coInfo, logo: "" }; setCoInfo(u); saveCoInfo(u); }}>Remove</button>}
+            {saved && <span style={{ fontSize: 11, color: "var(--green)", fontWeight: 600, alignSelf: "center" }}>Saved</span>}
           </div>
-          <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/svg+xml" style={{ display:"none" }} onChange={handleFile}/>
-          <div style={{ fontSize:10, color:"var(--t3)" }}>PNG, JPG or SVG · Max 2 MB</div>
+          <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/svg+xml" style={{ display: "none" }} onChange={handleFile} />
+          <div style={{ fontSize: 10, color: "var(--t3)" }}>PNG, JPG or SVG · Max 2 MB</div>
         </div>
       </div>
     </div>
@@ -1415,147 +1279,272 @@ export function LogoUploadSection({ coInfo, setCoInfo }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DOCUMENTS TAB  — main export
+// PDF QUICK-SIGN MODAL — sign any PDF without a template
 // ─────────────────────────────────────────────────────────────────────────────
-export function DocumentsTab({ proj, docs:docsIn, setDocs:setDocsIn }) {
-  const [localDocs, setLocalDocs] = useState(() => loadAllDocs().filter(d=>d.projectId===(proj?.id||null)));
-  const allDocs = docsIn || localDocs;
+export function PdfQuickSignModal({ pdfData, docName = "Document", signerName = "", signerEmail = "", existingSignatures = [], onSave, onClose }) {
+  const [pageCount, setPageCount] = useState(1);
+  const [activePage, setActivePage] = useState(1);
+  const [dims, setDims] = useState({});
+  const [sigData, setSigData] = useState(null);
+  const [placedSigs, setPlacedSigs] = useState([]);
+  const [placingMode, setPlacingMode] = useState(false);
+  const [geo, setGeo] = useState(null);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoAsked, setGeoAsked] = useState(false);
+  const [nameInput, setNameInput] = useState(signerName);
+  const [emailInput, setEmailInput] = useState(signerEmail);
+  const wrapRef = useRef();
 
-  // Load from Firestore on mount (source of truth)
   useEffect(() => {
-    if (!_docsDb || !_docsCompanyId) return;
-    getDoc(doc(_docsDb, "companies", _docsCompanyId, "settings", "documents")).then(snap => {
-      if (snap.exists() && snap.data().data) {
-        const v = snap.data().data;
-        try { localStorage.setItem(LS_DOCS, JSON.stringify(v)); } catch {}
-        const pd = v.filter(d => d.projectId === (proj?.id || null));
-        setLocalDocs(pd);
-        if (setDocsIn) setDocsIn(pd);
-      }
-    }).catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!pdfData) return;
+    getPdfPageCount(pdfData).then(n => setPageCount(n)).catch(() => {});
+  }, [pdfData]);
 
-  const pushDoc = updated => {
-    const all = loadAllDocs();
-    const idx = all.findIndex(d=>d.id===updated.id);
-    if (idx>=0) all[idx]=updated; else all.push(updated);
-    saveAllDocs(all);
-    const pd = all.filter(d=>d.projectId===(proj?.id||null));
-    setLocalDocs(pd); if (setDocsIn) setDocsIn(pd);
+  const requestGeo = () => {
+    setGeoLoading(true);
+    if (!navigator.geolocation) { setGeo({ lat: "unavailable", lng: "unavailable" }); setGeoLoading(false); setGeoAsked(true); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => { setGeo({ lat: pos.coords.latitude.toFixed(6), lng: pos.coords.longitude.toFixed(6) }); setGeoLoading(false); setGeoAsked(true); },
+      () => { setGeo({ lat: "unavailable", lng: "unavailable" }); setGeoLoading(false); setGeoAsked(true); },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
   };
 
-  const [showCompose, setShowCompose] = useState(false);
-  const [signing,     setSigning]    = useState(null);
-  const [sendModal,   setSendModal]  = useState(null);
-  const [preview,     setPreview]    = useState(null);
-  const [filter,      setFilter]     = useState("all");
-
-  const filtered = filter==="all" ? allDocs : allDocs.filter(d=>getDocStatus(d)===filter);
-
-  const deleteDoc = id => {
-    if (!window.confirm("Delete this document?")) return;
-    const all = loadAllDocs().filter(d=>d.id!==id); saveAllDocs(all);
-    const pd = all.filter(d=>d.projectId===(proj?.id||null));
-    setLocalDocs(pd); if (setDocsIn) setDocsIn(pd);
+  const handleCanvasClick = e => {
+    if (!placingMode || !sigData || !wrapRef.current) return;
+    const r = wrapRef.current.getBoundingClientRect();
+    const pgDims = dims[activePage];
+    if (!pgDims) return;
+    const x = (e.clientX - r.left) / pgDims.w;
+    const y = (e.clientY - r.top) / pgDims.h;
+    const sig = {
+      id: uid(), page: activePage,
+      x: Math.max(0, Math.min(0.65, x)), y: Math.max(0, Math.min(0.92, y)),
+      w: 0.35, h: 0.075,
+      data: sigData, timestamp: new Date().toISOString(),
+      lat: geo?.lat || "unavailable", lng: geo?.lng || "unavailable",
+      signerName: nameInput || "", signerEmail: emailInput || "",
+    };
+    setPlacedSigs(prev => [...prev, sig]);
+    setPlacingMode(false);
   };
 
-  const handleSignComplete = (docId, signerIdx, result) => {
-    const doc = allDocs.find(d=>d.id===docId); if (!doc) return;
-    const signers = doc.signers.map((s,i)=>i===signerIdx?{...s,status:"signed",signedAt:result.signedAt,lat:result.geo?.lat,lng:result.geo?.lng}:s);
-    const done    = signers.every(s=>s.status==="signed");
-    pushDoc({ ...doc, values:result.values, signers, status:done?"completed":"pending", ...(done?{completedAt:new Date().toISOString()}:{}) });
-    setSigning(null);
+  const removeSig = id => setPlacedSigs(prev => prev.filter(s => s.id !== id));
+
+  const handleSave = () => {
+    if (placedSigs.length === 0) { alert("Please place at least one signature on the PDF."); return; }
+    onSave({ signatures: placedSigs, signedAt: new Date().toISOString(), geo, signerName: nameInput || "", signerEmail: emailInput || "" });
   };
 
-  const FILTERS = [{key:"all",label:"All"},{key:"draft",label:"Drafts"},{key:"pending",label:"Pending"},{key:"partial",label:"Partially Signed"},{key:"completed",label:"Completed"}];
+  const pages = Array.from({ length: pageCount }, (_, i) => i + 1);
+  if (!pdfData) return null;
 
   return (
-    <div className="scroll">
-      {showCompose && <DocComposerModal proj={proj} onSave={pushDoc} onClose={()=>setShowCompose(false)}/>}
-      {signing    && <SigningModal doc={signing.doc} signerIdx={signing.idx} onComplete={r=>handleSignComplete(signing.doc.id,signing.idx,r)} onClose={()=>setSigning(null)}/>}
-      {sendModal  && <SendRemoteModal doc={sendModal} onSend={()=>pushDoc({...sendModal,status:"pending"})} onClose={()=>setSendModal(null)}/>}
-      {preview    && <PreviewModal doc={preview} onClose={()=>setPreview(null)}/>}
-
-      <div style={{ maxWidth:900, margin:"0 auto" }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:13 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:9 }}>
-            <div className="sec" style={{ margin:0 }}>Documents</div>
-            {allDocs.length>0 && <span className="mono" style={{ fontSize:9, color:"var(--t3)" }}>{allDocs.length}</span>}
+    <div style={{ position: "fixed", inset: 0, background: "rgba(6,7,13,.94)", backdropFilter: "blur(6px)", zIndex: 2000, display: "flex", flexDirection: "column", alignItems: "center", overflowY: "auto", padding: 20 }}>
+      <div style={{ width: "100%", maxWidth: 860, display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexShrink: 0 }}>
+        <div>
+          <div style={{ color: "var(--t1)", fontWeight: 800, fontSize: 16 }}>Sign: {docName}</div>
+          <div className="mono" style={{ fontSize: 9, color: "var(--t3)", marginTop: 2 }}>DRAW YOUR SIGNATURE BELOW, THEN CLICK ON THE PDF TO PLACE IT</div>
+        </div>
+        <div style={{ display: "flex", gap: 7 }}>
+          <button className="btn btn-ghost btn-xs" onClick={onClose}>{Di.close} Cancel</button>
+          <button className="btn btn-primary btn-xs" onClick={handleSave} disabled={placedSigs.length === 0}>{Di.check} Save Signed Document</button>
+        </div>
+      </div>
+      {!geoAsked && (
+        <div className="card anim" style={{ maxWidth: 420, width: "100%", padding: 28, textAlign: "center", marginBottom: 14 }}>
+          <div style={{ display: "flex", justifyContent: "center", color: "var(--t2)", marginBottom: 10 }}>{Di.pin}</div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: "var(--t1)", marginBottom: 8 }}>Location Verification</div>
+          <div style={{ fontSize: 11, color: "var(--t2)", lineHeight: 1.75, marginBottom: 20 }}>
+            Job-Dox can record GPS coordinates with your signature for verification purposes.
           </div>
-          <button className="btn btn-primary btn-xs" onClick={()=>setShowCompose(true)}>{Di.plus} New Document</button>
+          {geoLoading
+            ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--amber)", fontSize: 11 }}><Spin color="var(--amber)" /> Requesting location...</div>
+            : <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button className="btn btn-primary" onClick={requestGeo}>Allow Location Access</button>
+              <button className="btn btn-ghost btn-xs" onClick={() => { setGeo({ lat: "unavailable", lng: "unavailable" }); setGeoAsked(true); }}>Skip</button>
+            </div>}
+        </div>
+      )}
+      {geoAsked && (
+        <>
+          <div style={{ width: "100%", maxWidth: 860, marginBottom: 14, background: "var(--s2)", borderRadius: 10, border: "1px solid var(--br)", padding: 16 }}>
+            <SignaturePad label="Draw your signature" height={100} onCapture={d => setSigData(d)} onClear={() => setSigData(null)} />
+            {sigData && (
+              <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
+                <button className={`btn ${placingMode ? "btn-primary" : "btn-secondary"} btn-xs`} onClick={() => setPlacingMode(!placingMode)}>
+                  {placingMode ? "Click on PDF to place ↓" : `Place Signature on PDF`}
+                </button>
+              </div>
+            )}
+          </div>
+          {placedSigs.length > 0 && (
+            <div style={{ width: "100%", maxWidth: 860, marginBottom: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {placedSigs.map((s, i) => (
+                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(26,217,138,.08)", border: "1px solid rgba(26,217,138,.28)", borderRadius: 8, padding: "5px 10px" }}>
+                  <span style={{ color: "var(--green)", fontSize: 10, fontWeight: 700 }}>{Di.check} Signature {i + 1} — Page {s.page}</span>
+                  <button onClick={() => removeSig(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--acc)", fontSize: 10, padding: 0 }}>{Di.close}</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ width: "100%", maxWidth: 860 }}>
+            {pages.map(p => (
+              <div key={p} style={{ display: activePage === p ? "block" : "none", overflowX: "auto" }}>
+                <div ref={activePage === p ? wrapRef : null}
+                  style={{ position: "relative", cursor: placingMode ? "crosshair" : "default", display: "inline-block", borderRadius: 3, overflow: "hidden", boxShadow: "0 8px 40px rgba(0,0,0,.5)" }}
+                  onClick={activePage === p ? handleCanvasClick : undefined}>
+                  <PdfPageCanvas pdfData={pdfData} pageNum={p} width={720} onDims={d => setDims(prev => ({ ...prev, [p]: d }))} />
+                  {dims[p] && placedSigs.filter(s => s.page === p).map(s => (
+                    <div key={s.id} style={{ position: "absolute", left: s.x * dims[p].w, top: s.y * dims[p].h, width: s.w * dims[p].w, height: s.h * dims[p].h, border: "2px solid var(--green)", borderRadius: 5, background: "rgba(26,217,138,.05)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                      <img src={s.data} alt="Signature" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DOCUMENTS TAB — PART 4 — main export for project documents panel
+// Shows documents with status badges, send/view/download actions
+// ─────────────────────────────────────────────────────────────────────────────
+export function DocumentsTab({ proj, companyId, embedded }) {
+  const cid = companyId || _docsCompanyId;
+  const [docs, setDocs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [sendModal, setSendModal] = useState(null);
+  const [filter, setFilter] = useState("all");
+
+  const reload = () => {
+    if (!cid || !proj?.id) { setLoading(false); return; }
+    setLoading(true);
+    fsLoadProjectDocuments(cid, proj.id).then(d => { setDocs(d); setLoading(false); }).catch(() => setLoading(false));
+  };
+
+  useEffect(() => { reload(); }, [cid, proj?.id]);
+
+  const deleteDocument = async (docId) => {
+    if (!window.confirm("Delete this document?")) return;
+    try {
+      await fsDeleteProjectDocument(cid, proj.id, docId);
+      reload();
+    } catch (e) { alert("Failed to delete: " + e.message); }
+  };
+
+  const downloadPdf = async (docData) => {
+    try {
+      const res = await callFn("flatten-pdf", {
+        companyId: cid,
+        projectId: proj?.id,
+        documentId: docData.documentId,
+      });
+      if (res.pdfBase64) {
+        const link = document.createElement("a");
+        link.href = res.pdfBase64;
+        link.download = (docData.name || "document") + "-signed.pdf";
+        link.click();
+      } else {
+        // Fallback: download raw PDF
+        const pdfData = docData.pdfBase64 || docData.pdfData;
+        if (pdfData) {
+          const link = document.createElement("a");
+          link.href = pdfData;
+          link.download = (docData.name || "document") + ".pdf";
+          link.click();
+        }
+      }
+    } catch {
+      // Fallback: download raw PDF without flatten
+      const pdfData = docData.pdfBase64 || docData.pdfData;
+      if (pdfData) {
+        const link = document.createElement("a");
+        link.href = pdfData;
+        link.download = (docData.name || "document") + ".pdf";
+        link.click();
+      }
+    }
+  };
+
+  const filtered = filter === "all" ? docs : docs.filter(d => (d.status || "draft") === filter);
+  const FILTERS = [
+    { key: "all", label: "All" },
+    { key: "draft", label: "Draft" },
+    { key: "sent", label: "Sent" },
+    { key: "signed", label: "Signed" },
+  ];
+
+  return (
+    <div className={embedded ? "" : "scroll"}>
+      {showAdd && <AddDocumentModal proj={proj} companyId={cid} onSave={() => reload()} onClose={() => { setShowAdd(false); reload(); }} />}
+      {preview && <PreviewModal docData={preview} onClose={() => setPreview(null)} />}
+      {sendModal && <SendSignatureModal docData={sendModal} companyId={cid} proj={proj} onClose={() => { setSendModal(null); reload(); }} />}
+
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 13 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+            <div className="sec" style={{ margin: 0 }}>Documents</div>
+            {docs.length > 0 && <span className="mono" style={{ fontSize: 9, color: "var(--t3)" }}>{docs.length}</span>}
+          </div>
+          <button className="btn btn-primary btn-xs" onClick={() => setShowAdd(true)}>{Di.plus} Add Document</button>
         </div>
 
-        {allDocs.length>1 && (
-          <div style={{ display:"flex", gap:5, marginBottom:13, flexWrap:"wrap" }}>
-            {FILTERS.map(f=><button key={f.key} onClick={()=>setFilter(f.key)} className={`chip${filter===f.key?" on":""}`}>{f.label}</button>)}
+        {docs.length > 1 && (
+          <div style={{ display: "flex", gap: 5, marginBottom: 13, flexWrap: "wrap" }}>
+            {FILTERS.map(f => <button key={f.key} onClick={() => setFilter(f.key)} className={`chip${filter === f.key ? " on" : ""}`}>{f.label}</button>)}
           </div>
         )}
 
-        {allDocs.length===0 && (
+        {loading && <div style={{ textAlign: "center", padding: 40 }}><Spin size={20} color="var(--t2)" /></div>}
+
+        {!loading && docs.length === 0 && (
           <div className="empty">
-            <div style={{ color:"var(--t3)" }}>{Di.doc}</div>
-            <div style={{ fontWeight:700, fontSize:14, color:"var(--t1)" }}>No documents yet</div>
-            <div style={{ fontSize:11, color:"var(--t3)", maxWidth:340, lineHeight:1.65, textAlign:"center" }}>
-              Create a PDF template first in Advanced Tools, then use it here to generate signable documents for this project.
+            <div style={{ color: "var(--t3)" }}>{Di.doc}</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "var(--t1)" }}>No documents yet</div>
+            <div style={{ fontSize: 11, color: "var(--t3)", maxWidth: 340, lineHeight: 1.65, textAlign: "center" }}>
+              Add a document from a template or upload a PDF directly to get started with digital signatures.
             </div>
-            <button className="btn btn-primary btn-xs" onClick={()=>setShowCompose(true)}>{Di.plus} New Document</button>
+            <button className="btn btn-primary btn-xs" onClick={() => setShowAdd(true)}>{Di.plus} Add Document</button>
           </div>
         )}
 
-        {filtered.map(doc => {
-          const st     = getDocStatus(doc);
-          const meta   = STATUS_META[st]||STATUS_META.draft;
-          const tmpl   = loadTemplates().find(t=>t.id===doc.templateId);
-          const signed = doc.signers?.filter(s=>s.status==="signed").length||0;
-          const total  = doc.signers?.length||0;
+        {!loading && filtered.map(docData => {
+          const st = docData.status || "draft";
+          const meta = STATUS_META[st] || STATUS_META.draft;
           return (
-            <div key={doc.id} className="row" style={{ marginBottom:6, padding:0, overflow:"hidden" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:11, padding:"11px 13px" }}>
-                <div style={{ width:34, height:34, borderRadius:8, flexShrink:0, background:`${tmpl?.color||meta.color}18`, color:tmpl?.color||meta.color, display:"flex", alignItems:"center", justifyContent:"center" }}>{Di.doc}</div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                    <span style={{ fontWeight:700, fontSize:12, color:"var(--t1)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{doc.name}</span>
-                    <span className="mono" style={{ fontSize:9, background:meta.bg, color:meta.color, borderRadius:20, padding:"2px 9px", flexShrink:0 }}>
-                      <span style={{ width:5, height:5, borderRadius:"50%", background:meta.color, display:"inline-block", marginRight:4 }}/>
+            <div key={docData.documentId} className="row" style={{ marginBottom: 6, padding: 0, overflow: "hidden" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 13px" }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0, background: `${meta.color}18`, color: meta.color, display: "flex", alignItems: "center", justifyContent: "center" }}>{Di.doc}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 700, fontSize: 12, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{docData.name}</span>
+                    <span className="mono" style={{ fontSize: 9, background: meta.bg, color: meta.color, borderRadius: 20, padding: "2px 9px", flexShrink: 0 }}>
+                      <span style={{ width: 5, height: 5, borderRadius: "50%", background: meta.color, display: "inline-block", marginRight: 4 }} />
                       {meta.label.toUpperCase()}
                     </span>
                   </div>
-                  <div style={{ fontSize:10, color:"var(--t3)", marginTop:3, display:"flex", gap:10, flexWrap:"wrap" }}>
-                    <span>{new Date(doc.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>
-                    {total>0 && <span>Signatures: <strong style={{ color:signed===total?"var(--green)":signed>0?"var(--amber)":"var(--t2)" }}>{signed}/{total}</strong></span>}
-                    {doc.completedAt && <span style={{ color:"var(--green)" }}>Executed {new Date(doc.completedAt).toLocaleDateString("en-US")}</span>}
+                  <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 3, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <span>{docData.templateName || "Direct Upload"}</span>
+                    <span>{docData.createdAt ? new Date(docData.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : ""}</span>
+                    {docData.signedAt && <span style={{ color: "var(--green)" }}>Signed {new Date(docData.signedAt).toLocaleDateString("en-US")}</span>}
                   </div>
                 </div>
-                {doc.signers?.length>0 && (
-                  <div style={{ display:"flex", gap:3, flexShrink:0 }}>
-                    {doc.signers.map((s,i)=>(
-                      <div key={i} title={`${s.name}: ${s.status}`} style={{ width:24, height:24, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, flexShrink:0, background:s.status==="signed"?"rgba(26,217,138,.15)":"rgba(232,156,24,.12)", color:s.status==="signed"?"var(--green)":"var(--amber)", border:`1.5px solid ${s.status==="signed"?"rgba(26,217,138,.4)":"rgba(232,156,24,.3)"}` }}>
-                        {(s.name||"?")[0].toUpperCase()}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div style={{ display:"flex", gap:5, flexShrink:0 }}>
-                  <button className="btn btn-ghost btn-xs" title="Preview" onClick={()=>setPreview(doc)}>{Di.eye}</button>
-                  {st!=="void"&&st!=="completed"&&total>0 && <button className="btn btn-secondary btn-xs" onClick={()=>setSigning({doc,idx:0})}>{Di.pen} Sign</button>}
-                  {st!=="void"&&total>0&&signed<total && <button className="btn btn-ghost btn-xs" style={{ color:"var(--blue)" }} onClick={()=>setSendModal(doc)}>{Di.send} Send</button>}
-                  {st==="draft" && <button className="btn btn-ghost btn-xs" style={{ color:"var(--t3)" }} onClick={()=>pushDoc({...doc,status:"void"})}>Void</button>}
-                  <button className="btn btn-ghost btn-xs" style={{ color:"var(--acc)" }} onClick={()=>deleteDoc(doc.id)}>{Di.trash}</button>
+                <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                  {st !== "signed" && (
+                    <button className="btn btn-secondary btn-xs" onClick={() => setSendModal(docData)}>{Di.send} Send</button>
+                  )}
+                  <button className="btn btn-ghost btn-xs" title="Preview" onClick={() => setPreview(docData)}>{Di.eye}</button>
+                  <button className="btn btn-ghost btn-xs" title="Download" onClick={() => downloadPdf(docData)}>{Di.download}</button>
+                  <button className="btn btn-ghost btn-xs" style={{ color: "var(--acc)" }} onClick={() => deleteDocument(docData.documentId)}>{Di.trash}</button>
                 </div>
               </div>
-              {st==="partial" && doc.signers?.map((s,i)=>(
-                <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 13px", borderTop:"1px solid var(--br)", background:s.status==="signed"?"rgba(26,217,138,.03)":"rgba(232,156,24,.03)" }}>
-                  <span style={{ width:6, height:6, borderRadius:"50%", background:s.status==="signed"?"var(--green)":"var(--amber)", flexShrink:0 }}/>
-                  <span style={{ fontSize:11, color:"var(--t2)", flex:1 }}>{s.name||`Signer ${i+1}`}<span style={{ color:"var(--t3)", marginLeft:5 }}>({s.role})</span></span>
-                  {s.status==="signed"
-                    ? <span className="mono" style={{ fontSize:9, color:"var(--green)" }}>{Di.check} SIGNED {s.signedAt?new Date(s.signedAt).toLocaleDateString("en-US"):""}</span>
-                    : <div style={{ display:"flex", gap:5 }}>
-                        <button className="btn btn-ghost btn-xs" onClick={()=>setSigning({doc,idx:i})}>Sign Now</button>
-                        <button className="btn btn-ghost btn-xs" onClick={()=>setSendModal(doc)}>Resend</button>
-                      </div>}
-                </div>
-              ))}
             </div>
           );
         })}
@@ -1564,4 +1553,270 @@ export function DocumentsTab({ proj, docs:docsIn, setDocs:setDocsIn }) {
   );
 }
 
-export default DocumentsTab;
+// ─────────────────────────────────────────────────────────────────────────────
+// PUBLIC SIGNING PAGE — PART 3
+// Accessible at /sign/{signingToken} — no login required
+// ─────────────────────────────────────────────────────────────────────────────
+export function PublicSigningPage({ token }) {
+  const [loading, setLoading] = useState(true);
+  const [docData, setDocData] = useState(null);
+  const [error, setError] = useState(null);
+  const [values, setValues] = useState({});
+  const [activeField, setActiveField] = useState(null);
+  const [sigData, setSigData] = useState(null);
+  const [textDraft, setTextDraft] = useState("");
+  const [activePage, setActivePage] = useState(1);
+  const [dims, setDims] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  // Load document by token
+  useEffect(() => {
+    if (!token) { setError("No signing token provided."); setLoading(false); return; }
+    (async () => {
+      try {
+        const result = await fsLookupBySigningToken(token);
+        if (!result) {
+          setError("This signing link is invalid or has expired.");
+          setLoading(false);
+          return;
+        }
+        if (result.status === "signed") {
+          setError("This document has already been signed.");
+          setLoading(false);
+          return;
+        }
+        setDocData(result);
+        // Pre-fill values from document
+        const v = {};
+        (result.fields || []).forEach(f => {
+          const fid = f.fieldId || f.id;
+          if (result.values?.[fid]) {
+            v[fid] = result.values[fid];
+          } else if (f.prefillValue) {
+            v[fid] = { text: f.prefillValue };
+          } else if (f.type === "date") {
+            v[fid] = { text: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) };
+          }
+        });
+        setValues(v);
+        setLoading(false);
+      } catch (e) {
+        setError("Failed to load document: " + e.message);
+        setLoading(false);
+      }
+    })();
+  }, [token]);
+
+  const pdfData = docData?.pdfBase64 || docData?.pdfData;
+  const fields = docData?.fields || [];
+  const pages = docData ? Array.from({ length: docData.pageCount || 1 }, (_, i) => i + 1) : [];
+
+  const requiredFields = fields.filter(f => f.required !== false);
+  const allRequiredDone = requiredFields.every(f => {
+    const v = values[f.fieldId || f.id];
+    return !!v?.data || !!v?.text || v?.checked;
+  });
+
+  const handleFieldTap = f => {
+    setActiveField(f);
+    setSigData(null);
+    setTextDraft(values[f.fieldId || f.id]?.text || "");
+  };
+
+  const applyValue = val => {
+    if (!activeField) return;
+    const fid = activeField.fieldId || activeField.id;
+    setValues(v => ({ ...v, [fid]: val }));
+    setActiveField(null);
+  };
+
+  const handleSubmit = async () => {
+    if (!allRequiredDone || !docData) return;
+    setSubmitting(true);
+    try {
+      // Get signer IP via Netlify function
+      let signerIp = "unavailable";
+      try {
+        const ipRes = await fetch("/.netlify/functions/get-ip");
+        const ipJson = await ipRes.json();
+        signerIp = ipJson.ip || "unavailable";
+      } catch {}
+
+      // Update document in Firestore
+      const ref = doc(_docsDb, "companies", docData.companyId, "projects", docData.projectId, "documents", docData.documentId);
+      await updateDoc(ref, {
+        values: values,
+        status: "signed",
+        signedAt: serverTimestamp(),
+        signerIp,
+        signerUserAgent: navigator.userAgent,
+        updatedAt: serverTimestamp(),
+      });
+
+      setSubmitted(true);
+    } catch (e) {
+      alert("Failed to submit: " + e.message);
+    }
+    setSubmitting(false);
+  };
+
+  // Confirmation screen
+  if (submitted) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#06070d", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: "'Outfit', sans-serif" }}>
+        <div style={{ textAlign: "center", maxWidth: 500, width: "100%" }}>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(26,217,138,.15)", border: "2px solid rgba(26,217,138,.4)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", color: "#1ad98a" }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" /></svg>
+          </div>
+          <div style={{ fontWeight: 800, fontSize: 22, color: "#eef1f8", marginBottom: 8 }}>Thank You</div>
+          <div style={{ fontSize: 14, color: "#8b95b0", lineHeight: 1.7, marginBottom: 20 }}>
+            Your document has been signed successfully. A copy will be available to the sending company.
+          </div>
+          <div style={{ fontSize: 11, color: "#404866", marginTop: 20 }}>Powered by Job-Dox</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading / error states
+  if (loading) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#06070d", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit', sans-serif" }}>
+        <div style={{ textAlign: "center", color: "#8b95b0" }}>
+          <Spin size={24} color="#8b95b0" />
+          <div style={{ marginTop: 12, fontSize: 13 }}>Loading document...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#06070d", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: "'Outfit', sans-serif" }}>
+        <div style={{ textAlign: "center", maxWidth: 400, color: "#8b95b0" }}>
+          <div style={{ fontSize: 40, marginBottom: 12, opacity: .3 }}>📄</div>
+          <div style={{ fontWeight: 700, fontSize: 16, color: "#eef1f8", marginBottom: 8 }}>Document Not Available</div>
+          <div style={{ fontSize: 13, lineHeight: 1.7 }}>{error}</div>
+          <div style={{ fontSize: 11, color: "#404866", marginTop: 20 }}>Powered by Job-Dox</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#06070d", display: "flex", flexDirection: "column", alignItems: "center", padding: "20px 12px", fontFamily: "'Outfit', sans-serif" }}>
+      {/* Header */}
+      <div style={{ width: "100%", maxWidth: 800, marginBottom: 16 }}>
+        <div style={{ fontWeight: 800, fontSize: 18, color: "#eef1f8" }}>{docData.name}</div>
+        <div style={{ fontSize: 11, color: "#404866", marginTop: 2, fontFamily: "'Space Mono', monospace" }}>
+          {docData.projectName && `PROJECT: ${docData.projectName} · `}PLEASE REVIEW AND SIGN BELOW
+        </div>
+      </div>
+
+      {/* Field input popup */}
+      {activeField && (
+        <div style={{ width: "100%", maxWidth: 800, marginBottom: 14, background: "#10121e", borderRadius: 12, border: "1px solid rgba(255,255,255,.1)", padding: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: "#eef1f8", marginBottom: 12 }}>{activeField.label || activeField.type}</div>
+
+          {(activeField.type === "signature" || activeField.type === "initials") && (
+            <>
+              <SignaturePad
+                label={activeField.type === "initials" ? "Draw your initials" : "Draw your full signature"}
+                height={activeField.type === "initials" ? 80 : 120}
+                onCapture={setSigData} onClear={() => setSigData(null)}
+              />
+              <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                <button onClick={() => setActiveField(null)} style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1px solid rgba(255,255,255,.15)", background: "transparent", color: "#8b95b0", cursor: "pointer", fontSize: 12, fontFamily: "'Outfit', sans-serif" }}>Cancel</button>
+                <button disabled={!sigData} onClick={() => applyValue({ data: sigData, timestamp: new Date().toISOString() })}
+                  style={{ flex: 2, padding: "10px", borderRadius: 8, border: "none", background: sigData ? "#e43531" : "#1c2035", color: "#fff", cursor: sigData ? "pointer" : "default", fontSize: 12, fontWeight: 700, fontFamily: "'Outfit', sans-serif", opacity: sigData ? 1 : .4 }}>
+                  Apply
+                </button>
+              </div>
+            </>
+          )}
+
+          {(activeField.type === "textInput" || activeField.type === "date") && (
+            <>
+              {activeField.type === "date"
+                ? <input type="date" value={textDraft} onChange={e => setTextDraft(e.target.value)}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,.15)", background: "#0c0e18", color: "#eef1f8", fontSize: 13, fontFamily: "'Outfit', sans-serif", outline: "none" }} />
+                : <input value={textDraft} onChange={e => setTextDraft(e.target.value)} placeholder={activeField.label}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,.15)", background: "#0c0e18", color: "#eef1f8", fontSize: 13, fontFamily: "'Outfit', sans-serif", outline: "none" }} />
+              }
+              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                <button onClick={() => setActiveField(null)} style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1px solid rgba(255,255,255,.15)", background: "transparent", color: "#8b95b0", cursor: "pointer", fontSize: 12, fontFamily: "'Outfit', sans-serif" }}>Cancel</button>
+                <button disabled={!textDraft.trim()} onClick={() => applyValue({ text: textDraft.trim() })}
+                  style={{ flex: 2, padding: "10px", borderRadius: 8, border: "none", background: textDraft.trim() ? "#e43531" : "#1c2035", color: "#fff", cursor: textDraft.trim() ? "pointer" : "default", fontSize: 12, fontWeight: 700, fontFamily: "'Outfit', sans-serif", opacity: textDraft.trim() ? 1 : .4 }}>
+                  Apply
+                </button>
+              </div>
+            </>
+          )}
+
+          {activeField.type === "checkbox" && (
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <button onClick={() => setActiveField(null)} style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1px solid rgba(255,255,255,.15)", background: "transparent", color: "#8b95b0", cursor: "pointer", fontSize: 12, fontFamily: "'Outfit', sans-serif" }}>Cancel</button>
+              <button onClick={() => applyValue({ checked: true })}
+                style={{ flex: 2, padding: "10px", borderRadius: 8, border: "none", background: "#e43531", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "'Outfit', sans-serif" }}>
+                Check
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* PDF + overlay */}
+      {pdfData && !activeField && (
+        <div style={{ width: "100%", maxWidth: 800 }}>
+          {pages.length > 1 && (
+            <div style={{ display: "flex", gap: 5, marginBottom: 10, flexWrap: "wrap" }}>
+              {pages.map(p => (
+                <button key={p} onClick={() => setActivePage(p)}
+                  style={{ padding: "4px 12px", borderRadius: 20, border: `1px solid ${activePage === p ? "#e43531" : "rgba(255,255,255,.1)"}`, background: activePage === p ? "rgba(228,53,49,.1)" : "transparent", color: activePage === p ? "#e43531" : "#8b95b0", cursor: "pointer", fontSize: 10, fontFamily: "'Outfit', sans-serif" }}>
+                  Page {p}
+                </button>
+              ))}
+            </div>
+          )}
+          {pages.map(p => (
+            <div key={p} style={{ display: activePage === p ? "block" : "none", overflowX: "auto" }}>
+              <div style={{ position: "relative", display: "inline-block", borderRadius: 3, overflow: "hidden", boxShadow: "0 8px 40px rgba(0,0,0,.5)" }}>
+                <PdfPageCanvas pdfData={pdfData} pageNum={p} width={Math.min(780, window.innerWidth - 40)} onDims={d => setDims(prev => ({ ...prev, [p]: d }))} />
+                {dims[p] && fields.filter(f => f.page === p).map(f => (
+                  <FieldBox key={f.fieldId || f.id} field={f} dims={dims[p]} value={values[f.fieldId || f.id]}
+                    isMine={true} onTap={handleFieldTap} highlightPending={!allRequiredDone} />
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* Submit button */}
+          <div style={{ marginTop: 16, textAlign: "center" }}>
+            {!allRequiredDone ? (
+              <div style={{ padding: "12px 16px", background: "rgba(232,156,24,.08)", border: "1px solid rgba(232,156,24,.25)", borderRadius: 10, color: "#e89c18", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" /></svg>
+                Tap the highlighted fields above to complete signing
+              </div>
+            ) : (
+              <>
+                <div style={{ padding: "12px 16px", background: "rgba(26,217,138,.08)", border: "1px solid rgba(26,217,138,.25)", borderRadius: 10, color: "#1ad98a", fontSize: 13, fontWeight: 700, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" /></svg>
+                  All required fields complete
+                </div>
+                <button onClick={handleSubmit} disabled={submitting}
+                  style={{ padding: "14px 40px", borderRadius: 10, border: "none", background: "#e43531", color: "#fff", cursor: "pointer", fontSize: 15, fontWeight: 800, fontFamily: "'Outfit', sans-serif", transition: "opacity .15s", opacity: submitting ? .6 : 1 }}>
+                  {submitting ? "Submitting..." : "Submit & Sign"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 30, fontSize: 10, color: "#404866", textAlign: "center" }}>
+        Powered by <strong style={{ color: "#8b95b0" }}>Job-Dox</strong> · Secure Digital Signatures
+      </div>
+    </div>
+  );
+}
