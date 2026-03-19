@@ -13727,6 +13727,7 @@ export default function JobDoxPortal() {
       // ── Firebase Auth Bridge — authenticate with Firebase before any Firestore access ──
       try {
         const msToken = await window.$memberstackDom.getMemberToken();
+        console.log("Calling Firebase auth bridge...");
         const authRes = await fetch("/.netlify/functions/ms-firebase-auth", {
           method: "POST",
           headers: {
@@ -13737,6 +13738,7 @@ export default function JobDoxPortal() {
         if (!authRes.ok) throw new Error("Auth bridge failed");
         const { firebaseToken } = await authRes.json();
         await signInWithCustomToken(fbAuth, firebaseToken);
+        console.log("Firebase auth complete — user signed in");
       } catch (err) {
         console.error("Firebase auth failed:", err);
         if (window.$memberstackDom?.logout) await window.$memberstackDom.logout();
