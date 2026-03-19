@@ -13726,7 +13726,16 @@ export default function JobDoxPortal() {
 
       // ── Firebase Auth Bridge — authenticate with Firebase before any Firestore access ──
       try {
-        const msToken = await window.$memberstackDom.getMemberToken();
+        // getMemberToken() does not exist on Memberstack v2 DOM SDK.
+        // The member object from getCurrentMember().data carries auth.token.
+        let msToken = member.auth?.token;
+        if (!msToken) {
+          const memberData = await window.$memberstackDom.getCurrentMember();
+          msToken = memberData?.data?.auth?.token
+                 || memberData?.data?.token
+                 || memberData?.token;
+        }
+        console.log("MS token retrieved:", msToken ? "yes" : "no — token is empty");
         const authRes = await fetch("/.netlify/functions/ms-firebase-auth", {
           method: "POST",
           headers: {
