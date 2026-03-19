@@ -107,11 +107,11 @@ exports.handler = async (event) => {
     console.log("companyId resolved:", companyId);
     console.log("member.id:", member.id);
     console.log("customFields company-id:", member.customFields?.["company-id"]);
-    let permissionLevel = parseInt(
-      (member.customFields && member.customFields["permission-level"]) || "0",
-      10
-    );
+    let permissionLevel = parseInt(member.customFields?.["permission-level"] || member.customFields?.["permissionLevel"] || "0", 10);
     if (isNaN(permissionLevel)) permissionLevel = 0;
+    console.log("permissionLevel raw value:", member.customFields?.["permission-level"]);
+    console.log("permissionLevel resolved:", permissionLevel);
+    console.log("permissionLevel type:", typeof permissionLevel);
     if (!companyId || companyId === "unknown") {
       await writeAuditLog(db, {
         event: "auth_token_failed",
