@@ -62,10 +62,27 @@ exports.handler = async (event) => {
   } = body;
 
   if (!companyId || !docId || !signers?.length) {
-    return { statusCode: 400, headers, body: JSON.stringify({ error: "`companyId`, `docId`, and `signers` are required." }) };
+    return { statusCode: 400, headers, body: JSON.stringify({ error: "An error occurred" }) };
   }
 
   const db = getDb();
+
+  // ── Verify companyId exists in Firestore ──
+  try {
+    const companyDoc = await db.collection("companies").doc(companyId).get();
+    if (!companyDoc.exists) {
+      await db.collection("audit_logs").add({
+        event: "unauthorized_access_attempt",
+        function: "send-signing-request",
+        companyId,
+        success: false,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return { statusCode: 403, headers, body: JSON.stringify({ error: "An error occurred" }) };
+    }
+  } catch (_) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: "An error occurred" }) };
+  }
   const ts = admin.firestore.FieldValue.serverTimestamp();
   const results = [];
 

@@ -56,7 +56,7 @@ exports.handler = async (event) => {
     console.log("[api-keys] staffExists:", staffExists, "permission:", staffPerm);
     if (!staffExists || staffPerm < 8) {
       console.log("[api-keys] REJECTED — insufficient permission");
-      return error(403, "forbidden", "Only admins (permission >= 8) can manage API keys.");
+      return error(403, "forbidden", "Unauthorized");
     }
 
     console.log("[api-keys] Permission OK, routing to action:", action);
@@ -69,7 +69,7 @@ exports.handler = async (event) => {
     }
   } catch (err) {
     console.error("[api-keys] UNCAUGHT handler error:", err);
-    return error(500, "internal_error", err.message || "An unexpected error occurred.");
+    return error(500, "internal_error", "An error occurred");
   }
 };
 

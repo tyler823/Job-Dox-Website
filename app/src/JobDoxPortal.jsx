@@ -10,7 +10,6 @@ import EstimateDoxTab, { loadProjEstimates } from "./EstimateDox.jsx";
 import { TimeOffPanel } from "./JobDoxTimeOff.jsx";
 import DispatchPanel from "./JobDoxDispatch.jsx";
 import html2canvas from "html2canvas";
-import { initializeApp } from "firebase/app";
 import { Capacitor } from "@capacitor/core";
 
 // ── Redirect helper: reload in native Capacitor, redirect on web ─────────
@@ -21,21 +20,10 @@ function exitToLanding() {
     window.location.href = "https://job-dox.ai";
   }
 }
-import { getAuth, signInAnonymously } from "firebase/auth";
-import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
+import { signInWithCustomToken } from "firebase/auth";
+import { db, fbAuth } from "./firebase.js";
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
          doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where, Timestamp } from "firebase/firestore";
-
-const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyAFwSEDPqKgAUbwbh_2KZNwLDdGCZEiq3E",
-  authDomain:        "cortex-717c6.firebaseapp.com",
-  projectId:         "cortex-717c6",
-  storageBucket:     "cortex-717c6.firebasestorage.app",
-  messagingSenderId: "496631882511",
-  appId:             "1:496631882511:web:3f7be61bcbb83a6ab4d47a",
-};
-const _fbApp  = initializeApp(FIREBASE_CONFIG);
-const db      = getFirestore(_fbApp);
-const fbAuth  = getAuth(_fbApp);
 
 // ── Single-session enforcement ──────────────────────────────────────────────
 // On login we write a random token to activeSessions/{memberstackId}.
@@ -13610,6 +13598,7 @@ export default function JobDoxPortal() {
   const [customStatuses,   setCustomStatuses]  = useState(loadCST);
   const [customProjectTypes,setCustomProjectTypes] = useState(loadCPT);
   const [phoneSettings,     setPhoneSettings]      = useState({});  // loaded from Firestore on companyId resolve
+  const [authError,          setAuthError]          = useState(null);  // Firebase auth bridge error
   const [cortexAlert,        setCortexAlert]        = useState(null);  // Cortex Coins usage alert
   const [cortexAlertDismissed, setCortexAlertDismissed] = useState(false);
   const [coInfo,               setCoInfo]              = useState(loadCoInfo);
@@ -13735,14 +13724,29 @@ export default function JobDoxPortal() {
       setCurrentMember(member);
       const email = member.auth?.email || "";
 
+      // ── Firebase Auth Bridge — authenticate with Firebase before any Firestore access ──
+      try {
+        const msToken = await window.$memberstackDom.getMemberToken();
+        const authRes = await fetch("/.netlify/functions/ms-firebase-auth", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${msToken}`,
+          },
+        });
+        if (!authRes.ok) throw new Error("Auth bridge failed");
+        const { firebaseToken } = await authRes.json();
+        await signInWithCustomToken(fbAuth, firebaseToken);
+      } catch (err) {
+        console.error("Firebase auth failed:", err);
+        if (window.$memberstackDom?.logout) await window.$memberstackDom.logout();
+        setAuthError("Authentication error. Please try logging in again.");
+        return;
+      }
+
       // ── Support Mode: detect @job-dox.com staff ──
       if (email.toLowerCase().endsWith("@job-dox.com")) {
         setIsSupportUser(true);
-        // Sign in to Firebase Auth so Firestore security rules see request.auth != null
-        // when we later operate inside a customer's data.
-        try { await signInAnonymously(fbAuth); } catch (e) {
-          console.warn("Firebase anonymous sign-in failed:", e);
-        }
         // Load company list from the server-side Netlify function
         // (calls Memberstack Admin API — keeps secret key off the client)
         try {
@@ -14327,6 +14331,16 @@ export default function JobDoxPortal() {
   };
 
   const navTo = (pg) => { setPage(pg); setSelected(null); setShowTools(false); setShowCopilot(false); };
+
+  // ── Auth Error Screen ──
+  if (authError) {
+    return (
+      <div className={`jdp${isLight?" lt":""}`} style={{alignItems:"center",justifyContent:"center",display:"flex",height:"100vh",flexDirection:"column"}}>
+        <p style={{color:"var(--red)",fontSize:"1.1rem",marginBottom:"1rem"}}>{authError}</p>
+        <button className="btn" onClick={() => { setAuthError(null); window.location.reload(); }}>Try Again</button>
+      </div>
+    );
+  }
 
   // ── Support Mode: Company Selector screen ──
   if (isSupportUser && !supportCompanySelected) {
