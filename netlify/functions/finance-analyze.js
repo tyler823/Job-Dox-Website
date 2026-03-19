@@ -44,6 +44,20 @@ exports.handler = async (event) => {
     return respond(400, { error: "Missing required field: prompt" });
   }
 
+  // ── Verify companyId exists in Firestore ──
+  if (!companyId) {
+    return respond(400, { error: "An error occurred" });
+  }
+  try {
+    const db = getDb();
+    const companyDoc = await db.collection("companies").doc(companyId).get();
+    if (!companyDoc.exists) {
+      return respond(403, { error: "An error occurred" });
+    }
+  } catch (_) {
+    return respond(500, { error: "An error occurred" });
+  }
+
   // ── Cortex Coins gate ──
   const coinCheck = await deductCortexCoin(companyId, 'finance-analyze', userId);
   if (!coinCheck.allowed) {
@@ -83,7 +97,7 @@ Format using **bold** for section headers and - for bullets.`;
     const json = await res.json();
     if (!res.ok) {
       console.error("[finance-analyze] Anthropic error:", json);
-      return respond(res.status, { error: json.error?.message || "Anthropic API error" });
+      return respond(res.status, { error: "An error occurred" });
     }
 
     const text = json.content?.find(b => b.type === "text")?.text || "";
@@ -91,7 +105,7 @@ Format using **bold** for section headers and - for bullets.`;
 
   } catch (err) {
     console.error("[finance-analyze] error:", err);
-    return respond(500, { error: err.message || "Analysis failed" });
+    return respond(500, { error: "An error occurred" });
   }
 };
 

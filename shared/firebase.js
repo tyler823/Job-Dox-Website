@@ -33,6 +33,7 @@ const FIREBASE_CONFIG = {
 
 const app     = initializeApp(FIREBASE_CONFIG);
 export const auth    = getAuth(app);
+export const fbAuth  = auth;
 export const db      = getFirestore(app);
 export const storage = getStorage(app);
 

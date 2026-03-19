@@ -80,6 +80,20 @@ exports.handler = async (event) => {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'incomingMessage is required' }) };
   }
 
+  // ── Verify companyId exists in Firestore ──
+  if (!companyId) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: "An error occurred" }) };
+  }
+  try {
+    const db = getDb();
+    const companyDoc = await db.collection("companies").doc(companyId).get();
+    if (!companyDoc.exists) {
+      return { statusCode: 403, headers, body: JSON.stringify({ error: "An error occurred" }) };
+    }
+  } catch (_) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: "An error occurred" }) };
+  }
+
   // ── Cortex Coins gate ──
   const coinCheck = await deductCortexCoin(companyId, 'adjuster-response', userId);
   if (!coinCheck.allowed) {
@@ -256,7 +270,7 @@ Craft a response that professionally addresses their points, defends the company
       return {
         statusCode: 502,
         headers,
-        body: JSON.stringify({ error: `AI service error: ${response.status}` }),
+        body: JSON.stringify({ error: "An error occurred" }),
       };
     }
 
@@ -274,7 +288,7 @@ Craft a response that professionally addresses their points, defends the company
     return {
       statusCode: 502,
       headers,
-      body: JSON.stringify({ error: 'Failed to reach AI service. Check network or API key.' }),
+      body: JSON.stringify({ error: "An error occurred" }),
     };
   }
 };

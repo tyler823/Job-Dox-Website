@@ -490,7 +490,7 @@ async function handleWebhooks(db, companyId, keyDoc, method, segments, body) {
 
       return success({ sent: true, url: webhook.url });
     } catch (err) {
-      return success({ sent: false, error: err.message });
+      return success({ sent: false, error: "An error occurred" });
     }
   }
 

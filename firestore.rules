@@ -1,0 +1,207 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── HELPER FUNCTIONS ──────────────────────────────────────
+    // Is the request from an authenticated Firebase user?
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    // Does the user's token match the companyId in the path?
+    function isOwnCompany(companyId) {
+      return isAuthed() && request.auth.token.companyId == companyId;
+    }
+
+    // Does the user meet a minimum permission level?
+    function hasPermission(level) {
+      return isAuthed() && request.auth.token.permissionLevel >= level;
+    }
+
+    // Is this a Job-Dox support user?
+    function isSupportUser() {
+      return isAuthed() && request.auth.token.supportUser == true;
+    }
+
+    // Combined check: own company AND minimum permission level
+    function canAccess(companyId, level) {
+      return isOwnCompany(companyId) && hasPermission(level);
+    }
+
+    // ── DENY ALL BY DEFAULT ───────────────────────────────────
+    // Everything not explicitly matched below is denied.
+
+    // ── AUDIT LOGS ────────────────────────────────────────────
+    // Written server-side only (Firebase Admin bypasses rules).
+    // No client can read or write audit logs.
+    match /audit_logs/{logId} {
+      allow read, write: if false;
+    }
+
+    // ── ACTIVE SESSIONS ───────────────────────────────────────
+    match /activeSessions/{memberId} {
+      allow read, write: if isAuthed()
+        && request.auth.uid == memberId;
+    }
+
+    // ── USERS ─────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read, write: if isAuthed()
+        && request.auth.uid == uid;
+    }
+
+    // ── COMPANY DATA (tenant-isolated) ────────────────────────
+    // All company data is gated: user must be authenticated AND
+    // their token's companyId must match the path's companyId.
+    // This makes cross-company access structurally impossible.
+
+    match /companies/{companyId} {
+
+      // Root company document
+      allow read: if isOwnCompany(companyId) || isSupportUser();
+      allow write: if canAccess(companyId, 8) || isSupportUser();
+
+      // Projects — all staff can read, level 5+ can write
+      match /projects/{projectId} {
+        allow read: if isOwnCompany(companyId) || isSupportUser();
+        allow write: if canAccess(companyId, 5) || isSupportUser();
+
+        // All project subcollections — read: own company, write: level 3+
+        match /{subcollection}/{docId} {
+          allow read: if isOwnCompany(companyId) || isSupportUser();
+          allow write: if canAccess(companyId, 3) || isSupportUser();
+        }
+      }
+
+      // Staff records — read: level 3+, write: level 9+
+      match /staff/{memberId} {
+        allow read: if canAccess(companyId, 3) || isSupportUser();
+        allow write: if canAccess(companyId, 9) || isSupportUser();
+      }
+
+      // Invites — read: level 3+, write: level 9+
+      match /invites/{inviteId} {
+        allow read: if canAccess(companyId, 3) || isSupportUser();
+        allow write: if canAccess(companyId, 9) || isSupportUser();
+      }
+
+      // Offices — read: all staff, write: level 8+
+      match /offices/{officeId} {
+        allow read: if isOwnCompany(companyId) || isSupportUser();
+        allow write: if canAccess(companyId, 8) || isSupportUser();
+      }
+
+      // Settings — read: level 3+, write: level 8+
+      match /settings/{key} {
+        allow read: if canAccess(companyId, 3) || isSupportUser();
+        allow write: if canAccess(companyId, 8) || isSupportUser();
+      }
+
+      // Billing and Cortex Coins — read: level 8+, write: server-side only
+      match /billing/{docId} {
+        allow read: if canAccess(companyId, 8) || isSupportUser();
+        allow write: if false;
+      }
+
+      // Payroll rates — read: level 8+, write: level 9+
+      match /payrollRates/{docId} {
+        allow read: if canAccess(companyId, 8) || isSupportUser();
+        allow write: if canAccess(companyId, 9) || isSupportUser();
+      }
+
+      // Shifts — read: level 5+, write: all staff (clock in/out)
+      match /shifts/{shiftId} {
+        allow read: if canAccess(companyId, 5) || isSupportUser();
+        allow write: if isOwnCompany(companyId) || isSupportUser();
+      }
+
+      // Vendor and AP data — read/write: level 5+
+      match /vendors/{vendorId} {
+        allow read, write: if canAccess(companyId, 5) || isSupportUser();
+      }
+      match /vendorBills/{billId} {
+        allow read, write: if canAccess(companyId, 5) || isSupportUser();
+      }
+
+      // API keys — server-side only
+      match /apiKeys/{keyId} {
+        allow read, write: if false;
+      }
+
+      // Webhooks — read/write: level 8+
+      match /webhooks/{webhookId} {
+        allow read, write: if canAccess(companyId, 8) || isSupportUser();
+      }
+
+      // Automations — read/write: level 8+
+      match /automations/{automationId} {
+        allow read, write: if canAccess(companyId, 8) || isSupportUser();
+        match /runs/{runId} {
+          allow read: if canAccess(companyId, 8) || isSupportUser();
+          allow write: if false;
+        }
+      }
+
+      // Review requests — read/write: level 5+
+      match /reviewRequests/{reqId} {
+        allow read, write: if canAccess(companyId, 5) || isSupportUser();
+      }
+
+      // Calls and SMS logs — read: level 3+, write: server-side only
+      match /calls/{callId} {
+        allow read: if canAccess(companyId, 3) || isSupportUser();
+        allow write: if false;
+      }
+      match /smsLogs/{logId} {
+        allow read: if canAccess(companyId, 3) || isSupportUser();
+        allow write: if false;
+      }
+
+      // Events and activity feed — read: all staff, write: level 3+
+      match /events/{eventId} {
+        allow read: if isOwnCompany(companyId) || isSupportUser();
+        allow write: if canAccess(companyId, 3) || isSupportUser();
+      }
+
+      // My Day personal tasks — user can only read/write their own
+      match /myDayTasks/{memberId} {
+        allow read, write: if isOwnCompany(companyId)
+          && request.auth.uid == memberId;
+      }
+
+      // Marketing data (subcollection) — read/write: level 8+
+      match /marketingData/{docId} {
+        allow read, write: if canAccess(companyId, 8) || isSupportUser();
+      }
+    }
+
+    // ── YARD SIGNS (global collection — tenant isolated by claim) ──
+    // Read: own company's signs only. Write: server-side only.
+    match /yard_signs/{signId} {
+      allow read: if isAuthed()
+        && resource.data.companyId == request.auth.token.companyId;
+      allow write: if false;
+    }
+
+    // ── MARKETING DATA (root collection) ──────────────────────
+    match /marketing_data/{companyId} {
+      allow read: if isOwnCompany(companyId) || isSupportUser();
+      allow write: if false;
+    }
+
+    // ── DOCUMENT SIGNING (public token access) ────────────────
+    // Signers access via unique token — no Firebase auth required.
+    // Client can never write signing requests.
+    match /signing_requests/{token} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ── CUSTOMER PORTAL SESSIONS ──────────────────────────────
+    match /portal_sessions/{sessionId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+  }
+}

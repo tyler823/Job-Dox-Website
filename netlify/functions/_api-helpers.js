@@ -113,11 +113,14 @@ async function authenticateRequest(event) {
   const rateLimitResult = checkRateLimit(keyDoc.id);
   if (!rateLimitResult.allowed) {
     return {
-      error: json(429, {
-        ok: false,
-        error: { code: "rate_limited", message: `Rate limit exceeded. Max ${RATE_LIMIT_MAX} requests per minute.` },
-        retryAfter: rateLimitResult.retryAfter,
-      }),
+      error: {
+        statusCode: 429,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json", "Retry-After": String(rateLimitResult.retryAfter || 60) },
+        body: JSON.stringify({
+          ok: false,
+          error: { code: "rate_limited", message: "An error occurred" },
+        }),
+      },
     };
   }
 

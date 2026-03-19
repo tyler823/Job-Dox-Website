@@ -62,6 +62,20 @@ exports.handler = async (event) => {
 
   const { workType, notes, roles = [], statuses = [], statusTriggers = [], companyId, userId, prompt, type, messages: conversationMessages, systemPrompt: copilotSystemPrompt } = context;
 
+  // ── Verify companyId exists in Firestore ──
+  if (!companyId) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: "An error occurred" }) };
+  }
+  try {
+    const db = getDb();
+    const companyDoc = await db.collection("companies").doc(companyId).get();
+    if (!companyDoc.exists) {
+      return { statusCode: 403, headers, body: JSON.stringify({ error: "An error occurred" }) };
+    }
+  } catch (_) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: "An error occurred" }) };
+  }
+
   // ── Guard: API key must exist ──
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -115,7 +129,7 @@ exports.handler = async (event) => {
         return {
           statusCode: 502,
           headers,
-          body: JSON.stringify({ error: `AI service error: ${response.status}` }),
+          body: JSON.stringify({ error: "An error occurred" }),
         };
       }
 
@@ -132,7 +146,7 @@ exports.handler = async (event) => {
         return {
           statusCode: 502,
           headers,
-          body: JSON.stringify({ error: 'AI returned no valid JSON. Try again.' }),
+          body: JSON.stringify({ error: "An error occurred" }),
         };
       }
 
@@ -144,7 +158,7 @@ exports.handler = async (event) => {
         return {
           statusCode: 502,
           headers,
-          body: JSON.stringify({ error: 'AI returned malformed JSON. Try again.' }),
+          body: JSON.stringify({ error: "An error occurred" }),
         };
       }
 
@@ -159,7 +173,7 @@ exports.handler = async (event) => {
       return {
         statusCode: 502,
         headers,
-        body: JSON.stringify({ error: 'Failed to reach AI service. Check network or API key.' }),
+        body: JSON.stringify({ error: "An error occurred" }),
       };
     }
   }
@@ -194,7 +208,7 @@ exports.handler = async (event) => {
         return {
           statusCode: 502,
           headers,
-          body: JSON.stringify({ error: `AI service error: ${response.status}` }),
+          body: JSON.stringify({ error: "An error occurred" }),
         };
       }
 
@@ -212,7 +226,7 @@ exports.handler = async (event) => {
       return {
         statusCode: 502,
         headers,
-        body: JSON.stringify({ error: 'Failed to reach AI service. Check network or API key.' }),
+        body: JSON.stringify({ error: "An error occurred" }),
       };
     }
   }
@@ -305,7 +319,7 @@ Generate a thorough, professional ${workType} workflow that a restoration compan
       return {
         statusCode: 502,
         headers,
-        body: JSON.stringify({ error: `AI service error: ${response.status}` }),
+        body: JSON.stringify({ error: "An error occurred" }),
       };
     }
 
@@ -323,7 +337,7 @@ Generate a thorough, professional ${workType} workflow that a restoration compan
       return {
         statusCode: 502,
         headers,
-        body: JSON.stringify({ error: 'AI returned malformed JSON. Try again.' }),
+        body: JSON.stringify({ error: "An error occurred" }),
       };
     }
 
@@ -331,7 +345,7 @@ Generate a thorough, professional ${workType} workflow that a restoration compan
       return {
         statusCode: 502,
         headers,
-        body: JSON.stringify({ error: 'AI response missing phases array.' }),
+        body: JSON.stringify({ error: "An error occurred" }),
       };
     }
 

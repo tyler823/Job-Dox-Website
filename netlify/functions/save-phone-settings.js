@@ -46,10 +46,27 @@ exports.handler = async (event) => {
 
   if (!companyId) return {
     statusCode: 400, headers,
-    body: JSON.stringify({ error: "companyId is required." }),
+    body: JSON.stringify({ error: "An error occurred" }),
   };
 
   const db      = getDb();
+
+  // ── Verify companyId exists in Firestore ──
+  try {
+    const companyDoc = await db.collection("companies").doc(companyId).get();
+    if (!companyDoc.exists) {
+      await db.collection("audit_logs").add({
+        event: "unauthorized_access_attempt",
+        function: "save-phone-settings",
+        companyId,
+        success: false,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return { statusCode: 403, headers, body: JSON.stringify({ error: "An error occurred" }) };
+    }
+  } catch (_) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: "An error occurred" }) };
+  }
   const payload = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
 
   if (twilioNumber       !== undefined) payload.twilioNumber       = twilioNumber;
@@ -81,6 +98,6 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
   } catch (err) {
     console.error("save-phone-settings error:", err.message);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: "An error occurred" }) };
   }
 };

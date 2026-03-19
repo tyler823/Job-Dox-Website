@@ -334,6 +334,16 @@ exports.handler = async (event) => {
 
   const db = getDb();
 
+  // ── Verify companyId exists in Firestore ──
+  try {
+    const companyDoc = await db.collection("companies").doc(companyId).get();
+    if (!companyDoc.exists) {
+      return respond(403, { error: "An error occurred" });
+    }
+  } catch (_) {
+    return respond(500, { error: "An error occurred" });
+  }
+
   try {
     // 1. Check if transcription is enabled for this company
     const phoneSettingsSnap = await db.doc(`companies/${companyId}/settings/phone`).get();
@@ -450,6 +460,6 @@ exports.handler = async (event) => {
       transcriptionSkipped: true,
     }).catch(() => {});
 
-    return respond(502, { error: err.message || "Transcription failed." });
+    return respond(502, { error: "An error occurred" });
   }
 };

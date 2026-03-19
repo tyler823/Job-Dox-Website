@@ -39,7 +39,7 @@ exports.handler = async (event) => {
   const token = process.env.TWILIO_AUTH_TOKEN;
   if (!sid || !token) return {
     statusCode: 503, headers,
-    body: JSON.stringify({ error: "Twilio credentials not configured." }),
+    body: JSON.stringify({ error: "An error occurred" }),
   };
 
   let body;
@@ -65,8 +65,28 @@ exports.handler = async (event) => {
 
   if (!to || !from || !googleBusinessUrl) return {
     statusCode: 400, headers,
-    body: JSON.stringify({ error: "`to`, `from`, and `googleBusinessUrl` are required." }),
+    body: JSON.stringify({ error: "An error occurred" }),
   };
+
+  // ── Verify companyId exists in Firestore ──
+  if (companyId) {
+    try {
+      const db = getDb();
+      const companyDoc = await db.collection("companies").doc(companyId).get();
+      if (!companyDoc.exists) {
+        await db.collection("audit_logs").add({
+          event: "unauthorized_access_attempt",
+          function: "send-review-request",
+          companyId,
+          success: false,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return { statusCode: 403, headers, body: JSON.stringify({ error: "An error occurred" }) };
+      }
+    } catch (_) {
+      return { statusCode: 500, headers, body: JSON.stringify({ error: "An error occurred" }) };
+    }
+  }
 
   // Build the SMS message
   const greeting = clientName ? `Hi ${clientName.split(" ")[0]}, t` : "T";
