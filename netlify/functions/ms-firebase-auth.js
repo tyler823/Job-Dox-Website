@@ -32,6 +32,9 @@ async function writeAuditLog(db, fields) {
 }
 
 exports.handler = async (event) => {
+  console.log("ms-firebase-auth called");
+  console.log("Body received:", event.body);
+
   // CORS preflight
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 204, headers: HEADERS, body: "" };
@@ -50,24 +53,13 @@ exports.handler = async (event) => {
   let email = "";
 
   try {
-    // ── 1. Extract bearer token ──
-    const authHeader = event.headers["authorization"] || event.headers["Authorization"] || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-    if (!token) {
-      await writeAuditLog(db, {
-        event: "auth_token_failed",
-        memberId,
-        companyId,
-        email,
-        success: false,
-        reason: "missing_token",
-        ip,
-        userAgent,
-      });
-      return { statusCode: 401, headers: HEADERS, body: JSON.stringify({ error: "Unauthorized" }) };
+    // ── 1. Get memberId from request body ──
+    const { memberId: reqMemberId } = JSON.parse(event.body || '{}');
+    if (!reqMemberId) {
+      return { statusCode: 400, headers: HEADERS, body: JSON.stringify({ error: "An error occurred" }) };
     }
 
-    // ── 2. Validate token against Memberstack API ──
+    // ── 2. Verify member exists via Memberstack Admin API ──
     const msSecret = process.env.MEMBERSTACK_SECRET_KEY;
     if (!msSecret) {
       await writeAuditLog(db, {
@@ -83,21 +75,22 @@ exports.handler = async (event) => {
       return { statusCode: 500, headers: HEADERS, body: JSON.stringify({ error: "An error occurred" }) };
     }
 
-    const msRes = await fetch("https://api.memberstack.com/v1/members/current", {
+    const msRes = await fetch(`https://admin.memberstack.com/members/${reqMemberId}`, {
       headers: {
-        "Authorization": `Bearer ${token}`,
-        "X-API-Key": msSecret,
+        "X-API-KEY": msSecret,
       },
     });
+
+    console.log("Memberstack API status:", msRes.status);
 
     if (!msRes.ok) {
       await writeAuditLog(db, {
         event: "auth_token_failed",
-        memberId,
+        memberId: reqMemberId,
         companyId,
         email,
         success: false,
-        reason: "memberstack_validation_failed",
+        reason: "memberstack_member_lookup_failed",
         ip,
         userAgent,
       });
