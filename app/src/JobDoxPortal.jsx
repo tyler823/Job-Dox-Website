@@ -12699,6 +12699,12 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
       if (editId) {
         const isOwnerEdit = editId === companyId;
         await fsSetStaff(companyId, editId, { ...form, permission: isOwnerEdit ? 10 : form.permissionLevel, color: ROLE_COLORS[form.systemRole] || "#5ba3f5" });
+        // Sync permission-level to Memberstack for Firebase token claims
+        fetch("/.netlify/functions/update-member-permission", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ memberId: editId, permissionLevel: isOwnerEdit ? 10 : form.permissionLevel }),
+        }).catch(e => console.warn("Permission sync failed:", e.message));
       } else {
         const newId = `manual-${Date.now()}`;
         await fsSetStaff(companyId, newId, {
@@ -12732,6 +12738,12 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     if (memberId === companyId && newPerm < 10) return;
     try {
       await fsUpdateStaffField(companyId, memberId, { permission: newPerm });
+      // Sync permission-level to Memberstack for Firebase token claims
+      fetch("/.netlify/functions/update-member-permission", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId, permissionLevel: newPerm }),
+      }).catch(e => console.warn("Permission sync failed:", e.message));
       if (onPermissionChange) onPermissionChange(memberId, newPerm);
     } catch(e) { console.error("Permission change failed:", e); }
   };
@@ -13808,7 +13820,7 @@ export default function JobDoxPortal() {
             await updateDoc(doc(db, "companies", inviteCid, "invites", invite.id), { status: "accepted" });
             // Store companyId in Memberstack so future logins know which company they belong to
             if (window.$memberstackDom?.updateMember) {
-              await window.$memberstackDom.updateMember({ customFields: { "company-id": inviteCid } });
+              await window.$memberstackDom.updateMember({ customFields: { "company-id": inviteCid, "permission-level": String(invite.permission) } });
             }
             cid = inviteCid;
             setCompanyId(cid);
