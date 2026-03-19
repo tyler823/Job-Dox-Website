@@ -98,7 +98,8 @@ exports.handler = async (event) => {
     }
 
     const msData = await msRes.json();
-    console.log("Full member object:", JSON.stringify(msData, null, 2));
+    console.log("customFields raw object:", JSON.stringify(msData?.data?.customFields || msData?.customFields || "NO CUSTOMFIELDS FOUND"));
+    console.log("All member keys:", JSON.stringify(Object.keys(msData?.data || msData)));
     const member = msData.data || msData;
 
     // ── 3. Extract member fields ──
