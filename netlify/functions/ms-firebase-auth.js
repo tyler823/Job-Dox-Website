@@ -33,7 +33,6 @@ async function writeAuditLog(db, fields) {
 
 exports.handler = async (event) => {
   console.log("ms-firebase-auth called");
-  console.log("Body received:", event.body);
 
   // CORS preflight
   if (event.httpMethod === "OPTIONS") {
@@ -81,8 +80,6 @@ exports.handler = async (event) => {
       },
     });
 
-    console.log("Memberstack API status:", msRes.status);
-
     if (!msRes.ok) {
       await writeAuditLog(db, {
         event: "auth_token_failed",
@@ -98,22 +95,15 @@ exports.handler = async (event) => {
     }
 
     const msData = await msRes.json();
-    console.log("customFields raw object:", JSON.stringify(msData?.data?.customFields || msData?.customFields || "NO CUSTOMFIELDS FOUND"));
-    console.log("All member keys:", JSON.stringify(Object.keys(msData?.data || msData)));
     const member = msData.data || msData;
 
     // ── 3. Extract member fields ──
     memberId = member.id || "unknown";
     email = (member.auth && member.auth.email) || "";
     companyId = member.customFields?.["company-id"] || member.id;
-    console.log("companyId resolved:", companyId);
-    console.log("member.id:", member.id);
-    console.log("customFields company-id:", member.customFields?.["company-id"]);
     let permissionLevel = parseInt(member.customFields?.["permission-level"] || member.customFields?.["permissionLevel"] || "0", 10);
     if (isNaN(permissionLevel)) permissionLevel = 0;
-    console.log("permissionLevel raw value:", member.customFields?.["permission-level"]);
-    console.log("permissionLevel resolved:", permissionLevel);
-    console.log("permissionLevel type:", typeof permissionLevel);
+    console.log("Token issued — companyId:", companyId, "permissionLevel:", permissionLevel);
     if (!companyId || companyId === "unknown") {
       await writeAuditLog(db, {
         event: "auth_token_failed",
