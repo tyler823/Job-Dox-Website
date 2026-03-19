@@ -103,19 +103,15 @@ exports.handler = async (event) => {
     // ── 3. Extract member fields ──
     memberId = member.id || "unknown";
     email = (member.auth && member.auth.email) || "";
-    companyId = (member.customFields && member.customFields["company-id"]) || "";
+    companyId = member.customFields?.["company-id"] || member.id;
+    console.log("companyId resolved:", companyId);
+    console.log("member.id:", member.id);
+    console.log("customFields company-id:", member.customFields?.["company-id"]);
     let permissionLevel = parseInt(
       (member.customFields && member.customFields["permission-level"]) || "0",
       10
     );
     if (isNaN(permissionLevel)) permissionLevel = 0;
-
-    // ── 4. Require companyId ──
-    // If no company-id custom field AND user is not account owner, reject.
-    // Account owners use their own memberId as companyId.
-    if (!companyId) {
-      companyId = memberId;
-    }
     if (!companyId || companyId === "unknown") {
       await writeAuditLog(db, {
         event: "auth_token_failed",
