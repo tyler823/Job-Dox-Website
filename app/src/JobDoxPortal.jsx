@@ -251,6 +251,7 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
 
 .port-body{flex:1;display:flex;overflow:hidden;max-width:100%;}
 .port-projects{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px;min-width:0;}
+.port-sticky-hdr{position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--br);padding-bottom:10px;margin:-16px -16px 10px -16px;padding:12px 16px 10px 16px;}
 .port-sidebar{width:295px;flex-shrink:0;border-left:1px solid var(--br);overflow:hidden;display:flex;flex-direction:column;background:var(--s1);}
 .port-sidebar-hd{padding:12px 14px 6px;font-family:var(--mono)!important;font-size:9px;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;}
 
@@ -329,6 +330,7 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
 
 .proj-list{display:flex;flex-direction:column;gap:5px;}
 .proj-list-row{background:var(--s2);border:1px solid var(--br);border-radius:10px;display:flex;align-items:center;overflow:hidden;transition:all .15s;}
+@media(min-width:769px){.proj-list-row{border-top:1px solid var(--br)!important;}}
 .proj-list-row:hover{border-color:var(--br-hi);box-shadow:0 3px 12px rgba(0,0,0,.12);}
 .new-proj-mobile{display:none;}
 .theme-toggle-mobile{display:none;}
@@ -432,8 +434,22 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
   /* Scope row — fix overflow */
   .scope-row{max-width:100%;overflow:hidden;}
 
-  /* Project list view — fix overflow */
-  .proj-list-row{max-width:100%;overflow:hidden;}
+  /* Project list view — mobile card layout */
+  .proj-list-row{max-width:100%;overflow:hidden;flex-direction:column;align-items:flex-start;padding:12px 14px;gap:6px;border-left:none!important;border-top:4px solid var(--br)!important;}
+  .proj-list-row .proj-list-accent{display:none;}
+  .proj-list-body{flex-direction:column;align-items:flex-start;gap:6px;padding:0!important;width:100%;}
+  .proj-list-body>div:first-child{flex:unset!important;width:100%;}
+  .proj-list-body>div:first-child span:first-child{font-size:13px!important;font-weight:700!important;color:var(--t1)!important;white-space:normal!important;}
+  .proj-list-body>div:first-child>div:last-child{font-size:11px!important;color:var(--t2)!important;}
+  .proj-list-body>div:nth-child(2){flex:unset!important;width:100%;display:flex!important;flex-direction:row!important;flex-wrap:wrap;gap:4px;}
+  .proj-list-body>div:nth-child(3){width:auto!important;}
+  .proj-list-body>div:nth-child(4){display:none!important;}
+  .proj-list-body>div:nth-child(5){font-size:10px!important;color:var(--t3)!important;font-family:var(--mono)!important;}
+  .proj-list-actions{border-left:none!important;border-top:1px solid var(--br);padding:6px 0 0 0!important;width:100%;justify-content:flex-start;gap:8px!important;}
+  .proj-list-actions .btn{min-height:44px!important;}
+
+  /* Sticky portfolio header on mobile */
+  .port-sticky-hdr{margin:-10px -10px 10px -10px;padding:10px 10px 8px 10px;}
 
   /* New Project button — show mobile version, hide desktop one in topbar */
   .new-proj-desktop{display:none!important;}
@@ -511,6 +527,9 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
 @media(max-width:768px){
   .copilot-panel{width:100%;left:0;border-radius:0;top:0;bottom:0;height:100dvh;border-left:none;border-top:none;animation:copilot-slide-up .2s ease both;}
   @keyframes copilot-slide-up{from{opacity:0;transform:translateY(40px);}to{opacity:1;transform:none;}}
+}
+@media(max-width:768px){
+  input,textarea,select,.inp,.txa,.sel{font-size:16px!important;}
 }
 `;
 
@@ -3657,11 +3676,12 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
 
       <div className="port-body">
         <div className="port-projects">
+          <div className="port-sticky-hdr">
           {/* ── Mobile New Project button ── */}
           {canAddProject && !showArchived && <button className="btn btn-primary btn-lg new-proj-mobile" style={{width:"100%",justifyContent:"center",marginBottom:10}} onClick={()=>setShowAdd(true)}>{Ic.plus} New Project</button>}
           {/* ── Filter chips ── */}
           {!showArchived && (
-            <div style={{display:"flex",gap:5,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+            <div style={{display:"flex",gap:5,marginBottom:0,flexWrap:"wrap",alignItems:"center"}}>
               <span className="mono" style={{fontSize:9,color:"var(--t3)"}}>TYPE</span>
               {typeFilterOpts.map(t=><button key={t} className={`chip${fType===t?" on":""}`} onClick={()=>setFType(t)}>{t}</button>)}
               <span style={{width:1,height:15,background:"var(--br)",margin:"0 3px"}}/>
@@ -3689,6 +3709,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
               <span style={{fontSize:11,color:"var(--amber)"}}>Viewing archived projects. These are closed out and hidden from the active portfolio. Use the Restore button to reactivate any project.</span>
             </div>
           )}
+          </div>
 
           {filtered.length === 0 && (
             <div className="empty">
@@ -3779,7 +3800,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                 const sp = pct(proj.spent, proj.budget);
                 const isClocked = clockInState?.projId === proj.id;
                 return (
-                  <div key={proj.id} className="proj-list-row anim" style={{borderLeft:`3px solid ${proj.archived?"var(--t3)":isClocked?"var(--green)":tc}`,opacity:proj.archived?0.75:1}}>
+                  <div key={proj.id} className="proj-list-row anim" style={{borderLeft:`3px solid ${proj.archived?"var(--t3)":isClocked?"var(--green)":tc}`,borderTop:`4px solid ${proj.archived?"var(--t3)":isClocked?"var(--green)":tc}`,opacity:proj.archived?0.75:1}}>
                     <div className="proj-list-body" onClick={()=>onSelect(proj)}>
                       <div style={{minWidth:0,flex:"2"}}>
                         <div style={{display:"flex",alignItems:"center",gap:6}}>
