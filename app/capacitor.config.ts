@@ -14,9 +14,9 @@ url: "https://job-dox.ai/app-login.html",
     iosScheme: "https",
   },
   ios: {
-    // Allow the WKWebView to use inline media playback (photos/video)
     allowsLinkPreview: false,
-    contentInset: "automatic",
+    contentInset: "never",
+    scrollEnabled: false,
   },
   plugins: {},
 };

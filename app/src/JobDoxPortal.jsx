@@ -134,7 +134,7 @@ const MS_TRIAL_DAYS = 7;
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
-html,body,#root{height:100%;overflow-x:hidden;max-width:100vw;}
+html,body,#root{height:100%;overflow-x:hidden;max-width:100vw;background:#06070d;min-height:100dvh;overscroll-behavior:none;}
 ::-webkit-scrollbar{width:4px;background:transparent;}
 ::-webkit-scrollbar-thumb{background:rgba(128,128,128,0.18);border-radius:2px;}
 @keyframes jd-fade{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;}}
@@ -397,8 +397,11 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
 
   /* My Day */
   .myday-page{flex-direction:column;}
-  .myday-left{width:100%;border-right:none;border-bottom:1px solid var(--br);padding:12px;flex-shrink:0;max-height:260px;overflow-y:auto;}
+  .myday-left{width:100%;border-right:none;border-bottom:1px solid var(--br);padding:12px;flex-shrink:0;max-height:220px;overflow-y:auto;}
   .myday-main{padding:12px;}
+  .myday-topbar-row{flex-wrap:wrap!important;gap:8px!important;}
+  .myday-topbar-row .btn{min-height:44px!important;}
+  .myday-staff-picker{width:100%!important;order:10!important;}
   .cal-day{width:26px;height:26px;font-size:10px;}
 
   /* Staff rows */
@@ -478,7 +481,7 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
 .support-banner{background:rgba(232,156,24,.10);border-bottom:1px solid rgba(232,156,24,.25);padding:8px 18px;display:flex;align-items:center;gap:10px;flex-shrink:0;font-size:12px;color:var(--amber);font-family:var(--ui);}
 
 /* ── Cortex Copilot ── */
-.copilot-panel{position:fixed;top:0;right:0;width:380px;height:100vh;background:var(--s1);border-left:1px solid var(--br);z-index:250;display:flex;flex-direction:column;box-shadow:-6px 0 28px rgba(0,0,0,.28);animation:copilot-slide .18s ease both;}
+.copilot-panel{position:fixed;top:0;right:0;bottom:0;width:380px;height:100dvh;background:var(--s1);border-left:1px solid var(--br);z-index:250;display:flex;flex-direction:column;box-shadow:-6px 0 28px rgba(0,0,0,.28);animation:copilot-slide .18s ease both;padding-top:env(safe-area-inset-top);padding-bottom:calc(56px + env(safe-area-inset-bottom));}
 @keyframes copilot-slide{from{opacity:0;transform:translateX(20px);}to{opacity:1;transform:none;}}
 .copilot-hd{padding:14px 16px 12px;border-bottom:1px solid var(--br);display:flex;align-items:center;gap:10px;flex-shrink:0;}
 .copilot-dot{width:7px;height:7px;border-radius:50%;background:var(--purple);position:relative;flex-shrink:0;}
@@ -490,14 +493,14 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
 .copilot-bubble.user{align-self:flex-end;background:var(--acc-lo);border:1px solid rgba(228,53,49,.15);border-top-right-radius:3px;}
 .copilot-bubble .cx-tag{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:5px;background:rgba(167,139,250,.15);color:var(--purple);font-family:var(--mono);font-size:8px;font-weight:700;margin-right:6px;flex-shrink:0;vertical-align:middle;}
 .copilot-ts{font-size:9px;color:var(--t3);font-family:var(--mono);margin-top:4px;}
-.copilot-input{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--br);flex-shrink:0;align-items:flex-end;}
+.copilot-input{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--br);flex-shrink:0;align-items:flex-end;position:relative;z-index:260;min-height:44px;}
 .copilot-chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 10px;justify-content:center;}
 @keyframes copilot-typing{0%,80%,100%{opacity:.3;}40%{opacity:1;}}
 .copilot-typing span{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--t3);margin:0 1.5px;animation:copilot-typing 1.2s infinite;}
 .copilot-typing span:nth-child(2){animation-delay:.15s;}
 .copilot-typing span:nth-child(3){animation-delay:.3s;}
 @media(max-width:768px){
-  .copilot-panel{width:100%;border-radius:14px 14px 0 0;top:auto;bottom:0;height:92vh;border-left:none;border-top:1px solid var(--br);animation:copilot-slide-up .2s ease both;}
+  .copilot-panel{width:100%;left:0;border-radius:0;top:0;bottom:0;height:100dvh;border-left:none;border-top:none;animation:copilot-slide-up .2s ease both;}
   @keyframes copilot-slide-up{from{opacity:0;transform:translateY(40px);}to{opacity:1;transform:none;}}
 }
 `;
@@ -3197,13 +3200,13 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
         />
       )}
 
-      <div className="topbar">
-        <div>
-          <div className="topbar-ttl" style={{display:"flex",alignItems:"center",gap:8}}>
+      <div className="topbar myday-topbar-row">
+        <div style={{minWidth:0}}>
+          <div className="topbar-ttl" style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
             My Day
             {/* Staff picker for L5+ */}
             {canViewAllStaff && (
-              <div style={{position:"relative"}}>
+              <div style={{position:"relative"}} className="myday-staff-picker">
                 <button
                   onClick={() => setStaffPickerOpen(v => !v)}
                   style={{
@@ -3268,13 +3271,13 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
           </div>
           <div className="topbar-sub">{isToday?"TODAY · ":""}{dispDate.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"}).toUpperCase()}</div>
         </div>
-        <div style={{display:"flex",gap:6,alignItems:"center"}}>
-          <button className="btn btn-ghost btn-xs" onClick={()=>{setEditingTask(null);setAddType("appointment");setNewForm(p=>({...p,assignedUserIds:currentMemberId&&!p.assignedUserIds.includes(currentMemberId)?[...p.assignedUserIds,currentMemberId]:p.assignedUserIds}));setAddingModal(true);}}>{Ic.calendar} Appointment</button>
-          <button className="btn btn-primary btn-xs" onClick={()=>{setEditingTask(null);setAddType("task");setNewForm(p=>({...p,assignedUserIds:currentMemberId&&!p.assignedUserIds.includes(currentMemberId)?[...p.assignedUserIds,currentMemberId]:p.assignedUserIds}));setAddingModal(true);}}>{Ic.plus} New Task</button>
+        <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+          <button className="btn btn-ghost btn-xs" style={{minHeight:44}} onClick={()=>{setEditingTask(null);setAddType("appointment");setNewForm(p=>({...p,assignedUserIds:currentMemberId&&!p.assignedUserIds.includes(currentMemberId)?[...p.assignedUserIds,currentMemberId]:p.assignedUserIds}));setAddingModal(true);}}>{Ic.calendar} Appointment</button>
+          <button className="btn btn-primary btn-xs" style={{minHeight:44}} onClick={()=>{setEditingTask(null);setAddType("task");setNewForm(p=>({...p,assignedUserIds:currentMemberId&&!p.assignedUserIds.includes(currentMemberId)?[...p.assignedUserIds,currentMemberId]:p.assignedUserIds}));setAddingModal(true);}}>{Ic.plus} New Task</button>
           <div style={{width:1,height:18,background:"var(--br)",margin:"0 2px"}}/>
-          <button className="btn btn-ghost btn-xs" onClick={()=>setSelDate(TODAY_ISO)} style={isToday?{color:"var(--acc)",borderColor:"var(--acc)"}:{}}>Today</button>
-          <button className="btn btn-ghost btn-xs" onClick={()=>{const d=new Date(selDate+"T12:00:00");d.setDate(d.getDate()-1);setSelDate(d.toISOString().slice(0,10));}}>{Ic.chev_l} Prev</button>
-          <button className="btn btn-ghost btn-xs" onClick={()=>{const d=new Date(selDate+"T12:00:00");d.setDate(d.getDate()+1);setSelDate(d.toISOString().slice(0,10));}}>Next {Ic.chev_r}</button>
+          <button className="btn btn-ghost btn-xs" onClick={()=>setSelDate(TODAY_ISO)} style={isToday?{minHeight:44,color:"var(--acc)",borderColor:"var(--acc)"}:{minHeight:44}}>Today</button>
+          <button className="btn btn-ghost btn-xs" style={{minHeight:44}} onClick={()=>{const d=new Date(selDate+"T12:00:00");d.setDate(d.getDate()-1);setSelDate(d.toISOString().slice(0,10));}}>{Ic.chev_l} Prev</button>
+          <button className="btn btn-ghost btn-xs" style={{minHeight:44}} onClick={()=>{const d=new Date(selDate+"T12:00:00");d.setDate(d.getDate()+1);setSelDate(d.toISOString().slice(0,10));}}>Next {Ic.chev_r}</button>
         </div>
       </div>
 
@@ -6011,20 +6014,20 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
   return (
     <div className="scroll"><div style={{maxWidth:900,margin:"0 auto"}}>
       {/* Header */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
         <div>
           <div className="sec" style={{marginBottom:2}}>Project Documents</div>
           <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>Job email: {jobEmail}</div>
         </div>
-        <div style={{display:"flex",gap:7}}>
-          <button className="btn btn-secondary btn-xs" onClick={()=>setUploadModal(true)}>
+        <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+          <button className="btn btn-secondary btn-xs" style={{flexShrink:0,whiteSpace:"nowrap"}} onClick={()=>setUploadModal(true)}>
             + Add Document
           </button>
-          <button className="btn btn-secondary btn-xs" onClick={()=>onNavigate&&onNavigate(proj?.id,"scope")}>
+          <button className="btn btn-secondary btn-xs" style={{flexShrink:0,whiteSpace:"nowrap"}} onClick={()=>onNavigate&&onNavigate(proj?.id,"scope")}>
             + Generate Invoice
           </button>
           {docs.length>0 && (
-            <button className="btn btn-primary btn-xs" onClick={()=>setEmailModal(true)}>
+            <button className="btn btn-primary btn-xs" style={{flexShrink:0,whiteSpace:"nowrap"}} onClick={()=>setEmailModal(true)}>
               ✉ Email Documents
             </button>
           )}
@@ -7639,7 +7642,7 @@ function ProjectReportTab({ proj, dailyNotes=[], mediaFolders=[], mediaUploads=[
   const selectedNotes   = dailyNotes.filter(n => selNotes.has(n.id));
   const selectedFolders = mediaFolders.filter(f => selFolders.has(f));
   const selectedDocs    = docs.filter(d => selDocs.has(d.id));
-  const feedEvents      = ACTIVITY.filter(a => a.proj===proj.name && selFeedTypes.has(a.actionType));
+  const feedEvents      = (loadActivity() || []).filter(a => a.proj===(proj?.name||"") && selFeedTypes.has(a.actionType));
 
   const today = new Date().toLocaleDateString("en-US",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
   const sectionCount = [selectedNotes.length>0, selectedFolders.length>0, selectedDocs.length>0, feedEvents.length>0].filter(Boolean).length + 1;
@@ -14521,7 +14524,7 @@ export default function JobDoxPortal() {
   }
 
   return (
-    <div className={`jdp${isLight?" lt":""}`}>
+    <div className={`jdp${isLight?" lt":""}`} style={{paddingTop:'env(safe-area-inset-top)',paddingBottom:'env(safe-area-inset-bottom)',minHeight:'100dvh',backgroundColor:'var(--bg)'}}>
       {showTools && <AdvToolsPanel onClose={()=>setShowTools(false)} onNavTo={navTo} priceLists={priceLists} setPriceLists={setPriceLists} companyId={companyId} globalStaff={globalStaff} projects={projects} currentMemberId={currentMember?.id||""} permissionLevel={permission} featureFlags={featureFlags}/>}
       {showCopilot && <CortexCopilotPanel onClose={()=>setShowCopilot(false)} companyId={companyId} projects={projects} currentMemberId={currentMember?.id||""}/>}
       {showMsgCenter && <MessageCenter onClose={()=>setShowMsgCenter(false)} companyId={companyId} globalStaff={globalStaff} projects={projects}/>}
