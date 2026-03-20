@@ -786,6 +786,28 @@ function syncCompanyConfigToLS(workTypes, statuses, projectTypes) {
 }
 
 /* ══════════════════════════════════════════════
+   FEATURE FLAGS — loaded from companies/{companyId}.featureFlags
+   Missing flags default to true (everything visible).
+══════════════════════════════════════════════ */
+const DEFAULT_FEATURE_FLAGS = {
+  dryDox: true,
+  contentsDox: true,
+  estimateDox: true,
+  marketDox: true,
+  dispatch: true,
+  payroll: true,
+  reports: true,
+  adjusterBot: true,
+  phoneAndCalls: true,
+  apiIntegrations: true,
+  customerPortal: true,
+  cortexAI: true,
+  documentSigning: true,
+  financeTab: true,
+  scopeTab: true,
+};
+
+/* ══════════════════════════════════════════════
    WORKFLOW TEMPLATES — saved from CortexAI
    Key: jd_workflow_templates  →  { [workTypeName]: templateObject }
 ══════════════════════════════════════════════ */
@@ -3814,7 +3836,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
   );
 }
 
-function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emailSchedule="weekly", setEmailSchedule=()=>{}, clientPortal=false, setClientPortal=()=>{}, globalStaff=[], worktypes=[], setWorktypes=()=>{}, currentUser=null, assignedStaff=[], setAssignedStaff=()=>{}, canArchive=false, onArchive, onBack }) {
+function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emailSchedule="weekly", setEmailSchedule=()=>{}, clientPortal=false, setClientPortal=()=>{}, globalStaff=[], worktypes=[], setWorktypes=()=>{}, currentUser=null, assignedStaff=[], setAssignedStaff=()=>{}, canArchive=false, onArchive, onBack, featureFlags=DEFAULT_FEATURE_FLAGS }) {
   const [attrs, setAttrs]           = useState({});
   const assigned    = assignedStaff;
   const setAssigned = setAssignedStaff;
@@ -4171,6 +4193,7 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
                 </select>
               </div>
               {/* Client portal toggle */}
+              {featureFlags.customerPortal && (
               <div style={{display:"flex",alignItems:"center",gap:7,background:"var(--s3)",border:"1px solid var(--br)",borderRadius:8,padding:"4px 10px"}}>
                 <span style={{fontSize:10,color:"var(--t2)",fontFamily:"var(--mono)",textTransform:"uppercase",letterSpacing:".06em"}}>Client Portal</span>
                 <button onClick={()=>setClientPortal(v=>!v)} style={{width:36,height:18,borderRadius:9,border:"none",cursor:"pointer",background:clientPortal?"var(--green)":"var(--s4)",transition:"background .2s",position:"relative",padding:0,flexShrink:0}}>
@@ -4178,6 +4201,7 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
                 </button>
                 <span style={{fontSize:10,fontWeight:700,color:clientPortal?"var(--green)":"var(--t3)"}}>{clientPortal?"ON":"OFF"}</span>
               </div>
+              )}
               <button className="btn btn-primary btn-xs" onClick={()=>setAddingNote(v=>!v)}>{Ic.plus} Add Note</button>
             </div>
           </div>
@@ -5886,7 +5910,7 @@ function DocEmailModal({ docs=[], contacts=[], proj, assignedStaff=[], onSend, o
 /* ══════════════════════════════════════════════════════════════════
    PROJECT DOCUMENTS TAB  — shows invoices + signed docs, email sending
 ══════════════════════════════════════════════════════════════════ */
-function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate, docRefreshKey=0 }) {
+function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate, docRefreshKey=0, featureFlags=DEFAULT_FEATURE_FLAGS }) {
   const [docs,      setDocs]      = useState(() => loadProjDocs(proj?.id||""));
   const [emailModal,setEmailModal]= useState(false);
   const [selInv,    setSelInv]    = useState(null);   // invoice preview
@@ -6157,12 +6181,12 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
                     View / Download
                   </button>
                 )}
-                {doc.fileData && doc.fileData.startsWith("data:application/pdf") && doc.status!=="signed" && (
+                {featureFlags.documentSigning && doc.fileData && doc.fileData.startsWith("data:application/pdf") && doc.status!=="signed" && (
                   <button className="btn btn-secondary btn-xs" onClick={()=>setSigningDoc(doc)}>
                     ✍️ Sign
                   </button>
                 )}
-                {doc.fileData && doc.fileData.startsWith("data:application/pdf") && (
+                {featureFlags.documentSigning && doc.fileData && doc.fileData.startsWith("data:application/pdf") && (
                   <button className="btn btn-ghost btn-xs" style={{color:"var(--blue)"}} onClick={()=>{
                     setReqSigDoc(doc);
                     // Pre-populate from project contacts that have email
@@ -6452,7 +6476,7 @@ function InvoicePreviewPortalModal({ inv, onClose }) {
   );
 }
 
-function MessagesTab({ proj, contacts=[], dailyNotes=[], currentUser=null, companyId="" }) {
+function MessagesTab({ proj, contacts=[], dailyNotes=[], currentUser=null, companyId="", featureFlags=DEFAULT_FEATURE_FLAGS }) {
   const [msgs, setMsgs] = useState(() => loadProjMsgs(proj?.id||""));
   const [refresh, setRefresh] = useState(0);
   const [aiMsg, setAiMsg] = useState(null);   // message selected for AI response
@@ -6506,7 +6530,7 @@ function MessagesTab({ proj, contacts=[], dailyNotes=[], currentUser=null, compa
                 {m.body}
               </div>
               {/* Formulate Response button — for inbound messages */}
-              {m.direction!=="outbound" && (
+              {m.direction!=="outbound" && featureFlags.adjusterBot && (
                 <button className="btn btn-ghost btn-xs" onClick={()=>setAiMsg(m)}
                   style={{marginTop:8,gap:4,fontSize:10,color:"var(--blue)",border:"1px solid color-mix(in srgb, var(--blue) 25%, transparent)"}}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M11.5 2C6.81 2 3 5.81 3 10.5S6.81 19 11.5 19h.5v3c4.86-2.34 8-7 8-11.5C20 5.81 16.19 2 11.5 2zm1 14.5h-2v-2h2v2zm0-4h-2c0-3.25 3-3 3-5 0-1.1-.9-2-2-2s-2 .9-2 2h-2c0-2.21 1.79-4 4-4s4 1.79 4 4c0 2.5-3 2.75-3 5z"/></svg>
@@ -8093,7 +8117,7 @@ function ProjectToolsDropdown({ proj, isClocked, onClockToggle, onNotify, onNavi
 }
 
 
-function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists, companyId="", phoneSettings={}, isVendor=false, currentMemberId="", onNavigate, canArchive=false, onArchive, coInfo={}, offices=[] }) {
+function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists, companyId="", phoneSettings={}, isVendor=false, currentMemberId="", onNavigate, canArchive=false, onArchive, coInfo={}, offices=[], featureFlags=DEFAULT_FEATURE_FLAGS }) {
   const [tab,setTab]           = useState(initialTab||"overview");
   // Sync when initialTab prop changes (e.g. user clicks a nav button while project is already open)
   const prevInitialTab = useRef(initialTab);
@@ -8186,6 +8210,12 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
           if (t.key==="scope"  && !canViewBillingScope) return false;
           if (t.key==="shifts" && !canViewBudget) return false;
           if ((t.key==="drydox"||t.key==="contentsdox"||t.key==="estimatedox") && !canViewBudget) return false;
+          if (t.key==="drydox"       && !featureFlags.dryDox)       return false;
+          if (t.key==="contentsdox"  && !featureFlags.contentsDox)  return false;
+          if (t.key==="estimatedox"  && !featureFlags.estimateDox)  return false;
+          if (t.key==="finance"      && !featureFlags.financeTab)   return false;
+          if (t.key==="scope"        && !featureFlags.scopeTab)     return false;
+          if (t.key==="calls"        && !featureFlags.phoneAndCalls) return false;
           return true;
         }).map(t=>(
           <button key={t.key} className={`tab${tab===t.key?" active":""}`} onClick={()=>setTab(t.key)}>
@@ -8201,18 +8231,18 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
           </button>
         ))}
       </div>
-      {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff} worktypes={worktypes} setWorktypes={setWorktypes} currentUser={currentUser} assignedStaff={assignedStaff} setAssignedStaff={setAssignedStaff} canArchive={canArchive} onArchive={onArchive} onBack={onBack}/>}
+      {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff} worktypes={worktypes} setWorktypes={setWorktypes} currentUser={currentUser} assignedStaff={assignedStaff} setAssignedStaff={setAssignedStaff} canArchive={canArchive} onArchive={onArchive} onBack={onBack} featureFlags={featureFlags}/>}
       {tab==="drydox"         && <DryDoxModule    proj={proj} priceLists={priceLists} onPushToScope={handlePushToScope} companyLogo={coInfo?.logo} companyId={companyId}/>}
       {tab==="contentsdox"    && <ContentsDox proj={proj} companyId={companyId} db={db} onDocGenerated={()=>setDocRefreshKey(k=>k+1)}/>}
       {tab==="estimatedox"    && <EstimateDoxTab proj={proj} companyId={companyId}/>}
       {tab==="contacts"       && <ContactsTab contacts={contacts} setContacts={setContacts}/>}
       {tab==="media"          && <MediaTab       folders={mediaFolders} setFolders={setMediaFolders} uploads={mediaUploads} setUploads={setMediaUploads}/>}
-      {tab==="documents"      && <ProjectDocumentsPanel proj={proj} contacts={contacts} assignedStaff={assignedStaff} onNavigate={onNavigate} docRefreshKey={docRefreshKey}/>}
+      {tab==="documents"      && <ProjectDocumentsPanel proj={proj} contacts={contacts} assignedStaff={assignedStaff} onNavigate={onNavigate} docRefreshKey={docRefreshKey} featureFlags={featureFlags}/>}
       {tab==="tasks"          && <TasksTab projId={proj.id} projName={proj.name} initialTasks={proj.templateTasks||[]} globalStaff={globalStaff} companyId={companyId} phoneSettings={phoneSettings} currentMemberId={currentMemberId} isVendor={isVendor} currentUser={currentUser}/>}
       {tab==="finance"        && <FinancialTab proj={proj} companyId={companyId} laborCost={laborCost} invoices={loadProjInvoices(proj.id)} onInvoiceVoid={id=>{const all=loadAllInvoices().map(i=>i.id===id?{...i,status:"void"}:i);saveAllInvoices(all);}}/>}
       {tab==="shifts"         && <ShiftsTab projId={proj.id} externalShifts={myShifts} canViewRates={canViewRates}/>}
       {tab==="scope"          && <ScopeTab proj={proj} scopeItems={scopeItems} setScopeItems={setScopeItems} contacts={contacts} onDocGenerated={()=>{ setDocRefreshKey(k=>k+1); }}/>}
-      {tab==="messages"       && <MessagesTab proj={proj} contacts={contacts} dailyNotes={dailyNotes} currentUser={currentUser} companyId={companyId}/>}
+      {tab==="messages"       && <MessagesTab proj={proj} contacts={contacts} dailyNotes={dailyNotes} currentUser={currentUser} companyId={companyId} featureFlags={featureFlags}/>}
       {tab==="calls"          && <CallLogTab proj={proj} companyId={companyId} globalStaff={globalStaff} currentUser={currentUser} phoneSettings={phoneSettings}/>}
       {tab==="project-report" && <ProjectReportTab proj={proj} dailyNotes={dailyNotes} mediaFolders={mediaFolders} mediaUploads={mediaUploads} docs={projDocs}/>}
     </>
@@ -9239,22 +9269,23 @@ Keep responses concise and actionable — under 200 words unless a detailed brea
   );
 }
 
-function AdvToolsPanel({ onClose, onNavTo, priceLists, setPriceLists, companyId, globalStaff=[], projects=[], currentMemberId="", permissionLevel=1 }) {
+function AdvToolsPanel({ onClose, onNavTo, priceLists, setPriceLists, companyId, globalStaff=[], projects=[], currentMemberId="", permissionLevel=1, featureFlags=DEFAULT_FEATURE_FLAGS }) {
   const [showPLManager,    setShowPLManager]    = useState(false);
   const [showDocTemplates, setShowDocTemplates] = useState(false);
   const [showTimeOff,      setShowTimeOff]      = useState(false);
   const [showAPIPanel,     setShowAPIPanel]     = useState(false);
-  const TOOLS = [
-    { icon:Ic.mindflow, label:"CortexAI",              desc:"AI-powered workflow generation", link:"/mindflow.html" },
+  const ALL_TOOLS = [
+    featureFlags.cortexAI && { icon:Ic.mindflow, label:"CortexAI",              desc:"AI-powered workflow generation", link:"/mindflow.html" },
     { icon:Ic.calendar, label:"Time Off & Calendar",   desc:"PTO requests, approvals & company calendar", action:()=>setShowTimeOff(true) },
     { icon:Ic.pricetag, label:"Price Lists",            desc:`${priceLists.length} lists · Manage equipment & material pricing`, action:()=>setShowPLManager(true) },
     { icon:Ic.doc,      label:"Document Templates",    desc:"Manage reusable contracts, authorizations & change orders", action:()=>setShowDocTemplates(true) },
     { icon:Ic.attr,     label:"Attribute Templates",   desc:"Configure custom project fields" },
     { icon:Ic.report,   label:"Reporting",              desc:"Advanced analytics & exports" },
-    { icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 7V7c0-.55.45-1 1-1s1 .45 1 1v2h2c.55 0 1 .45 1 1s-.45 1-1 1h-2v2c0 .55-.45 1-1 1s-1-.45-1-1v-2H9c-.55 0-1-.45-1-1s.45-1 1-1h2zm5 8H8c-.55 0-1-.45-1-1s.45-1 1-1h8c.55 0 1 .45 1 1s-.45 1-1 1z"/></svg>, label:"API & Integrations", desc:"Connect Zapier, CRMs, and external apps", action:()=>setShowAPIPanel(true) },
-    { icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/><path d="M20 3H4c-.55 0-1 .45-1 1v1h18V4c0-.55-.45-1-1-1z"/><path d="M3 20c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-1H3v1z"/></svg>, label:"MarketDox", desc:"Marketing intelligence — yard signs, ads & SEO", action:()=>{ if(onNavTo) onNavTo("marketdox"); else onClose(); } },
+    featureFlags.apiIntegrations && { icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 7V7c0-.55.45-1 1-1s1 .45 1 1v2h2c.55 0 1 .45 1 1s-.45 1-1 1h-2v2c0 .55-.45 1-1 1s-1-.45-1-1v-2H9c-.55 0-1-.45-1-1s.45-1 1-1h2zm5 8H8c-.55 0-1-.45-1-1s.45-1 1-1h8c.55 0 1 .45 1 1s-.45 1-1 1z"/></svg>, label:"API & Integrations", desc:"Connect Zapier, CRMs, and external apps", action:()=>setShowAPIPanel(true) },
+    featureFlags.marketDox && { icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/><path d="M20 3H4c-.55 0-1 .45-1 1v1h18V4c0-.55-.45-1-1-1z"/><path d="M3 20c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-1H3v1z"/></svg>, label:"MarketDox", desc:"Marketing intelligence — yard signs, ads & SEO", action:()=>{ if(onNavTo) onNavTo("marketdox"); else onClose(); } },
     { icon:Ic.settings, label:"Settings", desc:"Company settings, team & configuration", action:()=>{ if(onNavTo){ onNavTo("settings"); } onClose(); } },
-  ];
+  ].filter(Boolean);
+  const TOOLS = ALL_TOOLS;
   return (
     <>
       {showPLManager && (
@@ -12691,7 +12722,7 @@ function ClassicMigrationTab({ companyId, currentMemberId }) {
   );
 }
 
-function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission=1, currentMemberId, currentMemberName, currentMemberEmail="", onPermissionChange, offices=[], projects=[], onWorkTypesChange, onStatusesChange, onProjectTypesChange }) {
+function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission=1, currentMemberId, currentMemberName, currentMemberEmail="", onPermissionChange, offices=[], projects=[], onWorkTypesChange, onStatusesChange, onProjectTypesChange, featureFlags=DEFAULT_FEATURE_FLAGS }) {
   const [tab,      setTab]      = useState("staff");
   const [editId,   setEditId]   = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -12894,7 +12925,10 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
   );
 
   const isDiagUser = currentMemberEmail.toLowerCase().includes("@job-dox.com");
-  const TABS = [["staff","Staff"],["vendors","Vendors"],["offices","Offices"],["phone","Phone & Calls"],["cortex","CortexAI"],["coins","Cortex Coins"],["billing","Billing"],["general","General"],["roadmap","Feature Request"],
+  const TABS = [["staff","Staff"],["vendors","Vendors"],["offices","Offices"],
+    ...(featureFlags.phoneAndCalls ? [["phone","Phone & Calls"]] : []),
+    ...(featureFlags.cortexAI ? [["cortex","CortexAI"]] : []),
+    ["coins","Cortex Coins"],["billing","Billing"],["general","General"],["roadmap","Feature Request"],
     ...(permLevel >= 10 ? [["migration","Classic Import"]] : []),
     ...(isDiagUser ? [["fs-diag","FS Diagnostic"]] : [])];
 
@@ -13664,6 +13698,7 @@ export default function JobDoxPortal() {
   const [cortexAlert,        setCortexAlert]        = useState(null);  // Cortex Coins usage alert
   const [cortexAlertDismissed, setCortexAlertDismissed] = useState(false);
   const [coInfo,               setCoInfo]              = useState(loadCoInfo);
+  const [featureFlags,         setFeatureFlags]        = useState(DEFAULT_FEATURE_FLAGS);
 
   // ── Support Mode (@job-dox.com staff) ──
   const [isSupportUser,         setIsSupportUser]        = useState(false);
@@ -13844,6 +13879,13 @@ export default function JobDoxPortal() {
         lastLogin:   Timestamp.now(),
         createdAt:   Timestamp.now(),
       }, { merge: true }).catch(e => console.warn("Company metadata write failed:", e));
+
+      // ── Load feature flags from company document ──
+      getDoc(doc(db, "companies", cid)).then(snap => {
+        if (snap.exists()) {
+          setFeatureFlags({ ...DEFAULT_FEATURE_FLAGS, ...(snap.data().featureFlags || {}) });
+        }
+      }).catch(e => console.warn("Feature flags load failed:", e));
 
       // ── Check for invite in URL: ?invite={companyId} ──
       const urlParams = new URLSearchParams(window.location.search);
@@ -14480,7 +14522,7 @@ export default function JobDoxPortal() {
 
   return (
     <div className={`jdp${isLight?" lt":""}`}>
-      {showTools && <AdvToolsPanel onClose={()=>setShowTools(false)} onNavTo={navTo} priceLists={priceLists} setPriceLists={setPriceLists} companyId={companyId} globalStaff={globalStaff} projects={projects} currentMemberId={currentMember?.id||""} permissionLevel={permission}/>}
+      {showTools && <AdvToolsPanel onClose={()=>setShowTools(false)} onNavTo={navTo} priceLists={priceLists} setPriceLists={setPriceLists} companyId={companyId} globalStaff={globalStaff} projects={projects} currentMemberId={currentMember?.id||""} permissionLevel={permission} featureFlags={featureFlags}/>}
       {showCopilot && <CortexCopilotPanel onClose={()=>setShowCopilot(false)} companyId={companyId} projects={projects} currentMemberId={currentMember?.id||""}/>}
       {showMsgCenter && <MessageCenter onClose={()=>setShowMsgCenter(false)} companyId={companyId} globalStaff={globalStaff} projects={projects}/>}
       <nav className="rail">
@@ -14493,10 +14535,12 @@ export default function JobDoxPortal() {
           onClick={()=>navTo("myday")}>
           {Ic.calendar}
         </button>
+        {featureFlags.dispatch && (
         <button className={`rail-btn${page==="dispatch"?" active":""}`} data-tip="Dispatch"
           onClick={()=>navTo("dispatch")}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg>
         </button>
+        )}
         <button className={`rail-btn${page==="alltasks"?" active":""}`} data-tip="All Tasks"
           onClick={()=>navTo("alltasks")}>
           {Ic.tasks}
@@ -14505,23 +14549,29 @@ export default function JobDoxPortal() {
           onClick={()=>setShowMsgCenter(true)}>
           {Ic.msg}
         </button>
-        <button className={`rail-btn${page==="reports"?" active":""}`} data-tip="Reports" onClick={()=>navTo("reports")}>{Ic.chart}</button>
-        {canViewPayroll && (
+        {featureFlags.reports && (
+          <button className={`rail-btn${page==="reports"?" active":""}`} data-tip="Reports" onClick={()=>navTo("reports")}>{Ic.chart}</button>
+        )}
+        {canViewPayroll && featureFlags.payroll && (
           <button className={`rail-btn${page==="payroll"?" active":""}`} data-tip="Payroll"
             onClick={()=>navTo("payroll")}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05.82 1.87 2.65 1.87 1.96 0 2.4-.98 2.4-1.59 0-.83-.44-1.61-2.67-2.14-2.48-.6-4.18-1.62-4.18-3.67 0-1.72 1.39-2.84 3.11-3.21V4h2.67v1.95c1.86.45 2.79 1.86 2.85 3.39H14.3c-.05-1.11-.64-1.87-2.22-1.87-1.5 0-2.4.68-2.4 1.64 0 .84.65 1.39 2.67 1.94s4.18 1.36 4.18 3.87c0 1.89-1.44 2.93-3.12 3.17z"/></svg>
           </button>
         )}
+        {featureFlags.financeTab && (
         <button className={`rail-btn${page==="finance"?" active":""}`} data-tip="Financial Dashboard"
           onClick={()=>navTo("finance")}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>
         </button>
+        )}
+        {featureFlags.cortexAI && (
         <button className={`rail-btn${showCopilot?" active":""}`} data-tip="Cortex Copilot"
           onClick={()=>setShowCopilot(v=>!v)}
           style={showCopilot?{background:"rgba(167,139,250,.1)",color:"var(--purple)",boxShadow:"0 0 0 1px rgba(167,139,250,.25)"}:{}}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L9.5 8.5 2 12l7.5 3.5L12 23l2.5-7.5L22 12l-7.5-3.5z"/></svg>
           {showCopilot && <span style={{position:"absolute",left:0,top:"50%",transform:"translateY(-50%)",width:3,height:20,background:"var(--purple)",borderRadius:"0 2px 2px 0"}}/>}
         </button>
+        )}
         <div className="rail-div"/>
         <div className="rail-lbl">TOOLS</div>
         <button className={`rail-btn${showTools?" active":""}`} data-tip="Advanced Tools" onClick={()=>setShowTools(v=>!v)}>
@@ -14682,7 +14732,7 @@ export default function JobDoxPortal() {
               <ActivityFeedPanel onNavigate={navTo}/>
             </div>
           </>
-        ) : page==="marketdox" ? (
+        ) : page==="marketdox" && featureFlags.marketDox ? (
           <MarketDoxView companyId={companyId} coInfo={coInfo} projects={projects} customWorkTypes={customWorkTypes} onNavTo={navTo}/>
         ) : page==="settings" ? (
           <>
@@ -14712,6 +14762,7 @@ export default function JobDoxPortal() {
               onWorkTypesChange={setCustomWorkTypes}
               onStatusesChange={setCustomStatuses}
               onProjectTypesChange={setCustomProjectTypes}
+              featureFlags={featureFlags}
             />
           </>
         ) : page==="myday" ? (
@@ -14724,7 +14775,7 @@ export default function JobDoxPortal() {
             companyId={companyId}
             projects={projects}
           />
-        ) : page==="dispatch" ? (
+        ) : page==="dispatch" && featureFlags.dispatch ? (
           <DispatchPanel
             projects={projects}
             offices={offices}
@@ -14737,7 +14788,7 @@ export default function JobDoxPortal() {
             customProjectTypes={customProjectTypes}
             customStatuses={customStatuses}
           />
-        ) : page==="reports" ? (
+        ) : page==="reports" && featureFlags.reports ? (
           <ReportsDashboard
             projects={projects}
             companyId={companyId}
@@ -14750,13 +14801,13 @@ export default function JobDoxPortal() {
             reviewRequests={reviewRequests}
             offices={offices}
           />
-        ) : page==="finance" ? (
+        ) : page==="finance" && featureFlags.financeTab ? (
           <FinancialDashboard
             projects={projects}
             companyId={companyId}
             onNavigate={handleNavigate}
           />
-        ) : page==="payroll" && canViewPayroll ? (
+        ) : page==="payroll" && canViewPayroll && featureFlags.payroll ? (
           <PayrollDashboard
             projects={projects}
             globalStaff={globalStaff}
@@ -14800,6 +14851,7 @@ export default function JobDoxPortal() {
             onArchive={handleArchiveProject}
             coInfo={coInfo}
             offices={offices}
+            featureFlags={featureFlags}
           />
         ) : (
           <PortfolioPage
