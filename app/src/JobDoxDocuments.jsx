@@ -623,12 +623,12 @@ function TemplateBuilderModal({ existing, companyId, onSave, onClose }) {
           </div>
         </div>
 
-        <div style={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden" }}>
+        <div style={{ display: "flex", flexDirection: window.innerWidth < 700 ? "column" : "row", flex: 1, minHeight: 0, overflow: "hidden" }}>
           {/* LEFT — field type sidebar */}
-          <div style={{ width: 184, flexShrink: 0, borderRight: "1px solid var(--br)", padding: "14px 11px", overflowY: "auto", background: "var(--s1)", display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ width: window.innerWidth < 700 ? "100%" : 184, flexShrink: 0, borderRight: window.innerWidth < 700 ? "none" : "1px solid var(--br)", borderBottom: window.innerWidth < 700 ? "1px solid var(--br)" : "none", padding: "14px 11px", overflowY: "auto", background: "var(--s1)", display: "flex", flexDirection: window.innerWidth < 700 ? "row" : "column", flexWrap: window.innerWidth < 700 ? "wrap" : "nowrap", gap: 4 }}>
             <div style={{ marginBottom: 8 }}>
               <div className="sec" style={{ marginBottom: 6 }}>PDF Template</div>
-              <button className="btn btn-secondary btn-xs" style={{ width: "100%", justifyContent: "center" }} onClick={() => fileRef.current?.click()}>
+              <button className="btn btn-secondary btn-xs" style={{ width: "100%", justifyContent: "center", minHeight: 44 }} onClick={() => fileRef.current?.click()}>
                 {uploading ? <Spin /> : Di.upload} {tmpl.pdfData ? "Replace PDF" : "Upload PDF"}
               </button>
               <input ref={fileRef} type="file" accept=".pdf" style={{ display: "none" }} onChange={handlePdfUpload} />
@@ -697,7 +697,7 @@ function TemplateBuilderModal({ existing, companyId, onSave, onClose }) {
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 12, color: "var(--t3)" }}>
                 {Di.doc}
                 <div style={{ fontSize: 13, fontWeight: 600, color: "var(--t2)" }}>No PDF uploaded yet</div>
-                <button className="btn btn-secondary" onClick={() => fileRef.current?.click()}>{Di.upload} Upload PDF</button>
+                <button className="btn btn-secondary" style={{minHeight:44}} onClick={() => fileRef.current?.click()}>{Di.upload} Upload PDF</button>
               </div>
             )}
             {tmpl.pdfData && tmpl.pageCount > 1 && (
@@ -710,7 +710,7 @@ function TemplateBuilderModal({ existing, companyId, onSave, onClose }) {
                 <div ref={activePage === p ? wrapRef : null}
                   style={{ position: "relative", cursor: addMode ? "crosshair" : "default", display: "inline-block", borderRadius: 3, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,.5)" }}
                   onClick={activePage === p ? handleCanvasClick : undefined}>
-                  <PdfPageCanvas pdfData={tmpl.pdfData} pageNum={p} width={600} onDims={d => setDims(prev => ({ ...prev, [p]: d }))} />
+                  <PdfPageCanvas pdfData={tmpl.pdfData} pageNum={p} width={Math.min(600, window.innerWidth - 40)} onDims={d => setDims(prev => ({ ...prev, [p]: d }))} />
                   {dims[p] && tmpl.fields.filter(f => f.page === p).map(f => (
                     <FieldBox key={f.id} field={f} dims={dims[p] || { w: 600, h: 776 }} value={{}} isMine={false}
                       editorMode selected={selFld === f.id} onSelect={setSelFld} onMove={upd} />
@@ -721,7 +721,7 @@ function TemplateBuilderModal({ existing, companyId, onSave, onClose }) {
           </div>
 
           {/* RIGHT — template meta */}
-          <div style={{ width: 160, flexShrink: 0, borderLeft: "1px solid var(--br)", padding: "14px 11px", background: "var(--s1)", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ width: window.innerWidth < 700 ? "100%" : 160, flexShrink: 0, borderLeft: window.innerWidth < 700 ? "none" : "1px solid var(--br)", borderTop: window.innerWidth < 700 ? "1px solid var(--br)" : "none", padding: "14px 11px", background: "var(--s1)", display: "flex", flexDirection: "column", gap: 10 }}>
             <div><label className="lbl">Description</label><textarea className="txa" value={tmpl.description || ""} onChange={e => setTmpl(t => ({ ...t, description: e.target.value }))} style={{ fontSize: 11, minHeight: 60 }} /></div>
             <div><label className="lbl">Accent Color</label>
               <input type="color" value={tmpl.color || "#5ba3f5"} onChange={e => setTmpl(t => ({ ...t, color: e.target.value }))} style={{ width: "100%", height: 34, border: "1px solid var(--br)", borderRadius: 7, background: "var(--s3)", cursor: "pointer", padding: 2 }} />
@@ -974,8 +974,8 @@ function AddDocumentModal({ proj, companyId, onSave, onClose }) {
 
           {/* Step: upload field placement */}
           {step === "uploadFields" && uploadPdf && (
-            <div style={{ display: "flex", gap: 12 }}>
-              <div style={{ width: 160, flexShrink: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", flexDirection: window.innerWidth < 600 ? "column" : "row", gap: 12 }}>
+              <div style={{ width: window.innerWidth < 600 ? "100%" : 160, flexShrink: 0, display: "flex", flexDirection: "column", gap: 6 }}>
                 <div><label className="lbl">Document Name</label><input className="inp" value={uploadName} onChange={e => setUploadName(e.target.value)} style={{ fontSize: 11 }} /></div>
                 <div style={{ height: 1, background: "var(--br)" }} />
                 <div className="sec" style={{ marginBottom: 2 }}>Place Fields</div>
@@ -1001,7 +1001,7 @@ function AddDocumentModal({ proj, companyId, onSave, onClose }) {
                     <div ref={uploadPage === p ? wrapRef : null}
                       style={{ position: "relative", cursor: addMode ? "crosshair" : "default", display: "inline-block", borderRadius: 3, overflow: "hidden", boxShadow: "0 4px 20px rgba(0,0,0,.4)" }}
                       onClick={uploadPage === p ? handleUploadCanvasClick : undefined}>
-                      <PdfPageCanvas pdfData={uploadPdf} pageNum={p} width={500} onDims={d => setUploadDims(prev => ({ ...prev, [p]: d }))} />
+                      <PdfPageCanvas pdfData={uploadPdf} pageNum={p} width={Math.min(500, window.innerWidth - 40)} onDims={d => setUploadDims(prev => ({ ...prev, [p]: d }))} />
                       {uploadDims[p] && uploadFields.filter(f => f.page === p).map(f => (
                         <FieldBox key={f.id} field={f} dims={uploadDims[p]} value={{}} isMine={false}
                           editorMode selected={selFld === f.id} onSelect={setSelFld}
@@ -1076,9 +1076,9 @@ function PreviewModal({ docData, onClose }) {
             )}
             {pages.map(p => (
               <div key={p} style={{ display: activePage === p ? "block" : "none", overflowX: "auto", marginBottom: 14 }}>
-                {p === 1 && <CompanyHeader width={740} />}
+                {p === 1 && <CompanyHeader width={Math.min(740, window.innerWidth - 40)} />}
                 <div style={{ position: "relative", display: "inline-block", borderRadius: p === 1 ? "0 0 3px 3px" : 3, overflow: "hidden", boxShadow: "0 4px 20px rgba(0,0,0,.3)" }}>
-                  <PdfPageCanvas pdfData={pdfData} pageNum={p} width={740} onDims={d => setDims(prev => ({ ...prev, [p]: d }))} />
+                  <PdfPageCanvas pdfData={pdfData} pageNum={p} width={Math.min(740, window.innerWidth - 40)} onDims={d => setDims(prev => ({ ...prev, [p]: d }))} />
                   {dims[p] && (docData.fields || []).filter(f => f.page === p).map(f => (
                     <FieldBox key={f.fieldId || f.id} field={f} dims={dims[p]} value={docData.values?.[f.fieldId || f.id]} isMine={false} />
                   ))}
@@ -1237,7 +1237,7 @@ export function DocumentTemplateCenter({ onClose }) {
           </div>
         )}
         {!loading && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10, padding: 18 }}>
+          <div style={{ display: "grid", gridTemplateColumns: window.innerWidth < 500 ? "1fr" : "repeat(auto-fill,minmax(260px,1fr))", gap: 10, padding: 18 }}>
             {templates.map(t => (
               <div key={t.templateId} className="card" style={{ padding: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -1294,7 +1294,7 @@ export function LogoUploadSection({ coInfo, setCoInfo }) {
         </div>
         <div>
           <div style={{ display: "flex", gap: 7, marginBottom: 6 }}>
-            <button className="btn btn-secondary btn-xs" onClick={() => fileRef.current?.click()}>{Di.upload} Upload Logo</button>
+            <button className="btn btn-secondary btn-xs" style={{minHeight:44}} onClick={() => fileRef.current?.click()}>{Di.upload} Upload Logo</button>
             {coInfo?.logo && <button className="btn btn-ghost btn-xs" style={{ color: "var(--acc)" }} onClick={() => { const u = { ...coInfo, logo: "" }; setCoInfo(u); saveCoInfo(u); }}>Remove</button>}
             {saved && <span style={{ fontSize: 11, color: "var(--green)", fontWeight: 600, alignSelf: "center" }}>Saved</span>}
           </div>
@@ -1368,8 +1368,9 @@ export function PdfQuickSignModal({ pdfData, docName = "Document", signerName = 
   if (!pdfData) return null;
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(6,7,13,.94)", backdropFilter: "blur(6px)", zIndex: 2000, display: "flex", flexDirection: "column", alignItems: "center", overflowY: "auto", padding: 20 }}>
-      <div style={{ width: "100%", maxWidth: 860, display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexShrink: 0 }}>
+    <div className="overlay" style={{ position: "fixed", inset: 0, background: "rgba(6,7,13,.94)", backdropFilter: "blur(6px)", zIndex: 2000, display: "flex", flexDirection: "column", alignItems: "center", overflowY: "auto", padding: 20 }}>
+      <div className="modal modal-lg" style={{ width: "100%", maxWidth: 860, display: "flex", flexDirection: "column", alignItems: "center", background: "transparent", border: "none", boxShadow: "none" }}>
+      <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexShrink: 0 }}>
         <div>
           <div style={{ color: "var(--t1)", fontWeight: 800, fontSize: 16 }}>Sign: {docName}</div>
           <div className="mono" style={{ fontSize: 9, color: "var(--t3)", marginTop: 2 }}>DRAW YOUR SIGNATURE BELOW, THEN CLICK ON THE PDF TO PLACE IT</div>
@@ -1422,7 +1423,7 @@ export function PdfQuickSignModal({ pdfData, docName = "Document", signerName = 
                 <div ref={activePage === p ? wrapRef : null}
                   style={{ position: "relative", cursor: placingMode ? "crosshair" : "default", display: "inline-block", borderRadius: 3, overflow: "hidden", boxShadow: "0 8px 40px rgba(0,0,0,.5)" }}
                   onClick={activePage === p ? handleCanvasClick : undefined}>
-                  <PdfPageCanvas pdfData={pdfData} pageNum={p} width={720} onDims={d => setDims(prev => ({ ...prev, [p]: d }))} />
+                  <PdfPageCanvas pdfData={pdfData} pageNum={p} width={Math.min(720, window.innerWidth - 40)} onDims={d => setDims(prev => ({ ...prev, [p]: d }))} />
                   {dims[p] && placedSigs.filter(s => s.page === p).map(s => (
                     <div key={s.id} style={{ position: "absolute", left: s.x * dims[p].w, top: s.y * dims[p].h, width: s.w * dims[p].w, height: s.h * dims[p].h, border: "2px solid var(--green)", borderRadius: 5, background: "rgba(26,217,138,.05)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                       <img src={s.data} alt="Signature" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
@@ -1434,6 +1435,7 @@ export function PdfQuickSignModal({ pdfData, docName = "Document", signerName = 
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }
@@ -1521,7 +1523,7 @@ export function DocumentsTab({ proj, companyId, embedded }) {
             <div className="sec" style={{ margin: 0 }}>Documents</div>
             {docs.length > 0 && <span className="mono" style={{ fontSize: 9, color: "var(--t3)" }}>{docs.length}</span>}
           </div>
-          <button className="btn btn-primary btn-xs" onClick={() => setShowAdd(true)}>{Di.plus} Add Document</button>
+          <button className="btn btn-primary btn-xs" style={{minHeight:44}} onClick={() => setShowAdd(true)}>{Di.plus} Add Document</button>
         </div>
 
         {docs.length > 1 && (
@@ -1543,12 +1545,13 @@ export function DocumentsTab({ proj, companyId, embedded }) {
           </div>
         )}
 
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
         {!loading && filtered.map(docData => {
           const st = docData.status || "draft";
           const meta = STATUS_META[st] || STATUS_META.draft;
           return (
             <div key={docData.documentId} className="row" style={{ marginBottom: 6, padding: 0, overflow: "hidden" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 13px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 13px", minWidth: 320 }}>
                 <div style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0, background: `${meta.color}18`, color: meta.color, display: "flex", alignItems: "center", justifyContent: "center" }}>{Di.doc}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -1576,6 +1579,7 @@ export function DocumentsTab({ proj, companyId, embedded }) {
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );

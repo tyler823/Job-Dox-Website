@@ -463,6 +463,7 @@ export default function DryDoxEquipment({
               </div>
 
               {/* Billing table */}
+              <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
               <div style={{ background: "var(--s2)", border: "1px solid var(--br)", borderRadius: 10, overflow: "hidden" }}>
                 <div style={{
                   display: "grid", gridTemplateColumns: "28px 1fr 100px 50px 70px 80px 90px",
@@ -526,6 +527,7 @@ export default function DryDoxEquipment({
                     {fmt$c(totalEquipCost)}
                   </div>
                 </div>
+              </div>
               </div>
             </>
           )}

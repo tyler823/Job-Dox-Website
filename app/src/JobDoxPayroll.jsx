@@ -391,6 +391,7 @@ function PayrollReportTab({ projects, globalStaff, projectShifts }) {
           <div style={{marginBottom:18}}>
             <div style={{fontSize:12,fontWeight:700,color:"var(--t1)",marginBottom:8}}>Employee Summary</div>
             <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,overflow:"hidden"}}>
+              <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
               <table style={tableStyle}>
                 <thead>
                   <tr>
@@ -407,7 +408,7 @@ function PayrollReportTab({ projects, globalStaff, projectShifts }) {
                   {employeeSummary.map(r => {
                     const margin = r.laborCost - r.payCost;
                     return (
-                      <tr key={r.tech} style={trStyle}>
+                      <tr key={r.tech} style={{...trStyle,minHeight:44}}>
                         <td style={tdStyle}>
                           <div style={{display:"flex",alignItems:"center",gap:7}}>
                             <Av name={r.tech} size={24}/>
@@ -435,6 +436,7 @@ function PayrollReportTab({ projects, globalStaff, projectShifts }) {
                   </tr>
                 </tfoot>
               </table>
+              </div>
             </div>
           </div>
         )}
@@ -465,7 +467,7 @@ function PayrollReportTab({ projects, globalStaff, projectShifts }) {
                 {filtered.length === 0 ? (
                   <tr><td colSpan={13} style={{...tdStyle,textAlign:"center",color:"var(--t3)",padding:30}}>No shifts found for the selected filters.</td></tr>
                 ) : filtered.map(r => (
-                  <tr key={r.id+r.projId} style={trStyle}>
+                  <tr key={r.id+r.projId} style={{...trStyle,minHeight:44}}>
                     <td style={tdStyle}>
                       <div style={{display:"flex",alignItems:"center",gap:6}}>
                         <Av name={r.tech} size={22}/>
@@ -596,7 +598,7 @@ function RateSettingsTab({ canEditRates }) {
 
         {adding && canEditRates && (
           <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,padding:14,marginBottom:14}}>
-            <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:10,marginBottom:10}}>
+            <div className="g3" style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:10,marginBottom:10}}>
               <div>
                 <label style={lblStyle}>Position / Role</label>
                 <input type="text" value={newPos} onChange={e=>setNewPos(e.target.value)} placeholder="e.g. Senior Technician" style={fieldStyle}/>
@@ -624,6 +626,7 @@ function RateSettingsTab({ canEditRates }) {
         )}
 
         <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,overflow:"hidden"}}>
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
           <table style={tableStyle}>
             <thead>
               <tr>
@@ -641,7 +644,7 @@ function RateSettingsTab({ canEditRates }) {
                 const margin = r.chargeRate - r.payRate;
                 const isEditing = editId === r.id;
                 return (
-                  <tr key={r.id} style={trStyle}>
+                  <tr key={r.id} style={{...trStyle,minHeight:44}}>
                     <td style={tdStyle}>
                       <span style={{fontWeight:600,fontSize:12}}>{r.position}</span>
                     </td>
@@ -690,6 +693,7 @@ function RateSettingsTab({ canEditRates }) {
               })}
             </tbody>
           </table>
+          </div>
         </div>
 
         <div style={{marginTop:14,padding:"10px 13px",background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,fontSize:11,color:"var(--t2)"}}>
@@ -803,7 +807,7 @@ function QboSettingsTab({ globalStaff, projects, canEditRates }) {
         {/* Default Settings */}
         <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,padding:16,marginBottom:18}}>
           <div style={{fontSize:12,fontWeight:700,color:"var(--t1)",marginBottom:10}}>Sync Defaults</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div className="g2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
             <div>
               <label style={lblStyle}>Default Pay Type</label>
               <select value={settings.defaultPayType} disabled={!canEditRates}
@@ -829,6 +833,7 @@ function QboSettingsTab({ globalStaff, projects, canEditRates }) {
         <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,padding:16,marginBottom:18}}>
           <div style={{fontSize:12,fontWeight:700,color:"var(--t1)",marginBottom:4}}>Employee Mapping</div>
           <div style={{fontSize:11,color:"var(--t2)",marginBottom:12}}>Map each staff member to their QBO Employee ID. Optionally set per-employee rate overrides that take priority over position-based rates.</div>
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
           <table style={tableStyle}>
             <thead>
               <tr>
@@ -852,7 +857,7 @@ function QboSettingsTab({ globalStaff, projects, canEditRates }) {
                 const effectiveCharge = override ? override.chargeRate : posRate.chargeRate;
                 const isEditing = editingEmp === name;
                 return (
-                  <tr key={s.id} style={trStyle}>
+                  <tr key={s.id} style={{...trStyle,minHeight:44}}>
                     <td style={tdStyle}>
                       <div style={{display:"flex",alignItems:"center",gap:6}}>
                         <Av name={name} size={22}/>
@@ -900,6 +905,7 @@ function QboSettingsTab({ globalStaff, projects, canEditRates }) {
               })}
             </tbody>
           </table>
+          </div>
           <div style={{marginTop:8,fontSize:10,color:"var(--t3)",fontStyle:"italic"}}>* = per-employee override (takes priority over position rate)</div>
         </div>
 

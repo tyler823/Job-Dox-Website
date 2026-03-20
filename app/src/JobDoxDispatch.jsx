@@ -2,7 +2,7 @@
 //  Job-Dox · Dispatch Panel
 //  Map-based project dispatch, scheduling & AI route optimization
 // ════════════════════════════════════════════════════════════════
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback, useSyncExternalStore } from "react";
 import { initializeApp, getApps } from "firebase/app";
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 
@@ -201,6 +201,11 @@ const DIc = {
   dispatch: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg>,
 };
 
+
+// ── Mobile detection hook ──
+const _mobileSubscribe = (cb) => { window.addEventListener("resize", cb); return () => window.removeEventListener("resize", cb); };
+const _mobileSnap = () => window.innerWidth <= 768;
+function useIsMobile() { return useSyncExternalStore(_mobileSubscribe, _mobileSnap, () => false); }
 
 // ════════════════════════════════════════════════════════════════
 //  LEAFLET MAP COMPONENT (no API key needed, uses OpenStreetMap)
@@ -528,7 +533,7 @@ function ApptCommentThread({ appt, onUpdate, currentUser, globalStaff }) {
           ))}
         </div>
       )}
-      <div style={{display:"flex",gap:6,marginTop:6}}>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:6}}>
         <input className="inp" value={text} onChange={e=>setText(e.target.value)}
           placeholder="Add a comment..." style={{flex:1,fontSize:11}}
           onKeyDown={e => { if (e.key==="Enter") post(); }}/>
@@ -577,7 +582,7 @@ function ProjectDetailPanel({ proj, appts, globalStaff, resources, currentUser, 
       </div>
       <div className="dispatch-detail-body">
         {/* Quick actions */}
-        <div style={{display:"flex",gap:6,marginBottom:14}}>
+        <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
           <button className="btn btn-primary btn-xs" onClick={() => onCreateAppt(proj)}>
             {DIc.plus} Schedule Appointment
           </button>
@@ -625,7 +630,7 @@ function ProjectDetailPanel({ proj, appts, globalStaff, resources, currentUser, 
                   <div style={{fontSize:12,fontWeight:600,color:"var(--t1)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                     {a.title}
                   </div>
-                  <div style={{display:"flex",gap:4,flexShrink:0}}>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap",flexShrink:0}}>
                     <button className="btn btn-ghost btn-xs" style={{padding:"1px 5px"}} onClick={e=>{e.stopPropagation();onEditAppt(a);}}>
                       {DIc.edit}
                     </button>
@@ -1002,7 +1007,7 @@ function ResourceModal({ resources, offices, onSave, onClose }) {
                   </select>
                 </div>
               )}
-              <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:8}}>
+              <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:8,flexWrap:"wrap"}}>
                 <button className="btn btn-ghost btn-xs" onClick={()=>setAdding(false)}>Cancel</button>
                 <button className="btn btn-primary btn-xs" onClick={add} disabled={!f.name.trim()}>{DIc.plus} Add</button>
               </div>
@@ -1037,6 +1042,7 @@ export default function DispatchPanel({
   customStatuses=[],
 }) {
   useEffect(() => { injectDispatchCSS(); }, []);
+  const isMobile = useIsMobile();
 
   // ── State ──
   const [selectedProjId, setSelectedProjId] = useState(null);
@@ -1310,7 +1316,7 @@ export default function DispatchPanel({
             <div className="topbar-sub">MAP · SCHEDULING · AI ROUTING</div>
           </div>
         </div>
-        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
           {/* View toggle */}
           <div style={{display:"flex",gap:2,background:"var(--s3)",borderRadius:7,padding:2}}>
             {[["map","Map"],["calendar","Calendar"]].map(([v,l]) => (
@@ -1383,7 +1389,7 @@ export default function DispatchPanel({
                 </div>
                 <div>
                   <label className="lbl">Date Created</label>
-                  <div style={{display:"flex",gap:4}}>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                     {[["all","All"],["new","New (7d)"],["30d","30 Days"]].map(([v,l]) => (
                       <button key={v} className={`chip${fDateRange===v?" on":""}`} onClick={()=>setFDateRange(v)} style={{fontSize:9}}>{l}</button>
                     ))}
@@ -1439,7 +1445,7 @@ export default function DispatchPanel({
                   >
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                       <span style={{fontSize:12,fontWeight:600,color:"var(--t1)"}}>{a.title}</span>
-                      <div style={{display:"flex",gap:3}}>
+                      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                         <button className="btn btn-ghost btn-xs" style={{padding:"1px 5px"}} onClick={e=>{e.stopPropagation();editAppt(a);}}>{DIc.edit}</button>
                         <button className="btn btn-ghost btn-xs" style={{padding:"1px 5px",color:"var(--acc)"}} onClick={e=>{e.stopPropagation();deleteAppt(a.id);}}>{DIc.del}</button>
                       </div>
@@ -1496,59 +1502,67 @@ export default function DispatchPanel({
         </div>
 
         {/* ── MAP AREA ── */}
-        <div className="dispatch-map-area">
-          <DispatchMap
-            markers={mapMarkers}
-            officeMarkers={offices}
-            selectedId={selectedProjId}
-            onMarkerClick={(id) => setSelectedProjId(selectedProjId === id ? null : id)}
-            center={null}
-            zoom={5}
-          />
-
-          {/* Selected project detail panel */}
-          {selectedProj && (
-            <ProjectDetailPanel
-              proj={selectedProj}
-              appts={appts}
-              globalStaff={globalStaff}
-              resources={resources}
-              currentUser={currentUser}
-              onClose={() => setSelectedProjId(null)}
-              onCreateAppt={createAppt}
-              onEditAppt={editAppt}
-              onUpdateAppt={updateAppt}
-              onNavigate={onNavigate}
-            />
-          )}
-
-          {/* Day appointments overlay on map (calendar view) */}
-          {view === "calendar" && dayAppts.length > 0 && (
-            <div style={{
-              position:"absolute",bottom:12,left:12,right:12,
-              background:"var(--s2)",border:"1px solid var(--br)",borderRadius:10,
-              padding:"10px 14px",boxShadow:"0 4px 20px rgba(0,0,0,.25)",
-              maxHeight:120,overflowY:"auto",
-            }}>
-              <div className="mono" style={{fontSize:9,color:"var(--t3)",marginBottom:4}}>
-                TODAY'S ROUTE — {dayAppts.length} STOP{dayAppts.length>1?"S":""}
-              </div>
-              <div style={{display:"flex",gap:6,overflowX:"auto"}}>
-                {dayAppts.map((a,i) => (
-                  <div key={a.id} style={{
-                    display:"flex",alignItems:"center",gap:6,
-                    padding:"4px 10px",borderRadius:20,
-                    background:"var(--s3)",border:"1px solid var(--br)",
-                    fontSize:10,whiteSpace:"nowrap",flexShrink:0,
-                    cursor:"pointer",
-                  }} onClick={() => a.projId && setSelectedProjId(a.projId)}>
-                    <span style={{fontWeight:700,color:"var(--acc)"}}>{i+1}</span>
-                    <span style={{color:"var(--t1)"}}>{a.projName || a.title}</span>
-                    <span className="mono" style={{color:"var(--t3)",fontSize:9}}>{a.time}</span>
-                  </div>
-                ))}
-              </div>
+        <div className="dispatch-map-area" style={isMobile?{height:"100%",minHeight:300,maxWidth:"100%",overflow:"hidden"}:{}}>
+          {isMobile ? (
+            <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:10,padding:28,textAlign:"center",color:"var(--t2)",fontSize:13,margin:16}}>
+              Dispatch board is optimized for tablet or desktop. Tap a project to assign staff from that project's Tasks tab.
             </div>
+          ) : (
+            <>
+              <DispatchMap
+                markers={mapMarkers}
+                officeMarkers={offices}
+                selectedId={selectedProjId}
+                onMarkerClick={(id) => setSelectedProjId(selectedProjId === id ? null : id)}
+                center={null}
+                zoom={5}
+              />
+
+              {/* Selected project detail panel */}
+              {selectedProj && (
+                <ProjectDetailPanel
+                  proj={selectedProj}
+                  appts={appts}
+                  globalStaff={globalStaff}
+                  resources={resources}
+                  currentUser={currentUser}
+                  onClose={() => setSelectedProjId(null)}
+                  onCreateAppt={createAppt}
+                  onEditAppt={editAppt}
+                  onUpdateAppt={updateAppt}
+                  onNavigate={onNavigate}
+                />
+              )}
+
+              {/* Day appointments overlay on map (calendar view) */}
+              {view === "calendar" && dayAppts.length > 0 && (
+                <div style={{
+                  position:"absolute",bottom:12,left:12,right:12,
+                  background:"var(--s2)",border:"1px solid var(--br)",borderRadius:10,
+                  padding:"10px 14px",boxShadow:"0 4px 20px rgba(0,0,0,.25)",
+                  maxHeight:120,overflowY:"auto",
+                }}>
+                  <div className="mono" style={{fontSize:9,color:"var(--t3)",marginBottom:4}}>
+                    TODAY'S ROUTE — {dayAppts.length} STOP{dayAppts.length>1?"S":""}
+                  </div>
+                  <div style={{display:"flex",gap:6,overflowX:"auto"}}>
+                    {dayAppts.map((a,i) => (
+                      <div key={a.id} style={{
+                        display:"flex",alignItems:"center",gap:6,
+                        padding:"4px 10px",borderRadius:20,
+                        background:"var(--s3)",border:"1px solid var(--br)",
+                        fontSize:10,whiteSpace:"nowrap",flexShrink:0,
+                        cursor:"pointer",
+                      }} onClick={() => a.projId && setSelectedProjId(a.projId)}>
+                        <span style={{fontWeight:700,color:"var(--acc)"}}>{i+1}</span>
+                        <span style={{color:"var(--t1)"}}>{a.projName || a.title}</span>
+                        <span className="mono" style={{color:"var(--t3)",fontSize:9}}>{a.time}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

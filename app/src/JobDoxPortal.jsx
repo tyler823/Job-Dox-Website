@@ -341,11 +341,12 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
 @keyframes jd-slide-up{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
 
 /* ── Bottom tab bar (mobile only) ── */
-.mobile-bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:400;background:var(--rail);border-top:1px solid var(--br);padding:6px env(safe-area-inset-right) calc(6px + env(safe-area-inset-bottom)) env(safe-area-inset-left);align-items:center;justify-content:space-around;}
-.mob-tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 2px;background:none;border:none;cursor:pointer;color:var(--t3);font-family:var(--ui);font-size:8px;font-weight:600;letter-spacing:.03em;min-width:0;transition:color .15s;}
-.mob-tab.active{color:var(--acc);}
-.mob-tab svg{flex-shrink:0;}
-.mob-tab-dot{width:4px;height:4px;border-radius:50%;background:var(--acc);margin-top:1px;}
+.mobile-bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:400;background:var(--rail);border-top:1px solid var(--br);padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);align-items:stretch;justify-content:stretch;height:calc(56px + env(safe-area-inset-bottom));}
+.mob-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 4px;background:none;border:none;border-top:2px solid transparent;cursor:pointer;color:var(--t3);font-family:var(--ui);font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;min-width:0;transition:color .15s,border-color .15s;}
+.mob-tab.active{color:var(--acc);border-top-color:var(--acc);}
+.mob-tab.clocked-in-tab{color:var(--green);background:rgba(26,217,138,0.08);}
+.mob-tab.clocked-in-tab.active{border-top-color:var(--green);}
+.mob-tab svg{flex-shrink:0;width:22px;height:22px;}
 
 @media(max-width:768px){
   /* Hide desktop rail, show bottom nav */
@@ -354,10 +355,10 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
 
   /* Compensate for bottom nav + safe area */
   .jdp{flex-direction:column;overflow-x:hidden;}
-  .jdp-main{padding-bottom:calc(60px + env(safe-area-inset-bottom));}
+  .jdp-main{padding-bottom:calc(56px + env(safe-area-inset-bottom));}
 
   /* Topbar — respect status bar */
-  .topbar{padding:env(safe-area-inset-top) 10px 0 10px;height:calc(52px + env(safe-area-inset-top));gap:6px;overflow-x:hidden;max-width:100vw;}
+  .topbar{padding:env(safe-area-inset-top) 10px 0 10px;min-height:calc(52px + env(safe-area-inset-top));height:auto;gap:6px 8px;overflow-x:hidden;max-width:100vw;flex-wrap:wrap;}
   .topbar-ttl{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:45vw;}
   .topbar-sub{display:none;}
   .topbar-actions-desktop{display:none!important;}
@@ -368,12 +369,13 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
 
   /* KPI bar */
   .kpi-bar{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100vw;}
-  .kpi{min-width:88px;padding:8px 11px;flex-shrink:0;}
+  .kpi{min-width:80px;padding:8px 11px;flex-shrink:0;}
   .kpi-val{font-size:15px;}
+  .kpi-lbl{white-space:nowrap;}
 
   /* Portfolio */
   .port-body{flex-direction:column;overflow-x:hidden;}
-  .port-sidebar{width:100%;border-left:none;border-top:1px solid var(--br);max-height:220px;}
+  .port-sidebar{display:none;}
   .port-projects{padding:10px;overflow-x:hidden;}
   .proj-grid{grid-template-columns:1fr;}
 
@@ -385,7 +387,8 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
   .scroll{padding:10px;padding-left:calc(10px + env(safe-area-inset-left));padding-right:calc(10px + env(safe-area-inset-right));}
 
   /* Modals → bottom sheet with safe area at bottom */
-  .modal{max-width:100%!important;margin:0;border-radius:14px 14px 0 0;position:fixed;bottom:0;max-height:92vh;padding-bottom:env(safe-area-inset-bottom);}
+  .modal{max-width:100%!important;width:100%!important;margin:0;border-radius:16px 16px 0 0;position:fixed;bottom:0;left:0;right:0;max-height:92vh;}
+  .modal .modal-ft{padding-bottom:calc(12px + env(safe-area-inset-bottom));}
   .overlay{align-items:flex-end;padding:0;}
 
   /* Grids */
@@ -409,7 +412,7 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
   .contact-card{flex-direction:column;}
 
   /* Tools panel */
-  .tools-panel{left:0;width:100%;height:auto;max-height:80vh;top:auto;bottom:calc(60px + env(safe-area-inset-bottom));border-radius:14px 14px 0 0;border:none;border-top:1px solid var(--br);}
+  .tools-panel{left:0;width:100%;height:auto;max-height:80vh;top:auto;bottom:calc(56px + env(safe-area-inset-bottom));border-radius:14px 14px 0 0;border:none;border-top:1px solid var(--br);}
 
   /* Report tab — single column on mobile */
   .report-builder{grid-template-columns:1fr!important;}
@@ -2729,6 +2732,52 @@ function PortfolioSidebar({ onNavigate }) {
   );
 }
 
+/* ── Mobile Full-Screen Activity Feed ── */
+function ActivityFeedPanel({ onNavigate }) {
+  const [activity, setActivity] = useState(() => loadActivity());
+  const [popup, setPopup] = useState(null);
+  useEffect(() => {
+    const interval = setInterval(() => setActivity(loadActivity()), 4000);
+    return () => clearInterval(interval);
+  }, []);
+  const handleClick = (e, item) => {
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    setPopup({ item, x: r.left, y: r.top });
+  };
+  return (
+    <div style={{position:"relative"}}>
+      {popup && <FeedActionPopup item={popup.item} pos={popup} onClose={()=>setPopup(null)} onNavigate={onNavigate}/>}
+      {activity.length === 0 && (
+        <div className="empty">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="var(--t3)"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+          <div style={{color:"var(--t2)",fontSize:13}}>No activity yet.</div>
+          <div style={{fontSize:10,color:"var(--t3)",lineHeight:1.5}}>Events appear here when tasks are created, invoices generated, calls logged, and more.</div>
+        </div>
+      )}
+      {activity.map(item => (
+        <div key={item.id} className="feed-row" style={{cursor:"pointer",transition:"background .1s"}}
+          onClick={e => handleClick(e, item)}
+          onMouseEnter={e => e.currentTarget.style.background = "var(--s2)"}
+          onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+          <div style={{position:"relative",width:9,height:9,flexShrink:0,marginTop:4}}>
+            <div style={{width:9,height:9,borderRadius:"50%",background:item.color}}/>
+            {item.live && <div style={{position:"absolute",inset:-2,borderRadius:"50%",border:`2px solid ${item.color}`,animation:"jd-ping 1.5s ease infinite"}}/>}
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:11,color:"var(--t1)",lineHeight:1.35}}>{item.action}</div>
+            <div style={{fontSize:10,color:"var(--t3)",marginTop:2,display:"flex",gap:5,flexWrap:"wrap"}}>
+              <span style={{color:item.color,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:110,fontWeight:600}}>{item.proj}</span>
+              <span>{item.user} · {item.time}</span>
+            </div>
+          </div>
+          <div style={{color:"var(--t3)",flexShrink:0,opacity:.5,marginTop:2}}>{Ic.chev_r}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[], currentMemberId="", companyId="", projects=[] }) {
   const canViewAllStaff = permissionLevel >= 5;
 
@@ -3556,7 +3605,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
             {showArchived ? "Back to Active" : `Archived${archivedCount>0?` (${archivedCount})`:""}`}
           </button>
         )}
-        {canAddProject && !showArchived && <button className="btn btn-primary btn-lg" onClick={()=>setShowAdd(true)}>{Ic.plus} New Project</button>}
+        {canAddProject && !showArchived && <button className="btn btn-primary btn-lg" style={{flexShrink:0,whiteSpace:"nowrap"}} onClick={()=>setShowAdd(true)}>{Ic.plus} New Project</button>}
       </div>
 
       <div className="kpi-bar">
@@ -13593,6 +13642,7 @@ export default function JobDoxPortal() {
   const [isLight,       setIsLight]      = useState(() => localStorage.getItem("jd-theme") === "light");
   const [showTools,     setShowTools]    = useState(false);
   const [showCopilot,   setShowCopilot]  = useState(false);
+  const [showMobileFeed, setShowMobileFeed] = useState(false);
   const [showMsgCenter, setShowMsgCenter]= useState(false);
   const [showHelpMenu,  setShowHelpMenu] = useState(false);
   const helpBtnRef = useRef(null);
@@ -14343,7 +14393,7 @@ export default function JobDoxPortal() {
     }
   };
 
-  const navTo = (pg) => { setPage(pg); setSelected(null); setShowTools(false); setShowCopilot(false); };
+  const navTo = (pg) => { setPage(pg); setSelected(null); setShowTools(false); setShowCopilot(false); setShowMobileFeed(false); };
 
   // ── Auth Error Screen ──
   if (authError) {
@@ -14549,28 +14599,30 @@ export default function JobDoxPortal() {
         </button>
       </nav>
 
-      {/* ── Mobile Bottom Nav ── */}
+      {/* ── Mobile Bottom Nav (5 tabs) ── */}
       <nav className="mobile-bottom-nav">
-        <button className={`mob-tab${page==="portfolio"&&!selected?"active":""}`}
-          onClick={()=>navTo("portfolio")}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/></svg>
+        <button className={`mob-tab${page==="portfolio"&&!selected&&!showMobileFeed?" active":""}`}
+          onClick={()=>{navTo("portfolio");setShowMobileFeed(false);}}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
           Projects
         </button>
-        <button className={`mob-tab${page==="myday"?"active":""}`}
-          onClick={()=>navTo("myday")}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"/></svg>
+        <button className={`mob-tab${page==="myday"&&!showMobileFeed?" active":""}`}
+          onClick={()=>{navTo("myday");setShowMobileFeed(false);}}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"/></svg>
           My Day
         </button>
-        <button className="mob-tab" onClick={()=>setShowTools(v=>!v)}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>
-          Tools
+        <button className={`mob-tab${showMobileFeed?" active":""}`}
+          onClick={()=>{setShowMobileFeed(true);setShowTools(false);setShowCopilot(false);}}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+          Feed
         </button>
-        <button className={`mob-tab${clockInState?" active":""}`} style={clockInState?{color:"var(--green)"}:{}}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5z"/></svg>
-          {clockInState ? "Clocked In" : "Clock"}
+        <button className={`mob-tab${clockInState?" clocked-in-tab":""}`}
+          onClick={()=>{setShowMobileFeed(false);/* clock modal triggered by existing logic */}}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5z"/></svg>
+          Clock
         </button>
-        <button className={`mob-tab${showCopilot?"active":""}`} onClick={()=>setShowCopilot(v=>!v)} style={showCopilot?{color:"var(--purple)"}:{}}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L9.5 8.5 2 12l7.5 3.5L12 23l2.5-7.5L22 12l-7.5-3.5z"/></svg>
+        <button className={`mob-tab${showCopilot?" active":""}`} onClick={()=>{setShowCopilot(v=>!v);setShowMobileFeed(false);}}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L9.5 8.5 2 12l7.5 3.5L12 23l2.5-7.5L22 12l-7.5-3.5z"/></svg>
           Cortex
         </button>
       </nav>
@@ -14617,7 +14669,20 @@ export default function JobDoxPortal() {
           </div>
         )}
 
-        {page==="marketdox" ? (
+        {/* ── Mobile Full-Screen Activity Feed ── */}
+        {showMobileFeed ? (
+          <>
+            <div className="topbar">
+              <div>
+                <div className="topbar-ttl">Activity Feed</div>
+                <div className="topbar-sub">RECENT EVENTS</div>
+              </div>
+            </div>
+            <div style={{flex:1,overflowY:"auto",padding:0}}>
+              <ActivityFeedPanel onNavigate={navTo}/>
+            </div>
+          </>
+        ) : page==="marketdox" ? (
           <MarketDoxView companyId={companyId} coInfo={coInfo} projects={projects} customWorkTypes={customWorkTypes} onNavTo={navTo}/>
         ) : page==="settings" ? (
           <>

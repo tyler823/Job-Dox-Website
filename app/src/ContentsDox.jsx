@@ -92,7 +92,7 @@ const CDOX_CSS = `
                      display:flex; align-items:center; justify-content:center;
                      flex-shrink:0; transition:all .15s; flex-direction:column; gap:3px; }
 .cdox-photo-add:hover { border-color:var(--acc); color:var(--acc); }
-.cdox-photo-add span  { font-size:8px; font-family:var(--ui); letter-spacing:.03em; }
+.cdox-photo-add span  { font-size:10px; font-family:var(--ui); letter-spacing:.03em; }
 
 /* Add item button */
 .cdox-add-btn { width:100%; background:transparent; border:1.5px dashed var(--br); border-radius:8px;
@@ -1395,7 +1395,7 @@ export default function ContentsDox({ proj, companyId, db, onDocGenerated }) {
         {tab === "inventory" && (
           <>
             {/* KPI bar */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8, marginBottom: 14 }} className="cdox-kpi-bar">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8, marginBottom: 14, overflowX: "auto", WebkitOverflowScrolling: "touch" }} className="cdox-kpi-bar">
               <Kpi label="Total Items"  value={items.length}  color="var(--t1)"/>
               <Kpi label="Non-Salvage"  value={nSalv}         color="var(--acc)"/>
               <Kpi label="With Photos"  value={wPhoto}        color="var(--blue)"/>
@@ -1439,11 +1439,13 @@ export default function ContentsDox({ proj, companyId, db, onDocGenerated }) {
             </div>
 
             {/* Column headers — desktop only */}
-            <div style={{ display: "grid", gridTemplateColumns: "28px 1fr 100px 90px 42px 90px 90px 22px",
-              gap: 8, padding: "4px 12px", marginBottom: 4 }}>
-              {["#", "Item", "Category", "Disposition", "Qty", "Unit RCV", "Total", ""].map((h, i) => (
-                <div key={i} style={{ fontSize: 9, color: "var(--t3)", fontFamily: "var(--mono)", letterSpacing: ".06em" }}>{h}</div>
-              ))}
+            <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "28px 1fr 100px 90px 42px 90px 90px 22px",
+                gap: 8, padding: "4px 12px", marginBottom: 4, minWidth: 560 }}>
+                {["#", "Item", "Category", "Disposition", "Qty", "Unit RCV", "Total", ""].map((h, i) => (
+                  <div key={i} style={{ fontSize: 9, color: "var(--t3)", fontFamily: "var(--mono)", letterSpacing: ".06em" }}>{h}</div>
+                ))}
+              </div>
             </div>
 
             {/* Item list */}
@@ -1601,7 +1603,7 @@ export default function ContentsDox({ proj, companyId, db, onDocGenerated }) {
 
             {/* Summary totals + export */}
             <div className="cdox-card" style={{ gridColumn: "1/-1", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 14 }}>
-              <div style={{ display: "flex", gap: 28 }}>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                 <div>
                   <div style={{ fontSize: 9, color: "var(--t3)", fontFamily: "var(--mono)", marginBottom: 3 }}>TOTAL ITEMS</div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: "var(--t1)", fontFamily: "var(--mono)" }}>{items.length}</div>

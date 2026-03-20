@@ -176,7 +176,7 @@ const RPT_CSS = `
 .rpt-topbar-sub{font-size:9px;color:var(--t3);font-family:var(--mono);margin-top:1px;letter-spacing:.05em;}
 .rpt-body{flex:1;overflow-y:auto;padding:20px;animation:jd-fade .2s ease both;}
 
-.rpt-tabs{display:flex;gap:2px;background:var(--s2);border-radius:9px;padding:3px;border:1px solid var(--br);}
+.rpt-tabs{display:flex;gap:8px;background:var(--s2);border-radius:9px;padding:3px;border:1px solid var(--br);overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;padding-bottom:4px;}
 .rpt-tab{border:none;background:transparent;color:var(--t2);font-family:var(--ui);font-size:11px;font-weight:600;padding:7px 14px;border-radius:7px;cursor:pointer;transition:all .12s;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;}
 .rpt-tab:hover{color:var(--t1);background:var(--s3);}
 .rpt-tab.active{background:var(--acc);color:#fff;box-shadow:0 0 10px var(--acc-glo);}
@@ -217,6 +217,8 @@ const RPT_CSS = `
 .ai-result strong{color:var(--acc);}
 .ai-loading{display:flex;align-items:center;gap:8px;color:var(--t2);font-size:11px;padding:20px 0;}
 .ai-dot{width:6px;height:6px;border-radius:50%;background:var(--acc);animation:jd-ping 1s ease infinite;}
+@media(max-width:600px){.rpt-body{padding:12px;}.ai-panel{width:100%;box-sizing:border-box;}.ai-prompt-row{flex-direction:column;}.ai-prompt-row .ai-prompt-chip{width:100%;text-align:center;}}
+@media(max-width:480px){.g2{grid-template-columns:1fr!important;}}
 `;
 
 
@@ -346,7 +348,7 @@ function RevenueReport({ data, statuses, customWorkTypes, customProjectTypes }) 
       {/* Grouped breakdown table */}
       <div className="rpt-card">
         <div className="rpt-card-hd">Revenue by {groupBy === "type" ? "Project Type" : groupBy === "status" ? "Status" : groupBy === "carrier" ? "Carrier" : "ZIP Code"}</div>
-        <table className="rpt-tbl">
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
           <thead>
             <tr>
               <th>{groupBy === "type" ? "Type" : groupBy === "status" ? "Status" : groupBy === "carrier" ? "Carrier" : "ZIP"}</th>
@@ -386,13 +388,13 @@ function RevenueReport({ data, statuses, customWorkTypes, customProjectTypes }) 
             })}
             {grouped.length === 0 && <tr><td colSpan={7} style={{textAlign:"center",color:"var(--t3)",padding:30}}>No projects in this period</td></tr>}
           </tbody>
-        </table>
+        </table></div>
       </div>
 
       {/* Project detail table */}
       <div className="rpt-card">
         <div className="rpt-card-hd">Project Details</div>
-        <table className="rpt-tbl">
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
           <thead>
             <tr><th>Project</th><th>Type</th><th>Status</th><th>Created</th><th>Revenue</th><th>Invoiced</th><th>Margin</th></tr>
           </thead>
@@ -412,7 +414,7 @@ function RevenueReport({ data, statuses, customWorkTypes, customProjectTypes }) 
               );
             })}
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
   );
@@ -491,7 +493,7 @@ function ReferralReport({ data, statuses }) {
 
       <div className="rpt-card">
         <div className="rpt-card-hd">Referral Source Performance</div>
-        <table className="rpt-tbl">
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
           <thead>
             <tr>
               <th>Source</th>
@@ -524,7 +526,7 @@ function ReferralReport({ data, statuses }) {
             ))}
             {bySource.length === 0 && <tr><td colSpan={7} style={{textAlign:"center",color:"var(--t3)",padding:30}}>No referral data available</td></tr>}
           </tbody>
-        </table>
+        </table></div>
       </div>
 
       {/* Top referrers — project breakdown */}
@@ -609,7 +611,7 @@ function WIPReport({ data, statuses }) {
           Work In Progress Detail
           <button className="rpt-export-btn" onClick={()=>exportCSV(active,"wip_report")}>{RIc.download} Export CSV</button>
         </div>
-        <table className="rpt-tbl">
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
           <thead>
             <tr>
               <th>Project</th>
@@ -654,7 +656,7 @@ function WIPReport({ data, statuses }) {
             })}
             {active.length === 0 && <tr><td colSpan={9} style={{textAlign:"center",color:"var(--t3)",padding:30}}>No active projects</td></tr>}
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
   );
@@ -765,7 +767,7 @@ function WhiteboardReport({ data, statuses, customWorkTypes }) {
       </div>
 
       {/* Whiteboard grid */}
-      <div className="rpt-card" style={{overflowX:"auto",padding:0}}>
+      <div className="rpt-card" style={{overflowX:"auto",overflowY:"hidden",padding:0,maxWidth:"100%"}}>
         <div style={{minWidth:(allWT.length+3)*110}}>
           {/* Header */}
           <div style={{display:"grid",gridTemplateColumns:gridCols,gap:1,background:"var(--br)"}}>
@@ -920,7 +922,7 @@ function PipelineReport({ data, statuses, customWorkTypes, customProjectTypes, g
       </div>
 
       {/* Kanban columns */}
-      <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:10}}>
+      <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:10,maxWidth:"100%"}}>
         {columns.map(col => (
           <div key={col.key} style={{minWidth:220,flex:1,background:"var(--s1)",border:"1px solid var(--br)",borderRadius:9,overflow:"hidden"}}>
             <div style={{padding:"10px 12px",borderBottom:"1px solid var(--br)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -976,7 +978,7 @@ function PipelineReport({ data, statuses, customWorkTypes, customProjectTypes, g
           });
           const rows = Object.values(wtMap).sort((a,b)=>b.total-a.total);
           return (
-            <table className="rpt-tbl">
+            <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
               <thead>
                 <tr>
                   <th>Work Type</th>
@@ -997,7 +999,7 @@ function PipelineReport({ data, statuses, customWorkTypes, customProjectTypes, g
                 ))}
                 {rows.length === 0 && <tr><td colSpan={statuses.length+2} style={{textAlign:"center",color:"var(--t3)",padding:20}}>No data</td></tr>}
               </tbody>
-            </table>
+            </table></div>
           );
         })()}
       </div>
@@ -1108,7 +1110,7 @@ function AIAnalytics({ data, companyId }) {
             <div style={{display:"flex",gap:8}}>
               <input className="rpt-inp" value={customQ} onChange={e=>setCustomQ(e.target.value)}
                 placeholder="e.g. Which carriers have the highest average job size?"
-                style={{flex:1}}
+                style={{flex:1,minHeight:80}}
                 onKeyDown={e => e.key === "Enter" && customQ.trim() && runAnalysis("custom")}
               />
               <button className="rpt-export-btn" onClick={()=>customQ.trim() && runAnalysis("custom")} style={{padding:"5px 16px"}}>
@@ -1345,7 +1347,7 @@ function EquipmentMismatchReport({ data, priceLists }) {
       {/* Project-by-project mismatch table */}
       <div className="rpt-card">
         <div className="rpt-card-hd">Equipment Revenue Mismatch by Project</div>
-        <table className="rpt-tbl">
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
           <thead>
             <tr>
               <th>Project</th>
@@ -1395,7 +1397,7 @@ function EquipmentMismatchReport({ data, priceLists }) {
 
                           {/* Equipment type comparison grid */}
                           <div style={{fontWeight:700,fontSize:11,color:"var(--t1)",marginBottom:8}}>S500 Recommendation vs Deployed</div>
-                          <table className="rpt-tbl" style={{marginBottom:12}}>
+                          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{marginBottom:12}}>
                             <thead>
                               <tr>
                                 <th>Equipment Type</th>
@@ -1429,13 +1431,13 @@ function EquipmentMismatchReport({ data, priceLists }) {
                                 </tr>
                               ))}
                             </tbody>
-                          </table>
+                          </table></div>
 
                           {/* Deployed equipment detail */}
                           {a.equipDetails.length > 0 && (
                             <>
                               <div style={{fontWeight:700,fontSize:11,color:"var(--t1)",marginBottom:6}}>Deployed Equipment Detail</div>
-                              <table className="rpt-tbl" style={{marginBottom:12}}>
+                              <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{marginBottom:12}}>
                                 <thead>
                                   <tr><th>Equipment</th><th>Room</th><th>Day In</th><th>Day Out</th><th>Billing Days</th><th>Rate/Day</th><th>Revenue</th></tr>
                                 </thead>
@@ -1452,7 +1454,7 @@ function EquipmentMismatchReport({ data, priceLists }) {
                                     </tr>
                                   ))}
                                 </tbody>
-                              </table>
+                              </table></div>
                             </>
                           )}
 
@@ -1489,14 +1491,14 @@ function EquipmentMismatchReport({ data, priceLists }) {
               </td></tr>
             )}
           </tbody>
-        </table>
+        </table></div>
       </div>
 
       {/* Summary by equipment type across all projects */}
       {analysis.length > 0 && (
         <div className="rpt-card">
           <div className="rpt-card-hd">Company-Wide Equipment Gap Summary</div>
-          <table className="rpt-tbl">
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
             <thead>
               <tr><th>Equipment Type</th><th>Total Rec.</th><th>Total Deployed</th><th>Gap (Units)</th><th>Total Rec. Revenue</th><th>Total Actual Revenue</th><th>Revenue Gap</th></tr>
             </thead>
@@ -1525,7 +1527,7 @@ function EquipmentMismatchReport({ data, priceLists }) {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
     </div>
@@ -1707,7 +1709,7 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
       {offices.length > 0 && (
         <div className="rpt-card">
           <div className="rpt-card-hd">Performance by Office</div>
-          <table className="rpt-tbl">
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
             <thead>
               <tr>
                 <th>Office</th>
@@ -1739,7 +1741,7 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
 
@@ -1755,7 +1757,7 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
             <div style={{fontSize:11}}>Send your first review request from any project using the ★ Review button.</div>
           </div>
         ) : (
-          <table className="rpt-tbl">
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
             <thead>
               <tr>
                 <th>Date</th>
@@ -1795,7 +1797,7 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
                   {expanded === i && (
                     <tr key={`${r.id || i}-exp`}>
                       <td colSpan={7} style={{background:"var(--s1)",padding:"12px 16px"}}>
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,fontSize:11}}>
+                        <div className="g2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,fontSize:11}}>
                           <div>
                             <div style={{fontWeight:700,color:"var(--t1)",marginBottom:4}}>Review Details</div>
                             <div style={{color:"var(--t2)",lineHeight:1.8}}>
@@ -1825,7 +1827,7 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
                 </>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 
@@ -1836,7 +1838,7 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
             Completed Projects Without Review Requests
             <span style={{fontSize:10,color:"var(--t3)",fontWeight:400}}>{projectsNoRequest.length} projects</span>
           </div>
-          <table className="rpt-tbl">
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
             <thead>
               <tr><th>Project</th><th>Client</th><th>Type</th><th>Completed</th><th>Office</th></tr>
             </thead>
@@ -1863,7 +1865,7 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
                 </td></tr>
               )}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
 
@@ -1874,7 +1876,7 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
             Requests Sent — No Review Detected
             <span style={{fontSize:10,color:"var(--t3)",fontWeight:400}}>{sentButNoReview.length} projects</span>
           </div>
-          <table className="rpt-tbl">
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
             <thead>
               <tr><th>Project</th><th>Client</th><th>Sent Date</th><th>Office</th><th>Days Waiting</th></tr>
             </thead>
@@ -1901,7 +1903,7 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
     </div>

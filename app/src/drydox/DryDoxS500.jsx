@@ -252,7 +252,7 @@ export default function DryDoxS500({
           Add rooms in the Floor Plan tab to see S500 recommendations.
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 10 }}>
           {rooms.map(room => {
             const rec = perRoom.find(r => r.roomId === room.id) || { fan: 0, dehu: 0, scrubber: 0 };
             const dep = roomDeployed[room.id] || { fan: 0, dehu: 0, scrubber: 0 };
@@ -362,7 +362,7 @@ export default function DryDoxS500({
           "Air Scrubbers: Required for Cat 2/3 water. CFM = (Cubic Ft × ACH) ÷ 60. Cat 2 = 4 ACH, Cat 3 = 6 ACH",
           "These are minimum recommendations — actual conditions may require more or fewer units",
         ].map((item, i) => (
-          <div key={i} style={{ display: "flex", gap: 6, padding: "3px 0", fontSize: 11, color: "var(--t2)" }}>
+          <div key={i} style={{ display: "flex", gap: 6, padding: "3px 0", fontSize: 12, color: "var(--t2)" }}>
             <span style={{ color: "var(--blue)", fontSize: 10, flexShrink: 0 }}>•</span>
             {item}
           </div>

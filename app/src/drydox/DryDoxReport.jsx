@@ -458,7 +458,8 @@ export default function DryDoxReport({
           <button className="btn btn-ghost btn-xs" onClick={() => setPreviewMode(p => !p)}>
             {previewMode ? "Hide Preview" : "Preview Report"}
           </button>
-          <button className="btn btn-primary btn-xs" onClick={generatePDF} disabled={generating}>
+          <button className="btn btn-primary btn-xs" onClick={generatePDF} disabled={generating}
+            style={{width:"100%",minHeight:44}}>
             {generating ? <span className="spin" style={{ display: "inline-block", animation: "spin .7s linear infinite" }}>⟳</span> : DDIc.pdf}
             {generating ? " Generating..." : " Generate PDF"}
           </button>

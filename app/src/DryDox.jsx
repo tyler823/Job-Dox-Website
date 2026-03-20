@@ -199,7 +199,7 @@ export default function DryDoxTab({ proj, priceLists = [], onPushToScope, compan
   return (
     <div className="dd-wrap">
       {/* Sub-tab bar with price list selector */}
-      <div className="dd-subtabs">
+      <div className="dd-subtabs" style={{overflowX:"auto",flexWrap:"nowrap",WebkitOverflowScrolling:"touch"}}>
         {SUBTABS.map(t => (
           <button key={t.key}
             className={`dd-subtab${subtab === t.key ? " active" : ""}`}
