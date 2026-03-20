@@ -12,6 +12,7 @@ const config: CapacitorConfig = {
 url: "https://job-dox.ai/app-login.html",
  androidScheme: "https",
     iosScheme: "https",
+    allowNavigation: ["job-dox.ai"],
   },
   ios: {
     allowsLinkPreview: false,

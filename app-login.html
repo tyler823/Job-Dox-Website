@@ -216,10 +216,19 @@
   waitForMs(function(ms) {
     ms.getCurrentMember().then(function(res) {
       if (res && res.data) {
-        window.location.replace('https://job-dox.ai/app/');
+        window.location.replace('https://job-dox.ai');
       }
     }).catch(function() {});
   });
+
+  /* Safety net: if session check hangs, ensure form is usable after 6s */
+  setTimeout(function() {
+    var loginForm = document.getElementById('loginForm');
+    if (loginForm && loginForm.style.display === 'none') {
+      loginForm.style.display = '';
+    }
+    setLoading(false);
+  }, 6000);
 
   /* Form submit — sign in */
   form.addEventListener('submit', function(e) {
@@ -234,7 +243,7 @@
     waitForMs(function(ms) {
       ms.loginMemberEmailPassword({ email: email, password: pass })
         .then(function() {
-          window.location.replace('https://job-dox.ai/app/');
+          window.location.replace('https://job-dox.ai');
         })
         .catch(function(err) {
           setLoading(false);
