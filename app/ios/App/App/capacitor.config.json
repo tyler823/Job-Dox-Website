@@ -1,0 +1,16 @@
+{
+  "appId": "ai.jobdox.cortex",
+  "appName": "Cortex",
+  "webDir": "dist",
+  "server": {
+    "url": "https://job-dox.ai/app-login.html",
+    "androidScheme": "https",
+    "iosScheme": "https"
+  },
+  "ios": {
+    "allowsLinkPreview": false,
+    "contentInset": "never",
+    "scrollEnabled": false
+  },
+  "plugins": {}
+}
