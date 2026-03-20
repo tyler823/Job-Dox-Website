@@ -134,7 +134,7 @@ const MS_TRIAL_DAYS = 7;
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
-html,body,#root{height:100%;overflow-x:hidden;max-width:100vw;background:#06070d;min-height:100dvh;overscroll-behavior:none;}
+html,body,#root{height:100%;overflow-x:hidden;max-width:100vw;background-color:#06070d;min-height:100dvh;overscroll-behavior:none;}
 ::-webkit-scrollbar{width:4px;background:transparent;}
 ::-webkit-scrollbar-thumb{background:rgba(128,128,128,0.18);border-radius:2px;}
 @keyframes jd-fade{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;}}
@@ -179,7 +179,7 @@ html,body,#root{height:100%;overflow-x:hidden;max-width:100vw;background:#06070d
 .jdp{--bg:#06070d;--rail:#08090f;--s1:#0c0e18;--s2:#10121e;--s3:#161929;--s4:#1c2035;--acc:#e43531;--acc-lo:rgba(228,53,49,.09);--acc-glo:rgba(228,53,49,.28);--t1:#eef1f8;--t2:#8b95b0;--t3:#404866;--green:#1ad98a;--amber:#e89c18;--blue:#5ba3f5;--purple:#a78bfa;--teal:#22d3ee;--br:rgba(255,255,255,.10);--br-hi:rgba(255,255,255,.18);--ui:'Outfit',sans-serif;--mono:'Space Mono',monospace;color-scheme:dark;}
 body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#fff;--s3:#e8eaf2;--s4:#dde0ed;--acc:#e43531;--acc-lo:rgba(228,53,49,.08);--acc-glo:rgba(228,53,49,.20);--t1:#0d1117;--t2:#374151;--t3:#6b7280;--green:#059669;--amber:#b45309;--blue:#1d60c8;--purple:#6d28d9;--teal:#0e7490;--br:rgba(0,0,0,.14);--br-hi:rgba(0,0,0,.24);color-scheme:light;}
 
-.jdp{display:flex;height:100vh;overflow:hidden;background:var(--bg);color:var(--t1);font-family:var(--ui);max-width:100vw;}
+.jdp{display:flex;height:100vh;overflow:hidden;background:var(--bg);background-color:var(--bg);color:var(--t1);font-family:var(--ui);max-width:100vw;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);min-height:100dvh;}
 .jdp-main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;max-width:100vw;}
 
 .rail{width:56px;background:var(--rail);border-right:1px solid var(--br);display:flex;flex-direction:column;align-items:center;padding:calc(8px + env(safe-area-inset-top)) 0 calc(8px + env(safe-area-inset-bottom));gap:2px;flex-shrink:0;z-index:200;}
@@ -330,6 +330,8 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
 .proj-list{display:flex;flex-direction:column;gap:5px;}
 .proj-list-row{background:var(--s2);border:1px solid var(--br);border-radius:10px;display:flex;align-items:center;overflow:hidden;transition:all .15s;}
 .proj-list-row:hover{border-color:var(--br-hi);box-shadow:0 3px 12px rgba(0,0,0,.12);}
+.new-proj-mobile{display:none;}
+.theme-toggle-mobile{display:none;}
 .proj-list-accent{width:4px;align-self:stretch;flex-shrink:0;}
 .proj-list-body{flex:1;display:flex;align-items:center;gap:12px;padding:9px 13px;min-width:0;cursor:pointer;}
 .proj-list-actions{display:flex;gap:4px;padding:6px 9px;border-left:1px solid var(--br);flex-shrink:0;}
@@ -341,7 +343,7 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
 @keyframes jd-slide-up{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
 
 /* ── Bottom tab bar (mobile only) ── */
-.mobile-bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:400;background:var(--rail);border-top:1px solid var(--br);padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);align-items:stretch;justify-content:stretch;height:calc(56px + env(safe-area-inset-bottom));}
+.mobile-bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:400;background:var(--rail);border-top:1px solid var(--br);padding:0 env(safe-area-inset-right) 0 env(safe-area-inset-left);padding-bottom:calc(8px + env(safe-area-inset-bottom));align-items:stretch;justify-content:stretch;height:calc(56px + env(safe-area-inset-bottom));}
 .mob-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 4px;background:none;border:none;border-top:2px solid transparent;cursor:pointer;color:var(--t3);font-family:var(--ui);font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;min-width:0;transition:color .15s,border-color .15s;}
 .mob-tab.active{color:var(--acc);border-top-color:var(--acc);}
 .mob-tab.clocked-in-tab{color:var(--green);background:rgba(26,217,138,0.08);}
@@ -354,7 +356,7 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
   .mobile-bottom-nav{display:flex!important;}
 
   /* Compensate for bottom nav + safe area */
-  .jdp{flex-direction:column;overflow-x:hidden;}
+  .jdp{flex-direction:column;overflow-x:hidden;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);}
   .jdp-main{padding-bottom:calc(56px + env(safe-area-inset-bottom));}
 
   /* Topbar — respect status bar */
@@ -432,6 +434,13 @@ body.jd-light-mode .jdp,.jdp.lt{--bg:#e8ebf2;--rail:#dde1ed;--s1:#f2f4f8;--s2:#f
 
   /* Project list view — fix overflow */
   .proj-list-row{max-width:100%;overflow:hidden;}
+
+  /* New Project button — show mobile version, hide desktop one in topbar */
+  .new-proj-desktop{display:none!important;}
+  .new-proj-mobile{display:block!important;}
+
+  /* Theme toggle in mobile topbar */
+  .theme-toggle-mobile{display:flex!important;}
 }
 
 @media(max-width:480px){
@@ -3630,7 +3639,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
             {showArchived ? "Back to Active" : `Archived${archivedCount>0?` (${archivedCount})`:""}`}
           </button>
         )}
-        {canAddProject && !showArchived && <button className="btn btn-primary btn-lg" style={{flexShrink:0,whiteSpace:"nowrap"}} onClick={()=>setShowAdd(true)}>{Ic.plus} New Project</button>}
+        {canAddProject && !showArchived && <button className="btn btn-primary btn-lg new-proj-desktop" style={{flexShrink:0,whiteSpace:"nowrap"}} onClick={()=>setShowAdd(true)}>{Ic.plus} New Project</button>}
       </div>
 
       <div className="kpi-bar">
@@ -3648,6 +3657,8 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
 
       <div className="port-body">
         <div className="port-projects">
+          {/* ── Mobile New Project button ── */}
+          {canAddProject && !showArchived && <button className="btn btn-primary btn-lg new-proj-mobile" style={{width:"100%",justifyContent:"center",marginBottom:10}} onClick={()=>setShowAdd(true)}>{Ic.plus} New Project</button>}
           {/* ── Filter chips ── */}
           {!showArchived && (
             <div style={{display:"flex",gap:5,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
@@ -14524,7 +14535,7 @@ export default function JobDoxPortal() {
   }
 
   return (
-    <div className={`jdp${isLight?" lt":""}`} style={{paddingTop:'env(safe-area-inset-top)',paddingBottom:'env(safe-area-inset-bottom)',minHeight:'100dvh',backgroundColor:'var(--bg)'}}>
+    <div className={`jdp${isLight?" lt":""}`}>
       {showTools && <AdvToolsPanel onClose={()=>setShowTools(false)} onNavTo={navTo} priceLists={priceLists} setPriceLists={setPriceLists} companyId={companyId} globalStaff={globalStaff} projects={projects} currentMemberId={currentMember?.id||""} permissionLevel={permission} featureFlags={featureFlags}/>}
       {showCopilot && <CortexCopilotPanel onClose={()=>setShowCopilot(false)} companyId={companyId} projects={projects} currentMemberId={currentMember?.id||""}/>}
       {showMsgCenter && <MessageCenter onClose={()=>setShowMsgCenter(false)} companyId={companyId} globalStaff={globalStaff} projects={projects}/>}
@@ -14652,6 +14663,11 @@ export default function JobDoxPortal() {
         </button>
       </nav>
 
+      {/* ── Mobile Theme Toggle (top-right corner) ── */}
+      <button className="theme-toggle-mobile" onClick={toggleTheme} style={{position:"fixed",top:"calc(6px + env(safe-area-inset-top))",right:10,zIndex:401,width:32,height:32,borderRadius:8,border:"1px solid var(--br)",background:"var(--s2)",color:isLight?"var(--t2)":"#f5c518",alignItems:"center",justifyContent:"center",cursor:"pointer",boxShadow:"0 2px 8px rgba(0,0,0,.25)"}}>
+        {isLight ? Ic.sun : Ic.moon}
+      </button>
+
       {/* ── Mobile Bottom Nav (5 tabs) ── */}
       <nav className="mobile-bottom-nav">
         <button className={`mob-tab${page==="portfolio"&&!selected&&!showMobileFeed?" active":""}`}
@@ -14669,10 +14685,10 @@ export default function JobDoxPortal() {
           <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
           Feed
         </button>
-        <button className={`mob-tab${clockInState?" clocked-in-tab":""}`}
-          onClick={()=>{setShowMobileFeed(false);/* clock modal triggered by existing logic */}}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm.5 5v5.25l4.5 2.67-.75 1.23L11 13V7h1.5z"/></svg>
-          Clock
+        <button className={`mob-tab${showTools?" active":""}`}
+          onClick={()=>{setShowMobileFeed(false);setShowCopilot(false);setShowTools(v=>!v);}}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>
+          Tools
         </button>
         <button className={`mob-tab${showCopilot?" active":""}`} onClick={()=>{setShowCopilot(v=>!v);setShowMobileFeed(false);}}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L9.5 8.5 2 12l7.5 3.5L12 23l2.5-7.5L22 12l-7.5-3.5z"/></svg>
