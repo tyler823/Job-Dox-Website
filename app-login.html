@@ -7,6 +7,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="theme-color" content="#06070d"/>
   <title>Cortex — Sign In</title>
+  <!-- Memberstack v2 — must load in head before any JS uses it -->
+  <script src="https://static.memberstack.com/scripts/v1/memberstack.js" data-memberstack-app="app_cmmm8x9fr00dg0utoabyje7x9"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet"/>
@@ -185,8 +187,6 @@
   </form>
 </div>
 
-<!-- Memberstack v2 -->
-<script data-memberstack-app="app_clm..." src="https://client.memberstack.com/collector/collector.js"></script>
 <script>
 (function() {
   const form     = document.getElementById('loginForm');
