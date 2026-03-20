@@ -216,7 +216,7 @@
   waitForMs(function(ms) {
     ms.getCurrentMember().then(function(res) {
       if (res && res.data) {
-        window.location.replace('https://job-dox.ai');
+        window.location.replace('https://job-dox.ai/app/dist/');
       }
     }).catch(function() {});
   });
@@ -243,7 +243,7 @@
     waitForMs(function(ms) {
       ms.loginMemberEmailPassword({ email: email, password: pass })
         .then(function() {
-          window.location.replace('https://job-dox.ai');
+          window.location.replace('https://job-dox.ai/app/dist/');
         })
         .catch(function(err) {
           setLoading(false);
