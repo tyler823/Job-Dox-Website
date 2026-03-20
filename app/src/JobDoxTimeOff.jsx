@@ -146,7 +146,7 @@ function MiniCalendar({ year, month, onMonthChange, requests, onDayClick, select
         <span style={{fontWeight:700,fontSize:13,color:"var(--t1)"}}>{MN[month]} {year}</span>
         <button onClick={()=>onMonthChange(1)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--t2)",padding:4}}>{TIc.chev_r}</button>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,width:"100%"}}>
         {DOW.map(d=><div key={d} style={{fontSize:9,color:"var(--t3)",textAlign:"center",padding:"3px 0",fontFamily:"var(--mono)"}}>{d}</div>)}
         {cells.map((c,i)=>(
           <button key={i} onClick={()=>c.date&&onDayClick&&onDayClick(c.date)}
@@ -405,13 +405,14 @@ function BalancesView({ globalStaff, requests, config }) {
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:6}}>
-      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:4,padding:"0 10px",marginBottom:4}}>
+      <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:4,padding:"0 10px",marginBottom:4,minWidth:480}}>
         <div className="lbl">Employee</div><div className="lbl" style={{textAlign:"center"}}>Yearly</div>
         <div className="lbl" style={{textAlign:"center"}}>Accrued</div><div className="lbl" style={{textAlign:"center"}}>Used</div>
         <div className="lbl" style={{textAlign:"center"}}>Available</div>
       </div>
       {balances.map(b=>(
-        <div key={b.staff.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:4,padding:"8px 10px",background:"var(--s2)",border:"1px solid var(--br)",borderRadius:8,alignItems:"center"}}>
+        <div key={b.staff.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:4,padding:"8px 10px",background:"var(--s2)",border:"1px solid var(--br)",borderRadius:8,alignItems:"center",minWidth:480}}>
           <div><div style={{fontSize:12,fontWeight:600,color:"var(--t1)"}}>{b.name}</div><div style={{fontSize:9,color:"var(--t3)"}}>{b.staff.systemRole||b.staff.title||"\u2014"}</div></div>
           <div style={{textAlign:"center",fontFamily:"var(--mono)",fontSize:12,color:"var(--t2)"}}>{b.yearlyRate}</div>
           <div style={{textAlign:"center",fontFamily:"var(--mono)",fontSize:12,color:"var(--blue)"}}>{b.accrued}</div>
@@ -422,6 +423,7 @@ function BalancesView({ globalStaff, requests, config }) {
         </div>
       ))}
       {balances.length===0&&<div style={{textAlign:"center",padding:30,color:"var(--t3)",fontSize:12}}>No active staff members found.</div>}
+      </div>
     </div>
   );
 }
@@ -592,7 +594,7 @@ export function TimeOffPanel({ onClose, companyId, globalStaff=[], currentMember
               <div style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",letterSpacing:".05em",marginTop:1}}>PTO MANAGEMENT</div>
             </div>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <div style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:6}}>
             {isAdmin&&<button className="btn btn-ghost btn-xs" onClick={()=>setShowConfig(true)}>{TIc.settings} Settings</button>}
             {isAdmin&&<button className="btn btn-ghost btn-xs" onClick={()=>setShowHoliday(true)} style={{color:"var(--green)"}}>{TIc.plus} Holiday</button>}
             <button className="btn btn-primary btn-xs" onClick={()=>setShowRequest(true)}>{TIc.plus} Request Time Off</button>
@@ -602,11 +604,11 @@ export function TimeOffPanel({ onClose, companyId, globalStaff=[], currentMember
 
         {/* KPI Bar */}
         {myBalance&&(
-          <div style={{display:"flex",background:"var(--s2)",borderBottom:"1px solid var(--br)",flexShrink:0}}>
-            <div style={{flex:1,padding:"10px 16px",borderRight:"1px solid var(--br)"}}><div style={{fontFamily:"var(--mono)",fontSize:18,fontWeight:700,color:"var(--green)",marginBottom:2}}>{myBalance.available}</div><div style={{fontSize:9,color:"var(--t2)",textTransform:"uppercase",letterSpacing:".07em"}}>Days Available</div></div>
-            <div style={{flex:1,padding:"10px 16px",borderRight:"1px solid var(--br)"}}><div style={{fontFamily:"var(--mono)",fontSize:18,fontWeight:700,color:"var(--t1)",marginBottom:2}}>{myBalance.used}</div><div style={{fontSize:9,color:"var(--t2)",textTransform:"uppercase",letterSpacing:".07em"}}>Days Used</div></div>
-            <div style={{flex:1,padding:"10px 16px",borderRight:"1px solid var(--br)"}}><div style={{fontFamily:"var(--mono)",fontSize:18,fontWeight:700,color:"var(--blue)",marginBottom:2}}>{myBalance.accrued}</div><div style={{fontSize:9,color:"var(--t2)",textTransform:"uppercase",letterSpacing:".07em"}}>Accrued YTD</div></div>
-            <div style={{flex:1,padding:"10px 16px"}}><div style={{fontFamily:"var(--mono)",fontSize:18,fontWeight:700,color:"var(--t2)",marginBottom:2}}>{myBalance.yearlyRate}</div><div style={{fontSize:9,color:"var(--t2)",textTransform:"uppercase",letterSpacing:".07em"}}>Yearly Allowance</div></div>
+          <div style={{display:"flex",flexWrap:"wrap",background:"var(--s2)",borderBottom:"1px solid var(--br)",flexShrink:0}}>
+            <div style={{flex:1,minWidth:120,padding:"10px 16px",borderRight:"1px solid var(--br)"}}><div style={{fontFamily:"var(--mono)",fontSize:18,fontWeight:700,color:"var(--green)",marginBottom:2}}>{myBalance.available}</div><div style={{fontSize:9,color:"var(--t2)",textTransform:"uppercase",letterSpacing:".07em"}}>Days Available</div></div>
+            <div style={{flex:1,minWidth:120,padding:"10px 16px",borderRight:"1px solid var(--br)"}}><div style={{fontFamily:"var(--mono)",fontSize:18,fontWeight:700,color:"var(--t1)",marginBottom:2}}>{myBalance.used}</div><div style={{fontSize:9,color:"var(--t2)",textTransform:"uppercase",letterSpacing:".07em"}}>Days Used</div></div>
+            <div style={{flex:1,minWidth:120,padding:"10px 16px",borderRight:"1px solid var(--br)"}}><div style={{fontFamily:"var(--mono)",fontSize:18,fontWeight:700,color:"var(--blue)",marginBottom:2}}>{myBalance.accrued}</div><div style={{fontSize:9,color:"var(--t2)",textTransform:"uppercase",letterSpacing:".07em"}}>Accrued YTD</div></div>
+            <div style={{flex:1,minWidth:120,padding:"10px 16px"}}><div style={{fontFamily:"var(--mono)",fontSize:18,fontWeight:700,color:"var(--t2)",marginBottom:2}}>{myBalance.yearlyRate}</div><div style={{fontSize:9,color:"var(--t2)",textTransform:"uppercase",letterSpacing:".07em"}}>Yearly Allowance</div></div>
           </div>
         )}
 
@@ -639,10 +641,10 @@ export function TimeOffPanel({ onClose, companyId, globalStaff=[], currentMember
         </div>
 
         {/* Content */}
-        <div style={{flex:1,overflow:"hidden",display:"flex"}}>
+        <div style={{flex:1,overflow:"hidden",display:"flex",flexWrap:"wrap"}}>
           {/* CALENDAR TAB */}
           {tab==="calendar"&&(<>
-            <div style={{width:280,flexShrink:0,borderRight:"1px solid var(--br)",background:"var(--s1)",display:"flex",flexDirection:"column",padding:16}}>
+            <div style={{flex:"1 1 280px",minWidth:240,maxWidth:280,borderRight:"1px solid var(--br)",background:"var(--s1)",display:"flex",flexDirection:"column",padding:16}}>
               <MiniCalendar year={calYear} month={calMonth} onMonthChange={changeMonth} requests={requests} onDayClick={setSelectedDate} selectedDate={selectedDate}/>
               <div style={{marginTop:16,paddingTop:12,borderTop:"1px solid var(--br)"}}>
                 <div className="lbl" style={{marginBottom:8}}>Legend</div>

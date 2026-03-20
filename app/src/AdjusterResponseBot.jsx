@@ -195,7 +195,7 @@ export default function AdjusterResponseModal({
             <button key={role}
               className={`chip${senderRole === role ? " on" : ""}`}
               onClick={() => setSenderRole(role)}
-              style={{ fontSize: 10, padding: "3px 10px", textTransform: "capitalize" }}>
+              style={{ fontSize: 11, padding: "6px 12px", textTransform: "capitalize" }}>
               {role}
             </button>
           ))}
@@ -209,7 +209,7 @@ export default function AdjusterResponseModal({
         <div style={{ padding: "8px 18px", borderBottom: "1px solid var(--br)", flexShrink: 0 }}>
           <input className="inp" placeholder="Additional instructions (optional) — e.g., 'Focus on O&P dispute', 'Keep it brief'…"
             value={customInstr} onChange={e => setCustomInstr(e.target.value)}
-            style={{ width: "100%", fontSize: 11, height: 30 }}
+            style={{ width: "100%", fontSize: 11, minHeight: 38 }}
             onKeyDown={e => { if (e.key === "Enter" && !loading) generate(); }}
           />
         </div>
@@ -275,7 +275,7 @@ export default function AdjusterResponseModal({
                 <textarea ref={textRef} value={editText}
                   onChange={e => setEditText(e.target.value)}
                   style={{
-                    width: "100%", minHeight: 300, fontSize: 12,
+                    width: "100%", minHeight: 200, fontSize: 12,
                     color: "var(--t1)", lineHeight: 1.7, background: "var(--bg)",
                     borderRadius: 8, padding: "16px 18px",
                     border: "1px solid var(--blue)", outline: "none",
@@ -291,7 +291,7 @@ export default function AdjusterResponseModal({
         {response && !loading && (
           <div style={{
             padding: "12px 18px", borderTop: "1px solid var(--br)",
-            display: "flex", gap: 8, alignItems: "center", flexShrink: 0,
+            display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", flexShrink: 0,
           }}>
             <button className="btn btn-ghost btn-xs" onClick={() => { setEditing(!editing); }}
               style={{ gap: 4 }}>

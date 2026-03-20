@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="theme-color" content="#06070d"/>
+  <title>Cortex — Sign In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #06070d;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom) 20px;
+      font-family: 'Outfit', -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .login-wrap {
+      width: 100%;
+      max-width: 340px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Logo mark */
+    .logo-mark {
+      width: 56px;
+      height: 56px;
+      border-radius: 9px;
+      background: #e43531;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Space Mono', monospace;
+      font-weight: 700;
+      font-size: 22px;
+      color: #fff;
+      box-shadow: 0 0 24px rgba(228,53,49,0.4);
+      user-select: none;
+    }
+
+    .brand-name {
+      font-family: 'Outfit', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: #eef1f8;
+      margin-top: 14px;
+      letter-spacing: -0.01em;
+    }
+
+    .brand-sub {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: #404866;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    /* Form */
+    .login-form {
+      width: 100%;
+      margin-top: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .login-input {
+      width: 100%;
+      background: #10121e;
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 8px;
+      padding: 13px 14px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 14px;
+      color: #eef1f8;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .login-input::placeholder { color: #404866; }
+
+    .login-input:focus {
+      border-color: #e43531;
+      box-shadow: 0 0 0 2px rgba(228,53,49,0.09);
+    }
+
+    .login-btn {
+      width: 100%;
+      background: #e43531;
+      color: #fff;
+      font-family: 'Outfit', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      padding: 14px;
+      cursor: pointer;
+      box-shadow: 0 0 14px rgba(228,53,49,0.28);
+      transition: opacity 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 46px;
+      margin-top: 4px;
+    }
+
+    .login-btn:active { opacity: 0.85; }
+
+    .login-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* Spinner */
+    .btn-spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.25);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Error message */
+    .login-error {
+      color: #e43531;
+      font-size: 12px;
+      text-align: center;
+      margin-top: 4px;
+      min-height: 18px;
+    }
+
+    /* Forgot password */
+    .forgot-link {
+      background: none;
+      border: none;
+      font-family: 'Outfit', sans-serif;
+      font-size: 11px;
+      color: #8b95b0;
+      cursor: pointer;
+      padding: 8px 0;
+      margin-top: 4px;
+      text-align: center;
+    }
+
+    .forgot-link:active { opacity: 0.7; }
+
+    /* Confirmation message */
+    .login-confirm {
+      color: #1ad98a;
+      font-size: 12px;
+      text-align: center;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="logo-mark">CX</div>
+  <div class="brand-name">Cortex</div>
+  <div class="brand-sub">by Job-Dox</div>
+
+  <form class="login-form" id="loginForm" autocomplete="on">
+    <input class="login-input" id="email" type="email" placeholder="Email address" autocomplete="email" required/>
+    <input class="login-input" id="password" type="password" placeholder="Password" autocomplete="current-password" required/>
+    <button class="login-btn" type="submit" id="submitBtn">Sign In</button>
+    <div class="login-error" id="errorMsg"></div>
+    <button class="forgot-link" type="button" id="forgotBtn">Forgot password?</button>
+    <div class="login-confirm" id="confirmMsg"></div>
+  </form>
+</div>
+
+<!-- Memberstack v2 -->
+<script data-memberstack-app="app_clm..." src="https://client.memberstack.com/collector/collector.js"></script>
+<script>
+(function() {
+  const form     = document.getElementById('loginForm');
+  const emailEl  = document.getElementById('email');
+  const passEl   = document.getElementById('password');
+  const btn      = document.getElementById('submitBtn');
+  const errorEl  = document.getElementById('errorMsg');
+  const confirmEl= document.getElementById('confirmMsg');
+  const forgotEl = document.getElementById('forgotBtn');
+
+  function showError(msg) { errorEl.textContent = msg; confirmEl.textContent = ''; }
+  function showConfirm(msg) { confirmEl.textContent = msg; errorEl.textContent = ''; }
+  function setLoading(on) {
+    btn.disabled = on;
+    btn.innerHTML = on ? '<div class="btn-spinner"></div>' : 'Sign In';
+  }
+
+  /* Wait for Memberstack to be ready */
+  function waitForMs(cb, attempts) {
+    attempts = attempts || 0;
+    if (window.$memberstackDom) return cb(window.$memberstackDom);
+    if (attempts > 40) return showError('Authentication service unavailable. Please reload.');
+    setTimeout(function() { waitForMs(cb, attempts + 1); }, 250);
+  }
+
+  /* On load — check if already logged in */
+  waitForMs(function(ms) {
+    ms.getCurrentMember().then(function(res) {
+      if (res && res.data) {
+        window.location.replace('https://job-dox.ai/app/');
+      }
+    }).catch(function() {});
+  });
+
+  /* Form submit — sign in */
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    var email = emailEl.value.trim();
+    var pass  = passEl.value;
+    if (!email || !pass) { showError('Please enter email and password.'); return; }
+
+    setLoading(true);
+    showError('');
+
+    waitForMs(function(ms) {
+      ms.loginMemberEmailPassword({ email: email, password: pass })
+        .then(function() {
+          window.location.replace('https://job-dox.ai/app/');
+        })
+        .catch(function(err) {
+          setLoading(false);
+          showError((err && err.message) || 'Invalid email or password.');
+        });
+    });
+  });
+
+  /* Forgot password */
+  forgotEl.addEventListener('click', function() {
+    var email = emailEl.value.trim();
+    if (!email) { showError('Enter your email above, then tap Forgot password.'); return; }
+
+    showError('');
+    forgotEl.disabled = true;
+
+    waitForMs(function(ms) {
+      ms.sendMemberResetPasswordEmail({ email: email })
+        .then(function() {
+          showConfirm('Password reset email sent. Check your inbox.');
+          forgotEl.disabled = false;
+        })
+        .catch(function(err) {
+          showError((err && err.message) || 'Could not send reset email.');
+          forgotEl.disabled = false;
+        });
+    });
+  });
+})();
+</script>
+</body>
+</html>

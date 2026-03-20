@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Client Portal — Job-Dox</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -498,8 +498,20 @@ body {
 /* ── Responsive ── */
 @media (max-width: 480px) {
   .auth-card { padding: 24px 20px; }
-  .photo-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
-  .tab-btn { font-size: 12px; padding: 10px 4px 8px; }
+  .photo-grid { grid-template-columns: repeat(2, 1fr); }
+  .tab-btn { font-size: 12px; padding: 10px 4px 8px; min-height: 44px; }
+  .shell { padding: 0 12px; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+  .header { padding: 12px 0 10px; flex-wrap: wrap; gap: 8px; }
+  .btn-primary { min-height: 48px; font-size: 15px; }
+  .btn-sign { width: 100%; min-height: 44px; font-size: 13px; padding: 10px 16px; margin-top: 8px; }
+  .doc-row { flex-direction: column; align-items: stretch; gap: 8px; padding: 12px 14px; }
+  .doc-info { min-width: 0; }
+  .doc-status { align-self: flex-start; }
+  .field-row { flex-direction: column; gap: 8px; }
+  .field input, .field select { min-height: 44px; font-size: 14px; }
+  .lightbox { padding: 10px; }
+  .lightbox img { border-radius: 6px; }
+  .contact-row { flex-direction: column; align-items: flex-start; gap: 4px; }
 }
 </style>
 </head>

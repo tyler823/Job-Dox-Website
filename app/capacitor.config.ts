@@ -9,7 +9,7 @@ const config: CapacitorConfig = {
   server: {
     // Uncomment below for live-reload during development:
     // url: "http://YOUR_LOCAL_IP:5173",
-url: "https://job-dox.ai",   
+url: "https://job-dox.ai/app-login.html",
  androidScheme: "https",
     iosScheme: "https",
   },

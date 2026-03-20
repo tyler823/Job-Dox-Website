@@ -820,8 +820,8 @@ function InvoicePreviewModal({ inv, onClose }) {
 
           {/* ── COMPLEX mode: flat line items ── */}
           {isComplex && !hasRooms && (
-            <div style={{marginBottom:20}}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 60px 60px 80px 80px",gap:0,
+            <div style={{marginBottom:20,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 60px 60px 80px 80px",gap:0,minWidth:420,
                 background:"var(--s3)",borderRadius:"7px 7px 0 0",padding:"7px 10px",
                 borderBottom:"2px solid var(--br-hi)"}}>
                 {["Description","Unit","Qty","Unit Price","Total"].map((h,i)=>(
@@ -829,7 +829,7 @@ function InvoicePreviewModal({ inv, onClose }) {
                 ))}
               </div>
               {(inv.lineItems||[]).map((it,i)=>(
-                <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 60px 60px 80px 80px",gap:0,
+                <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 60px 60px 80px 80px",gap:0,minWidth:420,
                   padding:"7px 10px",borderBottom:"1px solid var(--br)",
                   background:i%2===0?"transparent":"rgba(255,255,255,.015)"}}>
                   <div style={{fontSize:11,color:"var(--t1)"}}>{it.desc}</div>
@@ -856,13 +856,14 @@ function InvoicePreviewModal({ inv, onClose }) {
                       {fmt(items.reduce((s,li)=>s+li.qty*li.price,0))}
                     </span>
                   </div>
-                  <div style={{background:"var(--s3)",padding:"3px 11px 3px",display:"grid",gridTemplateColumns:"1fr 60px 60px 80px 80px",gap:0,borderBottom:"1px solid var(--br)"}}>
+                  <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+                  <div style={{background:"var(--s3)",padding:"3px 11px 3px",display:"grid",gridTemplateColumns:"1fr 60px 60px 80px 80px",gap:0,borderBottom:"1px solid var(--br)",minWidth:420}}>
                     {["Description","Unit","Qty","Unit Price","Total"].map((h,i)=>(
                       <div key={h} className="mono" style={{fontSize:8,color:"var(--t3)",textAlign:i>1?"right":"left",padding:"3px 0"}}>{h}</div>
                     ))}
                   </div>
                   {items.map((it,i)=>(
-                    <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 60px 60px 80px 80px",gap:0,
+                    <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 60px 60px 80px 80px",gap:0,minWidth:420,
                       padding:"6px 11px",borderBottom:i<items.length-1?"1px solid var(--br)":"none",
                       background:i%2===0?"transparent":"rgba(255,255,255,.015)"}}>
                       <div style={{fontSize:11,color:"var(--t1)"}}>{it.desc}</div>
@@ -872,6 +873,7 @@ function InvoicePreviewModal({ inv, onClose }) {
                       <div className="mono" style={{fontSize:11,fontWeight:700,color:"var(--t1)",textAlign:"right"}}>{fmt((it.qty||0)*(it.price||0))}</div>
                     </div>
                   ))}
+                  </div>{/* end room scrollable wrapper */}
                 </div>
               ))}
             </div>
@@ -964,8 +966,8 @@ function XactimateImportModal({ parsedCats=[], existingCats=[], filename, onAppl
   };
 
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:"var(--s1)",border:"1px solid var(--br)",borderRadius:14,width:"100%",maxWidth:780,maxHeight:"90vh",display:"flex",flexDirection:"column"}}>
+    <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()} style={{padding:20}}>
+      <div className="modal anim modal-lg" style={{maxWidth:780,width:"100%",maxHeight:"90vh",display:"flex",flexDirection:"column"}}>
         {/* Header */}
         <div style={{padding:"16px 20px",borderBottom:"1px solid var(--br)",display:"flex",alignItems:"center",gap:12}}>
           <div style={{flex:1}}>
@@ -1004,17 +1006,18 @@ function XactimateImportModal({ parsedCats=[], existingCats=[], filename, onAppl
           {selectedWT && <> Importing into <strong>{selectedWT}</strong> budget.</>}
         </div>
 
-        {/* Column headers */}
-        <div style={{display:"grid",gridTemplateColumns:"24px 1fr 90px 90px 110px 32px",gap:8,padding:"8px 20px",borderBottom:"1px solid var(--br)"}}>
+        {/* Column headers + Rows — scrollable horizontally */}
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch",flex:1,overflowY:"auto"}}>
+        <div style={{display:"grid",gridTemplateColumns:"24px 1fr 90px 90px 110px 32px",gap:8,padding:"8px 20px",borderBottom:"1px solid var(--br)",minWidth:500}}>
           {["","Category","RCV","ACV","Budget As",""].map((h,i)=>(
             <div key={i} style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",textAlign:i>=2?"right":"left"}}>{h}</div>
           ))}
         </div>
 
         {/* Rows */}
-        <div style={{overflowY:"auto",flex:1,padding:"4px 0"}}>
+        <div style={{padding:"4px 0"}}>
           {rows.map((r,i) => (
-            <div key={r.id} style={{display:"grid",gridTemplateColumns:"24px 1fr 90px 90px 110px 32px",gap:8,
+            <div key={r.id} style={{display:"grid",gridTemplateColumns:"24px 1fr 90px 90px 110px 32px",gap:8,minWidth:500,
               padding:"8px 20px",borderBottom:"1px solid var(--br)",alignItems:"center",
               opacity:r.active?1:0.4,background:r.active?"transparent":"var(--s2)"}}>
               {/* Toggle */}
@@ -1062,6 +1065,7 @@ function XactimateImportModal({ parsedCats=[], existingCats=[], filename, onAppl
             </div>
           ))}
         </div>
+        </div>{/* end scrollable wrapper */}
 
         {/* Footer */}
         <div style={{padding:"14px 20px",borderTop:"1px solid var(--br)",display:"flex",alignItems:"center",gap:12}}>
@@ -1222,7 +1226,7 @@ function XactimateBudgetTab({ proj, transactions=[], budgetData, onBudgetChange,
 
       {/* KPI row */}
       {categories.length > 0 && (
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:9,marginBottom:16}}>
+        <div className="g4" style={{gap:9,marginBottom:16}}>
           {[
             ["Total Budgeted", f$(totBudgeted), "var(--t1)"],
             ["Total Spent",    f$(totActual),   totActual>totBudgeted?"var(--acc)":"var(--amber)"],
@@ -1514,7 +1518,7 @@ function WorktypeBudgetTab({ proj, transactions=[], budgetData, onBudgetChange, 
   // ── Styles ──
   const tabBarStyle = {
     display: "flex", background: "var(--s3)", border: "1px solid var(--br)",
-    borderRadius: "8px 8px 0 0", overflow: "hidden",
+    borderRadius: "8px 8px 0 0", overflowX: "auto", WebkitOverflowScrolling: "touch",
   };
   const tabStyle = (active) => ({
     flex: 1, padding: "10px 16px", fontSize: 11, fontWeight: 700, fontFamily: "var(--mono)",
@@ -1526,7 +1530,7 @@ function WorktypeBudgetTab({ proj, transactions=[], budgetData, onBudgetChange, 
   const subTabBarStyle = {
     display: "flex", background: "var(--s2)", borderBottom: "1px solid var(--br)",
     borderLeft: "1px solid var(--br)", borderRight: "1px solid var(--br)",
-    overflow: "hidden",
+    overflowX: "auto", WebkitOverflowScrolling: "touch",
   };
   const subTabStyle = (active) => ({
     padding: "7px 18px", fontSize: 10, fontWeight: 700, fontFamily: "var(--mono)",
@@ -1583,7 +1587,7 @@ function WorktypeBudgetTab({ proj, transactions=[], budgetData, onBudgetChange, 
     const arRemaining = arDue - arPaid;
 
     return (
-      <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <div className="g2" style={{ marginTop: 20, gap: 12 }}>
         {/* Estimates */}
         <div style={sectionBoxStyle}>
           <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", borderBottom: "1px solid var(--br)", paddingBottom: 6, marginBottom: 6 }}>Estimates</div>
@@ -1601,7 +1605,7 @@ function WorktypeBudgetTab({ proj, transactions=[], budgetData, onBudgetChange, 
         {/* Accounts Receivable */}
         <div style={sectionBoxStyle}>
           <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", borderBottom: "1px solid var(--br)", paddingBottom: 6, marginBottom: 6 }}>Accounts, Receivable</div>
-          <div style={{ overflowX: "auto" }}>
+          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
@@ -1677,7 +1681,7 @@ function WorktypeBudgetTab({ proj, transactions=[], budgetData, onBudgetChange, 
         </div>
 
         {/* Category table */}
-        <div style={{ border: "1px solid var(--br)", borderTop: "none", overflowX: "auto" }}>
+        <div style={{ border: "1px solid var(--br)", borderTop: "none", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
             <thead>
               <tr>
@@ -1850,7 +1854,7 @@ function WorktypeBudgetTab({ proj, transactions=[], budgetData, onBudgetChange, 
       {/* ── ALL BUDGETS TAB ── */}
       {activeTab === "all" && (
         <div style={{ border: "1px solid var(--br)", borderTop: "none", borderRadius: "0 0 8px 8px", padding: 0 }}>
-          <div style={{ overflowX: "auto" }}>
+          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
               <thead>
                 <tr>
@@ -1959,8 +1963,9 @@ function BudgetBuilder({ budgets, setBudgets, worktypes=[], transactions=[] }) {
 
   return (
     <div>
+      <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 100px 100px 80px 80px",gap:6,
-        padding:"3px 9px",marginBottom:5}}>
+        padding:"3px 9px",marginBottom:5,minWidth:500}}>
         {["Work Type","Budgeted","Actual","Margin %","Used"].map((h,i)=>(
           <div key={i} className="mono" style={{fontSize:9,color:"var(--t3)",paddingLeft:i===0?6:0}}>{h}</div>
         ))}
@@ -1972,7 +1977,7 @@ function BudgetBuilder({ budgets, setBudgets, worktypes=[], transactions=[] }) {
         const p = parseFloat(fPct(actual, b.budgeted));
         const barColor = p>=100?"var(--acc)":p>=80?"var(--amber)":"var(--green)";
         return (
-          <div key={wt} style={{display:"grid",gridTemplateColumns:"1fr 100px 100px 80px 80px",gap:6,
+          <div key={wt} style={{display:"grid",gridTemplateColumns:"1fr 100px 100px 80px 80px",gap:6,minWidth:500,
             alignItems:"center",padding:"7px 9px",background:"var(--s2)",border:"1px solid var(--br)",
             borderRadius:7,marginBottom:3}}>
             <div style={{fontSize:12,fontWeight:600,color:"var(--t1)",paddingLeft:4}}>{wt}</div>
@@ -2006,6 +2011,7 @@ function BudgetBuilder({ budgets, setBudgets, worktypes=[], transactions=[] }) {
           {f$(Object.values(budgets).reduce((s,b)=>s+(b.budgeted||0),0))}
         </span>
       </div>
+      </div>{/* end scrollable wrapper */}
     </div>
   );
 }
@@ -2918,7 +2924,7 @@ export function FinancialTab({ proj, companyId, laborCost=0, invoices: _invoices
             </div>
 
             <div className="g2" style={{gap:9,marginBottom:14}}>
-              <div className="card">
+              <div className="card" style={{maxWidth:"100%",overflow:"hidden"}}>
                 <div className="sec" style={{marginBottom:10}}>Budget Utilization</div>
                 {Object.entries(data.budgets||{}).slice(0,6).map(([wt,b])=>{
                   const act = allTransactions.filter(t=>t.category===wt&&(TX_SIDE[t.type]==="cost"||TX_SIDE[t.type]==="ap")).reduce((s,t)=>s+t.amount,0);
@@ -2941,7 +2947,7 @@ export function FinancialTab({ proj, companyId, laborCost=0, invoices: _invoices
                 )}
               </div>
 
-              <div className="card">
+              <div className="card" style={{maxWidth:"100%",overflow:"hidden"}}>
                 <div className="sec" style={{marginBottom:10}}>Cash Flow Summary</div>
                 {[
                   ["Invoiced (AR)",      totalInvoiced,          "var(--blue)"],
@@ -3263,7 +3269,7 @@ Give a 3-4 sentence executive summary, then bullet-point the top 3 actions for t
 
                     {/* Cost pressure bar */}
                     {h && (
-                      <div style={{minWidth:120,maxWidth:180,flex:1}}>
+                      <div style={{minWidth:120,maxWidth:180,flex:1,overflow:"hidden"}}>
                         <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"var(--t3)",marginBottom:3,fontFamily:"var(--mono)"}}>
                           <span>Cost Pressure</span>
                           <span style={{color:h.color}}>{(h.pressure*100).toFixed(0)}%</span>

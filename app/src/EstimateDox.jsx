@@ -245,10 +245,10 @@ select.gbb-inp{cursor:pointer;}textarea.gbb-inp{resize:vertical;line-height:1.5;
 .gbb-tb-line-info{flex:1;min-width:0;}.gbb-tb-line-name{font-size:10px;font-weight:500;color:var(--jdv2-t1);line-height:1.3;}
 .gbb-tb-line-price{font-family:var(--jdv2-font-mono);font-size:10px;font-weight:700;color:var(--jdv2-t1);white-space:nowrap;flex-shrink:0;}
 .gbb-tb-qty{display:flex;align-items:center;gap:3px;margin-top:2px;}
-.gbb-tb-q-btn{width:14px;height:14px;border-radius:3px;border:1px solid var(--jdv2-br);background:var(--jdv2-s1);color:var(--jdv2-t2);font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:var(--jdv2-font-mono);transition:border-color .12s;}
+.gbb-tb-q-btn{width:24px;height:24px;border-radius:3px;border:1px solid var(--jdv2-br);background:var(--jdv2-s1);color:var(--jdv2-t2);font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:var(--jdv2-font-mono);transition:border-color .12s;}
 .gbb-tb-q-btn:hover{border-color:var(--jdv2-acc);color:var(--jdv2-acc);}
 .gbb-tb-q-val{font-family:var(--jdv2-font-mono);font-size:9px;font-weight:700;min-width:12px;text-align:center;color:var(--jdv2-t1);}
-.gbb-tb-rem{width:14px;height:14px;border-radius:50%;border:1px solid var(--jdv2-br);background:var(--jdv2-s1);color:var(--jdv2-t3);font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .12s;font-family:var(--jdv2-font-mono);margin-top:1px;}
+.gbb-tb-rem{width:24px;height:24px;border-radius:50%;border:1px solid var(--jdv2-br);background:var(--jdv2-s1);color:var(--jdv2-t3);font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .12s;font-family:var(--jdv2-font-mono);margin-top:1px;}
 .gbb-tb-rem:hover{border-color:var(--jdv2-acc);background:var(--jdv2-acc-lo);color:var(--jdv2-acc);}
 .gbb-create-foot{background:var(--jdv2-s2);border:1px solid var(--jdv2-br);border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:10px;}
 .gbb-create-msg{font-size:11px;color:var(--jdv2-t3);flex:1;}.gbb-create-msg.ok{color:var(--jdv2-green);}
@@ -266,6 +266,7 @@ select.gbb-inp{cursor:pointer;}textarea.gbb-inp{resize:vertical;line-height:1.5;
 .jdv2-field-select{width:100%;padding:7px 10px;background:var(--jdv2-s1,#0c0e18);border:1px solid var(--jdv2-br,rgba(255,255,255,.10));border-radius:6px;font-size:12px;color:var(--jdv2-t1,#eef1f8);font-family:var(--jdv2-font-ui,'Outfit',sans-serif);outline:none;cursor:pointer;transition:border-color .15s;}
 .jdv2-field-select:focus{border-color:var(--jdv2-br-hi,rgba(255,255,255,.18));}
 @media(max-width:1100px){.gbb-tier-grid{grid-template-columns:1fr;max-width:380px;}.gbb-tbs{grid-template-columns:1fr;}.gbb-create-layout{grid-template-columns:1fr;}.gbb-create-left{position:static;}}
+@media(max-width:768px){.gbb-mobile-tier-tabs{display:flex!important;background:var(--jdv2-s1);border-bottom:1px solid var(--jdv2-br);}.gbb-tier-grid{grid-template-columns:1fr!important;max-width:100%!important;}.gbb-tier-card.gbb-tier-hidden{display:none!important;}}
 @media(max-width:780px){.gbb-list-col{display:flex;width:100%;}.gbb-detail-panel{display:none;}.gbb-list-col.has-detail{display:none;}.gbb-detail-panel.has-detail{display:flex;width:100%;}}
 `;
 
@@ -389,10 +390,27 @@ function generatePDF(est, tier, signer, ts) {
   sf("#e43531");doc.rect(0,H-24,W,24,"F");doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(255,255,255);doc.text("Job-Dox  |  Powered by Cortex AI",W/2,H-13,{align:"center"});
 }
 
-function GBBTierCard({ tier, onSelect }) {
+function GBBMobileTierTabs({ mobileTier, setMobileTier }) {
+  return (
+    <div className="gbb-mobile-tier-tabs" style={{display:"none"}}>
+      {["good","better","best"].map(t => (
+        <button key={t} onClick={()=>setMobileTier(t)}
+          style={{flex:1,padding:"10px 8px",fontSize:12,fontWeight:mobileTier===t?700:400,
+            background:mobileTier===t?"var(--jdv2-acc-lo)":"transparent",
+            color:mobileTier===t?"var(--jdv2-acc)":"var(--jdv2-t2)",
+            border:"none",borderBottom:mobileTier===t?"2px solid var(--jdv2-acc)":"2px solid transparent",
+            cursor:"pointer",fontFamily:"var(--jdv2-font-ui)",textTransform:"capitalize"}}>
+          {t.charAt(0).toUpperCase()+t.slice(1)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function GBBTierCard({ tier, onSelect, hidden }) {
   const total = gbbTierTotal(tier);
   return (
-    <div className={`gbb-tc ${gbbTierCls(tier.label)}`}>
+    <div className={`gbb-tc gbb-tier-card ${gbbTierCls(tier.label)}${hidden?" gbb-tier-hidden":""}`}>
       {tier.recommended && <div className="gbb-rec-badge">Most Popular</div>}
       <div className="gbb-tc-top">
         <div className="gbb-tc-tier">{tier.label}</div>
@@ -533,6 +551,7 @@ function GBBSignatureView({ est, tier, onBack, onDone, onComplete }) {
 function GBBDetailView({ est, onPresent, onSign }) {
   const [statuses, setStatuses] = useState([]);
   const [statusKey, setStatusKey] = useState("accepted");
+  const [mobileTier, setMobileTier] = useState("good");
   useEffect(()=>{apiFetchStatuses().then(s=>{setStatuses(s);if(s.length)setStatusKey(s[0].key);});},[]);
   return (
     <div>
@@ -567,9 +586,10 @@ function GBBDetailView({ est, onPresent, onSign }) {
           </button>
         </div>
       </div>
+      <GBBMobileTierTabs mobileTier={mobileTier} setMobileTier={setMobileTier}/>
       <div className="gbb-tier-grid">
         {est.tiers.map(t=>(
-          <GBBTierCard key={t.label} tier={t} onSelect={pkg=>onSign(pkg,statusKey)}/>
+          <GBBTierCard key={t.label} tier={t} onSelect={pkg=>onSign(pkg,statusKey)} hidden={mobileTier!==t.label.toLowerCase()}/>
         ))}
       </div>
     </div>
@@ -648,7 +668,7 @@ function GBBCreateEstimate({ onBack, onSave, projContext }) {
         <div className="gbb-section">
           <div className="gbb-section-hdr" style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <h4>Job-Dox Price List</h4>
-            <div className="gbb-search" style={{width:200,height:28,flex:"none"}}>
+            <div className="gbb-search" style={{width:"auto",flex:"1 1 140px",minWidth:100,height:28}}>
               {GBB_I.search}
               <input placeholder="Search items..." value={q} onChange={e=>setQ(e.target.value)} style={{fontSize:11}}/>
               {q && <button className="gbb-search-clr" onClick={()=>setQ("")}>{GBB_I.x}</button>}
@@ -736,6 +756,7 @@ function GBBCreateEstimate({ onBack, onSave, projContext }) {
 }
 
 function GBBPresentMode({ est, onClose, onSign, statusKey }) {
+  const [mobileTier, setMobileTier] = useState("good");
   useEffect(()=>{
     const h = e => { if(e.key==="Escape") onClose(); };
     window.addEventListener("keydown",h);
@@ -758,9 +779,10 @@ function GBBPresentMode({ est, onClose, onSign, statusKey }) {
           <h2>Choose Your Package</h2>
           <p>We've prepared three options tailored to your needs. Select the package that best fits your goals and budget.</p>
         </div>
+        <GBBMobileTierTabs mobileTier={mobileTier} setMobileTier={setMobileTier}/>
         <div className="gbb-tier-grid">
           {est.tiers.map(t=>(
-            <GBBTierCard key={t.label} tier={t} onSelect={pkg=>onSign(pkg,statusKey)}/>
+            <GBBTierCard key={t.label} tier={t} onSelect={pkg=>onSign(pkg,statusKey)} hidden={mobileTier!==t.label.toLowerCase()}/>
           ))}
         </div>
       </div>

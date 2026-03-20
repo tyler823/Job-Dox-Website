@@ -475,13 +475,16 @@ export default function DryDoxMoisture({
 
       {/* Trend charts */}
       {trendData.length >= 2 && (
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
           <TrendChart data={trendData} dataKey="rh" color="#e43531" label="RH % Trend" threshold={DRY_STANDARD_RH} />
           <TrendChart data={trendData} dataKey="gpp" color="#22d3ee" label="GPP Trend" threshold={DRY_STANDARD_GPP} />
         </div>
+        </div>
       )}
 
       {trendData.length >= 2 && (
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
         <BarChart
           data={trendData}
           bars={[
@@ -491,6 +494,7 @@ export default function DryDoxMoisture({
           ]}
           label="Daily Psychrometric Comparison"
         />
+        </div>
       )}
 
       {/* Per-room latest readings */}

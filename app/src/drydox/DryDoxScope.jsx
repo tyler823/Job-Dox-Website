@@ -130,6 +130,7 @@ export default function DryDoxScope({
 
       {/* Current scope items */}
       {scopeItems.length > 0 && (
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
         <div style={{
           background: "var(--s2)", border: "1px solid var(--br)", borderRadius: 10,
           overflow: "hidden", marginBottom: 14,
@@ -177,6 +178,7 @@ export default function DryDoxScope({
             </div>
             <div />
           </div>
+        </div>
         </div>
       )}
 

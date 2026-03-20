@@ -527,7 +527,7 @@ function FloorPlanCanvas({
   };
 
   return (
-    <div ref={wrapRef} className="dd-canvas-wrap" style={{ height: 400 }}
+    <div ref={wrapRef} className="dd-canvas-wrap" style={{ height: 400, width:"100%", maxWidth:"100%", overflow:"hidden" }}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
       onWheel={onWheel}>
       <canvas ref={canvasRef} onClick={handleCanvasClick} />
@@ -838,6 +838,8 @@ export default function DryDoxFloorPlan({
             onMoveEquipment={onMoveEquipment} tool={tool} showGrid={showGrid}
             onRoomClick={handleRoomClick}
           />
+
+          <div style={{padding:"8px 12px",background:"var(--s2)",border:"1px solid var(--br)",borderRadius:8,margin:"8px 0",fontSize:11,color:"var(--t2)",textAlign:"center"}}>For best experience use tablet or desktop for floor plan editing.</div>
 
           {/* Canvas toolbar */}
           <div style={{ display: "flex", gap: 4, marginTop: 8, flexWrap: "wrap" }}>
