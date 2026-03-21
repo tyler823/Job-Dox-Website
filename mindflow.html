@@ -1524,6 +1524,7 @@ async function aiGenerateWorkflow() {
   const cap = permCap();
   const context = {
     workType:   wt,
+    companyId:  getMfCompanyId(),
     notes:      notes,
     roles:      STAFF.length ? [...new Set(STAFF.map(s=>s.systemRole))] : Object.keys(ROLE_COLORS),
     statuses:   COMPANY_STATUSES.map(s=>s.name),
@@ -1692,6 +1693,7 @@ async function chatSend() {
 
   const context = {
     workType:   chosenWt,
+    companyId:  getMfCompanyId(),
     notes:      combinedNotes,
     roles:      STAFF.length ? [...new Set(STAFF.map(function(s){ return s.systemRole; }))] : Object.keys(ROLE_COLORS),
     statuses:   COMPANY_STATUSES.map(function(s){ return s.name; }),
