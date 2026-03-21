@@ -74,6 +74,9 @@ exports.handler = async (event) => {
     customInstructions,    // Any additional user instructions for the AI
     companyId,             // Company ID for Cortex Coins tracking
     userId,                // User ID for usage logging
+    adjusterInstructions = '',   // Company-level adjuster response approach
+    customerInstructions = '',   // Company-level customer communication approach
+    contextDocuments = [],       // Array of {name, content} reference documents
   } = body;
 
   if (!incomingMessage || typeof incomingMessage !== 'string') {
@@ -212,7 +215,30 @@ INDUSTRY KNOWLEDGE — ${companyIndustry || 'General Contracting'}:
     });
   }
 
-  const systemPrompt = `You are an expert communication advisor for ${companyName || 'a professional contracting company'} in the ${companyIndustry || 'Restoration'} industry.
+  // ── Build company-specific context block ──
+  let companyContextBlock = '';
+  if (adjusterInstructions || customerInstructions || contextDocuments.length > 0) {
+    companyContextBlock = `\n\n--- COMPANY-SPECIFIC INSTRUCTIONS ---\n`;
+
+    if (adjusterInstructions) {
+      companyContextBlock += `\nADJUSTER RESPONSE APPROACH (follow these instructions):\n${adjusterInstructions}\n`;
+    }
+
+    if (customerInstructions) {
+      companyContextBlock += `\nCUSTOMER COMMUNICATION APPROACH (follow these instructions):\n${customerInstructions}\n`;
+    }
+
+    if (contextDocuments.length > 0) {
+      companyContextBlock += `\nREFERENCE DOCUMENTS:\n`;
+      contextDocuments.forEach(doc => {
+        companyContextBlock += `\n[${doc.name}]\n${doc.content}\n`;
+      });
+    }
+
+    companyContextBlock += `\n--- END COMPANY INSTRUCTIONS ---\n`;
+  }
+
+  const systemPrompt = companyContextBlock + `You are an expert communication advisor for ${companyName || 'a professional contracting company'} in the ${companyIndustry || 'Restoration'} industry.
 
 Your role is to craft professional, firm but courteous email responses to adjuster communications, customer complaints, and insurance disputes. Your responses should:
 

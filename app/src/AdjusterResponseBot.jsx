@@ -7,6 +7,8 @@
  * practices, and project-specific documentation.
  */
 import { useState, useRef, useEffect } from "react";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "./firebase.js";
 
 const NETLIFY = "/.netlify/functions";
 
@@ -64,6 +66,24 @@ export default function AdjusterResponseModal({
     setResponse("");
     setEditing(false);
 
+    // ── Load company bot context from Firestore ──
+    let adjusterInstructions = '';
+    let customerInstructions = '';
+    let contextDocuments = [];
+    if (companyId) {
+      try {
+        const settingsSnap = await getDoc(doc(db, 'companies', companyId, 'settings', 'botContext'));
+        if (settingsSnap.exists()) {
+          const botContext = settingsSnap.data();
+          adjusterInstructions = botContext.adjusterInstructions || '';
+          customerInstructions = botContext.customerInstructions || '';
+          contextDocuments = (botContext.contextDocs || []).map(d => ({ name: d.name, content: d.content }));
+        }
+      } catch (e) {
+        console.warn('[AdjusterResponseBot] Failed to load bot context, proceeding with defaults:', e.message);
+      }
+    }
+
     try {
       const res = await fetch(`${NETLIFY}/adjuster-response`, {
         method: "POST",
@@ -92,6 +112,9 @@ export default function AdjusterResponseModal({
           customInstructions:  customInstr.trim() || undefined,
           companyId:           companyId || "",
           userId:              currentUser?.email || "",
+          adjusterInstructions,
+          customerInstructions,
+          contextDocuments,
         }),
       });
 
