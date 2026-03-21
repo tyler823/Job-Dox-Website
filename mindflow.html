@@ -1264,6 +1264,16 @@ function loadAllTemplatesFromFS() {
   });
 }
 
+function computeDueDays(task, phaseIndex) {
+  // Assign due dates based on phase position and priority
+  // Phase 0 tasks = day 1, each subsequent phase adds ~3 days
+  const baseDay = phaseIndex * 3;
+  if (task.prio === 'Critical') return baseDay + 1;
+  if (task.prio === 'High')     return baseDay + 2;
+  if (task.prio === 'Medium')   return baseDay + 4;
+  return baseDay + 7;
+}
+
 function buildWorkflowExport(name, mode) {
   const triggers = COMPANY_STATUSES.filter(s=>s.triggerTask).map(s=>({
     keyword: s.triggerTask, toStatus: s.name, color: s.color,
@@ -1273,7 +1283,7 @@ function buildWorkflowExport(name, mode) {
     workType: ACTIVE_WORK_TYPE || '',
     generatedAt: new Date().toISOString(),
     statusTriggers: triggers,
-    phases: PHASES.map(ph => ({
+    phases: PHASES.map((ph, pi) => ({
       name: ph.name,
       desc: ph.desc,
       dur: ph.dur,
@@ -1288,6 +1298,9 @@ function buildWorkflowExport(name, mode) {
         tags: t.tags,
         checklist: t.cl,
         statusTrigger: t.statusTrigger || null,
+        dueDaysFromStart: t.dueDaysFromStart || computeDueDays(t, pi),
+        assignedToId: mode === 'auto' ? ((ROLE_MAP[t.role] || [])[0]?.id || null) : null,
+        assignedToName: mode === 'auto' ? ((ROLE_MAP[t.role] || [])[0]?.name || ((ROLE_MAP[t.role] || [])[0] ? ((ROLE_MAP[t.role] || [])[0].firstName + ' ' + ((ROLE_MAP[t.role] || [])[0].lastName || '')) : null) || null) : null,
       }))
     })),
     staffAssignments: Object.keys(ROLE_MAP).map(r => ({
@@ -1322,6 +1335,15 @@ function saveAsTemplate() {
     mfSaveSetting('workflowTemplates', all);
     const total = PHASES.reduce((s,p)=>s+p.tasks,0);
     showToast(`${isOverwrite ? '↺ Updated' : '◈ Saved'}: "${name}" — ${total} tasks auto-apply on new ${wt} projects`);
+    setTimeout(function() {
+      if (typeof chatAppendBubble === 'function') {
+        chatAppendBubble('ai', [
+          '<strong style="color:var(--green);">✓ Template saved successfully</strong><br/>',
+          '<span style="color:var(--t2);font-size:11px;">Your workflow is now active. New projects created with a matching work type will automatically load these tasks, assign them to the right team members, and set due dates based on best practices.</span>'
+        ].join(''));
+        setView('chat');
+      }
+    }, 800);
     updateOverwriteWarning();
     refreshLibrary();
   } catch(e) {
@@ -1722,10 +1744,6 @@ async function chatSend() {
 
     const data = await res.json();
 
-    console.log('[CortexAI Chat] Raw response status:', res.status);
-    console.log('[CortexAI Chat] Parsed data keys:', Object.keys(data));
-    console.log('[CortexAI Chat] data.phases:', data.phases);
-
     if (!data.phases || !Array.isArray(data.phases)) {
       throw new Error('AI returned an unexpected response — try rephrasing your description');
     }
@@ -1778,7 +1796,7 @@ async function chatSend() {
       '<strong>' + total + ' tasks</strong> across <strong>' + PHASES.length + ' phases:</strong><br/>',
       phaseNames + morePhases,
       '<br/><br/>',
-      '<button class="chat-load-btn" onclick="chatLoadWorkflow()">◈ View &amp; Push to Job-Dox →</button>'
+      '<button class="chat-load-btn" onclick="chatLoadWorkflow()">◈ View Workflow &amp; Save to Job-Dox →</button>'
     ].join(''));
 
     showToast('⚡ Chat workflow generated — ' + total + ' tasks');
