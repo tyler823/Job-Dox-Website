@@ -298,20 +298,28 @@ Generate a thorough, professional ${workType} workflow that a restoration compan
 
   // ── Call Anthropic API ──
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
-        max_tokens: 4096,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userPrompt }],
-      }),
-    });
+    const abortController = new AbortController();
+    const abortTimeout = setTimeout(() => abortController.abort(), 50000);
+    let response;
+    try {
+      response = await fetch('https://api.anthropic.com/v1/messages', {
+        signal: abortController.signal,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-5',
+          max_tokens: 2000,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userPrompt }],
+        }),
+      });
+    } finally {
+      clearTimeout(abortTimeout);
+    }
 
     if (!response.ok) {
       const errBody = await response.text();
