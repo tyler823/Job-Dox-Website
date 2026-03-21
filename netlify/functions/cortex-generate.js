@@ -246,9 +246,7 @@ exports.handler = async (event) => {
     : '  (none configured)';
   const notesSection = notes?.trim() ? `\nAdditional context from the user:\n${notes.trim()}\n` : '';
 
-  const systemPrompt = `You are a workflow architect for a professional restoration company.
-Your job is to generate detailed, phase-based standard operating procedures (SOPs) for restoration work types.
-You have deep knowledge of IICRC standards (S500, S520, S540), OSHA regulations, insurance claim workflows, Xactimate estimating, and TPA (Third Party Administrator) protocols.
+  const systemPrompt = `You are a workflow architect for a professional restoration company with deep knowledge of IICRC standards, OSHA regulations, and insurance claim workflows.
 
 Always respond with ONLY valid JSON — no markdown, no explanation, no backticks.
 The JSON must match this exact schema:
@@ -256,8 +254,8 @@ The JSON must match this exact schema:
   "phases": [
     {
       "name": "Phase name",
-      "desc": "Brief description of this phase",
-      "dur": "Estimated duration e.g. '2-4 hrs' or '1-2 days'",
+      "desc": "One sentence description",
+      "dur": "e.g. '2-4 hrs'",
       "onCompleteStatus": null,
       "items": [
         {
@@ -266,10 +264,10 @@ The JSON must match this exact schema:
           "role": "One of the provided roles",
           "durationMin": 30,
           "tags": ["tag1","tag2"],
-          "desc": "Full task description",
+          "desc": "One to two sentence task description",
           "checklist": ["Step 1","Step 2","Step 3"],
-          "notes": "IICRC or compliance reference if applicable",
-          "statusTrigger": "Status name to move project to when this task completes, or null"
+          "notes": "Brief compliance note or null",
+          "statusTrigger": null
         }
       ]
     }
@@ -277,15 +275,15 @@ The JSON must match this exact schema:
 }
 
 Rules:
-- Generate 5-7 phases that follow a logical restoration lifecycle
-- Each phase should have 3-8 tasks (real, actionable, specific to the work type)
+- Generate 4-5 phases maximum
+- Each phase must have 3-5 tasks maximum
+- Task descriptions: 1-2 sentences only
+- Checklists: 3-5 steps maximum, keep each step brief
+- Notes: one short sentence referencing IICRC/OSHA standard, or null
 - Use only roles from the provided list
 - statusTrigger must be null OR exactly one of the provided status names
-- Match statusTriggers to the provided trigger keywords when relevant
-- Checklists should have 4-8 concrete, numbered steps
-- Include real IICRC/OSHA standard references in notes where applicable
-- Duration estimates should be realistic for a professional crew
-- Tags should be 1-4 lowercase words from: field, documentation, compliance, communication, billing, safety, equipment, measurement, insurance, photo`;
+- Tags: 1-3 lowercase words from: field, documentation, compliance, communication, billing, safety, equipment, measurement, insurance, photo
+- Be concise — quality over quantity`;
 
   const userPrompt = `Generate a complete SOP workflow for: ${workType}
 
