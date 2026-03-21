@@ -348,7 +348,7 @@ function RevenueReport({ data, statuses, customWorkTypes, customProjectTypes }) 
       {/* Grouped breakdown table */}
       <div className="rpt-card">
         <div className="rpt-card-hd">Revenue by {groupBy === "type" ? "Project Type" : groupBy === "status" ? "Status" : groupBy === "carrier" ? "Carrier" : "ZIP Code"}</div>
-        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}>
           <thead>
             <tr>
               <th>{groupBy === "type" ? "Type" : groupBy === "status" ? "Status" : groupBy === "carrier" ? "Carrier" : "ZIP"}</th>
@@ -394,7 +394,7 @@ function RevenueReport({ data, statuses, customWorkTypes, customProjectTypes }) 
       {/* Project detail table */}
       <div className="rpt-card">
         <div className="rpt-card-hd">Project Details</div>
-        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}>
           <thead>
             <tr><th>Project</th><th>Type</th><th>Status</th><th>Created</th><th>Revenue</th><th>Invoiced</th><th>Margin</th></tr>
           </thead>
@@ -493,7 +493,7 @@ function ReferralReport({ data, statuses }) {
 
       <div className="rpt-card">
         <div className="rpt-card-hd">Referral Source Performance</div>
-        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}>
           <thead>
             <tr>
               <th>Source</th>
@@ -611,7 +611,7 @@ function WIPReport({ data, statuses }) {
           Work In Progress Detail
           <button className="rpt-export-btn" onClick={()=>exportCSV(active,"wip_report")}>{RIc.download} Export CSV</button>
         </div>
-        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}>
           <thead>
             <tr>
               <th>Project</th>
@@ -978,7 +978,7 @@ function PipelineReport({ data, statuses, customWorkTypes, customProjectTypes, g
           });
           const rows = Object.values(wtMap).sort((a,b)=>b.total-a.total);
           return (
-            <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
+            <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}>
               <thead>
                 <tr>
                   <th>Work Type</th>
@@ -1347,7 +1347,7 @@ function EquipmentMismatchReport({ data, priceLists }) {
       {/* Project-by-project mismatch table */}
       <div className="rpt-card">
         <div className="rpt-card-hd">Equipment Revenue Mismatch by Project</div>
-        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}>
           <thead>
             <tr>
               <th>Project</th>
@@ -1498,7 +1498,7 @@ function EquipmentMismatchReport({ data, priceLists }) {
       {analysis.length > 0 && (
         <div className="rpt-card">
           <div className="rpt-card-hd">Company-Wide Equipment Gap Summary</div>
-          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}>
             <thead>
               <tr><th>Equipment Type</th><th>Total Rec.</th><th>Total Deployed</th><th>Gap (Units)</th><th>Total Rec. Revenue</th><th>Total Actual Revenue</th><th>Revenue Gap</th></tr>
             </thead>
@@ -1709,7 +1709,7 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
       {offices.length > 0 && (
         <div className="rpt-card">
           <div className="rpt-card-hd">Performance by Office</div>
-          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}>
             <thead>
               <tr>
                 <th>Office</th>
@@ -1757,7 +1757,7 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
             <div style={{fontSize:11}}>Send your first review request from any project using the ★ Review button.</div>
           </div>
         ) : (
-          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}>
             <thead>
               <tr>
                 <th>Date</th>
@@ -1838,7 +1838,7 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
             Completed Projects Without Review Requests
             <span style={{fontSize:10,color:"var(--t3)",fontWeight:400}}>{projectsNoRequest.length} projects</span>
           </div>
-          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}>
             <thead>
               <tr><th>Project</th><th>Client</th><th>Type</th><th>Completed</th><th>Office</th></tr>
             </thead>
@@ -1876,7 +1876,7 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
             Requests Sent — No Review Detected
             <span style={{fontSize:10,color:"var(--t3)",fontWeight:400}}>{sentButNoReview.length} projects</span>
           </div>
-          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}>
             <thead>
               <tr><th>Project</th><th>Client</th><th>Sent Date</th><th>Office</th><th>Days Waiting</th></tr>
             </thead>
