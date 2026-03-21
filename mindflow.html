@@ -1722,6 +1722,10 @@ async function chatSend() {
 
     const data = await res.json();
 
+    console.log('[CortexAI Chat] Raw response status:', res.status);
+    console.log('[CortexAI Chat] Parsed data keys:', Object.keys(data));
+    console.log('[CortexAI Chat] data.phases:', data.phases);
+
     if (!data.phases || !Array.isArray(data.phases)) {
       throw new Error('AI returned an unexpected response — try rephrasing your description');
     }
