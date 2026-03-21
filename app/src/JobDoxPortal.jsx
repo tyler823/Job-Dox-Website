@@ -10444,6 +10444,182 @@ function BillingTab({ companyId, memberEmail }) {
 }
 
 /* ══════════════════════════════════════════════════════════════════
+   RESPONSE BOT CONTEXT TAB — AI Response Instructions & Documents
+══════════════════════════════════════════════════════════════════ */
+function ResponseBotContextTab({ companyId }) {
+  const [adjusterInstructions, setAdjusterInstructions] = useState("");
+  const [customerInstructions, setCustomerInstructions] = useState("");
+  const [contextDocs, setContextDocs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
+
+  // Load on mount
+  useEffect(() => {
+    if (!companyId) return;
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, "companies", companyId, "settings", "botContext"));
+        if (snap.exists()) {
+          const d = snap.data();
+          setAdjusterInstructions(d.adjusterInstructions || "");
+          setCustomerInstructions(d.customerInstructions || "");
+          setContextDocs(d.contextDocs || []);
+        }
+      } catch (err) {
+        console.error("Failed to load bot context:", err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [companyId]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveMsg("");
+    try {
+      await setDoc(doc(db, "companies", companyId, "settings", "botContext"), {
+        adjusterInstructions,
+        customerInstructions,
+        contextDocs,
+      }, { merge: true });
+      setSaveMsg("Bot context saved — AI will use these instructions on all future responses");
+      setTimeout(() => setSaveMsg(""), 3000);
+    } catch (err) {
+      setSaveMsg("Error saving: " + (err.message || "Unknown error"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    if (contextDocs.length >= 5) {
+      alert("Maximum 5 documents allowed. Please remove one before uploading.");
+      return;
+    }
+
+    const name = file.name;
+    const ext = name.split(".").pop().toLowerCase();
+
+    if (ext === "pdf") {
+      alert("PDF text extraction not available in browser — please paste the document content as a .txt file instead.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      let content = ev.target.result || "";
+      let truncated = false;
+      if (content.length > 8000) {
+        content = content.slice(0, 8000);
+        truncated = true;
+      }
+      setContextDocs(prev => [...prev, {
+        name,
+        content,
+        uploadedAt: new Date().toISOString(),
+      }]);
+      if (truncated) {
+        alert(`"${name}" exceeded 8,000 characters and was truncated.`);
+      }
+    };
+    reader.onerror = () => alert("Failed to read file.");
+    reader.readAsText(file);
+  };
+
+  const removeDoc = (idx) => {
+    setContextDocs(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  if (loading) {
+    return (
+      <div className="card" style={{padding:40,textAlign:"center"}}>
+        <div style={{width:20,height:20,border:"2px solid var(--br)",borderTopColor:"var(--acc)",
+          borderRadius:"50%",animation:"jd-spin .7s linear infinite",margin:"0 auto 12px"}}/>
+        <div style={{fontSize:12,color:"var(--t3)"}}>Loading bot context...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      {/* Section 1 — Adjuster Response Instructions */}
+      <div className="card">
+        <div className="sec" style={{marginBottom:7}}>ADJUSTER RESPONSE APPROACH</div>
+        <textarea className="txa" rows={8} value={adjusterInstructions}
+          onChange={e => setAdjusterInstructions(e.target.value)}
+          placeholder="Describe how you want the AI to approach adjuster communications. Example: Always reference IICRC S500 standards. Be firm but professional. Never accept scope reductions without documented justification..."/>
+      </div>
+
+      {/* Section 2 — Customer Communication Instructions */}
+      <div className="card">
+        <div className="sec" style={{marginBottom:7}}>CUSTOMER COMMUNICATION APPROACH</div>
+        <textarea className="txa" rows={8} value={customerInstructions}
+          onChange={e => setCustomerInstructions(e.target.value)}
+          placeholder="Describe how you want the AI to communicate with homeowners. Example: Use warm, reassuring language. Avoid technical jargon. Always emphasize our commitment to restoring their home quickly and correctly..."/>
+      </div>
+
+      {/* Section 3 — Context Documents */}
+      <div className="card">
+        <div className="sec" style={{marginBottom:7}}>REFERENCE DOCUMENTS</div>
+        <div style={{fontSize:11,color:"var(--t2)",marginBottom:12}}>
+          Upload documents the AI should reference when generating responses — company policies, standard letter templates, IICRC guidelines, etc. Text is extracted and stored securely.
+        </div>
+        <label className="btn btn-secondary" style={{display:"inline-flex",alignItems:"center",gap:6,cursor:"pointer"}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Upload Document
+          <input type="file" accept=".pdf,.txt,.doc,.docx" onChange={handleFileUpload} style={{display:"none"}}/>
+        </label>
+        {contextDocs.length >= 5 && (
+          <div style={{fontSize:11,color:"var(--acc)",marginTop:6}}>Maximum 5 documents reached.</div>
+        )}
+        {contextDocs.length > 0 && (
+          <div style={{marginTop:14,display:"flex",flexDirection:"column",gap:8}}>
+            {contextDocs.map((d, i) => (
+              <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",
+                background:"var(--bg2)",borderRadius:8,fontSize:12}}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                </svg>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</div>
+                  <div style={{fontSize:10,color:"var(--t3)"}}>
+                    ~{Math.round((d.content?.length || 0) / 5)} words &middot; {new Date(d.uploadedAt).toLocaleDateString()}
+                    {(d.content?.length || 0) > 8000 && <span style={{color:"var(--acc)",marginLeft:6}}>Truncated to 8,000 chars</span>}
+                  </div>
+                </div>
+                <button onClick={() => removeDoc(i)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--acc)",fontSize:16,
+                  fontWeight:700,lineHeight:1,padding:"2px 6px"}} title="Remove document">&times;</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Save button */}
+      <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{display:"inline-flex",alignItems:"center",gap:6}}>
+          {saving && <span style={{width:14,height:14,border:"2px solid rgba(255,255,255,.3)",borderTopColor:"#fff",
+            borderRadius:"50%",animation:"jd-spin .7s linear infinite",display:"inline-block"}}/>}
+          {saving ? "Saving..." : "Save Context"}
+        </button>
+        {saveMsg && (
+          <div style={{fontSize:12,color:saveMsg.startsWith("Error") ? "var(--acc)" : "var(--green)",fontWeight:600}}>
+            {saveMsg}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════
    CORTEX COINS TAB — AI Usage Tracker
    Shows balance, usage ring, cycle info, and recent usage log.
 ══════════════════════════════════════════════════════════════════ */
@@ -13246,6 +13422,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
   const TABS = [["staff","Staff"],["vendors","Vendors"],["offices","Offices"],
     ...(featureFlags.phoneAndCalls ? [["phone","Phone & Calls"]] : []),
     ...(featureFlags.cortexAI ? [["cortex","CortexAI"]] : []),
+    ["responsebot","Response Bot"],
     ["coins","Cortex Coins"],["billing","Billing"],["general","General"],["roadmap","Feature Request"],
     ...(permLevel >= 10 ? [["migration","Classic Import"]] : []),
     ...(isDiagUser ? [["fs-diag","FS Diagnostic"]] : [])];
@@ -13951,6 +14128,10 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
               </div>
             </div>
           </div>
+        )}
+
+        {tab==="responsebot" && (
+          <ResponseBotContextTab companyId={companyId} />
         )}
 
         {tab==="coins" && (
