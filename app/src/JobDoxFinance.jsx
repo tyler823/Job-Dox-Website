@@ -785,7 +785,7 @@ function InvoicePreviewModal({ inv, onClose }) {
           </div>
 
           {/* Bill to */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:16,marginBottom:20}}>
             <div style={{padding:"12px 14px",background:"var(--s3)",borderRadius:9,border:"1px solid var(--br)"}}>
               <div className="mono" style={{fontSize:9,color:"var(--t3)",marginBottom:5,letterSpacing:.5}}>BILL TO</div>
               <div style={{fontWeight:700,fontSize:13,color:"var(--t1)"}}>{inv.clientName||"Client"}</div>
@@ -1226,7 +1226,7 @@ function XactimateBudgetTab({ proj, transactions=[], budgetData, onBudgetChange,
 
       {/* KPI row */}
       {categories.length > 0 && (
-        <div className="g4" style={{gap:9,marginBottom:16}}>
+        <div className="g4" style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:9,marginBottom:16}}>
           {[
             ["Total Budgeted", f$(totBudgeted), "var(--t1)"],
             ["Total Spent",    f$(totActual),   totActual>totBudgeted?"var(--acc)":"var(--amber)"],
@@ -2071,7 +2071,7 @@ function ARPanel({ transactions, invoices=[], onAdd, onInvoiceChange }) {
     <div>
       {previewInv && <InvoicePreviewModal inv={previewInv} onClose={()=>setPreviewInv(null)}/>}
 
-      <div className="g4" style={{gap:9,marginBottom:14}}>
+      <div className="g4" style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:9,marginBottom:14}}>
         <KpiCard label="Total Invoiced" value={f$(totalInvoiced)} color="var(--blue)"/>
         <KpiCard label="Collected"      value={f$(collected)}     color="var(--green)"/>
         <KpiCard label="Outstanding AR" value={f$(arBalance)}     color={arBalance>0?"var(--amber)":"var(--t2)"} warn={arBalance>0}/>
@@ -2088,7 +2088,7 @@ function ARPanel({ transactions, invoices=[], onAdd, onInvoiceChange }) {
           {visInvoices.map(inv => {
             const ver = versionOf[inv.id];
             return (
-              <div key={inv.id} style={{display:"flex",alignItems:"center",gap:10,
+              <div key={inv.id} style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",
                 padding:"10px 13px",background:"var(--s2)",border:"1px solid var(--br)",
                 borderRadius:9,marginBottom:5,borderLeft:`3px solid ${STATUS_C[inv.status]||"var(--amber)"}`}}>
                 {/* Invoice icon + version badge */}
@@ -2116,7 +2116,7 @@ function ARPanel({ transactions, invoices=[], onAdd, onInvoiceChange }) {
                       {(inv.status||"unpaid").toUpperCase()}
                     </span>
                   </div>
-                  <div className="mono" style={{fontSize:9,color:"var(--t3)",marginTop:2}}>
+                  <div className="mono" style={{fontSize:9,color:"var(--t3)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:320}}>
                     {inv.date ? new Date(inv.date).toLocaleDateString() : ""}
                     {inv.dueDate ? ` · Due ${new Date(inv.dueDate).toLocaleDateString()}` : ""}
                     {inv.clientName ? ` · ${inv.clientName}` : ""}
@@ -2286,7 +2286,7 @@ function APPanel({ transactions, onAdd }) {
 
   return (
     <div>
-      <div className="g4" style={{gap:9,marginBottom:14}}>
+      <div className="g4" style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:9,marginBottom:14}}>
         <KpiCard label="Total AP"    value={f$(totalBilled)} color="var(--amber)"/>
         <KpiCard label="Paid Out"    value={f$(paid)}        color="var(--green)"/>
         <KpiCard label="Outstanding" value={f$(apBalance)}   color={apBalance>0?"var(--acc)":"var(--t2)"} warn={apBalance>0}/>
@@ -2303,7 +2303,7 @@ function APPanel({ transactions, onAdd }) {
           const isPaid    = tx.status === "paid";
           const isLinked  = !!tx.vendorId;
           return (
-            <div key={tx.id} className="row" style={{display:"flex",alignItems:"center",gap:10,
+            <div key={tx.id} className="row" style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",
               opacity:isPaid?0.65:1}}>
               <div style={{width:36,height:36,borderRadius:9,flexShrink:0,display:"flex",alignItems:"center",
                 justifyContent:"center",background:TX_TYPES[tx.type]?.bg,color:TX_TYPES[tx.type]?.color,fontSize:14}}>
@@ -2332,7 +2332,7 @@ function APPanel({ transactions, onAdd }) {
                     </div>
                   )}
                 </div>
-                <div style={{fontSize:10,color:"var(--t3)",marginTop:1,fontFamily:"var(--mono)"}}>
+                <div style={{fontSize:10,color:"var(--t3)",marginTop:1,fontFamily:"var(--mono)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:320}}>
                   {tx.date}{tx.vendor?` · ${tx.vendor}`:""}{tx.category?` · ${tx.category}`:""}
                 </div>
               </div>
@@ -2544,7 +2544,7 @@ Be direct and specific. Flag anything that needs immediate attention.`;
       </div>
 
       {/* Quick snapshot */}
-      <div className="g4" style={{gap:9,marginBottom:14}}>
+      <div className="g4" style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:9,marginBottom:14}}>
         <KpiCard label="Health" value={health?.label||"—"} color={health?.color||"var(--t3)"} warn={health?.status==="critical"||health?.status==="warning"}/>
         <KpiCard label="Gross Margin" value={health?.grossMargin!=null?`${health.grossMargin.toFixed(1)}%`:"—"} color={health?.grossMargin>=30?"var(--green)":health?.grossMargin>=15?"var(--amber)":"var(--acc)"}/>
         <KpiCard label="Cost Pressure" value={health?.pressure!=null?`${(health.pressure*100).toFixed(0)}%`:"—"} color={health?.pressure>=1?"var(--acc)":health?.pressure>=0.85?"var(--amber)":"var(--green)"}/>
@@ -2915,7 +2915,7 @@ export function FinancialTab({ proj, companyId, laborCost=0, invoices: _invoices
               </div>
             )}
 
-            <div className="g4" style={{gap:9,marginBottom:14}}>
+            <div className="g4" style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:9,marginBottom:14}}>
               <KpiCard label="Total Budget"   value={f$(totBudget)}     color="var(--t1)"/>
               <KpiCard label="Total Invoiced" value={f$(totalInvoiced)} color="var(--blue)"/>
               <KpiCard label="Costs / AP"     value={f$(totalCosts)}    color={totalCosts>totBudget?"var(--acc)":"var(--amber)"}
@@ -3198,7 +3198,7 @@ Give a 3-4 sentence executive summary, then bullet-point the top 3 actions for t
           )}
 
           {/* KPI bar */}
-          <div className="g4" style={{gap:9,marginBottom:16}}>
+          <div className="g4" style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:9,marginBottom:16}}>
             <KpiCard label="● Critical"   value={stats.critical.length} color="var(--acc)"   warn={stats.critical.length>0}/>
             <KpiCard label="⚠ At Risk"    value={stats.warning.length}  color="var(--amber)" warn={stats.warning.length>0}/>
             <KpiCard label="AR Outstanding" value={f$(stats.totalAR)}   color="var(--blue)"/>
