@@ -348,7 +348,7 @@ function RevenueReport({ data, statuses, customWorkTypes, customProjectTypes }) 
       {/* Grouped breakdown table */}
       <div className="rpt-card">
         <div className="rpt-card-hd">Revenue by {groupBy === "type" ? "Project Type" : groupBy === "status" ? "Status" : groupBy === "carrier" ? "Carrier" : "ZIP Code"}</div>
-        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
           <thead>
             <tr>
               <th>{groupBy === "type" ? "Type" : groupBy === "status" ? "Status" : groupBy === "carrier" ? "Carrier" : "ZIP"}</th>
@@ -394,7 +394,7 @@ function RevenueReport({ data, statuses, customWorkTypes, customProjectTypes }) 
       {/* Project detail table */}
       <div className="rpt-card">
         <div className="rpt-card-hd">Project Details</div>
-        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
           <thead>
             <tr><th>Project</th><th>Type</th><th>Status</th><th>Created</th><th>Revenue</th><th>Invoiced</th><th>Margin</th></tr>
           </thead>
@@ -403,7 +403,7 @@ function RevenueReport({ data, statuses, customWorkTypes, customProjectTypes }) 
               const so = statuses.find(s=>s.key===p.status);
               return (
                 <tr key={p.id}>
-                  <td style={{fontWeight:600}}>{p.name || p.address || p.id}</td>
+                  <td style={{fontWeight:600,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name || p.address || p.id}</td>
                   <td><span className="rpt-pill" style={{background:"var(--s3)",color:"var(--t2)"}}>{p.type||"—"}</span></td>
                   <td><span className="rpt-pill" style={{background:`${so?.color||"var(--t3)"}22`,color:so?.color||"var(--t3)"}}>{p.status||"—"}</span></td>
                   <td className="mono">{p.createdDate}</td>
@@ -493,7 +493,7 @@ function ReferralReport({ data, statuses }) {
 
       <div className="rpt-card">
         <div className="rpt-card-hd">Referral Source Performance</div>
-        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
           <thead>
             <tr>
               <th>Source</th>
@@ -508,7 +508,7 @@ function ReferralReport({ data, statuses }) {
           <tbody>
             {bySource.map(s => (
               <tr key={s.source}>
-                <td style={{fontWeight:600}}>{s.source}</td>
+                <td style={{fontWeight:600,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.source}</td>
                 <td className="mono">{s.projects.length}</td>
                 <td className="mono" style={{fontWeight:700}}>{f$(s.revenue)}</td>
                 <td className="mono">{f$(s.avgRevenue)}</td>
@@ -543,7 +543,7 @@ function ReferralReport({ data, statuses }) {
                 const so = statuses.find(st=>st.key===p.status);
                 return (
                   <div key={p.id} style={{background:"var(--s3)",border:"1px solid var(--br)",borderRadius:6,padding:"5px 9px",fontSize:10}}>
-                    <div style={{fontWeight:600,color:"var(--t1)"}}>{p.name || p.address || p.id}</div>
+                    <div style={{fontWeight:600,color:"var(--t1)",maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name || p.address || p.id}</div>
                     <div style={{display:"flex",gap:6,marginTop:2}}>
                       <span className="rpt-pill" style={{background:`${so?.color||"var(--t3)"}22`,color:so?.color||"var(--t3)"}}>{p.status}</span>
                       <span style={{fontFamily:"var(--mono)",color:"var(--t2)"}}>{f$(p.revenue)}</span>
@@ -611,7 +611,7 @@ function WIPReport({ data, statuses }) {
           Work In Progress Detail
           <button className="rpt-export-btn" onClick={()=>exportCSV(active,"wip_report")}>{RIc.download} Export CSV</button>
         </div>
-        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
           <thead>
             <tr>
               <th>Project</th>
@@ -632,7 +632,7 @@ function WIPReport({ data, statuses }) {
               const so = statuses.find(s=>s.key===p.status);
               return (
                 <tr key={p.id}>
-                  <td style={{fontWeight:600}}>{p.name || p.address || p.id}</td>
+                  <td style={{fontWeight:600,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name || p.address || p.id}</td>
                   <td><span className="rpt-pill" style={{background:`${so?.color||"var(--t3)"}22`,color:so?.color||"var(--t3)"}}>{so?.label||p.status||"—"}</span></td>
                   <td className="mono">{p.projectAge}d</td>
                   <td className="mono">{f$(p.totalBudgeted)}</td>
@@ -978,7 +978,7 @@ function PipelineReport({ data, statuses, customWorkTypes, customProjectTypes, g
           });
           const rows = Object.values(wtMap).sort((a,b)=>b.total-a.total);
           return (
-            <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
+            <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
               <thead>
                 <tr>
                   <th>Work Type</th>
@@ -1107,10 +1107,10 @@ function AIAnalytics({ data, companyId }) {
           {/* Custom question */}
           <div style={{marginBottom:14}}>
             <div style={{fontSize:9,color:"var(--t3)",textTransform:"uppercase",letterSpacing:".06em",fontFamily:"var(--mono)",marginBottom:6}}>Ask a Custom Question</div>
-            <div style={{display:"flex",gap:8}}>
+            <div style={{display:"flex",gap:8,minWidth:0}}>
               <input className="rpt-inp" value={customQ} onChange={e=>setCustomQ(e.target.value)}
                 placeholder="e.g. Which carriers have the highest average job size?"
-                style={{flex:1,minHeight:80}}
+                style={{flex:1,minWidth:0,minHeight:80}}
                 onKeyDown={e => e.key === "Enter" && customQ.trim() && runAnalysis("custom")}
               />
               <button className="rpt-export-btn" onClick={()=>customQ.trim() && runAnalysis("custom")} style={{padding:"5px 16px"}}>
@@ -1347,7 +1347,7 @@ function EquipmentMismatchReport({ data, priceLists }) {
       {/* Project-by-project mismatch table */}
       <div className="rpt-card">
         <div className="rpt-card-hd">Equipment Revenue Mismatch by Project</div>
-        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
           <thead>
             <tr>
               <th>Project</th>
@@ -1367,7 +1367,7 @@ function EquipmentMismatchReport({ data, priceLists }) {
               return (
                 <>
                   <tr key={a.proj.id} style={{cursor:"pointer"}} onClick={() => setExpandedProj(expanded ? null : a.proj.id)}>
-                    <td style={{fontWeight:600}}>{a.proj.name || a.proj.address || a.proj.id}</td>
+                    <td style={{fontWeight:600,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{a.proj.name || a.proj.address || a.proj.id}</td>
                     <td className="mono">{a.totalSF.toLocaleString()} SF</td>
                     <td className="mono">{a.billingDays}d</td>
                     <td className="mono">{f$(a.actualRevenue)}</td>
@@ -1397,7 +1397,7 @@ function EquipmentMismatchReport({ data, priceLists }) {
 
                           {/* Equipment type comparison grid */}
                           <div style={{fontWeight:700,fontSize:11,color:"var(--t1)",marginBottom:8}}>S500 Recommendation vs Deployed</div>
-                          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{marginBottom:12}}>
+                          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%',marginBottom:12}}>
                             <thead>
                               <tr>
                                 <th>Equipment Type</th>
@@ -1437,7 +1437,7 @@ function EquipmentMismatchReport({ data, priceLists }) {
                           {a.equipDetails.length > 0 && (
                             <>
                               <div style={{fontWeight:700,fontSize:11,color:"var(--t1)",marginBottom:6}}>Deployed Equipment Detail</div>
-                              <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{marginBottom:12}}>
+                              <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%',marginBottom:12}}>
                                 <thead>
                                   <tr><th>Equipment</th><th>Room</th><th>Day In</th><th>Day Out</th><th>Billing Days</th><th>Rate/Day</th><th>Revenue</th></tr>
                                 </thead>
@@ -1498,7 +1498,7 @@ function EquipmentMismatchReport({ data, priceLists }) {
       {analysis.length > 0 && (
         <div className="rpt-card">
           <div className="rpt-card-hd">Company-Wide Equipment Gap Summary</div>
-          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
             <thead>
               <tr><th>Equipment Type</th><th>Total Rec.</th><th>Total Deployed</th><th>Gap (Units)</th><th>Total Rec. Revenue</th><th>Total Actual Revenue</th><th>Revenue Gap</th></tr>
             </thead>
@@ -1709,7 +1709,7 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
       {offices.length > 0 && (
         <div className="rpt-card">
           <div className="rpt-card-hd">Performance by Office</div>
-          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
             <thead>
               <tr>
                 <th>Office</th>
@@ -1757,7 +1757,7 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
             <div style={{fontSize:11}}>Send your first review request from any project using the ★ Review button.</div>
           </div>
         ) : (
-          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
             <thead>
               <tr>
                 <th>Date</th>
@@ -1775,7 +1775,7 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
                   <tr key={r.id || i} style={{cursor:"pointer"}} onClick={()=>setExpanded(expanded===i?null:i)}>
                     <td className="mono" style={{fontSize:10}}>{formatDate(r.createdAt)}</td>
                     <td style={{fontWeight:600,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.projectName || "—"}</td>
-                    <td>{r.clientName || r.clientPhone || "—"}</td>
+                    <td style={{maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.clientName || r.clientPhone || "—"}</td>
                     <td>
                       {r.officeName
                         ? <span style={{fontSize:10,padding:"2px 8px",borderRadius:10,
@@ -1838,7 +1838,7 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
             Completed Projects Without Review Requests
             <span style={{fontSize:10,color:"var(--t3)",fontWeight:400}}>{projectsNoRequest.length} projects</span>
           </div>
-          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
             <thead>
               <tr><th>Project</th><th>Client</th><th>Type</th><th>Completed</th><th>Office</th></tr>
             </thead>
@@ -1847,8 +1847,8 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
                 const off = offices.find(o => o.id === p.officeId);
                 return (
                   <tr key={p.id}>
-                    <td style={{fontWeight:600}}>{p.name || p.address || p.id}</td>
-                    <td>{p.client || "—"}</td>
+                    <td style={{fontWeight:600,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.name || p.address || p.id}</td>
+                    <td style={{maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.client || "—"}</td>
                     <td style={{fontSize:10}}>{p.type || "—"}</td>
                     <td className="mono" style={{fontSize:10}}>{p.createdDate || "—"}</td>
                     <td>
@@ -1876,7 +1876,7 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
             Requests Sent — No Review Detected
             <span style={{fontSize:10,color:"var(--t3)",fontWeight:400}}>{sentButNoReview.length} projects</span>
           </div>
-          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl">
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><table className="rpt-tbl" style={{minWidth:500,width:'100%'}}
             <thead>
               <tr><th>Project</th><th>Client</th><th>Sent Date</th><th>Office</th><th>Days Waiting</th></tr>
             </thead>
@@ -1888,8 +1888,8 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
                 const daysWaiting = sentDate ? Math.floor((Date.now() - sentDate.getTime()) / 86400000) : "—";
                 return (
                   <tr key={r.id || i}>
-                    <td style={{fontWeight:600}}>{r.projectName || "—"}</td>
-                    <td>{r.clientName || r.clientPhone || "—"}</td>
+                    <td style={{fontWeight:600,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.projectName || "—"}</td>
+                    <td style={{maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.clientName || r.clientPhone || "—"}</td>
                     <td className="mono" style={{fontSize:10}}>{formatDate(r.createdAt)}</td>
                     <td>
                       {r.officeName
