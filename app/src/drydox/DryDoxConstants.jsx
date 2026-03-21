@@ -338,4 +338,5 @@ export const DRYDOX_CSS = `
 .dd-psychro-card{background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:10px;text-align:center;}
 .dd-psychro-val{font-family:var(--mono);font-size:16px;font-weight:700;}
 .dd-psychro-lbl{font-size:8px;color:var(--t3);text-transform:uppercase;font-family:var(--mono);letter-spacing:.06em;margin-top:2px;}
+@media(max-width:768px){input,textarea,select,.inp,.txa,.sel{font-size:16px!important;}}
 `;

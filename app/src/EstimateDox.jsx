@@ -268,6 +268,7 @@ select.gbb-inp{cursor:pointer;}textarea.gbb-inp{resize:vertical;line-height:1.5;
 @media(max-width:1100px){.gbb-tier-grid{grid-template-columns:1fr;max-width:380px;}.gbb-tbs{grid-template-columns:1fr;}.gbb-create-layout{grid-template-columns:1fr;}.gbb-create-left{position:static;}}
 @media(max-width:768px){.gbb-mobile-tier-tabs{display:flex!important;background:var(--jdv2-s1);border-bottom:1px solid var(--jdv2-br);}.gbb-tier-grid{grid-template-columns:1fr!important;max-width:100%!important;}.gbb-tier-card.gbb-tier-hidden{display:none!important;}}
 @media(max-width:780px){.gbb-list-col{display:flex;width:100%;}.gbb-detail-panel{display:none;}.gbb-list-col.has-detail{display:none;}.gbb-detail-panel.has-detail{display:flex;width:100%;}}
+@media(max-width:768px){input,textarea,select,.jdv2-field-input,.jdv2-field-select,.jdv2-field-textarea{font-size:16px!important;}}
 `;
 
 /* GBB helpers */
