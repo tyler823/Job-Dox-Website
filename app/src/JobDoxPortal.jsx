@@ -2416,7 +2416,7 @@ function ReviewRequestModal({ proj, onClose, offices=[], phoneSettings={}, compa
   );
 }
 
-function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[] }) {
+function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[], staff=[] }) {
   const [f, setF] = useState({name:"",type:"",address:"",city:"",state:"OK",zip:"",clientName:"",clientPhone:"",clientEmail:"",carrier:"",claim:"",adjuster:"",dateOfLoss:"",notes:"",officeId:""});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -2465,6 +2465,16 @@ function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], c
   const submit = async () => {
     if (!f.name || !f.type) return;
     // Build tasks from saved templates for each selected work type
+    const projectStartDate = new Date();
+    function resolveAssignee(roleStr) {
+      if (!staff || !staff.length || !roleStr) return { name: '', id: null };
+      const match = staff.find(function(s) {
+        return (s.systemRole || '').toLowerCase() === roleStr.toLowerCase();
+      });
+      if (!match) return { name: roleStr, id: null };
+      const name = match.name || ((match.firstName || '') + ' ' + (match.lastName || '')).trim();
+      return { name, id: match.id || match.memberstackId || null };
+    }
     const templateTasks = [];
     selectedWTs.forEach(wt => {
       const tpl = savedTemplates[wt.type];
@@ -2474,7 +2484,8 @@ function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], c
           templateTasks.push({
             id: uid(),
             title: t.title,
-            assigned: t.assignedTo || "",
+            assigned: (function() { const a = resolveAssignee(t.assignedToName || t.assignedTo || t.role || ''); return a.name; })(),
+            assignedToId: (function() { const a = resolveAssignee(t.assignedToName || t.assignedTo || t.role || ''); return a.id; })(),
             priority: t.priority === "Critical" ? "high" : t.priority === "High" ? "med" : "low",
             status: "open",
             phase: ph.name,
@@ -2482,7 +2493,12 @@ function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], c
             checklist: t.checklist || [],
             statusTrigger: t.statusTrigger || null,
             created: new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),
-            due: "",
+            due: (function() {
+              const days = typeof t.dueDaysFromStart === 'number' ? t.dueDaysFromStart : 3;
+              const d = new Date(projectStartDate);
+              d.setDate(d.getDate() + days);
+              return d.toISOString().split('T')[0];
+            })(),
             comments: 0,
             fromTemplate: tpl.name,
           });
@@ -3580,7 +3596,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
 
   return (
     <>
-      {showAdd    && <AddProjModal onClose={()=>setShowAdd(false)} onAdd={onAdd} customWorkTypes={customWorkTypes} customStatuses={customStatuses} customProjectTypes={customProjectTypes} offices={offices}/>}
+      {showAdd    && <AddProjModal onClose={()=>setShowAdd(false)} onAdd={onAdd} customWorkTypes={customWorkTypes} customStatuses={customStatuses} customProjectTypes={customProjectTypes} offices={offices} staff={globalStaff}/>}
       {clockProj  && <ClockInModal proj={clockProj} clockInState={clockInState} onClockIn={onClockIn} onClockOut={onClockOut} onClose={()=>setClock(null)} currentUser={currentUser} canViewRates={canViewRates}/>}
       {notifyProj && <NotifyModal proj={notifyProj} onClose={()=>setNotify(null)} globalStaff={globalStaff}/>}
       {commProj   && <CommModal    proj={commProj}   onClose={()=>setComm(null)} currentUser={currentUser} phoneSettings={phoneSettings} companyId={companyId}/>}
