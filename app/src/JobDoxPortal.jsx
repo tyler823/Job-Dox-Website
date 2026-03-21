@@ -8776,7 +8776,7 @@ function MarketDoxView({ companyId, coInfo, projects, customWorkTypes, onNavTo }
                         {wtm?.icon || null}{wt}
                       </span>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:12,fontWeight:600,color:"var(--t1)"}}>{ys.neighborhood||ys.city}, {ys.city}, {ys.stateAbbr}</div>
+                        <div style={{fontSize:12,fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ys.neighborhood||ys.city}, {ys.city}, {ys.stateAbbr}</div>
                         <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>{dateStr}</div>
                       </div>
                       {publicUrl && (
@@ -8849,7 +8849,7 @@ function MarketDoxView({ companyId, coInfo, projects, customWorkTypes, onNavTo }
                             {isPaused?"PAUSED":"ACTIVE"}
                           </span>
                         </div>
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
+                        <div style={{display:"grid",gridTemplateColumns:window.innerWidth<=480?"1fr 1fr":"1fr 1fr 1fr",gap:10,marginBottom:12}}>
                           <div><div className="lbl">Spend</div><div style={{fontSize:14,fontWeight:700,color:"var(--t1)"}}>{fmt$(c.spend||0)}</div></div>
                           <div><div className="lbl">Cost/Lead</div><div style={{fontSize:14,fontWeight:700,color:"var(--t1)"}}>{c.conversions>0?"$"+(c.spend/c.conversions).toFixed(0):"—"}</div></div>
                           <div><div className="lbl">Conversions</div><div style={{fontSize:14,fontWeight:700,color:"var(--t1)"}}>{c.conversions||0}</div></div>
@@ -10642,7 +10642,7 @@ function GeneralSettingsTab({ onWorkTypesChange, onStatusesChange, onProjectType
         <div className="card" style={{padding:20}}>
           <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",marginBottom:4}}>Company Information</div>
           <div style={{fontSize:11,color:"var(--t3)",marginBottom:16}}>Used in documents, reports, and AI templates as <code style={{fontFamily:"var(--mono)",fontSize:10}}>{"{{company.*}}"}</code> tokens.</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div style={{display:"grid",gridTemplateColumns:window.innerWidth<=480?"1fr":"1fr 1fr",gap:10}}>
             {[
               ["Company Name","name","full"],
               ["Phone","phone",""],
@@ -10786,25 +10786,25 @@ function GeneralSettingsTab({ onWorkTypesChange, onStatusesChange, onProjectType
             </div>
 
             {/* Column headers */}
-            <div style={{display:"grid",gridTemplateColumns:"18px 1fr 160px 56px 36px 36px",gap:8,
+            <div style={{display:"grid",gridTemplateColumns:window.innerWidth<=480?"1fr 56px 36px 36px":"18px 1fr 160px 56px 36px 36px",gap:8,
               padding:"4px 10px",marginBottom:4}}>
-              {["","Category Name","Applies to Work Types","Active","",""].map((h,i)=>(
+              {(window.innerWidth<=480?["Category Name","Active","",""]:["","Category Name","Applies to Work Types","Active","",""]).map((h,i)=>(
                 <div key={i} style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)"}}>{h}</div>
               ))}
             </div>
 
             <div style={{display:"flex",flexDirection:"column",gap:4}}>
               {budgetTpls.map((cat, idx) => (
-                <div key={cat.id} style={{display:"grid",gridTemplateColumns:"18px 1fr 160px 56px 36px 36px",
+                <div key={cat.id} style={{display:"grid",gridTemplateColumns:window.innerWidth<=480?"1fr 56px 36px 36px":"18px 1fr 160px 56px 36px 36px",
                   gap:8,padding:"8px 10px",background:"var(--s2)",borderRadius:8,border:"1px solid var(--br)",alignItems:"center"}}>
                   {/* Color picker */}
-                  <input type="color" value={cat.color} onChange={e=>updBudgetCat(cat.id,"color",e.target.value)}
-                    style={{width:18,height:18,border:"none",borderRadius:4,cursor:"pointer",padding:0,background:"none"}}/>
+                  {window.innerWidth>480 && <input type="color" value={cat.color} onChange={e=>updBudgetCat(cat.id,"color",e.target.value)}
+                    style={{width:18,height:18,border:"none",borderRadius:4,cursor:"pointer",padding:0,background:"none"}}/>}
                   {/* Name */}
                   <input className="inp" value={cat.name} style={{fontSize:12,height:28}}
                     onChange={e=>updBudgetCat(cat.id,"name",e.target.value)}/>
                   {/* Work type multi-select pills */}
-                  <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                  {window.innerWidth>480 && <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
                     {workTypes.length===0 && <span style={{fontSize:9,color:"var(--t3)"}}>All projects</span>}
                     {workTypes.map(wt=>{
                       const on = (cat.workTypes||[]).includes(wt.name);
@@ -10821,7 +10821,7 @@ function GeneralSettingsTab({ onWorkTypesChange, onStatusesChange, onProjectType
                     {(cat.workTypes||[]).length===0 && workTypes.length>0 && (
                       <span style={{fontSize:9,color:"var(--t3)",alignSelf:"center"}}>All</span>
                     )}
-                  </div>
+                  </div>}
                   {/* Active toggle */}
                   <div style={{display:"flex",justifyContent:"center"}}>
                     <input type="checkbox" checked={!!cat.active} onChange={e=>updBudgetCat(cat.id,"active",e.target.checked)}
@@ -11845,10 +11845,10 @@ function VendorManagerTab({ projects=[], globalStaff=[], companyId="" }) {
   const STATUS_COLORS = { active:"var(--green)", inactive:"var(--t3)" };
 
   return (
-    <div style={{display:"flex",gap:0,height:"100%",minHeight:500}}>
+    <div style={{display:"flex",flexDirection:window.innerWidth<=768?"column":"row",gap:0,height:"100%",minHeight:500}}>
       {/* ── LEFT PANEL: list ── */}
-      <div style={{width:selected?320:undefined,flex:selected?undefined:1,flexShrink:0,display:"flex",flexDirection:"column",gap:0,
-        borderRight:selected?"1px solid var(--br)":"none",paddingRight:selected?20:0,marginRight:selected?20:0}}>
+      <div style={{width:selected?(window.innerWidth<=768?"100%":320):undefined,maxWidth:selected?320:undefined,flex:selected?undefined:1,flexShrink:0,display:"flex",flexDirection:"column",gap:0,
+        borderRight:selected&&window.innerWidth>768?"1px solid var(--br)":"none",borderBottom:selected&&window.innerWidth<=768?"1px solid var(--br)":"none",paddingRight:selected&&window.innerWidth>768?20:0,marginRight:selected&&window.innerWidth>768?20:0,paddingBottom:selected&&window.innerWidth<=768?16:0,marginBottom:selected&&window.innerWidth<=768?16:0}}>
 
         {/* Header */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
@@ -11872,7 +11872,7 @@ function VendorManagerTab({ projects=[], globalStaff=[], companyId="" }) {
         </div>
 
         {/* Summary KPI row */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:14}}>
+        <div style={{display:"grid",gridTemplateColumns:window.innerWidth<=480?"repeat(2,1fr)":"repeat(3,1fr)",gap:8,marginBottom:14}}>
           {[
             ["Total Vendors",   vendors.length,                      "var(--blue)"],
             ["Active",          vendors.filter(v=>v.status==="active").length, "var(--green)"],
@@ -11915,7 +11915,7 @@ function VendorManagerTab({ projects=[], globalStaff=[], companyId="" }) {
                   <div style={{fontSize:12,fontWeight:700,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                     {v.firstName||""} {v.lastName||""} {v.company?<span style={{color:"var(--t3)",fontWeight:400}}>· {v.company}</span>:null}
                   </div>
-                  <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{v.trade||"General"} · {vp.length} project{vp.length!==1?"s":""}</div>
+                  <div style={{fontSize:10,color:"var(--t3)",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.trade||"General"} · {vp.length} project{vp.length!==1?"s":""}</div>
                 </div>
                 <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3}}>
                   <span style={{fontSize:8,background:`${STATUS_COLORS[v.status]}20`,color:STATUS_COLORS[v.status],
@@ -12186,23 +12186,23 @@ function VendorManagerTab({ projects=[], globalStaff=[], companyId="" }) {
                 {vp.length > 0 && (
                   <>
                     {/* Column headers */}
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 110px 110px 80px 70px",gap:8,
+                    <div style={{display:"grid",gridTemplateColumns:window.innerWidth<=768?"1fr 90px 70px":"1fr 110px 110px 80px 70px",gap:8,
                       padding:"6px 12px",marginBottom:4}}>
-                      {["Project","Revenue","Paid Out","% Rev","Status"].map(h=>(
+                      {(window.innerWidth<=768?["Project","Paid Out","Status"]:["Project","Revenue","Paid Out","% Rev","Status"]).map(h=>(
                         <div key={h} style={{fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",fontWeight:700}}>{h.toUpperCase()}</div>
                       ))}
                     </div>
                     {vp.map(({proj:p, revenue, paid, pct}) => (
-                      <div key={p.id} style={{display:"grid",gridTemplateColumns:"1fr 110px 110px 80px 70px",gap:8,
+                      <div key={p.id} style={{display:"grid",gridTemplateColumns:window.innerWidth<=768?"1fr 90px 70px":"1fr 110px 110px 80px 70px",gap:8,
                         padding:"10px 12px",borderRadius:8,marginBottom:4,
                         background:"var(--s2)",border:"1px solid var(--br)",alignItems:"center"}}>
                         <div>
                           <div style={{fontSize:12,fontWeight:600,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
                           <div style={{fontSize:9,color:"var(--t3)",marginTop:1}}>{p.address||"No address"}</div>
                         </div>
-                        <div style={{fontSize:12,fontWeight:700,color:"var(--t2)",fontFamily:"var(--mono)"}}>${fmt$(revenue)}</div>
+                        {window.innerWidth>768 && <div style={{fontSize:12,fontWeight:700,color:"var(--t2)",fontFamily:"var(--mono)"}}>${fmt$(revenue)}</div>}
                         <div style={{fontSize:12,fontWeight:700,color:"#e89c18",fontFamily:"var(--mono)"}}>${fmt$(paid)}</div>
-                        <div>
+                        {window.innerWidth>768 && <div>
                           <div style={{fontSize:11,fontWeight:700,fontFamily:"var(--mono)",
                             color:pct>60?"var(--acc)":pct>40?"var(--amber)":"var(--green)"}}>
                             {revenue>0?`${pct.toFixed(1)}%`:"—"}
@@ -12215,24 +12215,24 @@ function VendorManagerTab({ projects=[], globalStaff=[], companyId="" }) {
                                 transition:"width .4s"}}/>
                             </div>
                           )}
-                        </div>
+                        </div>}
                         <span style={{fontSize:9,padding:"2px 6px",borderRadius:4,fontFamily:"var(--mono)",fontWeight:700,textTransform:"uppercase",
                           background:`${STATUS_COLORS[p.status==="completed"?"active":"active"]}18`,
                           color:"var(--t3)"}}>{p.status||"active"}</span>
                       </div>
                     ))}
                     {/* Totals row */}
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 110px 110px 80px 70px",gap:8,
+                    <div style={{display:"grid",gridTemplateColumns:window.innerWidth<=768?"1fr 90px 70px":"1fr 110px 110px 80px 70px",gap:8,
                       padding:"10px 12px",borderRadius:8,marginTop:6,
                       background:"var(--s3)",border:"1px solid var(--br)",alignItems:"center"}}>
                       <div style={{fontSize:11,fontWeight:700,color:"var(--t2)"}}>TOTALS</div>
-                      <div style={{fontSize:12,fontWeight:800,color:"var(--t1)",fontFamily:"var(--mono)"}}>${fmt$(totalRev)}</div>
+                      {window.innerWidth>768 && <div style={{fontSize:12,fontWeight:800,color:"var(--t1)",fontFamily:"var(--mono)"}}>${fmt$(totalRev)}</div>}
                       <div style={{fontSize:12,fontWeight:800,color:"#e89c18",fontFamily:"var(--mono)"}}>{"$"+fmt$(totalPaid)}</div>
-                      <div style={{fontSize:11,fontWeight:800,fontFamily:"var(--mono)",
+                      {window.innerWidth>768 && <div style={{fontSize:11,fontWeight:800,fontFamily:"var(--mono)",
                         color:overallPct>60?"var(--acc)":overallPct>40?"var(--amber)":"var(--green)"}}>
                         {totalRev>0?`${overallPct.toFixed(1)}%`:"—"}
-                      </div>
-                      <div/>
+                      </div>}
+                      {window.innerWidth>768 && <div/>}
                     </div>
                   </>
                 )}
@@ -12255,7 +12255,7 @@ function VendorManagerTab({ projects=[], globalStaff=[], companyId="" }) {
               return (
                 <div>
                   {/* AP summary */}
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:14}}>
+                  <div style={{display:"grid",gridTemplateColumns:window.innerWidth<=480?"repeat(2,1fr)":"repeat(3,1fr)",gap:8,marginBottom:14}}>
                     {[
                       ["Total Billed", "$"+fmt$(totalBilled), "var(--t2)"],
                       ["Paid",         "$"+fmt$(totalPaid),   "var(--green)"],
@@ -13286,9 +13286,9 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
               </div>
             ) : (
               <div>
-                <div style={{display:"grid",gridTemplateColumns:"48px 1fr 150px 190px 160px 130px 110px",
+                <div style={{display:"grid",gridTemplateColumns:window.innerWidth<=768?"48px 1fr 130px 110px":"48px 1fr 150px 190px 160px 130px 110px",
                   gap:10,padding:"3px 14px",marginBottom:6}}>
-                  {["","Name","System Role","Email","Phone","Permission",""].map((h,i) => (
+                  {(window.innerWidth<=768?["","Name","Permission",""]:["","Name","System Role","Email","Phone","Permission",""]).map((h,i) => (
                     <div key={i} className="mono" style={{fontSize:9,color:"var(--t3)"}}>{h}</div>
                   ))}
                 </div>
@@ -13300,7 +13300,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                   const isAccountOwner = s.id === companyId;
                   return (
                     <div key={s.id} style={{display:"grid",
-                      gridTemplateColumns:"48px 1fr 150px 190px 160px 130px 110px",
+                      gridTemplateColumns:window.innerWidth<=768?"48px 1fr 130px 110px":"48px 1fr 150px 190px 160px 130px 110px",
                       gap:10,alignItems:"center",padding:"10px 14px",
                       background:isSelf?"rgba(91,163,245,.04)":"var(--s2)",
                       border:`1px solid ${isSelf?"rgba(91,163,245,.25)":"var(--br)"}`,
@@ -13337,18 +13337,18 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                         )}
                       </div>
                       {/* System role */}
-                      <div>
+                      {window.innerWidth>768 && <div>
                         <span style={{display:"inline-flex",alignItems:"center",gap:5,
                           borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:700,
                           background:`${rc}18`,color:rc,border:`1px solid ${rc}35`}}>
                           <span style={{width:5,height:5,borderRadius:"50%",background:rc,flexShrink:0}}/>
                           {s.systemRole||"—"}
                         </span>
-                      </div>
+                      </div>}
                       {/* Email */}
-                      <div style={{fontSize:11,color:"var(--blue)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.email}</div>
+                      {window.innerWidth>768 && <div style={{fontSize:11,color:"var(--blue)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.email}</div>}
                       {/* Phone */}
-                      <div style={{fontSize:11,color:"var(--t2)"}}>{s.phone||"—"}</div>
+                      {window.innerWidth>768 && <div style={{fontSize:11,color:"var(--t2)"}}>{s.phone||"—"}</div>}
                       {/* Permission — dropdown for admins, badge for others */}
                       <div>
                         {canChangePerms && !isSelf && !isAccountOwner ? (
@@ -13632,7 +13632,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                         marginTop:3,boxShadow:`0 0 10px ${o.color||"var(--teal)"}55`}}/>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontSize:13,fontWeight:700,color:"var(--t1)"}}>{o.name}</div>
-                        {addrLine && <div style={{fontSize:11,color:"var(--t2)",marginTop:2}}>{addrLine}</div>}
+                        {addrLine && <div style={{fontSize:11,color:"var(--t2)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{addrLine}</div>}
                         <div style={{display:"flex",gap:8,marginTop:5,flexWrap:"wrap",alignItems:"center"}}>
                           <span style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",
                             background:"var(--s3)",padding:"2px 8px",borderRadius:5}}>
