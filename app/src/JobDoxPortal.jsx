@@ -8398,12 +8398,37 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
 
   // Callback for DryDox/ContentsDox to push items to Scope
   const handlePushToScope = (newItems) => {
-    setScopeItems(prev => {
-      // Remove any existing items from same source to avoid duplication
-      const source = newItems[0]?.source;
-      const filtered = source ? prev.filter(i=>(i.source||"manual")!==source) : prev;
-      return [...filtered, ...newItems];
-    });
+    const source = newItems[0]?.source;
+    const hasPriorDryDox = source === "drydox" && scopeItems.some(i => i.source === "drydox");
+
+    if (hasPriorDryDox) {
+      // eslint-disable-next-line no-restricted-globals
+      const replace = confirm(
+        "DryDox billing items already exist in this scope.\n\n" +
+        "Click OK to REPLACE the existing DryDox items with the new ones.\n" +
+        "Click Cancel to ADD the new items alongside the existing ones (supplement)."
+      );
+      if (replace) {
+        // Replace: remove existing drydox items, merge in new
+        setScopeItems(prev => {
+          const filtered = prev.filter(i => (i.source || "manual") !== "drydox");
+          return [...filtered, ...newItems.map(it => ({ ...it, dryDoxPushDate: new Date().toISOString() }))];
+        });
+      } else {
+        // Supplement: keep existing, append new with unique IDs
+        const suffix = `-sup${Date.now()}`;
+        setScopeItems(prev => [
+          ...prev,
+          ...newItems.map(it => ({ ...it, id: it.id + suffix, dryDoxPushDate: new Date().toISOString() }))
+        ]);
+      }
+    } else {
+      // No prior items from this source — proceed as before
+      setScopeItems(prev => {
+        const filtered = source ? prev.filter(i => (i.source || "manual") !== source) : prev;
+        return [...filtered, ...newItems.map(it => source === "drydox" ? { ...it, dryDoxPushDate: new Date().toISOString() } : it)];
+      });
+    }
     setTab("scope"); // auto-navigate to scope
   };
 

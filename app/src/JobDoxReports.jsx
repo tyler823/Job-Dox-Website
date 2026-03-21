@@ -126,8 +126,9 @@ function enrichProjects(projects) {
     const budget   = lsGetProjectBudget(p.id);
     const worktypes = lsProjRead(p.id, "worktypes") || p.worktypes || [];
 
-    const totalInvoiced = invoices.reduce((s,i) => s + (parseFloat(i.total)||0), 0);
-    const totalPaid     = invoices.filter(i=>i.status==="paid").reduce((s,i) => s + (parseFloat(i.total)||0), 0);
+    const activeInvoices = invoices.filter(i => i.sequenceStatus !== "superseded");
+    const totalInvoiced = activeInvoices.reduce((s,i) => s + (parseFloat(i.total)||0), 0);
+    const totalPaid     = activeInvoices.filter(i=>i.status==="paid").reduce((s,i) => s + (parseFloat(i.total)||0), 0);
     const totalBillsPaid= bills.filter(b=>b.status==="paid").reduce((s,b) => s + (parseFloat(b.amount)||0), 0);
     const totalBudgeted = budget.categories.reduce((s,c) => s + (parseFloat(c.budgeted)||0), 0);
 
