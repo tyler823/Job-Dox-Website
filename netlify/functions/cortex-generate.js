@@ -312,7 +312,7 @@ Generate a thorough, professional ${workType} workflow that a restoration compan
         },
         body: JSON.stringify({
           model: 'claude-haiku-4-5',
-          max_tokens: 1200,
+          max_tokens: 1500,
           system: systemPrompt,
           messages: [{ role: 'user', content: userPrompt }],
         }),
@@ -335,8 +335,10 @@ Generate a thorough, professional ${workType} workflow that a restoration compan
     const rawText = aiData?.content?.[0]?.text || '';
 
     // Strip any accidental markdown fences
-    const fenceMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/i);
-    const cleaned = (fenceMatch ? fenceMatch[1] : rawText).trim();
+    const cleaned = rawText
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
 
     let parsed;
     try {
