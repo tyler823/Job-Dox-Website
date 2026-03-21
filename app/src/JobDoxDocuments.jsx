@@ -17,6 +17,7 @@ import {
   collection, query, where, getDocs, serverTimestamp, collectionGroup
 } from "firebase/firestore";
 import { initializeApp, getApps } from "firebase/app";
+import JobDoxInPersonSign from './JobDoxInPersonSign';
 
 // Firebase config — same as shared/firebase.js, needed for standalone signing page
 const FIREBASE_CONFIG = {
@@ -1452,6 +1453,7 @@ export function DocumentsTab({ proj, companyId, embedded }) {
   const [preview, setPreview] = useState(null);
   const [sendModal, setSendModal] = useState(null);
   const [filter, setFilter] = useState("all");
+  const [inPersonSignDoc, setInPersonSignDoc] = useState(null);
 
   const reload = () => {
     if (!cid || !proj?.id) { setLoading(false); return; }
@@ -1572,6 +1574,9 @@ export function DocumentsTab({ proj, companyId, embedded }) {
                     <button className="btn btn-secondary btn-xs" onClick={() => setSendModal(docData)}>{Di.send} Send</button>
                   )}
                   <button className="btn btn-ghost btn-xs" title="Preview" onClick={() => setPreview(docData)}>{Di.eye}</button>
+                  {st === "draft" && docData.fields?.some(f => (f.signerRole === "customer" || f.signerRole === "both") && (f.type === "signature" || f.type === "initials")) && (
+                    <button className="btn btn-secondary btn-xs" onClick={() => setInPersonSignDoc(docData)}>{Di.pen} Sign In Person</button>
+                  )}
                   <button className="btn btn-ghost btn-xs" title="Download" onClick={() => downloadPdf(docData)}>{Di.download}</button>
                   <button className="btn btn-ghost btn-xs" style={{ color: "var(--acc)" }} onClick={() => deleteDocument(docData.documentId)}>{Di.trash}</button>
                 </div>
@@ -1581,6 +1586,18 @@ export function DocumentsTab({ proj, companyId, embedded }) {
         })}
         </div>
       </div>
+      {inPersonSignDoc && (
+        <JobDoxInPersonSign
+          document={inPersonSignDoc}
+          project={proj}
+          companyId={cid}
+          onComplete={(savedDoc) => {
+            setDocs(prev => prev.map(d => d.documentId === savedDoc.documentId ? savedDoc : d));
+            setInPersonSignDoc(null);
+          }}
+          onCancel={() => setInPersonSignDoc(null)}
+        />
+      )}
     </div>
   );
 }
