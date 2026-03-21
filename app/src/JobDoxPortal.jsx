@@ -3692,7 +3692,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
 
       <div className="port-body">
         <div className="port-projects" style={{paddingTop:24}}>
-          <div className="port-sticky-hdr">
+          <div className="port-sticky-hdr" style={{marginBottom:20}}>
           {/* ── Mobile New Project button ── */}
           {canAddProject && !showArchived && <button className="btn btn-primary btn-lg new-proj-mobile" style={{width:"100%",justifyContent:"center",marginBottom:10}} onClick={()=>setShowAdd(true)}>{Ic.plus} New Project</button>}
           {/* ── Filter chips ── */}
