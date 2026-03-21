@@ -335,7 +335,8 @@ Generate a thorough, professional ${workType} workflow that a restoration compan
     const rawText = aiData?.content?.[0]?.text || '';
 
     // Strip any accidental markdown fences
-    const cleaned = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+    const fenceMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const cleaned = (fenceMatch ? fenceMatch[1] : rawText).trim();
 
     let parsed;
     try {
