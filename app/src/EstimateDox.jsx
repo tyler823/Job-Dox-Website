@@ -9,7 +9,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { getApps } from "firebase/app";
 
@@ -791,6 +791,73 @@ function GBBPresentMode({ est, onClose, onSign, statusKey }) {
   );
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   ESTIMATE RELATIONSHIP MODAL — choose relationship + work type for new estimates
+══════════════════════════════════════════════════════════════════ */
+function EstimateRelationshipModal({ open, existingEstimates=[], projectWorkTypes=[], onConfirm, onCancel }) {
+  const [relationship, setRelationship] = useState("");
+  const [workType, setWorkType]         = useState("");
+  if (!open) return null;
+  const canConfirm = relationship && workType;
+  return (
+    <div className="overlay" onClick={e=>e.target===e.currentTarget&&onCancel()} style={{zIndex:10000}}>
+      <div className="modal modal-sm anim" style={{maxWidth:520}}>
+        <div className="modal-hd">
+          <div className="modal-ttl">New Estimate — Document Relationship</div>
+          <button className="btn btn-ghost btn-xs" onClick={onCancel}>✕</button>
+        </div>
+        <div className="modal-body" style={{display:"flex",flexDirection:"column",gap:14,padding:16}}>
+          {/* Existing active estimates summary */}
+          <div>
+            <label className="lbl" style={{marginBottom:6,display:"block"}}>EXISTING ACTIVE ESTIMATES</label>
+            <div style={{maxHeight:120,overflowY:"auto",border:"1px solid var(--br)",borderRadius:6,background:"var(--s2)"}}>
+              {existingEstimates.length===0 && (
+                <div style={{padding:10,fontSize:10,color:"var(--t3)",textAlign:"center"}}>No active estimates</div>
+              )}
+              {existingEstimates.map(est=>(
+                <div key={est.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderBottom:"1px solid var(--br)",fontSize:11}}>
+                  {est.versionLabel ? (
+                    <span className="badge" style={{background:"rgba(91,163,245,.12)",color:"var(--blue)",fontSize:9,padding:"2px 7px",borderRadius:20}}>{est.versionLabel}</span>
+                  ) : (
+                    <span className="badge" style={{background:"var(--s3)",color:"var(--t2)",fontSize:9,padding:"2px 7px",borderRadius:20}}>{est.name}</span>
+                  )}
+                  {est.workType && <span className="wt-pill" style={{fontSize:9,padding:"1px 6px"}}>{est.workType}</span>}
+                  <span style={{color:"var(--t3)",fontSize:10}}>{est.date}</span>
+                  <span className={`gbb-pill ${est.status}`} style={{marginLeft:"auto"}}>{est.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Relationship select */}
+          <div>
+            <label className="lbl" style={{marginBottom:4,display:"block"}}>RELATIONSHIP TO EXISTING ESTIMATES</label>
+            <select className="sel" value={relationship} onChange={e=>setRelationship(e.target.value)}>
+              <option value="">— Select —</option>
+              <option value="replacement">Replacement — Supersedes a previous estimate for the same work type</option>
+              <option value="supplement">Supplement — Adds to a previous estimate (e.g. approved supplement)</option>
+            </select>
+          </div>
+          {/* Work type select */}
+          <div>
+            <label className="lbl" style={{marginBottom:4,display:"block"}}>WORK TYPE THIS ESTIMATE APPLIES TO</label>
+            <select className="sel" value={workType} onChange={e=>setWorkType(e.target.value)}>
+              <option value="">— Select —</option>
+              {projectWorkTypes.map(wt=>(
+                <option key={wt} value={wt}>{wt}</option>
+              ))}
+              <option value="General">General</option>
+            </select>
+          </div>
+        </div>
+        <div className="modal-ft" style={{display:"flex",justifyContent:"flex-end",gap:8,padding:"10px 16px",borderTop:"1px solid var(--br)"}}>
+          <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn btn-primary" disabled={!canConfirm} onClick={()=>onConfirm(relationship,workType)}>Confirm</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EstimateDoxTab({ proj, companyId="" }) {
   useEffect(() => { if (companyId) _estCompanyId = companyId; }, [companyId]);
   useEffect(()=>{
@@ -825,6 +892,73 @@ function EstimateDoxTab({ proj, companyId="" }) {
   const [presenting, setPresenting] = useState(false);
   const [q, setQ]                 = useState("");
 
+  // ── Document relationship modal state ──
+  const [estRelModalOpen, setEstRelModalOpen]   = useState(false);
+  const [pendingEstimate, setPendingEstimate]   = useState(null); // the raw estimate awaiting version metadata
+
+  const projWorkTypes = useMemo(() => {
+    const wts = proj?.worktypes?.map(w=>w.type||w) || (proj?.type ? [proj.type] : []);
+    return wts;
+  }, [proj]);
+
+  const handleNewEstimateSave = (rawEst) => {
+    const activeEstimates = estimates.filter(e => e.sequenceStatus === "active" || e.sequenceStatus === undefined);
+    if (activeEstimates.length === 0) {
+      // No prior estimates — auto-set original, skip modal
+      const est = { ...rawEst, version:1, versionLabel:"v1 — Original", relationship:"original", workType:"General", sequenceStatus:"active", replacesId:null };
+      setEstimates(prev=>[est,...prev]);
+      goList();
+    } else {
+      // Show modal
+      setPendingEstimate(rawEst);
+      setEstRelModalOpen(true);
+    }
+  };
+
+  const handleEstRelConfirm = (relationship, workType) => {
+    if (!pendingEstimate) return;
+    const version = estimates.length + 1;
+    let versionLabel;
+    if (relationship === "original") versionLabel = `v${version} — Original`;
+    else if (relationship === "supplement") versionLabel = `v${version} — Supplement (${workType})`;
+    else versionLabel = `v${version} — Replacement (${workType})`;
+
+    let replacesId = null;
+    if (relationship === "replacement") {
+      const candidates = estimates
+        .filter(e => (e.sequenceStatus === "active" || e.sequenceStatus === undefined) && (workType === "General" || e.workType === workType))
+        .sort((a,b) => (b.id||"").localeCompare(a.id||""));
+      if (candidates.length > 0) replacesId = candidates[0].id;
+    }
+
+    const newEst = { ...pendingEstimate, version, versionLabel, relationship, workType, sequenceStatus:"active", replacesId };
+
+    if (relationship === "replacement") {
+      // Mark prior active estimates of same work type as superseded
+      setEstimates(prev => {
+        const updated = prev.map(e => {
+          if ((e.sequenceStatus === "active" || e.sequenceStatus === undefined) &&
+              (workType === "General" || e.workType === workType)) {
+            return { ...e, sequenceStatus: "superseded" };
+          }
+          return e;
+        });
+        return [newEst, ...updated];
+      });
+    } else {
+      setEstimates(prev => [newEst, ...prev]);
+    }
+
+    setEstRelModalOpen(false);
+    setPendingEstimate(null);
+    goList();
+  };
+
+  const handleEstRelCancel = () => {
+    setEstRelModalOpen(false);
+    setPendingEstimate(null);
+  };
+
   const filtered = q.trim()
     ? estimates.filter(e=>e.name.toLowerCase().includes(q.toLowerCase())||e.client.toLowerCase().includes(q.toLowerCase())||e.id.toLowerCase().includes(q.toLowerCase()))
     : estimates;
@@ -849,6 +983,14 @@ function EstimateDoxTab({ proj, companyId="" }) {
 
   return (
     <>
+      {/* Estimate Relationship Modal */}
+      <EstimateRelationshipModal
+        open={estRelModalOpen}
+        existingEstimates={estimates.filter(e => e.sequenceStatus === "active" || e.sequenceStatus === undefined)}
+        projectWorkTypes={projWorkTypes}
+        onConfirm={handleEstRelConfirm}
+        onCancel={handleEstRelCancel}
+      />
       {presenting && selEst && (
         <GBBPresentMode est={selEst} statusKey={statusKey} onClose={()=>setPresenting(false)}
           onSign={(pkg,sk)=>{ setSelTier(pkg); setStatusKey(sk); setPresenting(false); setView("sign"); }}/>
@@ -884,12 +1026,25 @@ function EstimateDoxTab({ proj, companyId="" }) {
                 <div className="gbb-empty-sub">{q?`No results for "${q}"`:"Create your first estimate"}</div>
               </div>
             )}
-            {filtered.map(est=>(
-              <div key={est.id} className={`gbb-est-card${selEst?.id===est.id?" selected":""}`} onClick={()=>openDetail(est)}>
+            {filtered.map(est=>{
+              const isSuperseded = est.sequenceStatus === "superseded";
+              return (
+              <div key={est.id} className={`gbb-est-card${selEst?.id===est.id?" selected":""}`} onClick={()=>openDetail(est)}
+                style={isSuperseded ? {opacity:0.55} : undefined}>
                 <div className="gbb-est-accent" style={{background:gbbAccentColor(est.status)}}/>
                 <div className="gbb-est-body">
                   <div className="gbb-est-r1">
+                    {est.versionLabel && (
+                      <span className="gbb-pill" style={isSuperseded
+                        ? {color:"var(--jdv2-t3)",background:"rgba(107,114,128,.1)",border:"1px solid rgba(107,114,128,.2)",marginRight:4}
+                        : {color:"var(--jdv2-blue)",background:"rgba(29,96,200,.1)",border:"1px solid rgba(29,96,200,.2)",marginRight:4}}>
+                        {est.versionLabel}
+                      </span>
+                    )}
                     <span className="gbb-est-name">{est.name}</span>
+                    {isSuperseded && (
+                      <span className="gbb-pill" style={{color:"var(--jdv2-t3)",background:"rgba(107,114,128,.1)",border:"1px solid rgba(107,114,128,.2)",marginLeft:4}}>SUPERSEDED</span>
+                    )}
                     <span className={`gbb-pill ${est.status}`}>{est.status}</span>
                   </div>
                   <div className="gbb-est-r2">
@@ -910,7 +1065,8 @@ function EstimateDoxTab({ proj, companyId="" }) {
                 </div>
                 <div className="gbb-est-chevron">{GBB_I.chevron}</div>
               </div>
-            ))}
+              );
+            })}
           </div>
           <div className="gbb-hint">Click to open · Present to customer in fullscreen</div>
         </div>
@@ -952,7 +1108,7 @@ function EstimateDoxTab({ proj, companyId="" }) {
             )}
             {view==="create" && (
               <GBBCreateEstimate onBack={goList} projContext={projContext}
-                onSave={est=>{ setEstimates(prev=>[est,...prev]); goList(); }}/>
+                onSave={est=>{ handleNewEstimateSave(est); }}/>
             )}
             {view==="detail" && selEst && (
               <GBBDetailView est={selEst} onPresent={()=>setPresenting(true)}

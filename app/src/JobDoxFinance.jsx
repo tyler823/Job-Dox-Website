@@ -1479,7 +1479,7 @@ function WorktypeBudgetTab({ proj, transactions=[], budgetData, onBudgetChange, 
   // Invoiced amounts per worktype
   const invoicedByWT = useMemo(() => {
     const map = {};
-    invoices.filter(i => i.status !== "void").forEach(inv => {
+    invoices.filter(i => i.status !== "void" && i.sequenceStatus !== "superseded").forEach(inv => {
       const wt = inv.workType || inv.category || "__general__";
       map[wt] = (map[wt] || 0) + (inv.total || 0);
     });
@@ -1489,7 +1489,7 @@ function WorktypeBudgetTab({ proj, transactions=[], budgetData, onBudgetChange, 
   // Payments collected per worktype
   const paidByWT = useMemo(() => {
     const map = {};
-    invoices.filter(i => i.status === "paid").forEach(inv => {
+    invoices.filter(i => i.status === "paid" && i.sequenceStatus !== "superseded").forEach(inv => {
       const wt = inv.workType || inv.category || "__general__";
       map[wt] = (map[wt] || 0) + (inv.total || 0);
     });
@@ -1581,7 +1581,7 @@ function WorktypeBudgetTab({ proj, transactions=[], budgetData, onBudgetChange, 
 
   // ── Render sections shared across SUMMARY and worktype tabs ──
   const renderBottomSections = (wt) => {
-    const wtInvoices = wt ? invoices.filter(i => (i.workType || i.category) === wt && i.status !== "void") : invoices.filter(i => i.status !== "void");
+    const wtInvoices = wt ? invoices.filter(i => (i.workType || i.category) === wt && i.status !== "void" && i.sequenceStatus !== "superseded") : invoices.filter(i => i.status !== "void" && i.sequenceStatus !== "superseded");
     const arDue = wtInvoices.reduce((s, i) => s + (i.total || 0), 0);
     const arPaid = wtInvoices.filter(i => i.status === "paid").reduce((s, i) => s + (i.total || 0), 0);
     const arRemaining = arDue - arPaid;
@@ -2033,8 +2033,8 @@ function ARPanel({ transactions, invoices=[], onAdd, onInvoiceChange }) {
     return map;
   }, [invChron]);
 
-  // Only show non-voided invoices in the main list
-  const visInvoices = invoices.filter(inv => inv.status !== "void");
+  // Only show non-voided, non-superseded invoices in the main list
+  const visInvoices = invoices.filter(inv => inv.status !== "void" && inv.sequenceStatus !== "superseded");
   const voidedInvoices = [...invoices]
     .filter(inv => inv.status === "void")
     .sort((a,b) => new Date(b.voidedAt||b.createdAt||b.date) - new Date(a.voidedAt||a.createdAt||a.date));
@@ -2044,9 +2044,9 @@ function ARPanel({ transactions, invoices=[], onAdd, onInvoiceChange }) {
                                .sort((a,b)=>b.date>a.date?1:-1);
 
   // Totals include all invoices
-  const totalInvoiced = invoices.filter(i=>i.status!=="void").reduce((s,i)=>s+(i.total||0),0)
+  const totalInvoiced = invoices.filter(i=>i.status!=="void"&&i.sequenceStatus!=="superseded").reduce((s,i)=>s+(i.total||0),0)
                       + manualAR.filter(t=>t.type==="invoice").reduce((s,t)=>s+t.amount,0);
-  const collected    = invoices.filter(i=>i.status==="paid").reduce((s,i)=>s+(i.total||0),0)
+  const collected    = invoices.filter(i=>i.status==="paid"&&i.sequenceStatus!=="superseded").reduce((s,i)=>s+(i.total||0),0)
                      + manualAR.filter(t=>t.type==="payment_in").reduce((s,t)=>s+t.amount,0);
   const arBalance    = totalInvoiced - collected;
 
@@ -2770,7 +2770,7 @@ export function FinancialTab({ proj, companyId, laborCost=0, invoices: _invoices
   const allTransactions = useMemo(() => {
     const base = data.transactions || [];
     // Merge in synthetic invoice entries for totals (AR sub-tab handles display separately)
-    const invTxs = invoices.filter(i=>i.status!=="void").map(invoiceToTx);
+    const invTxs = invoices.filter(i=>i.status!=="void"&&i.sequenceStatus!=="superseded").map(invoiceToTx);
     const withLabor = (() => {
       if (!laborCost) return base;
       const hasLabor = base.some(t=>t.id==="__labor__");
@@ -2831,8 +2831,8 @@ export function FinancialTab({ proj, companyId, laborCost=0, invoices: _invoices
 
   // Totals factor in localStorage invoices
   const totBudget     = Object.values(data.budgets||{}).reduce((s,b)=>s+(b.budgeted||0),0);
-  const invTotal      = invoices.filter(i=>i.status!=="void").reduce((s,i)=>s+(i.total||0),0);
-  const invPaid       = invoices.filter(i=>i.status==="paid").reduce((s,i)=>s+(i.total||0),0);
+  const invTotal      = invoices.filter(i=>i.status!=="void"&&i.sequenceStatus!=="superseded").reduce((s,i)=>s+(i.total||0),0);
+  const invPaid       = invoices.filter(i=>i.status==="paid"&&i.sequenceStatus!=="superseded").reduce((s,i)=>s+(i.total||0),0);
   const manualInvoiced= (data.transactions||[]).filter(t=>t.type==="invoice").reduce((s,t)=>s+t.amount,0);
   const manualPaid    = (data.transactions||[]).filter(t=>t.type==="payment_in").reduce((s,t)=>s+t.amount,0);
   const totalInvoiced = invTotal + manualInvoiced;
@@ -3103,7 +3103,7 @@ export function FinancialDashboard({ projects=[], companyId, onNavigate }) {
     // AR from jd_invoices localStorage — generated invoices from scope/invoice builder.
     // Outstanding = non-void invoices that haven't been fully paid.
     const lsAR = allLsInvoices.reduce((s,inv)=>{
-      if (inv.status==="void" || inv.status==="paid") return s;
+      if (inv.status==="void" || inv.status==="paid" || inv.sequenceStatus==="superseded") return s;
       return s+(inv.total||0);
     },0);
 
@@ -3225,7 +3225,7 @@ Give a 3-4 sentence executive summary, then bullet-point the top 3 actions for t
               const h = healthMap[proj.id];
               const d = jobData[proj.id];
               const lsInvForProj = allLsInvoices
-                .filter(i => i.projId === proj.id && i.status !== "void")
+                .filter(i => i.projId === proj.id && i.status !== "void" && i.sequenceStatus !== "superseded")
                 .reduce((s,i)=>s+(i.total||0),0);
               const inv = (d?.transactions?.filter(t=>t.type==="invoice").reduce((s,t)=>s+t.amount,0)||0) + lsInvForProj;
               const costs = d?.transactions?.filter(t=>TX_SIDE[t.type]==="cost"||TX_SIDE[t.type]==="ap").reduce((s,t)=>s+t.amount,0)||0;
