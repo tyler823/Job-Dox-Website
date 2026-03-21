@@ -5249,6 +5249,11 @@ function ScopeTab({ proj, scopeItems: items=[], setScopeItems: setItems=()=>{}, 
   const [budgetCatId,   setBudgetCatId]   = useState("");       // which budget category this invoice is applied to
   const [dueInDays,     setDueInDays]     = useState(30);
 
+  // ── Document relationship modal state ──
+  const [docRelModalOpen,    setDocRelModalOpen]    = useState(false);
+  const [pendingInvoiceCb,   setPendingInvoiceCb]   = useState(null); // callback ref for modal confirm
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+
   // Budget categories for this project
   const projBudget = useMemo(() => {
     try {
@@ -5284,7 +5289,7 @@ function ScopeTab({ proj, scopeItems: items=[], setScopeItems: setItems=()=>{}, 
     setItems(p => [...p, { id:uid(), desc:pi.desc, unit:pi.unit||"EA", qty:1, price:pi.price, source:"manual" }]);
   };
 
-  const generateInvoice = () => {
+  const finalizeInvoice = (relationship, workType, version, versionLabel, replacesId) => {
     const b = loadBilling();
     const num = b.nextInvoiceNum || 1001;
     saveBilling({ ...b, nextInvoiceNum: num+1 });
@@ -5302,17 +5307,38 @@ function ScopeTab({ proj, scopeItems: items=[], setScopeItems: setItems=()=>{}, 
       date:        new Date().toISOString(),
       dueDate:     new Date(Date.now() + dueInDays*86400000).toISOString(),
       summary,
-      lineItems:   items.map(({_notesOpen, ...rest}) => rest), // strip UI-only flag before saving
+      lineItems:   items.map(({_notesOpen, ...rest}) => rest),
       adjustments: { overhead, discount, taxId:selTaxId, taxName:selTax.name, taxRate:selTax.rate, surcharges },
       subtotal:    sub, overheadAmt:ovAmt, surchargeAmt:surAmt, discountAmt:discAmt, taxAmt, total,
       terms,
       status:      "unpaid",
-      invoiceMode,                               // "simple" | "complex"
+      invoiceMode,
       hasRooms:    invoiceMode === "complex" && showRooms,
       budgetCatId: budgetCatId || null,
       budgetCatName: budgetCat?.name || null,
       createdAt:   new Date().toISOString(),
+      // ── Version metadata ──
+      version,
+      versionLabel,
+      relationship,
+      workType,
+      sequenceStatus: "active",
+      replacesId,
     };
+    // If replacement, mark prior active invoices of same work type as superseded
+    if (relationship === "replacement") {
+      const all = loadAllInvoices();
+      let changed = false;
+      for (let i = 0; i < all.length; i++) {
+        if (all[i].projId === (proj?.id || "") &&
+            (workType === "General" || all[i].workType === workType) &&
+            (all[i].sequenceStatus === "active" || all[i].sequenceStatus === undefined)) {
+          all[i].sequenceStatus = "superseded";
+          changed = true;
+        }
+      }
+      if (changed) saveAllInvoices(all);
+    }
     // Push to Finance (LS invoices)
     pushInvoice(inv);
     // Push to Documents tab as a sendable document
@@ -5325,7 +5351,7 @@ function ScopeTab({ proj, scopeItems: items=[], setScopeItems: setItems=()=>{}, 
       status:    "unpaid",
       date:      inv.date,
       invoiceMode,
-      _inv:      inv,          // full invoice data for preview/print
+      _inv:      inv,
     });
     // Activity feed
     pushActivity({
@@ -5340,8 +5366,49 @@ function ScopeTab({ proj, scopeItems: items=[], setScopeItems: setItems=()=>{}, 
     setTimeout(()=>setGenerated(false), 3500);
   };
 
+  const generateInvoice = () => {
+    const projId = proj?.id || "";
+    const allInvoices = loadAllInvoices();
+    const projInvoices = allInvoices.filter(i => i.projId === projId);
+    const activeInvoices = projInvoices.filter(i => i.sequenceStatus === "active" || i.sequenceStatus === undefined);
+
+    if (activeInvoices.length === 0) {
+      // No prior invoices — auto-set original, skip modal
+      finalizeInvoice("original", "General", 1, "v1 — Original", null);
+    } else {
+      // Show modal for user to choose relationship + work type
+      setPendingInvoiceCb(() => (relationship, workType) => {
+        const version = projInvoices.length + 1;
+        let versionLabel;
+        if (relationship === "original") versionLabel = `v${version} — Original`;
+        else if (relationship === "supplement") versionLabel = `v${version} — Supplement (${workType})`;
+        else versionLabel = `v${version} — Replacement (${workType})`;
+
+        let replacesId = null;
+        if (relationship === "replacement") {
+          const candidates = activeInvoices
+            .filter(i => workType === "General" || i.workType === workType)
+            .sort((a,b) => (b.createdAt||b.date||"").localeCompare(a.createdAt||a.date||""));
+          if (candidates.length > 0) replacesId = candidates[0].id;
+        }
+        setDocRelModalOpen(false);
+        setPendingInvoiceCb(null);
+        finalizeInvoice(relationship, workType, version, versionLabel, replacesId);
+      });
+      setDocRelModalOpen(true);
+    }
+  };
+
   return (
     <div className="scroll">
+      {/* Document Relationship Modal */}
+      <DocRelationshipModal
+        open={docRelModalOpen}
+        existingInvoices={loadAllInvoices().filter(i => i.projId === (proj?.id||"") && (i.sequenceStatus === "active" || i.sequenceStatus === undefined))}
+        projectWorkTypes={projWorkTypes}
+        onConfirm={(rel,wt) => { if (pendingInvoiceCb) pendingInvoiceCb(rel,wt); }}
+        onCancel={() => { setDocRelModalOpen(false); setPendingInvoiceCb(null); }}
+      />
       {/* Price List Modal */}
       {showPL && (
         <div className="overlay" onClick={e=>e.target===e.currentTarget&&setShowPL(false)}>
@@ -5701,6 +5768,57 @@ function ScopeTab({ proj, scopeItems: items=[], setScopeItems: setItems=()=>{}, 
           <button className="btn btn-primary btn-lg" onClick={generateInvoice}>{Ic.invoice} Generate Invoice → Finance &amp; Docs</button>
         </div>
 
+        {/* ── Invoice Version History ── */}
+        {(() => {
+          const allProjInv = loadProjInvoices(proj?.id || "");
+          const hasSuperSeded = allProjInv.some(i => i.sequenceStatus === "superseded");
+          if (allProjInv.length === 0) return null;
+          return (
+            <div className="card" style={{padding:14}}>
+              <div className="sec" style={{marginBottom:10,cursor:"pointer",display:"flex",alignItems:"center",gap:6,userSelect:"none"}}
+                onClick={()=>setShowVersionHistory(v=>!v)}>
+                <span style={{transition:"transform .15s",transform:showVersionHistory||hasSuperSeded?"rotate(90deg)":"rotate(0)",display:"inline-block",fontSize:10}}>▶</span>
+                INVOICE VERSION HISTORY
+                <span style={{fontSize:9,color:"var(--t3)",fontWeight:400,marginLeft:4}}>({allProjInv.length})</span>
+              </div>
+              {(showVersionHistory || hasSuperSeded) && (
+                <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                  {[...allProjInv].sort((a,b)=>(b.createdAt||b.date||"").localeCompare(a.createdAt||a.date||"")).map(inv=>{
+                    const isSuperseded = inv.sequenceStatus === "superseded";
+                    const hasVersion = !!inv.versionLabel;
+                    return (
+                      <div key={inv.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 8px",borderRadius:6,background:isSuperseded?"var(--s2)":"transparent",opacity:isSuperseded?0.7:1}}>
+                        {hasVersion ? (
+                          <span className="badge" style={{fontSize:9,padding:"2px 8px",borderRadius:20,background:isSuperseded?"transparent":"rgba(91,163,245,.12)",color:isSuperseded?"var(--t3)":"var(--blue)",border:isSuperseded?"1px solid var(--br)":"none"}}>
+                            {inv.versionLabel}{isSuperseded?" · SUPERSEDED":""}
+                          </span>
+                        ) : (
+                          <span className="badge" style={{fontSize:9,padding:"2px 8px",borderRadius:20,background:"var(--s3)",color:"var(--t2)"}}>
+                            {inv.number}
+                          </span>
+                        )}
+                        {inv.workType && <span className="wt-pill" style={{fontSize:9,padding:"1px 6px"}}>{inv.workType}</span>}
+                        <span style={{fontSize:10,color:"var(--t3)"}}>{new Date(inv.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>
+                        <span className="mono" style={{fontSize:10,fontWeight:600,color:"var(--green)"}}>{fmt$c(inv.total)}</span>
+                        {isSuperseded ? (
+                          <span className="badge" style={{fontSize:8,padding:"1px 6px",borderRadius:20,background:"var(--s3)",color:"var(--t3)",marginLeft:4}}>SUPERSEDED</span>
+                        ) : (
+                          <span className="badge" style={{fontSize:8,padding:"1px 6px",borderRadius:20,
+                            background:inv.status==="paid"?"rgba(26,217,138,.12)":inv.status==="void"?"rgba(255,72,72,.1)":"rgba(255,189,66,.12)",
+                            color:inv.status==="paid"?"var(--green)":inv.status==="void"?"var(--red)":"var(--amber)"}}>
+                            {(inv.status||"unpaid").toUpperCase()}
+                          </span>
+                        )}
+                        <button className="btn btn-ghost btn-xs" style={{marginLeft:"auto",fontSize:9}} onClick={()=>{/* view/download handled by existing doc system */}}>View</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
       </div>
     </div>
   );
@@ -5716,6 +5834,73 @@ function SurchargeAdder({ onAdd, onCancel }) {
       <div style={{width:90}}><label className="lbl">Percent</label><input type="number" className="inp" value={pct} onChange={e=>setPct(e.target.value)} placeholder="10"/></div>
       <button className="btn btn-primary btn-xs" disabled={!label.trim()||!pct} onClick={()=>onAdd({label:label.trim(),pct:parseFloat(pct)||0})}>Add</button>
       <button className="btn btn-ghost btn-xs" onClick={onCancel}>Cancel</button>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   DOC RELATIONSHIP MODAL — choose relationship + work type for new invoices
+══════════════════════════════════════════════════════════════════ */
+function DocRelationshipModal({ open, existingInvoices=[], projectWorkTypes=[], onConfirm, onCancel }) {
+  const [relationship, setRelationship] = useState("");
+  const [workType, setWorkType]         = useState("");
+  if (!open) return null;
+  const canConfirm = relationship && workType;
+  return (
+    <div className="overlay" onClick={e=>e.target===e.currentTarget&&onCancel()}>
+      <div className="modal modal-sm anim" style={{maxWidth:520}}>
+        <div className="modal-hd">
+          <div className="modal-ttl">New Invoice — Document Relationship</div>
+          <button className="btn btn-ghost btn-xs" onClick={onCancel}>{Ic.close}</button>
+        </div>
+        <div className="modal-body" style={{display:"flex",flexDirection:"column",gap:14,padding:16}}>
+          {/* Existing active invoices summary */}
+          <div>
+            <label className="lbl" style={{marginBottom:6,display:"block"}}>EXISTING ACTIVE INVOICES</label>
+            <div style={{maxHeight:120,overflowY:"auto",border:"1px solid var(--br)",borderRadius:6,background:"var(--s2)"}}>
+              {existingInvoices.length===0 && (
+                <div style={{padding:10,fontSize:10,color:"var(--t3)",textAlign:"center"}}>No active invoices</div>
+              )}
+              {existingInvoices.map(inv=>(
+                <div key={inv.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderBottom:"1px solid var(--br)",fontSize:11}}>
+                  {inv.versionLabel ? (
+                    <span className="badge" style={{background:"rgba(91,163,245,.12)",color:"var(--blue)",fontSize:9,padding:"2px 7px",borderRadius:20}}>{inv.versionLabel}</span>
+                  ) : (
+                    <span className="badge" style={{background:"var(--s3)",color:"var(--t2)",fontSize:9,padding:"2px 7px",borderRadius:20}}>{inv.number}</span>
+                  )}
+                  {inv.workType && <span className="wt-pill" style={{fontSize:9,padding:"1px 6px"}}>{inv.workType}</span>}
+                  <span style={{color:"var(--t3)",fontSize:10}}>{new Date(inv.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>
+                  <span className="mono" style={{marginLeft:"auto",fontWeight:600,color:"var(--green)",fontSize:10}}>{fmt$c(inv.total)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Relationship select */}
+          <div>
+            <label className="lbl" style={{marginBottom:4,display:"block"}}>RELATIONSHIP TO EXISTING INVOICES</label>
+            <select className="sel" value={relationship} onChange={e=>setRelationship(e.target.value)}>
+              <option value="">— Select —</option>
+              <option value="replacement">Replacement — Supersedes a previous invoice for the same work type</option>
+              <option value="supplement">Supplement — Adds to a previous invoice (e.g. approved supplement)</option>
+            </select>
+          </div>
+          {/* Work type select */}
+          <div>
+            <label className="lbl" style={{marginBottom:4,display:"block"}}>WORK TYPE THIS INVOICE APPLIES TO</label>
+            <select className="sel" value={workType} onChange={e=>setWorkType(e.target.value)}>
+              <option value="">— Select —</option>
+              {projectWorkTypes.map(wt=>(
+                <option key={wt} value={wt}>{wt}</option>
+              ))}
+              <option value="General">General</option>
+            </select>
+          </div>
+        </div>
+        <div className="modal-ft" style={{display:"flex",justifyContent:"flex-end",gap:8,padding:"10px 16px",borderTop:"1px solid var(--br)"}}>
+          <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn btn-primary" disabled={!canConfirm} onClick={()=>onConfirm(relationship,workType)}>Confirm</button>
+        </div>
+      </div>
     </div>
   );
 }
