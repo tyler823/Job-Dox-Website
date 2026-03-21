@@ -312,7 +312,7 @@ Generate a thorough, professional ${workType} workflow that a restoration compan
         },
         body: JSON.stringify({
           model: 'claude-haiku-4-5',
-          max_tokens: 1500,
+          max_tokens: 3500,
           system: systemPrompt,
           messages: [{ role: 'user', content: userPrompt }],
         }),
