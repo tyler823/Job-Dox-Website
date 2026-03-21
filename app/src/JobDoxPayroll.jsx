@@ -392,7 +392,7 @@ function PayrollReportTab({ projects, globalStaff, projectShifts }) {
             <div style={{fontSize:12,fontWeight:700,color:"var(--t1)",marginBottom:8}}>Employee Summary</div>
             <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,overflow:"hidden"}}>
               <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-              <table style={tableStyle}>
+              <table style={{...tableStyle,minWidth:700,width:"100%"}}>
                 <thead>
                   <tr>
                     <th style={thStyle}>Employee</th>
@@ -412,7 +412,7 @@ function PayrollReportTab({ projects, globalStaff, projectShifts }) {
                         <td style={tdStyle}>
                           <div style={{display:"flex",alignItems:"center",gap:7}}>
                             <Av name={r.tech} size={24}/>
-                            <span style={{fontWeight:600,fontSize:12}}>{r.tech}</span>
+                            <span style={{fontWeight:600,fontSize:12,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:140}}>{r.tech}</span>
                           </div>
                         </td>
                         <td style={{...tdStyle,color:"var(--t2)",fontSize:11}}>{r.position}</td>
@@ -444,8 +444,8 @@ function PayrollReportTab({ projects, globalStaff, projectShifts }) {
         {/* ── Detailed Shift Table ── */}
         <div style={{fontSize:12,fontWeight:700,color:"var(--t1)",marginBottom:8}}>Shift Details</div>
         <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,overflow:"hidden"}}>
-          <div style={{overflowX:"auto"}}>
-            <table style={tableStyle}>
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+            <table style={{...tableStyle,minWidth:900,width:"100%"}}>
               <thead>
                 <tr>
                   <th style={{...thStyle,cursor:"pointer"}} onClick={()=>toggleSort("tech")}>Employee<SortArrow col="tech"/></th>
@@ -471,12 +471,12 @@ function PayrollReportTab({ projects, globalStaff, projectShifts }) {
                     <td style={tdStyle}>
                       <div style={{display:"flex",alignItems:"center",gap:6}}>
                         <Av name={r.tech} size={22}/>
-                        <span style={{fontWeight:600,fontSize:11}}>{r.tech}</span>
+                        <span style={{fontWeight:600,fontSize:11,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:140}}>{r.tech}</span>
                       </div>
                     </td>
                     <td style={{...tdStyle,fontSize:11,color:"var(--t2)"}}>{r.position||"—"}</td>
-                    <td style={{...tdStyle,fontSize:11,fontWeight:500}}>{r.projName}</td>
-                    <td style={{...tdStyle,fontSize:11,color:"var(--t2)"}}>{r.task||"—"}</td>
+                    <td style={{...tdStyle,fontSize:11,fontWeight:500,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.projName}</td>
+                    <td style={{...tdStyle,fontSize:11,color:"var(--t2)",maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.task||"—"}</td>
                     <td style={{...tdStyle,fontSize:10,fontFamily:"var(--mono)"}}>{r.clockIn||"—"}</td>
                     <td style={{...tdStyle,fontSize:10,fontFamily:"var(--mono)"}}>{r.clockOut||"—"}</td>
                     <td style={{...tdStyle,textAlign:"right",fontFamily:"var(--mono)",fontSize:12}}>{(r.hours||0).toFixed(1)}h</td>
@@ -598,7 +598,7 @@ function RateSettingsTab({ canEditRates }) {
 
         {adding && canEditRates && (
           <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,padding:14,marginBottom:14}}>
-            <div className="g3" style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:10,marginBottom:10}}>
+            <div className="g3" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:10,marginBottom:10}}>
               <div>
                 <label style={lblStyle}>Position / Role</label>
                 <input type="text" value={newPos} onChange={e=>setNewPos(e.target.value)} placeholder="e.g. Senior Technician" style={fieldStyle}/>
@@ -627,7 +627,7 @@ function RateSettingsTab({ canEditRates }) {
 
         <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,overflow:"hidden"}}>
           <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-          <table style={tableStyle}>
+          <table style={{...tableStyle,minWidth:500,width:"100%"}}>
             <thead>
               <tr>
                 <th style={thStyle}>Position / Role</th>
@@ -676,14 +676,14 @@ function RateSettingsTab({ canEditRates }) {
                     {canEditRates && (
                       <td style={{...tdStyle,textAlign:"right"}}>
                         {isEditing ? (
-                          <div style={{display:"flex",gap:5,justifyContent:"flex-end"}}>
-                            <button onClick={()=>setEditId(null)} style={{...btnXs,background:"var(--s3)",border:"1px solid var(--br)",color:"var(--t2)"}}>Cancel</button>
-                            <button onClick={()=>saveEdit(r.id)} style={{...btnXs,background:"var(--acc)",color:"#fff"}}>Save</button>
+                          <div style={{display:"flex",gap:5,justifyContent:"flex-end",flexWrap:"wrap"}}>
+                            <button onClick={()=>setEditId(null)} style={{...btnXs,minWidth:48,background:"var(--s3)",border:"1px solid var(--br)",color:"var(--t2)"}}>Cancel</button>
+                            <button onClick={()=>saveEdit(r.id)} style={{...btnXs,minWidth:42,background:"var(--acc)",color:"#fff"}}>Save</button>
                           </div>
                         ) : (
-                          <div style={{display:"flex",gap:5,justifyContent:"flex-end"}}>
-                            <button onClick={()=>startEdit(r)} style={{...btnXs,background:"var(--s3)",border:"1px solid var(--br)",color:"var(--t2)"}}>{Ic.edit}</button>
-                            <button onClick={()=>removeRate(r.id)} style={{...btnXs,background:"rgba(228,53,49,.08)",border:"1px solid rgba(228,53,49,.2)",color:"var(--acc)"}}>{Ic.trash}</button>
+                          <div style={{display:"flex",gap:5,justifyContent:"flex-end",flexWrap:"wrap"}}>
+                            <button onClick={()=>startEdit(r)} style={{...btnXs,minWidth:32,background:"var(--s3)",border:"1px solid var(--br)",color:"var(--t2)"}}>{Ic.edit}</button>
+                            <button onClick={()=>removeRate(r.id)} style={{...btnXs,minWidth:32,background:"rgba(228,53,49,.08)",border:"1px solid rgba(228,53,49,.2)",color:"var(--acc)"}}>{Ic.trash}</button>
                           </div>
                         )}
                       </td>
@@ -807,7 +807,7 @@ function QboSettingsTab({ globalStaff, projects, canEditRates }) {
         {/* Default Settings */}
         <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:9,padding:16,marginBottom:18}}>
           <div style={{fontSize:12,fontWeight:700,color:"var(--t1)",marginBottom:10}}>Sync Defaults</div>
-          <div className="g2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div className="g2" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>
             <div>
               <label style={lblStyle}>Default Pay Type</label>
               <select value={settings.defaultPayType} disabled={!canEditRates}
@@ -834,7 +834,7 @@ function QboSettingsTab({ globalStaff, projects, canEditRates }) {
           <div style={{fontSize:12,fontWeight:700,color:"var(--t1)",marginBottom:4}}>Employee Mapping</div>
           <div style={{fontSize:11,color:"var(--t2)",marginBottom:12}}>Map each staff member to their QBO Employee ID. Optionally set per-employee rate overrides that take priority over position-based rates.</div>
           <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-          <table style={tableStyle}>
+          <table style={{...tableStyle,minWidth:500,width:"100%"}}>
             <thead>
               <tr>
                 <th style={thStyle}>Employee</th>
@@ -861,7 +861,7 @@ function QboSettingsTab({ globalStaff, projects, canEditRates }) {
                     <td style={tdStyle}>
                       <div style={{display:"flex",alignItems:"center",gap:6}}>
                         <Av name={name} size={22}/>
-                        <span style={{fontWeight:600,fontSize:11}}>{name}</span>
+                        <span style={{fontWeight:600,fontSize:11,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:140}}>{name}</span>
                       </div>
                     </td>
                     <td style={{...tdStyle,fontSize:11,color:"var(--t2)"}}>{pos}</td>
@@ -887,15 +887,15 @@ function QboSettingsTab({ globalStaff, projects, canEditRates }) {
                     {canEditRates && (
                       <td style={{...tdStyle,textAlign:"right"}}>
                         {isEditing ? (
-                          <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
-                            <button onClick={()=>setEditingEmp(null)} style={{...btnXs,background:"var(--s3)",border:"1px solid var(--br)",color:"var(--t2)"}}>X</button>
-                            <button onClick={()=>saveEmpRateOverride(name)} style={{...btnXs,background:"var(--acc)",color:"#fff"}}>OK</button>
+                          <div style={{display:"flex",gap:4,justifyContent:"flex-end",flexWrap:"wrap"}}>
+                            <button onClick={()=>setEditingEmp(null)} style={{...btnXs,minWidth:28,background:"var(--s3)",border:"1px solid var(--br)",color:"var(--t2)"}}>X</button>
+                            <button onClick={()=>saveEmpRateOverride(name)} style={{...btnXs,minWidth:32,background:"var(--acc)",color:"#fff"}}>OK</button>
                           </div>
                         ) : (
-                          <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
+                          <div style={{display:"flex",gap:4,justifyContent:"flex-end",flexWrap:"wrap"}}>
                             <button onClick={()=>{setEditingEmp(name);setEditPayRate(String(effectivePay));setEditChargeRate(String(effectiveCharge));}}
-                              style={{...btnXs,background:"var(--s3)",border:"1px solid var(--br)",color:"var(--t2)"}}>{Ic.edit}</button>
-                            {override && <button onClick={()=>clearEmpRateOverride(name)} style={{...btnXs,background:"rgba(228,53,49,.08)",border:"1px solid rgba(228,53,49,.2)",color:"var(--acc)"}}>{Ic.trash}</button>}
+                              style={{...btnXs,minWidth:32,background:"var(--s3)",border:"1px solid var(--br)",color:"var(--t2)"}}>{Ic.edit}</button>
+                            {override && <button onClick={()=>clearEmpRateOverride(name)} style={{...btnXs,minWidth:32,background:"rgba(228,53,49,.08)",border:"1px solid rgba(228,53,49,.2)",color:"var(--acc)"}}>{Ic.trash}</button>}
                           </div>
                         )}
                       </td>
