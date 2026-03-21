@@ -356,11 +356,11 @@ function CompanyHeader({ width = 700, coInfo }) {
     }}>
       {co.logo && <img src={co.logo} alt="Company logo" style={{ height: 52, maxWidth: 120, objectFit: "contain", flexShrink: 0 }} />}
       <div style={{ flex: 1, minWidth: 0 }}>
-        {co.name && <div style={{ fontWeight: 700, fontSize: 15, color: "#0d1117", lineHeight: 1.3, marginBottom: 2 }}>{co.name}</div>}
-        {addressLine && <div style={{ fontSize: 11, color: "#57606a", lineHeight: 1.5 }}>{addressLine}</div>}
+        {co.name && <div style={{ fontWeight: 700, fontSize: 15, color: "#0d1117", lineHeight: 1.3, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{co.name}</div>}
+        {addressLine && <div style={{ fontSize: 11, color: "#57606a", lineHeight: 1.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{addressLine}</div>}
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 2 }}>
-          {co.phone && <span style={{ fontSize: 10, color: "#57606a", display: "flex", alignItems: "center", gap: 4 }}>{Di.phone} {co.phone}</span>}
-          {co.email && <span style={{ fontSize: 10, color: "#57606a", display: "flex", alignItems: "center", gap: 4 }}>{Di.mail} {co.email}</span>}
+          {co.phone && <span style={{ fontSize: 10, color: "#57606a", display: "flex", alignItems: "center", gap: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{Di.phone} {co.phone}</span>}
+          {co.email && <span style={{ fontSize: 10, color: "#57606a", display: "flex", alignItems: "center", gap: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{Di.mail} {co.email}</span>}
         </div>
       </div>
     </div>
@@ -1140,7 +1140,7 @@ function SendSignatureModal({ docData, companyId, proj, onClose }) {
 
   return (
     <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal anim" style={{ maxWidth: 480 }}>
+      <div className="modal anim" style={{ width: '100%', maxWidth: 480 }}>
         <div className="modal-hd">
           <div><div className="modal-ttl">Send for Signature</div><div style={{ fontSize: 11, color: "var(--t3)", marginTop: 2 }}>{docData.name}</div></div>
           <button className="btn btn-ghost btn-xs" onClick={onClose}>{Di.close}</button>
@@ -1251,7 +1251,7 @@ export function DocumentTemplateCenter({ onClose }) {
                   <span className="mono" style={{ fontSize: 9, background: "rgba(91,163,245,.1)", color: "var(--blue)", borderRadius: 20, padding: "2px 9px" }}>{t.fields?.length || 0} FIELDS</span>
                   <span className="mono" style={{ fontSize: 9, background: "var(--s3)", color: "var(--t3)", borderRadius: 20, padding: "2px 9px" }}>{t.pageCount || 1} PAGE{(t.pageCount || 1) !== 1 ? "S" : ""}</span>
                 </div>
-                <div style={{ display: "flex", gap: 6 }}>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <button className="btn btn-secondary btn-xs" style={{ flex: 1 }} onClick={() => { setEditTmpl(t); setShowBuilder(true); }}>{Di.eye} Edit</button>
                   <button className="btn btn-ghost btn-xs" style={{ color: "var(--acc)" }} onClick={() => deleteTemplate(t.templateId)}>{Di.trash}</button>
                 </div>
@@ -1369,7 +1369,7 @@ export function PdfQuickSignModal({ pdfData, docName = "Document", signerName = 
 
   return (
     <div className="overlay" style={{ position: "fixed", inset: 0, background: "rgba(6,7,13,.94)", backdropFilter: "blur(6px)", zIndex: 2000, display: "flex", flexDirection: "column", alignItems: "center", overflowY: "auto", padding: 20 }}>
-      <div className="modal modal-lg" style={{ width: "100%", maxWidth: 860, display: "flex", flexDirection: "column", alignItems: "center", background: "transparent", border: "none", boxShadow: "none" }}>
+      <div className="modal modal-lg" style={{ width: "100%", maxWidth: 860, display: "flex", flexDirection: "column", alignItems: "center", background: "transparent", border: "none", boxShadow: "none", boxSizing: "border-box" }}>
       <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexShrink: 0 }}>
         <div>
           <div style={{ color: "var(--t1)", fontWeight: 800, fontSize: 16 }}>Sign: {docName}</div>
@@ -1551,7 +1551,7 @@ export function DocumentsTab({ proj, companyId, embedded }) {
           const meta = STATUS_META[st] || STATUS_META.draft;
           return (
             <div key={docData.documentId} className="row" style={{ marginBottom: 6, padding: 0, overflow: "hidden" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 13px", minWidth: 320 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 13px", minWidth: 0 }}>
                 <div style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0, background: `${meta.color}18`, color: meta.color, display: "flex", alignItems: "center", justifyContent: "center" }}>{Di.doc}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -1567,7 +1567,7 @@ export function DocumentsTab({ proj, companyId, embedded }) {
                     {docData.signedAt && <span style={{ color: "var(--green)" }}>Signed {new Date(docData.signedAt).toLocaleDateString("en-US")}</span>}
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0, flexWrap: "wrap" }}>
                   {st !== "signed" && (
                     <button className="btn btn-secondary btn-xs" onClick={() => setSendModal(docData)}>{Di.send} Send</button>
                   )}
