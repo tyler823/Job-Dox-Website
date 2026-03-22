@@ -3563,7 +3563,67 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
   );
 }
 
-function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, canViewBudget=false, canAddProject=false, canArchive=false, onArchive, currentMemberId="", globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[], companyId="", phoneSettings={}, projectShifts={}, canViewOwnJobsOnly=false }) {
+/* ══════════════════════════════════════════════
+   CloseProjectModal — "Closed Won" vs "Closed Lost" chooser
+══════════════════════════════════════════════ */
+function CloseProjectModal({ project, onClose, onConfirm }) {
+  const [closeType, setCloseType] = useState(null); // 'won' | 'lost'
+  const [closeNotes, setCloseNotes] = useState("");
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal modal-sm anim" onClick={e=>e.stopPropagation()}>
+        <div className="modal-hd">
+          <span className="modal-ttl" style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{width:28,height:28,borderRadius:7,background:"rgba(228,53,49,.12)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--acc)",flexShrink:0}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg>
+            </span>
+            Close Project
+          </span>
+          <button className="btn btn-ghost btn-xs" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body" style={{gap:12}}>
+          <div style={{fontSize:13,color:"var(--t1)",lineHeight:1.5}}>
+            Closing <strong>{project.name}</strong>. Select how this project is closing:
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            <div className="card" onClick={()=>setCloseType("won")} style={{cursor:"pointer",borderLeft:`4px solid var(--green)`,background:closeType==="won"?"rgba(26,217,138,.1)":"transparent",padding:"12px 14px",transition:"background .12s"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <span style={{width:24,height:24,borderRadius:6,background:closeType==="won"?"var(--green)":"var(--s3)",display:"flex",alignItems:"center",justifyContent:"center",color:closeType==="won"?"#fff":"var(--t3)",flexShrink:0,transition:"all .12s"}}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+                </span>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:"var(--green)"}}>Closed Won</div>
+                  <div style={{fontSize:11,color:"var(--t2)",marginTop:2}}>Work was completed. MarketDox yard sign will be published.</div>
+                </div>
+              </div>
+            </div>
+            <div className="card" onClick={()=>setCloseType("lost")} style={{cursor:"pointer",borderLeft:`4px solid var(--acc)`,background:closeType==="lost"?"var(--acc-lo)":"transparent",padding:"12px 14px",transition:"background .12s"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <span style={{width:24,height:24,borderRadius:6,background:closeType==="lost"?"var(--acc)":"var(--s3)",display:"flex",alignItems:"center",justifyContent:"center",color:closeType==="lost"?"#fff":"var(--t3)",flexShrink:0,transition:"all .12s"}}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+                </span>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:"var(--acc)"}}>Closed Lost / Job Not Sold</div>
+                  <div style={{fontSize:11,color:"var(--t2)",marginTop:2}}>No work performed. Project will be archived without a yard sign.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div style={{fontSize:11,fontWeight:600,color:"var(--t2)",marginBottom:4}}>Notes (optional)</div>
+            <textarea className="txa" value={closeNotes} onChange={e=>setCloseNotes(e.target.value)} placeholder="Reason for closing, outcome details, etc." style={{minHeight:60}}/>
+          </div>
+          <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:4}}>
+            <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary" disabled={!closeType} onClick={()=>onConfirm({closeType,closeNotes})}>Confirm Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, canViewBudget=false, canAddProject=false, canArchive=false, onArchive, onCloseProject, permissionLevel=1, currentMemberId="", globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[], companyId="", phoneSettings={}, projectShifts={}, canViewOwnJobsOnly=false }) {
   const [search, setSearch]         = useState("");
   const [fType, setFType]           = useState("All");
   const [fStatus, setFStatus]       = useState("All");
@@ -3576,6 +3636,10 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
   const [showArchived, setShowArchived] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState(null); // { proj, action:"archive"|"unarchive" }
   const [archiveBusy, setArchiveBusy]   = useState(false);
+  const [closingProject, setClosingProject] = useState(null);
+  const [archivedProjects, setArchivedProjects] = useState([]);
+  const [archivedLoading, setArchivedLoading] = useState(false);
+  const [archivedFilters, setArchivedFilters] = useState({ closeType: 'all', projectType: 'all', office: 'all', dateFrom: '', dateTo: '' });
 
   const statusFilterOpts = ["All", ...customStatuses.map(s=>s.name)];
   const typeFilterOpts   = ["All", ...customProjectTypes.map(t=>t.name)];
@@ -3650,6 +3714,25 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
   }, [activeFlagCount, companyId]);
 
   const openMaps = (proj) => window.open(`https://maps.google.com/?q=${encodeURIComponent(proj.address)}`,"_blank");
+
+  // ── Load archived projects from Firestore with filters ──
+  const loadArchivedProjects = async () => {
+    if (!companyId) return;
+    setArchivedLoading(true);
+    try {
+      const q = query(collection(db, "companies", companyId, "projects"), where("archived","==",true));
+      const snap = await getDocs(q);
+      let results = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+      if (archivedFilters.closeType !== 'all') results = results.filter(p => p.closeType === archivedFilters.closeType);
+      if (archivedFilters.projectType !== 'all') results = results.filter(p => p.type === archivedFilters.projectType);
+      if (archivedFilters.office !== 'all') results = results.filter(p => p.officeId === archivedFilters.office);
+      if (archivedFilters.dateFrom) results = results.filter(p => p.archivedAt && p.archivedAt >= archivedFilters.dateFrom);
+      if (archivedFilters.dateTo) results = results.filter(p => p.archivedAt && p.archivedAt <= archivedFilters.dateTo + "T23:59:59");
+      results.sort((a, b) => (b.archivedAt || "").localeCompare(a.archivedAt || ""));
+      setArchivedProjects(results);
+    } catch (e) { console.error("Failed to load archived projects:", e); }
+    setArchivedLoading(false);
+  };
 
   const confirmArchive = async () => {
     if (!archiveTarget || archiveBusy) return;
@@ -3747,6 +3830,16 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
             {showArchived ? "Back to Active" : `Archived${archivedCount>0?` (${archivedCount})`:""}`}
+          </button>
+        )}
+        {permissionLevel >= 5 && (
+          <button
+            className={`btn ${showArchived?"btn-secondary":"btn-ghost"} btn-xs`}
+            onClick={()=>{const next=!showArchived;setShowArchived(next);if(next)loadArchivedProjects();}}
+            style={{marginLeft:2}}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg>
+            {showArchived ? "Hide Closed" : "View Closed"}
           </button>
         )}
         {canAddProject && !showArchived && <button className="btn btn-primary btn-lg new-proj-desktop" style={{flexShrink:0,whiteSpace:"nowrap"}} onClick={()=>setShowAdd(true)}>{Ic.plus} New Project</button>}
@@ -3886,6 +3979,12 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                           <button className="pab pab-blue" onClick={()=>setNotify(proj)}>{Ic.notify} Notify</button>
                           <button className="pab" onClick={()=>openMaps(proj)}>{Ic.map} Nav</button>
                           <button className="pab pab-amber" onClick={()=>setComm(proj)}>{Ic.phone} Contact</button>
+                          {permissionLevel >= 5 && (
+                            <button className="pab pab-danger" onClick={(e)=>{e.stopPropagation();setClosingProject(proj);}} title="Close Project">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg>
+                              <span>Close</span>
+                            </button>
+                          )}
                         </>
                       ) : (
                         <>
@@ -3987,6 +4086,11 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                           <button className="btn btn-blue btn-xs" onClick={()=>setNotify(proj)}>{Ic.notify}</button>
                           <button className="btn btn-ghost btn-xs" onClick={()=>openMaps(proj)}>{Ic.map}</button>
                           <button className="btn btn-xs" onClick={()=>setComm(proj)} style={{background:"rgba(232,156,24,.1)",border:"1px solid rgba(232,156,24,.25)",color:"var(--amber)"}} title="Contact">{Ic.phone}</button>
+                          {permissionLevel >= 5 && (
+                            <button className="btn btn-danger btn-xs" onClick={(e)=>{e.stopPropagation();setClosingProject(proj);}} title="Close Project">
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg>
+                            </button>
+                          )}
                         </>
                       ) : (
                         <>
@@ -4006,6 +4110,83 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
         </div>
         <PortfolioSidebar onNavigate={onNavigate}/>
       </div>
+
+      {/* ── Archived Projects Panel ── */}
+      {showArchived && (
+        <div style={{padding:"0 16px 16px"}}>
+          <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:12,padding:16}}>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end",marginBottom:14}}>
+              <div>
+                <div className="mono" style={{fontSize:8,color:"var(--t3)",marginBottom:3}}>CLOSE TYPE</div>
+                <select className="sel" value={archivedFilters.closeType} onChange={e=>setArchivedFilters(f=>({...f,closeType:e.target.value}))}>
+                  <option value="all">All</option>
+                  <option value="won">Closed Won</option>
+                  <option value="lost">Closed Lost</option>
+                </select>
+              </div>
+              <div>
+                <div className="mono" style={{fontSize:8,color:"var(--t3)",marginBottom:3}}>PROJECT TYPE</div>
+                <select className="sel" value={archivedFilters.projectType} onChange={e=>setArchivedFilters(f=>({...f,projectType:e.target.value}))}>
+                  <option value="all">All</option>
+                  {customProjectTypes.map(t=><option key={t.name} value={t.name}>{t.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <div className="mono" style={{fontSize:8,color:"var(--t3)",marginBottom:3}}>OFFICE</div>
+                <select className="sel" value={archivedFilters.office} onChange={e=>setArchivedFilters(f=>({...f,office:e.target.value}))}>
+                  <option value="all">All</option>
+                  {offices.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <div className="mono" style={{fontSize:8,color:"var(--t3)",marginBottom:3}}>DATE FROM</div>
+                <input className="inp" type="date" value={archivedFilters.dateFrom} onChange={e=>setArchivedFilters(f=>({...f,dateFrom:e.target.value}))}/>
+              </div>
+              <div>
+                <div className="mono" style={{fontSize:8,color:"var(--t3)",marginBottom:3}}>DATE TO</div>
+                <input className="inp" type="date" value={archivedFilters.dateTo} onChange={e=>setArchivedFilters(f=>({...f,dateTo:e.target.value}))}/>
+              </div>
+              <button className="btn btn-secondary btn-xs" onClick={loadArchivedProjects}>Apply Filters</button>
+            </div>
+            <div className="sec">ARCHIVED PROJECTS</div>
+            {archivedLoading ? (
+              <div style={{textAlign:"center",padding:"24px 0"}}><span className="btn-spinner" style={{width:18,height:18}}/></div>
+            ) : archivedProjects.length === 0 ? (
+              <div className="empty" style={{textAlign:"center",padding:"24px 0",color:"var(--t3)",fontSize:12}}>No archived projects match these filters.</div>
+            ) : (
+              archivedProjects.map(proj => {
+                const offName = offices.find(o=>o.id===proj.officeId)?.name || "";
+                const arDate = proj.archivedAt ? new Date(proj.archivedAt).toLocaleDateString("en-US") : "—";
+                return (
+                  <div key={proj.id} className="row" style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                    <div style={{flex:1,minWidth:180}}>
+                      <div style={{fontSize:12,fontWeight:700,color:"var(--t1)"}}>{proj.name}</div>
+                      <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>{proj.projectNumber||proj.id} · {proj.type||"—"}{offName ? ` · ${offName}` : ""} · {arDate}</div>
+                      {proj.closeNotes && <div style={{fontSize:10,color:"var(--t2)",marginTop:3,fontStyle:"italic"}}>{proj.closeNotes}</div>}
+                    </div>
+                    <span className="badge" style={{background:proj.closeType==="won"?"rgba(26,217,138,.12)":"rgba(228,53,49,.1)",color:proj.closeType==="won"?"var(--green)":"var(--acc)",border:`1px solid ${proj.closeType==="won"?"rgba(26,217,138,.3)":"rgba(228,53,49,.25)"}`}}>
+                      <span className="dot" style={{background:proj.closeType==="won"?"var(--green)":"var(--acc)"}}/>{proj.closeType==="won"?"Closed Won":"Closed Lost"}
+                    </span>
+                    <div style={{display:"flex",gap:6}}>
+                      <button className="btn btn-ghost btn-xs" onClick={()=>onSelect(proj)}>{Ic.eye||"👁"} View</button>
+                      {permissionLevel >= 5 && <button className="btn btn-ghost btn-xs" onClick={()=>onCloseProject&&onCloseProject("reactivate",proj)}>Reactivate</button>}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Close Project Modal ── */}
+      {closingProject && (
+        <CloseProjectModal
+          project={closingProject}
+          onClose={()=>setClosingProject(null)}
+          onConfirm={(result)=>{onCloseProject&&onCloseProject("close",closingProject,result);setClosingProject(null);}}
+        />
+      )}
     </>
   );
 }
@@ -8599,7 +8780,8 @@ function ProjectToolsDropdown({ proj, isClocked, onClockToggle, onNotify, onNavi
 }
 
 
-function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists, companyId="", phoneSettings={}, isVendor=false, currentMemberId="", onNavigate, canArchive=false, onArchive, coInfo={}, offices=[], featureFlags=DEFAULT_FEATURE_FLAGS }) {
+function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClockIn, onClockOut, projectShifts, currentUser, canViewRates, canViewBudget=false, canViewBillingScope=false, canViewPayRates=false, canManageStaff=false, globalStaff=[], priceLists=[], setPriceLists, companyId="", phoneSettings={}, isVendor=false, currentMemberId="", onNavigate, canArchive=false, onArchive, onCloseProject, permissionLevel=1, coInfo={}, offices=[], featureFlags=DEFAULT_FEATURE_FLAGS }) {
+  const [closingProjectDetail, setClosingProjectDetail] = useState(null);
   const [tab,setTab]           = useState(initialTab||"overview");
   // Sync when initialTab prop changes (e.g. user clicks a nav button while project is already open)
   const prevInitialTab = useRef(initialTab);
@@ -8698,6 +8880,12 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
               <span style={{width:6,height:6,borderRadius:"50%",background:"var(--green)",display:"block",animation:"jd-ping 1.5s ease infinite"}}/>CLOCKED IN
             </span>
           )}
+          {permissionLevel >= 5 && !proj.archived && (
+            <button className="btn btn-danger btn-xs" onClick={()=>setClosingProjectDetail(proj)} style={{marginLeft:4}}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg>
+              Close Project
+            </button>
+          )}
           <div style={{width:1,height:18,background:"var(--br)",margin:"0 4px"}}/>
           <ProjectToolsDropdown
             proj={proj}
@@ -8752,6 +8940,13 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       {tab==="messages"       && <MessagesTab proj={proj} contacts={contacts} dailyNotes={dailyNotes} currentUser={currentUser} companyId={companyId} featureFlags={featureFlags}/>}
       {tab==="calls"          && <CallLogTab proj={proj} companyId={companyId} globalStaff={globalStaff} currentUser={currentUser} phoneSettings={phoneSettings}/>}
       {tab==="project-report" && <ProjectReportTab proj={proj} dailyNotes={dailyNotes} mediaFolders={mediaFolders} mediaUploads={mediaUploads} docs={projDocs}/>}
+      {closingProjectDetail && (
+        <CloseProjectModal
+          project={closingProjectDetail}
+          onClose={()=>setClosingProjectDetail(null)}
+          onConfirm={(result)=>{if(onCloseProject)onCloseProject(result);setClosingProjectDetail(null);if(onBack)onBack();}}
+        />
+      )}
     </>
   );
 }
@@ -14800,10 +14995,10 @@ export default function JobDoxPortal() {
         } catch(e) { console.warn("Staff record load failed:", e); }
       }
 
-      // ── Stream projects ──
+      // ── Stream projects (exclude archived from active list) ──
       const pq = query(collection(db, "companies", cid, "projects"), orderBy("createdAt","desc"));
       unsubProjects = onSnapshot(pq, snap => {
-        setProjects(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+        setProjects(snap.docs.map(d => ({ ...d.data(), id: d.id })).filter(p => !p.archived));
       });
 
       // ── Stream staff roster (for SettingsPage + NotifyModal etc.) ──
@@ -15012,10 +15207,10 @@ export default function JobDoxPortal() {
     supportUnsubsRef.current.forEach(fn => fn());
     supportUnsubsRef.current = [];
 
-    // Stream projects
+    // Stream projects (exclude archived from active list)
     const pq = query(collection(db, "companies", cid, "projects"), orderBy("createdAt","desc"));
     supportUnsubsRef.current.push(onSnapshot(pq, snap => {
-      setProjects(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+      setProjects(snap.docs.map(d => ({ ...d.data(), id: d.id })).filter(p => !p.archived));
     }));
 
     // Stream staff roster
@@ -15177,7 +15372,127 @@ export default function JobDoxPortal() {
       throw e;
     }
   };
-         
+
+  // ── Close Project (Closed Won / Closed Lost) ──
+  const handleCloseProject = async ({ closeType, closeNotes, project }) => {
+    if (!companyId || !project) return;
+    try {
+      const newStatus = closeType === 'won' ? 'Closed Won' : 'Closed Lost';
+      console.log("[FS-DIAG] updateDoc →", `companies/${companyId}/projects/${project.id}`);
+      await updateDoc(doc(db, "companies", companyId, "projects", project.id), {
+        archived:   true,
+        closeType,
+        archivedAt: new Date().toISOString(),
+        closeNotes: closeNotes || "",
+        status:     newStatus,
+        updatedAt:  serverTimestamp(),
+      });
+      // If Closed Won, publish MarketDox yard signs
+      if (closeType === 'won') {
+        const co = coInfo || {};
+        const companyName = co.name || "";
+        const toSlug = (str) => (str||"").toLowerCase().replace(/[^a-z0-9\s-]/g,"").replace(/\s+/g,"-").trim();
+        const companySlug = toSlug(companyName);
+        if (companySlug) {
+          const wts = (project.worktypes || []).filter(w => w.status !== "off").map(w => w.type);
+          const parseAddress = (addr) => {
+            if (!addr) return { city:"", state:"", stateAbbr:"", zipCode:"" };
+            const parts = addr.split(",").map(p=>p.trim());
+            const city = parts[1] || "";
+            const stZip = (parts[2] || "").trim().split(/\s+/);
+            const stateAbbr = stZip[0] || "";
+            const zipCode = stZip[1] || "";
+            const STATE_NAMES = {AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"North Carolina",ND:"North Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"South Carolina",SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",WA:"Washington",WV:"West Virginia",WI:"Wisconsin",WY:"Wyoming"};
+            return { city, state: STATE_NAMES[stateAbbr.toUpperCase()] || stateAbbr, stateAbbr: stateAbbr.toUpperCase(), zipCode };
+          };
+          const parsed = parseAddress(project.address);
+          const neighborhood = parsed.city;
+          for (const wt of wts) {
+            const slug = toSlug(`${wt} ${neighborhood} ${parsed.city} ${parsed.stateAbbr}`);
+            if (!slug) continue;
+            try {
+              const q = query(collection(db, "yard_signs"),
+                where("companyId","==",companyId),
+                where("jobId","==",project.id),
+                where("workTypes","array-contains",wt));
+              const snap = await getDocs(q);
+              if (!snap.empty) continue;
+              console.log("[FS-DIAG] addDoc →", "yard_signs");
+              await addDoc(collection(db, "yard_signs"), {
+                companyId,
+                companyName,
+                companySlug,
+                workTypes: [wt],
+                city: parsed.city,
+                neighborhood,
+                state: parsed.state,
+                stateAbbr: parsed.stateAbbr,
+                zipCode: parsed.zipCode,
+                completedAt: serverTimestamp(),
+                jobId: project.id,
+                published: true,
+                slug,
+                companyWebsite: co.website || "",
+              });
+            } catch (e) { console.error("[MarketDox] Yard sign write failed:", e); }
+          }
+        }
+      }
+      // Log to activity feed
+      pushActivity({
+        actionType: "project",
+        action: `Project closed — ${closeType === 'won' ? 'Closed Won' : 'Closed Lost'}${closeNotes ? ': ' + closeNotes : ''}`,
+        proj: project.name,
+        projId: project.id,
+        user: currentUser?.name || "Staff",
+      });
+      // Clear selection if viewing this project
+      if (selected?.id === project.id) setSelected(null);
+    } catch (e) {
+      console.error("Failed to close project:", e);
+      alert("Failed to close project. Please try again.");
+    }
+  };
+
+  // ── Reactivate a closed/archived project ──
+  const handleReactivateProject = async (project) => {
+    if (!companyId || !project) return;
+    try {
+      console.log("[FS-DIAG] updateDoc →", `companies/${companyId}/projects/${project.id}`);
+      await updateDoc(doc(db, "companies", companyId, "projects", project.id), {
+        archived:   false,
+        closeType:  null,
+        archivedAt: null,
+        closeNotes: null,
+        status:     "Active",
+        updatedAt:  serverTimestamp(),
+      });
+      // If was Closed Won, unpublish yard signs
+      if (project.closeType === 'won') {
+        try {
+          const q = query(collection(db, "yard_signs"), where("companyId","==",companyId), where("jobId","==",project.id));
+          const snap = await getDocs(q);
+          for (const d of snap.docs) {
+            if (d.data().published) {
+              console.log("[FS-DIAG] updateDoc →", `yard_signs/${d.id}`);
+              await updateDoc(doc(db, "yard_signs", d.id), { published: false });
+            }
+          }
+        } catch (e) { console.error("[MarketDox] Yard sign unpublish failed:", e); }
+      }
+      pushActivity({
+        actionType: "project",
+        action: "Project reactivated",
+        proj: project.name,
+        projId: project.id,
+        user: currentUser?.name || "Staff",
+      });
+    } catch (e) {
+      console.error("Failed to reactivate project:", e);
+      alert("Failed to reactivate project. Please try again.");
+    }
+  };
+
   const handleNavigate = (projId, tab) => {
     const proj = projects.find(p=>p.id===projId);
     if (proj) { setSelected(proj); setSelTab(tab||"overview"); setPage("portfolio"); }
@@ -15700,6 +16015,8 @@ export default function JobDoxPortal() {
             onNavigate={handleNavigate}
             canArchive={canArchiveProject}
             onArchive={handleArchiveProject}
+            onCloseProject={(result)=>handleCloseProject({...result,project:selected})}
+            permissionLevel={permission}
             coInfo={coInfo}
             offices={offices}
             featureFlags={featureFlags}
@@ -15729,6 +16046,11 @@ export default function JobDoxPortal() {
             canArchive={canArchiveProject}
             projectShifts={projectShifts}
             canViewOwnJobsOnly={canViewOwnJobsOnly}
+            onCloseProject={(action,proj,result)=>{
+              if(action==="close"&&result) handleCloseProject({...result,project:proj});
+              if(action==="reactivate") handleReactivateProject(proj);
+            }}
+            permissionLevel={permission}
           />
         )}
       </div>
