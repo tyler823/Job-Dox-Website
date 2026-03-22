@@ -3577,10 +3577,10 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
 
   const today = new Date().toISOString().slice(0,10);
 
-  const flagged = filtered.map(proj => {
+  const flagged = React.useMemo(() => filtered.map(proj => {
     // Labor mismatch flag
     const scopeItems = (() => {
-      try { return JSON.parse(localStorage.getItem(`jd_proj_${proj.id}_scope`) || '[]'); } catch{ return []; }
+      try { return JSON.parse(localStorage.getItem(`jd_proj_${proj.id}_scope`) || '[]'); } catch(_e){ return []; }
     })();
     const billedHrs = scopeItems
       .filter(i => i.unit && ["HR","hr","Hour","Hours","hour","hours"].includes(i.unit))
@@ -3595,7 +3595,9 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
     const hasOverdueTasks = overdueCount > 0;
 
     return { ...proj, hasLaborMismatch, hasOverdueTasks, billedHrs, loggedHrs, overdueCount };
-  });
+  }), [filtered, projectShifts]);
+
+  const activeFlagCount = flagged.filter(p => p.hasLaborMismatch || p.hasOverdueTasks).length;
 
   // ── Write flag snapshot to Firestore (fire-and-forget) ──
   React.useEffect(() => {
@@ -3620,8 +3622,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
     };
     setDoc(doc(db, `companies/${companyId}/flagHistory/${_today}`), snap, { merge: true })
       .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flagged.filter(p => p.hasLaborMismatch || p.hasOverdueTasks).length, companyId]);
+  }, [activeFlagCount, companyId]);
 
   const openMaps = (proj) => window.open(`https://maps.google.com/?q=${encodeURIComponent(proj.address)}`,"_blank");
 
@@ -14452,7 +14453,7 @@ export default function JobDoxPortal() {
     let count = 0;
     (projects || []).forEach(proj => {
       const scopeItems = (() => {
-        try { return JSON.parse(localStorage.getItem(`jd_proj_${proj.id}_scope`) || '[]'); } catch { return []; }
+        try { return JSON.parse(localStorage.getItem(`jd_proj_${proj.id}_scope`) || '[]'); } catch(_e) { return []; }
       })();
       const billedHrs = scopeItems
         .filter(i => i.unit && ["HR","hr","Hour","Hours","hour","hours"].includes(i.unit))
