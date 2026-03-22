@@ -8,7 +8,7 @@
  */
 import { useState, useRef, useEffect } from "react";
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "./firebase.js";
+import { db, getFirebaseIdToken } from "./firebase.js";
 
 const NETLIFY = "/.netlify/functions";
 
@@ -85,9 +85,10 @@ export default function AdjusterResponseModal({
     }
 
     try {
+      const _fbTk = await getFirebaseIdToken();
       const res = await fetch(`${NETLIFY}/adjuster-response`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(_fbTk ? { "Authorization": `Bearer ${_fbTk}` } : {}) },
         body: JSON.stringify({
           incomingMessage:     message?.body || message?.preview || "",
           incomingSubject:     message?.subject || "",

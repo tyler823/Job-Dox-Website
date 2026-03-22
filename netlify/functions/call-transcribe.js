@@ -17,7 +17,7 @@
  *   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN
  */
 
-const { getDb, admin } = require("./_firebase");
+const { getDb, admin, verifyAndGetCompanyId, deductCortexCoinDirect } = require("./_firebase");
 
 const ALLOWED_ORIGIN = process.env.SITE_URL || "https://job-dox.ai";
 
@@ -25,7 +25,7 @@ function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Content-Type": "application/json",
   };
 }
@@ -34,25 +34,9 @@ function respond(code, body) {
   return { statusCode: code, headers: corsHeaders(), body: JSON.stringify(body) };
 }
 
-/** Deduct a Cortex Coin for this company. */
+/** Deduct a Cortex Coin for this company (direct Firestore). */
 async function deductCortexCoin(companyId, userId) {
-  if (!companyId) return { allowed: true };
-  try {
-    const baseUrl = process.env.URL || process.env.SITE_URL || "https://job-dox.ai";
-    const res = await fetch(`${baseUrl}/.netlify/functions/cortex-coins`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ companyId, action: "deduct", feature: "call-transcribe", userId }),
-    });
-    const data = await res.json();
-    if (res.status === 403 || data.error === "insufficient_coins") {
-      return { allowed: false, message: data.message };
-    }
-    return { allowed: true, coinData: data };
-  } catch (err) {
-    console.warn("[call-transcribe] Cortex Coins deduct failed, allowing:", err.message);
-    return { allowed: true };
-  }
+  return deductCortexCoinDirect(companyId, "call-transcribe", userId);
 }
 
 /**
@@ -319,6 +303,12 @@ exports.handler = async (event) => {
     return respond(405, { error: "Method not allowed" });
   }
 
+  // ── Auth verification ──
+  const companyId = await verifyAndGetCompanyId(event.headers["authorization"] || event.headers["Authorization"]);
+  if (!companyId) {
+    return respond(401, { error: "Unauthorized" });
+  }
+
   let body;
   try {
     body = JSON.parse(event.body || "{}");
@@ -326,23 +316,13 @@ exports.handler = async (event) => {
     return respond(400, { error: "Invalid JSON body" });
   }
 
-  const { companyId, callDocId, recordingUrl, userId = "" } = body;
+  const { callDocId, recordingUrl, userId = "" } = body;
 
-  if (!companyId || !callDocId || !recordingUrl) {
-    return respond(400, { error: "companyId, callDocId, and recordingUrl are required." });
+  if (!callDocId || !recordingUrl) {
+    return respond(400, { error: "callDocId and recordingUrl are required." });
   }
 
   const db = getDb();
-
-  // ── Verify companyId exists in Firestore ──
-  try {
-    const companyDoc = await db.collection("companies").doc(companyId).get();
-    if (!companyDoc.exists) {
-      return respond(403, { error: "An error occurred" });
-    }
-  } catch (_) {
-    return respond(500, { error: "An error occurred" });
-  }
 
   try {
     // 1. Check if transcription is enabled for this company

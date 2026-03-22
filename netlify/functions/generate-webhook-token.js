@@ -11,7 +11,7 @@
  * Returns: { webhookUrl: string }
  */
 
-const { getDb } = require("./_firebase");
+const { getDb, verifyAndGetCompanyId } = require("./_firebase");
 const crypto = require("crypto");
 
 const ALLOWED_ORIGIN = process.env.SITE_URL || "https://job-dox.ai";
@@ -20,7 +20,7 @@ const SITE_URL = process.env.SITE_URL || "https://job-dox.ai";
 exports.handler = async (event) => {
   const headers = {
     "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Content-Type": "application/json",
   };
@@ -33,16 +33,10 @@ exports.handler = async (event) => {
     return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
   }
 
-  let body;
-  try {
-    body = JSON.parse(event.body || "{}");
-  } catch {
-    return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid JSON body" }) };
-  }
-
-  const { companyId } = body;
-  if (!companyId || typeof companyId !== "string") {
-    return { statusCode: 400, headers, body: JSON.stringify({ error: "companyId is required" }) };
+  // ── Auth verification ──
+  const companyId = await verifyAndGetCompanyId(event.headers["authorization"] || event.headers["Authorization"]);
+  if (!companyId) {
+    return { statusCode: 401, headers, body: JSON.stringify({ error: "Unauthorized" }) };
   }
 
   let db;

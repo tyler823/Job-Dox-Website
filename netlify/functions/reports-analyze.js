@@ -5,26 +5,10 @@
  * Reads ANTHROPIC_API_KEY from Netlify environment variables.
  */
 
-/** Check & deduct a Cortex Coin for this company. */
-async function deductCortexCoin(companyId, feature, userId) {
-  if (!companyId) return { allowed: true, coinData: null };
-  try {
-    const baseUrl = process.env.URL || process.env.SITE_URL || 'https://job-dox.ai';
-    const res = await fetch(`${baseUrl}/.netlify/functions/cortex-coins`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ companyId, action: 'deduct', feature, userId }),
-    });
-    const data = await res.json();
-    if (res.status === 403 || data.error === 'insufficient_coins') {
-      return { allowed: false, message: data.message, coinData: data };
-    }
-    return { allowed: true, coinData: data };
-  } catch (err) {
-    console.warn('[reports-analyze] Cortex Coins check failed, allowing call:', err.message);
-    return { allowed: true, coinData: null };
-  }
-}
+const { getDb, verifyAndGetCompanyId, deductCortexCoinDirect } = require("./_firebase");
+
+/** Check & deduct a Cortex Coin for this company (direct Firestore). */
+const deductCortexCoin = deductCortexCoinDirect;
 
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") {
@@ -34,28 +18,19 @@ exports.handler = async (event) => {
     return respond(405, { error: "Method not allowed" });
   }
 
+  // ── Auth verification ──
+  const companyId = await verifyAndGetCompanyId(event.headers["authorization"] || event.headers["Authorization"]);
+  if (!companyId) {
+    return respond(401, { error: "Unauthorized" });
+  }
+
   let body;
   try { body = JSON.parse(event.body || "{}"); }
   catch { return respond(400, { error: "Invalid JSON body" }); }
 
-  const { prompt, mode = "reports", companyId, userId } = body;
+  const { prompt, mode = "reports", userId } = body;
   if (!prompt || typeof prompt !== "string") {
     return respond(400, { error: "Missing required field: prompt" });
-  }
-
-  // ── Verify companyId exists in Firestore ──
-  if (!companyId) {
-    return respond(400, { error: "An error occurred" });
-  }
-  try {
-    const { getDb } = require("./_firebase");
-    const db = getDb();
-    const companyDoc = await db.collection("companies").doc(companyId).get();
-    if (!companyDoc.exists) {
-      return respond(403, { error: "An error occurred" });
-    }
-  } catch (_) {
-    return respond(500, { error: "An error occurred" });
   }
 
   // ── Cortex Coins gate ──
@@ -119,7 +94,7 @@ function corsHeaders() {
   return {
     "Access-Control-Allow-Origin":  "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Cache-Control":                "no-store",
   };
 }

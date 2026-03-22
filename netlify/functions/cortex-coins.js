@@ -25,7 +25,7 @@
  * Env vars: FIREBASE_SERVICE_ACCOUNT
  */
 
-const { getDb } = require("./_firebase");
+const { getDb, verifyAndGetCompanyId } = require("./_firebase");
 
 const ALLOWED_ORIGIN = process.env.SITE_URL || "https://job-dox.ai";
 const CYCLE_DAYS = 28;
@@ -35,7 +35,7 @@ function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Content-Type": "application/json",
   };
 }
@@ -113,6 +113,12 @@ exports.handler = async (event) => {
     return respond(405, { error: "Method not allowed" });
   }
 
+  // ── Auth verification ──
+  const companyId = await verifyAndGetCompanyId(event.headers["authorization"] || event.headers["Authorization"]);
+  if (!companyId) {
+    return respond(401, { error: "Unauthorized" });
+  }
+
   let body;
   try {
     body = JSON.parse(event.body || "{}");
@@ -120,11 +126,7 @@ exports.handler = async (event) => {
     return respond(400, { error: "Invalid JSON body" });
   }
 
-  const { companyId, action = "status", feature = "", userId = "" } = body;
-
-  if (!companyId) {
-    return respond(400, { error: "companyId is required" });
-  }
+  const { action = "status", feature = "", userId = "" } = body;
 
   try {
     const db = getDb();

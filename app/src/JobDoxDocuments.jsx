@@ -18,6 +18,7 @@ import {
 } from "firebase/firestore";
 import { initializeApp, getApps } from "firebase/app";
 import JobDoxInPersonSign from './JobDoxInPersonSign';
+import { getFirebaseIdToken } from "./firebase.js";
 
 // Firebase config — same as shared/firebase.js, needed for standalone signing page
 const FIREBASE_CONFIG = {
@@ -42,8 +43,11 @@ export function setDocsCompanyId(cid) { _docsCompanyId = cid; }
 
 const NETLIFY = "/.netlify/functions";
 async function callFn(name, data) {
+  const headers = { "Content-Type": "application/json" };
+  const token = await getFirebaseIdToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
   const res = await fetch(NETLIFY + "/" + name, {
-    method: "POST", headers: { "Content-Type": "application/json" },
+    method: "POST", headers,
     body: JSON.stringify(data),
   });
   const json = await res.json();

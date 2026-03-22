@@ -11,13 +11,13 @@
  *   FIREBASE_SERVICE_ACCOUNT
  */
 
-const { getDb, admin } = require("./_firebase");
+const { getDb, admin, verifyAndGetCompanyId } = require("./_firebase");
 
 const ALLOWED_ORIGIN = process.env.SITE_URL || "https://job-dox.com";
 
 const headers = {
   "Access-Control-Allow-Origin":  ALLOWED_ORIGIN,
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Content-Type": "application/json",
 };
@@ -33,40 +33,24 @@ exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, headers, body: "" };
   if (event.httpMethod !== "POST")    return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
 
+  // ── Auth verification ──
+  const companyId = await verifyAndGetCompanyId(event.headers["authorization"] || event.headers["Authorization"]);
+  if (!companyId) {
+    return { statusCode: 401, headers, body: JSON.stringify({ error: "Unauthorized" }) };
+  }
+
   let body;
   try { body = JSON.parse(event.body || "{}"); }
   catch { return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid JSON body" }) }; }
 
   const {
-    companyId, twilioNumber, disclosureMessage, callGroups, activeCallGroupId,
+    twilioNumber, disclosureMessage, callGroups, activeCallGroupId,
     // Call Transcriber settings
     callTranscriberEnabled, transcriberAutoCreateProject,
     transcriberKeywords, transcriberWorkTypes, transcriberProjectTypes,
   } = body;
 
-  if (!companyId) return {
-    statusCode: 400, headers,
-    body: JSON.stringify({ error: "An error occurred" }),
-  };
-
   const db      = getDb();
-
-  // ── Verify companyId exists in Firestore ──
-  try {
-    const companyDoc = await db.collection("companies").doc(companyId).get();
-    if (!companyDoc.exists) {
-      await db.collection("audit_logs").add({
-        event: "unauthorized_access_attempt",
-        function: "save-phone-settings",
-        companyId,
-        success: false,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      });
-      return { statusCode: 403, headers, body: JSON.stringify({ error: "An error occurred" }) };
-    }
-  } catch (_) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: "An error occurred" }) };
-  }
   const payload = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
 
   if (twilioNumber       !== undefined) payload.twilioNumber       = twilioNumber;

@@ -20,6 +20,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { getFirestore, doc, getDoc, onSnapshot, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { loadProjEstimates } from "./EstimateDox.jsx";
+import { getFirebaseIdToken } from "./firebase.js";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    HELPERS & CONSTANTS
@@ -2490,9 +2491,10 @@ Provide:
 Be direct and specific. Flag anything that needs immediate attention.`;
 
     try {
+      const _fbTk = await getFirebaseIdToken();
       const json = await fetch("/.netlify/functions/finance-analyze", {
         method:"POST",
-        headers:{"Content-Type":"application/json"},
+        headers:{"Content-Type":"application/json", ...(_fbTk ? {"Authorization":`Bearer ${_fbTk}`} : {})},
         body: JSON.stringify({ prompt, mode:"job", companyId })
       }).then(r=>r.json());
       if (json.error === "cortex_coins_exhausted") {
@@ -3145,9 +3147,10 @@ PORTFOLIO: ${projects.length} active projects
 
 Give a 3-4 sentence executive summary, then bullet-point the top 3 actions for the owner/admin.`;
     try {
+      const _fbTk2 = await getFirebaseIdToken();
       const json = await fetch("/.netlify/functions/finance-analyze", {
         method:"POST",
-        headers:{"Content-Type":"application/json"},
+        headers:{"Content-Type":"application/json", ...(_fbTk2 ? {"Authorization":`Bearer ${_fbTk2}`} : {})},
         body: JSON.stringify({ prompt, mode:"portfolio", companyId })
       }).then(r=>r.json());
       if (json.error === "cortex_coins_exhausted") {

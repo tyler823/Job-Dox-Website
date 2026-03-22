@@ -24,6 +24,7 @@ import {
 import {
   getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject
 } from "firebase/storage";
+import { getFirebaseIdToken } from "./firebase.js";
 
 /* ═══════════════════════════════════════════════════════════════
    CSS — scoped to .cdox-* classes, injected once on mount
@@ -225,9 +226,10 @@ Return ONLY a valid JSON object — no markdown, no backticks, no explanation be
   ]
 }`;
 
+  const _fbTk = await getFirebaseIdToken();
   const res = await fetch("/.netlify/functions/cortex-generate", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(_fbTk ? { "Authorization": `Bearer ${_fbTk}` } : {}) },
     body: JSON.stringify({ prompt, type: "comparable", companyId: companyId || "" })
   });
 
