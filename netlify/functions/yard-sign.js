@@ -202,7 +202,7 @@ exports.handler = async (event) => {
         <h1 class="h1">${escHtml(companyName)}</h1>
         <div class="subtitle">${escHtml(workType)} Restoration &middot; ${escHtml(neighborhood)}, ${escHtml(city)}, ${escHtml(state)}</div>
         <p class="desc">${escHtml(companyName)} completed ${escHtml(workType.toLowerCase())} restoration services in the ${escHtml(neighborhood)} area of ${escHtml(city)}, ${escHtml(state)}. Certified restoration professionals serving ${escHtml(city)} and surrounding communities.</p>
-        ${ys.companyWebsite ? (() => { const safeUrl = ys.companyWebsite.startsWith("http") ? ys.companyWebsite : "https://" + ys.companyWebsite; return `<p style="margin-top:14px;font-size:13px;color:${COLORS.t2};">Learn more about <a href="${escHtml(safeUrl)}" target="_blank" rel="noopener" style="color:${COLORS.acc};text-decoration:none;font-weight:600;">${escHtml(companyName)}</a> and their restoration services.</p>`; })() : ""}
+        ${(() => { const backlinkUrl = ys.officeWebsite || ys.companyWebsite || ""; if (!backlinkUrl) return ""; const safeUrl = backlinkUrl.startsWith("http") ? backlinkUrl : "https://" + backlinkUrl; return `<p style="margin-top:14px;font-size:13px;color:${COLORS.t2};">Learn more about <a href="${escHtml(safeUrl)}" target="_blank" rel="noopener" style="color:${COLORS.acc};text-decoration:none;font-weight:600;">${escHtml(companyName)}</a> and their restoration services.</p>`; })()}
         ${dateStr ? `<div class="date">${escHtml(dateStr)}</div>` : ""}
         <a href="${SITE_URL}" class="cta">Get Help Now</a>
       </div>`;
@@ -274,7 +274,7 @@ exports.handler = async (event) => {
     const bodyContent = `
     <div class="card">
       <h1 class="h1">${escHtml(companyName)}</h1>
-      ${(() => { const w = signs.find(s => s.companyWebsite)?.companyWebsite; if (!w) return ""; const safeUrl = w.startsWith("http") ? w : "https://" + w; return `<a href="${escHtml(safeUrl)}" target="_blank" rel="noopener" style="color:${COLORS.acc};font-size:13px;font-weight:600;text-decoration:none;display:inline-block;margin-top:8px;">Visit ${escHtml(companyName)}'s Website &rarr;</a>`; })()}
+      ${(() => { const w = signs.find(s => s.officeWebsite || s.companyWebsite) ? (signs.find(s => s.officeWebsite)?.officeWebsite || signs.find(s => s.companyWebsite)?.companyWebsite) : null; if (!w) return ""; const safeUrl = w.startsWith("http") ? w : "https://" + w; return `<a href="${escHtml(safeUrl)}" target="_blank" rel="noopener" style="color:${COLORS.acc};font-size:13px;font-weight:600;text-decoration:none;display:inline-block;margin-top:8px;">Visit ${escHtml(companyName)}'s Website &rarr;</a>`; })()}
       <div class="subtitle">Serving ${escHtml(citySummary)} and surrounding areas</div>
       <div class="desc">${signs.length} completed restoration project${signs.length !== 1 ? "s" : ""} across ${cities.length} ${cities.length !== 1 ? "cities" : "city"}.</div>
     </div>

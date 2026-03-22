@@ -15437,6 +15437,8 @@ export default function JobDoxPortal() {
       });
       // If Closed Won, publish MarketDox yard signs via Netlify function
       if (closeType === 'won') {
+        const matchedOffice = offices.find(o => o.id === project.officeId);
+        const officeWebsite = matchedOffice?.website || "";
         const co = coInfo || {};
         const companyName = co.name || "";
         const toSlug = (str) => (str||"").toLowerCase().replace(/[^a-z0-9\s-]/g,"").replace(/\s+/g,"-").trim();
@@ -15475,6 +15477,7 @@ export default function JobDoxPortal() {
                   jobId: project.id,
                   slug,
                   companyWebsite: co.website || "",
+                  officeWebsite: officeWebsite,
                 }),
               });
               const result = await response.json();
