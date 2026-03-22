@@ -3544,7 +3544,7 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
   );
 }
 
-function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, canViewBudget=false, canAddProject=false, canArchive=false, onArchive, currentMemberId="", globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[], companyId="", phoneSettings={}, projectShifts={} }) {
+function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, canViewBudget=false, canAddProject=false, canArchive=false, onArchive, currentMemberId="", globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[], companyId="", phoneSettings={}, projectShifts={}, canViewOwnJobsOnly=false }) {
   const [search, setSearch]         = useState("");
   const [fType, setFType]           = useState("All");
   const [fStatus, setFStatus]       = useState("All");
@@ -3564,6 +3564,12 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
   const filtered = projects.filter(p => {
     // Show only archived or only active
     if (showArchived ? !p.archived : p.archived) return false;
+    // Vendors / low-perm users: only show projects they are personally assigned to
+    if (canViewOwnJobsOnly && currentMemberId) {
+      const assigned = lsProj.assigned.load(p.id) || [];
+      const isAssigned = assigned.some(s => s.id === currentMemberId);
+      if (!isAssigned) return false;
+    }
     if (!canViewBudget && !canAddProject) {
       const inMyOffice = !p.officeId || (globalStaff.find(s=>s.id===currentMemberId)?.officeIds||[]).some(oid=>oid===p.officeId);
       if (!inMyOffice && !canAddProject) return false;
@@ -15635,6 +15641,7 @@ export default function JobDoxPortal() {
             onArchive={handleArchiveProject}
             canArchive={canArchiveProject}
             projectShifts={projectShifts}
+            canViewOwnJobsOnly={canViewOwnJobsOnly}
           />
         )}
       </div>
