@@ -204,7 +204,7 @@ exports.handler = async (event) => {
         <p class="desc">${escHtml(companyName)} completed ${escHtml(workType.toLowerCase())} restoration services in the ${escHtml(neighborhood)} area of ${escHtml(city)}, ${escHtml(state)}. Certified restoration professionals serving ${escHtml(city)} and surrounding communities.</p>
         ${(() => { const backlinkUrl = ys.officeWebsite || ys.companyWebsite || ""; if (!backlinkUrl) return ""; const safeUrl = backlinkUrl.startsWith("http") ? backlinkUrl : "https://" + backlinkUrl; return `<p style="margin-top:14px;font-size:13px;color:${COLORS.t2};">Learn more about <a href="${escHtml(safeUrl)}" target="_blank" rel="noopener" style="color:${COLORS.acc};text-decoration:none;font-weight:600;">${escHtml(companyName)}</a> and their restoration services.</p>`; })()}
         ${dateStr ? `<div class="date">${escHtml(dateStr)}</div>` : ""}
-        <a href="${SITE_URL}" class="cta">Get Help Now</a>
+        <a href="${(() => { const dest = ys.officeWebsite || ys.companyWebsite || ""; if (!dest) return SITE_URL; return dest.startsWith("http") ? dest : "https://" + dest; })()}" class="cta">Get Help Now</a>
       </div>`;
 
       return { statusCode: 200, headers, body: htmlShell(title, description, canonicalUrl, bodyContent, extraHead) };
