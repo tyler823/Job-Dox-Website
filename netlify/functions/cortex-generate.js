@@ -10,36 +10,18 @@
  *   ANTHROPIC_API_KEY = sk-ant-...
  */
 
-const { getDb } = require("./_firebase");
+const { getDb, verifyAndGetCompanyId, deductCortexCoinDirect } = require("./_firebase");
 
 const ALLOWED_ORIGIN = process.env.SITE_URL || 'https://job-dox.ai';
 
-/** Check & deduct a Cortex Coin for this company. */
-async function deductCortexCoin(companyId, feature, userId) {
-  if (!companyId) return { allowed: true, coinData: null };
-  try {
-    const baseUrl = process.env.URL || process.env.SITE_URL || 'https://job-dox.ai';
-    const res = await fetch(`${baseUrl}/.netlify/functions/cortex-coins`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ companyId, action: 'deduct', feature, userId }),
-    });
-    const data = await res.json();
-    if (res.status === 403 || data.error === 'insufficient_coins') {
-      return { allowed: false, message: data.message, coinData: data };
-    }
-    return { allowed: true, coinData: data };
-  } catch (err) {
-    console.warn('[cortex-generate] Cortex Coins check failed, allowing call:', err.message);
-    return { allowed: true, coinData: null };
-  }
-}
+/** Check & deduct a Cortex Coin for this company (direct Firestore). */
+const deductCortexCoin = deductCortexCoinDirect;
 
 exports.handler = async (event) => {
   // ── CORS ──
   const headers = {
     'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Content-Type': 'application/json',
   };
@@ -52,6 +34,12 @@ exports.handler = async (event) => {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
 
+  // ── Auth verification ──
+  const companyId = await verifyAndGetCompanyId(event.headers["authorization"] || event.headers["Authorization"]);
+  if (!companyId) {
+    return { statusCode: 401, headers, body: JSON.stringify({ error: "Unauthorized" }) };
+  }
+
   // ── Parse request ──
   let context;
   try {
@@ -60,21 +48,7 @@ exports.handler = async (event) => {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
   }
 
-  const { workType, notes, roles = [], statuses = [], statusTriggers = [], companyId, userId, prompt, type, messages: conversationMessages, systemPrompt: copilotSystemPrompt } = context;
-
-  // ── Verify companyId exists in Firestore ──
-  if (!companyId) {
-    return { statusCode: 400, headers, body: JSON.stringify({ error: "An error occurred" }) };
-  }
-  try {
-    const db = getDb();
-    const companyDoc = await db.collection("companies").doc(companyId).get();
-    if (!companyDoc.exists) {
-      return { statusCode: 403, headers, body: JSON.stringify({ error: "An error occurred" }) };
-    }
-  } catch (_) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: "An error occurred" }) };
-  }
+  const { workType, notes, roles = [], statuses = [], statusTriggers = [], userId, prompt, type, messages: conversationMessages, systemPrompt: copilotSystemPrompt } = context;
 
   // ── Guard: API key must exist ──
   const apiKey = process.env.ANTHROPIC_API_KEY;

@@ -9,38 +9,17 @@
  * Env var required: ANTHROPIC_API_KEY
  */
 
-const { getDb } = require("./_firebase");
+const { getDb, verifyAndGetCompanyId, deductCortexCoinDirect } = require("./_firebase");
 
 const ALLOWED_ORIGIN = process.env.SITE_URL || 'https://job-dox.ai';
 
-/**
- * Check & deduct a Cortex Coin for this company.
- * Returns { allowed, message, coinData } or throws.
- */
-async function deductCortexCoin(companyId, feature, userId) {
-  if (!companyId) return { allowed: true, coinData: null }; // Skip if no companyId
-  try {
-    const baseUrl = process.env.URL || process.env.SITE_URL || 'https://job-dox.ai';
-    const res = await fetch(`${baseUrl}/.netlify/functions/cortex-coins`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ companyId, action: 'deduct', feature, userId }),
-    });
-    const data = await res.json();
-    if (res.status === 403 || data.error === 'insufficient_coins') {
-      return { allowed: false, message: data.message, coinData: data };
-    }
-    return { allowed: true, coinData: data };
-  } catch (err) {
-    console.warn('[adjuster-response] Cortex Coins check failed, allowing call:', err.message);
-    return { allowed: true, coinData: null }; // Fail open so AI still works
-  }
-}
+/** Check & deduct a Cortex Coin for this company (direct Firestore). */
+const deductCortexCoin = deductCortexCoinDirect;
 
 exports.handler = async (event) => {
   const headers = {
     'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Content-Type': 'application/json',
   };
@@ -50,6 +29,12 @@ exports.handler = async (event) => {
   }
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
+  }
+
+  // ── Auth verification ──
+  const companyId = await verifyAndGetCompanyId(event.headers["authorization"] || event.headers["Authorization"]);
+  if (!companyId) {
+    return { statusCode: 401, headers, body: JSON.stringify({ error: "Unauthorized" }) };
   }
 
   let body;
@@ -72,7 +57,6 @@ exports.handler = async (event) => {
     conversationHistory,   // Previous messages in thread (optional)
     userName,              // The user composing the response
     customInstructions,    // Any additional user instructions for the AI
-    companyId,             // Company ID for Cortex Coins tracking
     userId,                // User ID for usage logging
     adjusterInstructions = '',   // Company-level adjuster response approach
     customerInstructions = '',   // Company-level customer communication approach
@@ -81,20 +65,6 @@ exports.handler = async (event) => {
 
   if (!incomingMessage || typeof incomingMessage !== 'string') {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'incomingMessage is required' }) };
-  }
-
-  // ── Verify companyId exists in Firestore ──
-  if (!companyId) {
-    return { statusCode: 400, headers, body: JSON.stringify({ error: "An error occurred" }) };
-  }
-  try {
-    const db = getDb();
-    const companyDoc = await db.collection("companies").doc(companyId).get();
-    if (!companyDoc.exists) {
-      return { statusCode: 403, headers, body: JSON.stringify({ error: "An error occurred" }) };
-    }
-  } catch (_) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: "An error occurred" }) };
   }
 
   // ── Cortex Coins gate ──

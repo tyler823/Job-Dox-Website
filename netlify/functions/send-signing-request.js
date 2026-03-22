@@ -20,14 +20,14 @@
  */
 
 const twilio = require("twilio");
-const { getDb, admin } = require("./_firebase");
+const { getDb, admin, verifyAndGetCompanyId } = require("./_firebase");
 const crypto = require("crypto");
 
 const ALLOWED_ORIGIN = process.env.SITE_URL || "https://job-dox.ai";
 
 const headers = {
   "Access-Control-Allow-Origin":  ALLOWED_ORIGIN,
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Content-Type": "application/json",
 };
@@ -47,12 +47,17 @@ exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, headers, body: "" };
   if (event.httpMethod !== "POST") return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
 
+  // ── Auth verification ──
+  const companyId = await verifyAndGetCompanyId(event.headers["authorization"] || event.headers["Authorization"]);
+  if (!companyId) {
+    return { statusCode: 401, headers, body: JSON.stringify({ error: "Unauthorized" }) };
+  }
+
   let body;
   try { body = JSON.parse(event.body || "{}"); }
   catch { return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid JSON body" }) }; }
 
   const {
-    companyId,
     projectId,
     projectName,
     docId,
@@ -61,28 +66,11 @@ exports.handler = async (event) => {
     from,         // optional Twilio number for SMS
   } = body;
 
-  if (!companyId || !docId || !signers?.length) {
+  if (!docId || !signers?.length) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: "An error occurred" }) };
   }
 
   const db = getDb();
-
-  // ── Verify companyId exists in Firestore ──
-  try {
-    const companyDoc = await db.collection("companies").doc(companyId).get();
-    if (!companyDoc.exists) {
-      await db.collection("audit_logs").add({
-        event: "unauthorized_access_attempt",
-        function: "send-signing-request",
-        companyId,
-        success: false,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      });
-      return { statusCode: 403, headers, body: JSON.stringify({ error: "An error occurred" }) };
-    }
-  } catch (_) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: "An error occurred" }) };
-  }
   const ts = admin.firestore.FieldValue.serverTimestamp();
   const results = [];
 

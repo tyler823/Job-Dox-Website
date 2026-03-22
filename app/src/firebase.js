@@ -19,3 +19,13 @@ const FIREBASE_CONFIG = {
 const app = initializeApp(FIREBASE_CONFIG);
 export const db     = getFirestore(app);
 export const fbAuth = getAuth(app);
+
+/**
+ * Get the current Firebase user's ID token for authenticating Netlify function calls.
+ * Returns the token string or null if no user is signed in.
+ */
+export async function getFirebaseIdToken() {
+  const user = fbAuth.currentUser;
+  if (!user) return null;
+  return user.getIdToken();
+}

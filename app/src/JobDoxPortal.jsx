@@ -22,7 +22,7 @@ function exitToLanding() {
   }
 }
 import { signInWithCustomToken } from "firebase/auth";
-import { db, fbAuth } from "./firebase.js";
+import { db, fbAuth, getFirebaseIdToken } from "./firebase.js";
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
          doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where, Timestamp } from "firebase/firestore";
 
@@ -84,9 +84,12 @@ function watchPortalSession(memberId, onKicked) {
 /* ── Netlify function caller — mirrors the Firebase httpsCallable API ── */
 const NETLIFY = "/.netlify/functions";
 async function callFn(name, data) {
+  const headers = { "Content-Type": "application/json" };
+  const token = await getFirebaseIdToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
   const res = await fetch(`${NETLIFY}/${name}`, {
     method:  "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body:    JSON.stringify(data),
   });
   const json = await res.json();
@@ -9426,11 +9429,11 @@ function MarketDoxSetupModal({ companyId, onClose }) {
   useEffect(() => {
     if (!companyId) return;
     setLoading(true);
-    fetch("/api/generate-webhook-token", {
+    getFirebaseIdToken().then(_t => fetch("/api/generate-webhook-token", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(_t ? { "Authorization": `Bearer ${_t}` } : {}) },
       body: JSON.stringify({ companyId }),
-    })
+    }))
       .then(r => r.json())
       .then(d => { setWebhookUrl(d.webhookUrl || ""); setLoading(false); })
       .catch(() => setLoading(false));
@@ -9655,9 +9658,10 @@ RESPONSE RULES:
 
     try {
       const apiMessages = newHistory.map(m => ({ role: m.role, content: m.content }));
+      const _fbToken = await getFirebaseIdToken();
       const res = await fetch("/.netlify/functions/cortex-generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(_fbToken ? { "Authorization": `Bearer ${_fbToken}` } : {}) },
         body: JSON.stringify({
           type: "copilot",
           messages: apiMessages,
@@ -10863,9 +10867,10 @@ function CortexCoinsTab({ companyId, memberEmail }) {
     setLoading(true);
     setError("");
     try {
+      const _fbToken2 = await getFirebaseIdToken();
       const res = await fetch("/.netlify/functions/cortex-coins", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(_fbToken2 ? { "Authorization": `Bearer ${_fbToken2}` } : {}) },
         body: JSON.stringify({ companyId, action: "status" }),
       });
       const json = await res.json();
@@ -14824,11 +14829,11 @@ export default function JobDoxPortal() {
       });
 
       // ── Load Cortex Coins status for usage alert ──
-      fetch("/.netlify/functions/cortex-coins", {
+      getFirebaseIdToken().then(_t => fetch("/.netlify/functions/cortex-coins", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(_t ? { "Authorization": `Bearer ${_t}` } : {}) },
         body: JSON.stringify({ companyId: cid, action: "status" }),
-      }).then(r => r.json()).then(coins => {
+      })).then(r => r.json()).then(coins => {
         if (coins.usagePercent >= 80) {
           setCortexAlert(coins);
           setCortexAlertDismissed(false);

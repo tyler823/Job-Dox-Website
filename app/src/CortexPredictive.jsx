@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { getFirebaseIdToken } from "./firebase.js";
 
 /* ═══════════════════════════════════════════════════════════════════
    Cortex Predictive AI Insight Cards
@@ -12,9 +13,10 @@ const CONTENT_STYLE = { fontSize: 12, color: "var(--t1)", lineHeight: 1.6, margi
 const SPINNER = <span style={{ display: "inline-block", width: 12, height: 12, border: "2px solid var(--purple)", borderTopColor: "transparent", borderRadius: "50%", animation: "jd-spin .6s linear infinite", marginRight: 6 }} />;
 
 async function generateAI(companyId, prompt, systemPrompt) {
+  const _fbTk = await getFirebaseIdToken();
   const res = await fetch("/.netlify/functions/cortex-generate", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(_fbTk ? { "Authorization": `Bearer ${_fbTk}` } : {}) },
     body: JSON.stringify({
       type: "copilot",
       skipDeduct: true,
@@ -30,9 +32,10 @@ async function generateAI(companyId, prompt, systemPrompt) {
 }
 
 async function deductCoin(companyId) {
+  const _fbTk = await getFirebaseIdToken();
   await fetch("/.netlify/functions/cortex-coins", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(_fbTk ? { "Authorization": `Bearer ${_fbTk}` } : {}) },
     body: JSON.stringify({ companyId, action: "deduct", feature: "predictive", userId: "" }),
   });
   window.dispatchEvent(new CustomEvent("jd-ai-usage-updated"));

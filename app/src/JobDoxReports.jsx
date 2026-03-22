@@ -24,6 +24,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { getFirestore, doc, getDoc, collection, getDocs, orderBy, query, limit } from "firebase/firestore";
 import { getApps } from "firebase/app";
+import { getFirebaseIdToken } from "./firebase.js";
 
 const _rptDb = getApps().length > 0 ? getFirestore(getApps()[0]) : null;
 
@@ -38,9 +39,12 @@ const today = () => new Date().toISOString().split("T")[0];
 /* Netlify function caller */
 const NETLIFY = "/.netlify/functions";
 async function callFn(name, data) {
+  const headers = { "Content-Type": "application/json" };
+  const token = await getFirebaseIdToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
   const res = await fetch(`${NETLIFY}/${name}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(data),
   });
   const json = await res.json();

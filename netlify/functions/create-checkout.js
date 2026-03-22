@@ -10,13 +10,15 @@
  *   STRIPE_PREMIUM_PRICE_ID = price_...
  */
 
+const { verifyAndGetCompanyId } = require("./_firebase");
+
 const ALLOWED_ORIGIN = process.env.SITE_URL || "https://job-dox.ai";
 
 function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Content-Type": "application/json",
   };
 }
@@ -42,6 +44,12 @@ exports.handler = async (event) => {
     return respond(500, { error: "Stripe configuration missing" });
   }
 
+  // ── Auth verification ──
+  const companyId = await verifyAndGetCompanyId(event.headers["authorization"] || event.headers["Authorization"]);
+  if (!companyId) {
+    return respond(401, { error: "Unauthorized" });
+  }
+
   let body;
   try {
     body = JSON.parse(event.body);
@@ -49,10 +57,10 @@ exports.handler = async (event) => {
     return respond(400, { error: "Invalid JSON body" });
   }
 
-  const { companyId, memberEmail, successUrl, cancelUrl } = body;
+  const { memberEmail, successUrl, cancelUrl } = body;
 
-  if (!companyId || !memberEmail) {
-    return respond(400, { error: "companyId and memberEmail are required" });
+  if (!memberEmail) {
+    return respond(400, { error: "memberEmail is required" });
   }
 
   const defaultSuccess = "https://job-dox.ai/portal.html?billing=success";
