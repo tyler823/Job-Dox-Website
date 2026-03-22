@@ -86,8 +86,11 @@ exports.handler = async (event) => {
     };
   }
 
-  // ── Cortex Coins gate ──
-  const coinCheck = await deductCortexCoin(companyId, type === 'comparable' ? 'comparable-lookup' : 'cortex-generate', userId);
+  // ── Cortex Coins gate (skipped when caller handles deduction separately) ──
+  const skipDeduct = context.skipDeduct === true;
+  const coinCheck = skipDeduct
+    ? { allowed: true, coinData: null }
+    : await deductCortexCoin(companyId, type === 'comparable' ? 'comparable-lookup' : 'cortex-generate', userId);
   if (!coinCheck.allowed) {
     return {
       statusCode: 403,
