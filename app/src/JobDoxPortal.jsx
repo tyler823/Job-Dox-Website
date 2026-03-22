@@ -3644,8 +3644,8 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
   const typeFilterOpts   = ["All", ...customProjectTypes.map(t=>t.name)];
 
   const filtered = projects.filter(p => {
-    // Show only archived or only active
-    if (showArchived ? !p.archived : p.archived) return false;
+    // Always exclude archived from the active filtered list
+    if (p.archived) return false;
     // Vendors / low-perm users: only show projects they are personally assigned to
     if (canViewOwnJobsOnly && currentMemberId) {
       const assigned = lsProj.assigned.load(p.id) || [];
@@ -3859,313 +3859,382 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
 
       <div className="port-body">
         <div className="port-projects" style={{paddingTop:24}}>
-          <div className="port-sticky-hdr" style={{marginBottom:20}}>
-          {/* ── Mobile New Project button ── */}
-          {canAddProject && !showArchived && <button className="btn btn-primary btn-lg new-proj-mobile" style={{width:"100%",justifyContent:"center",marginBottom:10}} onClick={()=>setShowAdd(true)}>{Ic.plus} New Project</button>}
-          {/* ── Filter chips ── */}
-          {!showArchived && (
-            <div style={{display:"flex",gap:5,marginBottom:0,flexWrap:"wrap",alignItems:"center"}}>
-              <span className="mono" style={{fontSize:9,color:"var(--t3)"}}>TYPE</span>
-              {typeFilterOpts.map(t=><button key={t} className={`chip${fType===t?" on":""}`} onClick={()=>setFType(t)}>{t}</button>)}
-              <span style={{width:1,height:15,background:"var(--br)",margin:"0 3px"}}/>
-              <span className="mono" style={{fontSize:9,color:"var(--t3)"}}>STATUS</span>
-              {statusFilterOpts.map(s=>{
-                const stConf = customStatuses.find(c=>c.name===s);
-                return <button key={s} className={`chip${fStatus===s?" on":""}`} onClick={()=>setFStatus(s)}
-                  style={fStatus===s && stConf ? {borderColor:stConf.color,color:stConf.color,background:`${stConf.color}18`} : {}}>{s}</button>;
-              })}
-              {offices.length > 0 && <>
-                <span style={{width:1,height:15,background:"var(--br)",margin:"0 3px"}}/>
-                <span className="mono" style={{fontSize:9,color:"var(--t3)"}}>OFFICE</span>
-                <button className={`chip${fOffice==="All"?" on":""}`} onClick={()=>setFOffice("All")}>All</button>
-                {offices.map(o=>{
-                  const oc = o.color||"var(--teal)";
-                  return <button key={o.id} className={`chip${fOffice===o.id?" on":""}`} onClick={()=>setFOffice(o.id)}
-                    style={fOffice===o.id?{borderColor:oc,color:oc,background:`${oc}18`}:{}}>{o.name}</button>;
-                })}
-              </>}
-            </div>
-          )}
-          {showArchived && (
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,padding:"9px 12px",background:"rgba(232,156,24,.06)",border:"1px solid rgba(232,156,24,.18)",borderRadius:8}}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="var(--amber)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-              <span style={{fontSize:11,color:"var(--amber)"}}>Viewing archived projects. These are closed out and hidden from the active portfolio. Use the Restore button to reactivate any project.</span>
-            </div>
-          )}
-          </div>
+          {showArchived ? (
+            <>
+              {/* ── Archived filter bar (top, matching active portfolio filter row style) ── */}
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end",padding:"10px 0 12px",marginBottom:12,borderBottom:"1px solid var(--br)"}}>
+                <div>
+                  <div className="mono" style={{fontSize:8,color:"var(--t3)",marginBottom:3}}>CLOSE TYPE</div>
+                  <select className="sel" value={archivedFilters.closeType} onChange={e=>setArchivedFilters(f=>({...f,closeType:e.target.value}))}>
+                    <option value="all">All</option>
+                    <option value="won">Closed Won</option>
+                    <option value="lost">Closed Lost</option>
+                  </select>
+                </div>
+                <div>
+                  <div className="mono" style={{fontSize:8,color:"var(--t3)",marginBottom:3}}>PROJECT TYPE</div>
+                  <select className="sel" value={archivedFilters.projectType} onChange={e=>setArchivedFilters(f=>({...f,projectType:e.target.value}))}>
+                    <option value="all">All</option>
+                    {customProjectTypes.map(t=><option key={t.name} value={t.name}>{t.name}</option>)}
+                  </select>
+                </div>
+                {offices.length > 1 && (
+                  <div>
+                    <div className="mono" style={{fontSize:8,color:"var(--t3)",marginBottom:3}}>OFFICE</div>
+                    <select className="sel" value={archivedFilters.office} onChange={e=>setArchivedFilters(f=>({...f,office:e.target.value}))}>
+                      <option value="all">All</option>
+                      {offices.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}
+                    </select>
+                  </div>
+                )}
+                <div>
+                  <div className="mono" style={{fontSize:8,color:"var(--t3)",marginBottom:3}}>DATE FROM</div>
+                  <input className="inp" type="date" value={archivedFilters.dateFrom} onChange={e=>setArchivedFilters(f=>({...f,dateFrom:e.target.value}))}/>
+                </div>
+                <div>
+                  <div className="mono" style={{fontSize:8,color:"var(--t3)",marginBottom:3}}>DATE TO</div>
+                  <input className="inp" type="date" value={archivedFilters.dateTo} onChange={e=>setArchivedFilters(f=>({...f,dateTo:e.target.value}))}/>
+                </div>
+                <button className="btn btn-secondary btn-xs" onClick={loadArchivedProjects}>Apply</button>
+              </div>
 
-          {filtered.length === 0 && (
-            <div className="empty">
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="var(--t3)"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
-              <div style={{color:"var(--t2)",fontSize:13}}>{showArchived ? "No archived projects found." : "No projects match the current filters."}</div>
-            </div>
-          )}
+              {/* ── Archived info banner ── */}
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,padding:"9px 12px",background:"rgba(232,156,24,.06)",border:"1px solid rgba(232,156,24,.18)",borderRadius:8}}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="var(--amber)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                <span style={{fontSize:11,color:"var(--amber)"}}>Viewing archived projects. These are closed out and hidden from the active portfolio. Use the Reactivate button to restore any project.</span>
+              </div>
 
-          {viewMode === "card" && (
-            <div className="proj-grid">
-              {flagged.map(proj => {
-                const ptConf = customProjectTypes.find(t=>t.name===proj.type);
-                const tc = ptConf?.color || TYPE_C[proj.type]||"var(--t3)";
-                const stConf2 = customStatuses.find(s=>s.name===proj.status);
-                const sp = pct(proj.spent, proj.budget);
-                const isClocked = clockInState?.projId === proj.id;
-                return (
-                  <div key={proj.id} className="proj-card anim" style={proj.archived?{opacity:.75,filter:"saturate(.6)"}:{}}>
-                    <div className="proj-accent" style={{background:proj.archived?"var(--t3)":tc}}/>
-                    <div className="proj-body" onClick={()=>onSelect(proj)}>
-                      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:7,marginBottom:4}}>
-                        <div style={{minWidth:0}}>
-                          <div style={{display:"flex",alignItems:"center",gap:6}}>
-                            <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",lineHeight:1.3}}>{proj.name}</div>
-                            {isClocked && <span style={{fontSize:8,background:"rgba(26,217,138,.15)",color:"var(--green)",borderRadius:4,padding:"1px 5px",fontFamily:"var(--mono)",flexShrink:0}}>ACTIVE</span>}
-                            {proj.archived && <span style={{fontSize:8,background:"rgba(232,156,24,.12)",color:"var(--amber)",borderRadius:4,padding:"1px 5px",fontFamily:"var(--mono)",flexShrink:0}}>ARCHIVED</span>}
-                            <FinancialHealthBadge projId={proj.id} companyId={companyId}/>
-                            <S500ComplianceBadge projId={proj.id}/>
+              {/* ── Archived projects content ── */}
+              {archivedLoading ? (
+                <div style={{textAlign:"center",padding:"24px 0"}}><span className="btn-spinner" style={{width:18,height:18}}/></div>
+              ) : archivedProjects.length === 0 ? (
+                <div className="empty">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="var(--t3)"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
+                  <div style={{color:"var(--t2)",fontSize:13}}>No archived projects match these filters.</div>
+                </div>
+              ) : viewMode === "card" ? (
+                <div className="proj-grid">
+                  {archivedProjects.map(proj => {
+                    const ptConf = customProjectTypes.find(t=>t.name===proj.type);
+                    const tc = ptConf?.color || TYPE_C[proj.type]||"var(--t3)";
+                    const sp = pct(proj.spent, proj.budget);
+                    const arDate = proj.archivedAt ? new Date(proj.archivedAt).toLocaleDateString("en-US",{month:"2-digit",day:"2-digit",year:"numeric"}) : null;
+                    return (
+                      <div key={proj.id} className="proj-card anim" style={{opacity:.85,filter:"saturate(.7)"}}>
+                        <div className="proj-accent" style={{background:proj.closeType==="won"?"var(--green)":"var(--acc)"}}/>
+                        <div className="proj-body" onClick={()=>onSelect(proj)}>
+                          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:7,marginBottom:4}}>
+                            <div style={{minWidth:0}}>
+                              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",lineHeight:1.3}}>{proj.name}</div>
+                              </div>
+                              <div className="mono" style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{proj.projectNumber||proj.id}</div>
+                            </div>
+                            <span className="badge" style={{background:proj.closeType==="won"?"rgba(26,217,138,.12)":"rgba(228,53,49,.1)",color:proj.closeType==="won"?"var(--green)":"var(--acc)",border:`1px solid ${proj.closeType==="won"?"rgba(26,217,138,.3)":"rgba(228,53,49,.25)"}`,flexShrink:0}}>
+                              <span className="dot" style={{background:proj.closeType==="won"?"var(--green)":"var(--acc)"}}/>{proj.closeType==="won"?"CLOSED WON":"CLOSED LOST"}
+                            </span>
                           </div>
-                          <div className="mono" style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{proj.projectNumber||proj.id}</div>
-                        </div>
-                        <Badge status={proj.status} customStatuses={customStatuses}/>
-                      </div>
-                      <div style={{fontSize:11,color:"var(--t2)",marginBottom:8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.address}</div>
-                      <WorkTypePills worktypes={proj.worktypes} customWorkTypes={customWorkTypes}/>
-                      {proj.budget > 0 && (
-                        <div style={{marginBottom:7}}>
-                          <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--t3)",marginBottom:2}}><span>Budget</span><span className="mono">{sp}%</span></div>
-                          <div className="bar-track"><div className="bar-fill" style={{width:`${sp}%`,background:sp>85?"var(--acc)":sp>60?"var(--amber)":"var(--green)"}}/></div>
-                        </div>
-                      )}
-                      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--t2)"}}>
-                        <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.client}</span>
-                        {proj.tasksOpen>0 && <span className="mono" style={{fontSize:10,color:"var(--amber)",flexShrink:0,marginLeft:8}}>{proj.tasksOpen} open</span>}
-                      </div>
-                      {(proj.hasLaborMismatch || proj.hasOverdueTasks) && (
-                        <div style={{display:'flex',gap:5,flexWrap:'wrap',marginTop:7}}>
-                          {proj.hasLaborMismatch && (
-                            <span style={{
-                              fontFamily:'var(--mono)',fontSize:9,borderRadius:20,
-                              padding:'2px 8px',
-                              background:'rgba(232,156,24,.12)',
-                              border:'1px solid rgba(232,156,24,.30)',
-                              color:'var(--amber)',
-                              letterSpacing:'.04em'
-                            }}>⚠ LABOR MISMATCH</span>
+                          <div style={{fontSize:11,color:"var(--t2)",marginBottom:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.address}</div>
+                          {arDate && <div style={{fontSize:10,color:"var(--t2)",marginBottom:4}}>Closed {arDate}</div>}
+                          {proj.closeNotes && <div style={{fontSize:10,color:"var(--t2)",marginBottom:4,fontStyle:"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.closeNotes}</div>}
+                          <WorkTypePills worktypes={proj.worktypes} customWorkTypes={customWorkTypes}/>
+                          {proj.budget > 0 && (
+                            <div style={{marginBottom:7}}>
+                              <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--t3)",marginBottom:2}}><span>Budget</span><span className="mono">{sp}%</span></div>
+                              <div className="bar-track"><div className="bar-fill" style={{width:`${sp}%`,background:sp>85?"var(--acc)":sp>60?"var(--amber)":"var(--green)"}}/></div>
+                            </div>
                           )}
-                          {proj.hasOverdueTasks && (
-                            <span style={{
-                              fontFamily:'var(--mono)',fontSize:9,borderRadius:20,
-                              padding:'2px 8px',
-                              background:'rgba(228,53,49,.09)',
-                              border:'1px solid rgba(228,53,49,.25)',
-                              color:'var(--acc)',
-                              letterSpacing:'.04em'
-                            }}>⚠ OVERDUE TASKS</span>
+                          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--t2)"}}>
+                            <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.client}</span>
+                          </div>
+                        </div>
+                        <div className="proj-actions" onClick={e=>e.stopPropagation()}>
+                          <button className="pab" onClick={()=>onSelect(proj)} style={{flex:2}}>{Ic.eye||"👁"} View</button>
+                          {permissionLevel >= 5 && (
+                            <button className="pab pab-green" onClick={()=>setArchiveTarget({proj,action:"unarchive"})} style={{flex:1}}>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 6.5l5.5 5.5H14v2h-4v-2H6.5L12 6.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
+                              Reactivate
+                            </button>
                           )}
                         </div>
-                      )}
-                    </div>
-                    {isClocked && (
-                      <div className="clocked-banner">
-                        <span style={{width:6,height:6,borderRadius:"50%",background:"var(--green)",display:"block",animation:"jd-ping 1.5s ease infinite"}}/>
-                        You are clocked in to this project
                       </div>
-                    )}
-                    <div className="proj-actions" onClick={e=>e.stopPropagation()}>
-                      {!showArchived ? (
-                        <>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="proj-list">
+                  <div style={{display:"grid",gridTemplateColumns:"4px 2fr 1.2fr 110px 120px 80px",gap:0,padding:"3px 13px 3px 4px",marginBottom:2}}>
+                    {["","Project","Work Types","Status","Budget",""].map((h,i)=><div key={i} className="mono" style={{fontSize:9,color:"var(--t3)",padding:"0 8px"}}>{h}</div>)}
+                  </div>
+                  {archivedProjects.map(proj=>{
+                    const tc = TYPE_C[proj.type]||"var(--t3)";
+                    const sp = pct(proj.spent, proj.budget);
+                    const arDate = proj.archivedAt ? new Date(proj.archivedAt).toLocaleDateString("en-US",{month:"2-digit",day:"2-digit",year:"numeric"}) : null;
+                    return (
+                      <div key={proj.id} className="proj-list-row anim" style={{borderLeft:`3px solid ${proj.closeType==="won"?"var(--green)":"var(--acc)"}`,borderTop:`4px solid ${proj.closeType==="won"?"var(--green)":"var(--acc)"}`,opacity:.85}}>
+                        <div className="proj-list-body" onClick={()=>onSelect(proj)}>
+                          <div style={{minWidth:0,flex:"2"}}>
+                            <div style={{display:"flex",alignItems:"center",gap:6}}>
+                              <span style={{fontSize:12,fontWeight:700,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.name}</span>
+                              <span className="badge" style={{fontSize:8,padding:"1px 6px",background:proj.closeType==="won"?"rgba(26,217,138,.12)":"rgba(228,53,49,.1)",color:proj.closeType==="won"?"var(--green)":"var(--acc)",border:`1px solid ${proj.closeType==="won"?"rgba(26,217,138,.3)":"rgba(228,53,49,.25)"}`,flexShrink:0}}>
+                                {proj.closeType==="won"?"CLOSED WON":"CLOSED LOST"}
+                              </span>
+                            </div>
+                            <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{proj.projectNumber||proj.id} · {proj.client}</div>
+                            {arDate && <div style={{fontSize:10,color:"var(--t2)",marginTop:1}}>Closed {arDate}</div>}
+                            {proj.closeNotes && <div style={{fontSize:10,color:"var(--t2)",marginTop:1,fontStyle:"italic"}}>{proj.closeNotes}</div>}
+                          </div>
+                          <div style={{flex:"1.2",minWidth:0,display:"flex",flexDirection:"column",gap:3}}>
+                            {(proj.worktypes||[]).slice(0,2).map((wt,i)=>{
+                              const meta  = WT_META[wt.type]||{color:"var(--t3)",icon:null};
+                              const phase = WT_PHASE_C[wt.status]||WT_PHASE_C.pending;
+                              return (
+                                <div key={i} style={{display:"flex",alignItems:"center",gap:4,background:phase.bg,border:`1px solid ${phase.border}`,borderRadius:5,padding:"2px 6px",borderLeft:`2px solid ${meta.color}`}}>
+                                  <span style={{color:meta.color,display:"flex",alignItems:"center",flexShrink:0}}>{meta.icon}</span>
+                                  <span style={{fontSize:9,fontWeight:700,color:meta.color,flexShrink:0}}>{wt.type}</span>
+                                  <span style={{fontSize:8,color:phase.text,fontFamily:"var(--mono)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wt.phase}</span>
+                                </div>
+                              );
+                            })}
+                            {(proj.worktypes||[]).length > 2 && <span style={{fontSize:9,color:"var(--t3)"}}>+{proj.worktypes.length-2} more</span>}
+                          </div>
+                          <div style={{width:110,flexShrink:0}}>
+                            <span className="badge" style={{background:proj.closeType==="won"?"rgba(26,217,138,.12)":"rgba(228,53,49,.1)",color:proj.closeType==="won"?"var(--green)":"var(--acc)",border:`1px solid ${proj.closeType==="won"?"rgba(26,217,138,.3)":"rgba(228,53,49,.25)"}`}}>
+                              <span className="dot" style={{background:proj.closeType==="won"?"var(--green)":"var(--acc)"}}/>{proj.closeType==="won"?"Closed Won":"Closed Lost"}
+                            </span>
+                          </div>
+                          <div style={{width:120,flexShrink:0}}>
+                            {proj.budget>0 ? (
+                              <>
+                                <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"var(--t3)",marginBottom:2}}><span>{fmt$(proj.spent)}</span><span>{sp}%</span></div>
+                                <div className="bar-track" style={{height:4}}><div className="bar-fill" style={{width:`${sp}%`,background:sp>85?"var(--acc)":sp>60?"var(--amber)":"var(--green)"}}/></div>
+                              </>
+                            ) : <span style={{fontSize:10,color:"var(--t3)"}}>—</span>}
+                          </div>
+                          <div style={{width:60,flexShrink:0,textAlign:"right"}}/>
+                        </div>
+                        <div className="proj-list-actions" onClick={e=>e.stopPropagation()}>
+                          <button className="btn btn-ghost btn-xs" onClick={()=>onSelect(proj)}>{Ic.eye||"👁"} View</button>
+                          {permissionLevel >= 5 && (
+                            <button className="btn btn-green btn-xs" title="Reactivate project" onClick={()=>setArchiveTarget({proj,action:"unarchive"})}>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 6.5l5.5 5.5H14v2h-4v-2H6.5L12 6.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
+                              Reactivate
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="port-sticky-hdr" style={{marginBottom:20}}>
+              {/* ── Mobile New Project button ── */}
+              {canAddProject && <button className="btn btn-primary btn-lg new-proj-mobile" style={{width:"100%",justifyContent:"center",marginBottom:10}} onClick={()=>setShowAdd(true)}>{Ic.plus} New Project</button>}
+              {/* ── Filter chips ── */}
+              <div style={{display:"flex",gap:5,marginBottom:0,flexWrap:"wrap",alignItems:"center"}}>
+                <span className="mono" style={{fontSize:9,color:"var(--t3)"}}>TYPE</span>
+                {typeFilterOpts.map(t=><button key={t} className={`chip${fType===t?" on":""}`} onClick={()=>setFType(t)}>{t}</button>)}
+                <span style={{width:1,height:15,background:"var(--br)",margin:"0 3px"}}/>
+                <span className="mono" style={{fontSize:9,color:"var(--t3)"}}>STATUS</span>
+                {statusFilterOpts.map(s=>{
+                  const stConf = customStatuses.find(c=>c.name===s);
+                  return <button key={s} className={`chip${fStatus===s?" on":""}`} onClick={()=>setFStatus(s)}
+                    style={fStatus===s && stConf ? {borderColor:stConf.color,color:stConf.color,background:`${stConf.color}18`} : {}}>{s}</button>;
+                })}
+                {offices.length > 0 && <>
+                  <span style={{width:1,height:15,background:"var(--br)",margin:"0 3px"}}/>
+                  <span className="mono" style={{fontSize:9,color:"var(--t3)"}}>OFFICE</span>
+                  <button className={`chip${fOffice==="All"?" on":""}`} onClick={()=>setFOffice("All")}>All</button>
+                  {offices.map(o=>{
+                    const oc = o.color||"var(--teal)";
+                    return <button key={o.id} className={`chip${fOffice===o.id?" on":""}`} onClick={()=>setFOffice(o.id)}
+                      style={fOffice===o.id?{borderColor:oc,color:oc,background:`${oc}18`}:{}}>{o.name}</button>;
+                  })}
+                </>}
+              </div>
+              </div>
+
+              {filtered.length === 0 && (
+                <div className="empty">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="var(--t3)"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
+                  <div style={{color:"var(--t2)",fontSize:13}}>No projects match the current filters.</div>
+                </div>
+              )}
+
+              {viewMode === "card" && (
+                <div className="proj-grid">
+                  {flagged.map(proj => {
+                    const ptConf = customProjectTypes.find(t=>t.name===proj.type);
+                    const tc = ptConf?.color || TYPE_C[proj.type]||"var(--t3)";
+                    const stConf2 = customStatuses.find(s=>s.name===proj.status);
+                    const sp = pct(proj.spent, proj.budget);
+                    const isClocked = clockInState?.projId === proj.id;
+                    return (
+                      <div key={proj.id} className="proj-card anim">
+                        <div className="proj-accent" style={{background:tc}}/>
+                        <div className="proj-body" onClick={()=>onSelect(proj)}>
+                          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:7,marginBottom:4}}>
+                            <div style={{minWidth:0}}>
+                              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                <div style={{fontSize:13,fontWeight:700,color:"var(--t1)",lineHeight:1.3}}>{proj.name}</div>
+                                {isClocked && <span style={{fontSize:8,background:"rgba(26,217,138,.15)",color:"var(--green)",borderRadius:4,padding:"1px 5px",fontFamily:"var(--mono)",flexShrink:0}}>ACTIVE</span>}
+                                <FinancialHealthBadge projId={proj.id} companyId={companyId}/>
+                                <S500ComplianceBadge projId={proj.id}/>
+                              </div>
+                              <div className="mono" style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{proj.projectNumber||proj.id}</div>
+                            </div>
+                            <Badge status={proj.status} customStatuses={customStatuses}/>
+                          </div>
+                          <div style={{fontSize:11,color:"var(--t2)",marginBottom:8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.address}</div>
+                          <WorkTypePills worktypes={proj.worktypes} customWorkTypes={customWorkTypes}/>
+                          {proj.budget > 0 && (
+                            <div style={{marginBottom:7}}>
+                              <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--t3)",marginBottom:2}}><span>Budget</span><span className="mono">{sp}%</span></div>
+                              <div className="bar-track"><div className="bar-fill" style={{width:`${sp}%`,background:sp>85?"var(--acc)":sp>60?"var(--amber)":"var(--green)"}}/></div>
+                            </div>
+                          )}
+                          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--t2)"}}>
+                            <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.client}</span>
+                            {proj.tasksOpen>0 && <span className="mono" style={{fontSize:10,color:"var(--amber)",flexShrink:0,marginLeft:8}}>{proj.tasksOpen} open</span>}
+                          </div>
+                          {(proj.hasLaborMismatch || proj.hasOverdueTasks) && (
+                            <div style={{display:'flex',gap:5,flexWrap:'wrap',marginTop:7}}>
+                              {proj.hasLaborMismatch && (
+                                <span style={{
+                                  fontFamily:'var(--mono)',fontSize:9,borderRadius:20,
+                                  padding:'2px 8px',
+                                  background:'rgba(232,156,24,.12)',
+                                  border:'1px solid rgba(232,156,24,.30)',
+                                  color:'var(--amber)',
+                                  letterSpacing:'.04em'
+                                }}>⚠ LABOR MISMATCH</span>
+                              )}
+                              {proj.hasOverdueTasks && (
+                                <span style={{
+                                  fontFamily:'var(--mono)',fontSize:9,borderRadius:20,
+                                  padding:'2px 8px',
+                                  background:'rgba(228,53,49,.09)',
+                                  border:'1px solid rgba(228,53,49,.25)',
+                                  color:'var(--acc)',
+                                  letterSpacing:'.04em'
+                                }}>⚠ OVERDUE TASKS</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {isClocked && (
+                          <div className="clocked-banner">
+                            <span style={{width:6,height:6,borderRadius:"50%",background:"var(--green)",display:"block",animation:"jd-ping 1.5s ease infinite"}}/>
+                            You are clocked in to this project
+                          </div>
+                        )}
+                        <div className="proj-actions" onClick={e=>e.stopPropagation()}>
                           <button className={`pab ${isClocked?"pab-danger":"pab-green"}`} onClick={()=>setClock(proj)}>
                             {isClocked ? <>{Ic.stopwatch} Clock Out</> : <>{Ic.clock} Clock In</>}
                           </button>
                           <button className="pab pab-blue" onClick={()=>setNotify(proj)}>{Ic.notify} Notify</button>
                           <button className="pab" onClick={()=>openMaps(proj)}>{Ic.map} Nav</button>
                           <button className="pab pab-amber" onClick={()=>setComm(proj)}>{Ic.phone} Contact</button>
-                        </>
-                      ) : (
-                        <>
-                          <button className="pab" onClick={()=>onSelect(proj)} style={{flex:2}}>{Ic.eye||"👁"} View Project</button>
-                          {canArchive && (
-                            <button className="pab pab-green" onClick={()=>setArchiveTarget({proj,action:"unarchive"})} style={{flex:1}}>
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 6.5l5.5 5.5H14v2h-4v-2H6.5L12 6.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
-                              Restore
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
-          {viewMode === "list" && (
-            <div className="proj-list">
-              <div style={{display:"grid",gridTemplateColumns:"4px 2fr 1.2fr 110px 120px 80px",gap:0,padding:"3px 13px 3px 4px",marginBottom:2}}>
-                {["","Project","Work Types","Status","Budget",""].map((h,i)=><div key={i} className="mono" style={{fontSize:9,color:"var(--t3)",padding:"0 8px"}}>{h}</div>)}
-              </div>
-              {flagged.map(proj=>{
-                const tc = TYPE_C[proj.type]||"var(--t3)";
-                const sp = pct(proj.spent, proj.budget);
-                const isClocked = clockInState?.projId === proj.id;
-                return (
-                  <div key={proj.id} className="proj-list-row anim" style={{borderLeft:`3px solid ${proj.archived?"var(--t3)":isClocked?"var(--green)":tc}`,borderTop:`4px solid ${proj.archived?"var(--t3)":isClocked?"var(--green)":tc}`,opacity:proj.archived?0.75:1}}>
-                    <div className="proj-list-body" onClick={()=>onSelect(proj)}>
-                      <div style={{minWidth:0,flex:"2"}}>
-                        <div style={{display:"flex",alignItems:"center",gap:6}}>
-                          <span style={{fontSize:12,fontWeight:700,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.name}</span>
-                          {isClocked && <span style={{fontSize:8,background:"rgba(26,217,138,.15)",color:"var(--green)",borderRadius:4,padding:"1px 5px",fontFamily:"var(--mono)",flexShrink:0}}>ACTIVE</span>}
-                          {proj.archived && <span style={{fontSize:8,background:"rgba(232,156,24,.12)",color:"var(--amber)",borderRadius:4,padding:"1px 5px",fontFamily:"var(--mono)",flexShrink:0}}>ARCHIVED</span>}
-                          <FinancialHealthBadge projId={proj.id} companyId={companyId}/>
-                          <S500ComplianceBadge projId={proj.id}/>
-                        </div>
-                        <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{proj.projectNumber||proj.id} · {proj.client}</div>
-                      </div>
-                      <div style={{flex:"1.2",minWidth:0,display:"flex",flexDirection:"column",gap:3}}>
-                        {(proj.worktypes||[]).slice(0,2).map((wt,i)=>{
-                          const meta  = WT_META[wt.type]||{color:"var(--t3)",icon:null};
-                          const phase = WT_PHASE_C[wt.status]||WT_PHASE_C.pending;
-                          return (
-                            <div key={i} style={{display:"flex",alignItems:"center",gap:4,background:phase.bg,border:`1px solid ${phase.border}`,borderRadius:5,padding:"2px 6px",borderLeft:`2px solid ${meta.color}`}}>
-                              <span style={{color:meta.color,display:"flex",alignItems:"center",flexShrink:0}}>{meta.icon}</span>
-                              <span style={{fontSize:9,fontWeight:700,color:meta.color,flexShrink:0}}>{wt.type}</span>
-                              <span style={{fontSize:8,color:phase.text,fontFamily:"var(--mono)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wt.phase}</span>
+              {viewMode === "list" && (
+                <div className="proj-list">
+                  <div style={{display:"grid",gridTemplateColumns:"4px 2fr 1.2fr 110px 120px 80px",gap:0,padding:"3px 13px 3px 4px",marginBottom:2}}>
+                    {["","Project","Work Types","Status","Budget",""].map((h,i)=><div key={i} className="mono" style={{fontSize:9,color:"var(--t3)",padding:"0 8px"}}>{h}</div>)}
+                  </div>
+                  {flagged.map(proj=>{
+                    const tc = TYPE_C[proj.type]||"var(--t3)";
+                    const sp = pct(proj.spent, proj.budget);
+                    const isClocked = clockInState?.projId === proj.id;
+                    return (
+                      <div key={proj.id} className="proj-list-row anim" style={{borderLeft:`3px solid ${isClocked?"var(--green)":tc}`,borderTop:`4px solid ${isClocked?"var(--green)":tc}`}}>
+                        <div className="proj-list-body" onClick={()=>onSelect(proj)}>
+                          <div style={{minWidth:0,flex:"2"}}>
+                            <div style={{display:"flex",alignItems:"center",gap:6}}>
+                              <span style={{fontSize:12,fontWeight:700,color:"var(--t1)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.name}</span>
+                              {isClocked && <span style={{fontSize:8,background:"rgba(26,217,138,.15)",color:"var(--green)",borderRadius:4,padding:"1px 5px",fontFamily:"var(--mono)",flexShrink:0}}>ACTIVE</span>}
+                              <FinancialHealthBadge projId={proj.id} companyId={companyId}/>
+                              <S500ComplianceBadge projId={proj.id}/>
                             </div>
-                          );
-                        })}
-                        {(proj.worktypes||[]).length > 2 && <span style={{fontSize:9,color:"var(--t3)"}}>+{proj.worktypes.length-2} more</span>}
-                      </div>
-                      <div style={{width:110,flexShrink:0}}><Badge status={proj.status}/></div>
-                      <div style={{width:120,flexShrink:0}}>
-                        {proj.budget>0 ? (
-                          <>
-                            <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"var(--t3)",marginBottom:2}}><span>{fmt$(proj.spent)}</span><span>{sp}%</span></div>
-                            <div className="bar-track" style={{height:4}}><div className="bar-fill" style={{width:`${sp}%`,background:sp>85?"var(--acc)":sp>60?"var(--amber)":"var(--green)"}}/></div>
-                          </>
-                        ) : <span style={{fontSize:10,color:"var(--t3)"}}>—</span>}
-                      </div>
-                      <div style={{width:60,flexShrink:0,textAlign:"right"}}>
-                        {proj.tasksOpen>0 && <span className="mono" style={{fontSize:10,color:"var(--amber)"}}>{proj.tasksOpen} open</span>}
-                      </div>
-                      {(proj.hasLaborMismatch || proj.hasOverdueTasks) && (
-                        <div style={{display:'flex',gap:5,flexWrap:'wrap',marginTop:3}}>
-                          {proj.hasLaborMismatch && (
-                            <span style={{
-                              fontFamily:'var(--mono)',fontSize:9,borderRadius:20,
-                              padding:'2px 8px',
-                              background:'rgba(232,156,24,.12)',
-                              border:'1px solid rgba(232,156,24,.30)',
-                              color:'var(--amber)',
-                              letterSpacing:'.04em'
-                            }}>⚠ LABOR MISMATCH</span>
-                          )}
-                          {proj.hasOverdueTasks && (
-                            <span style={{
-                              fontFamily:'var(--mono)',fontSize:9,borderRadius:20,
-                              padding:'2px 8px',
-                              background:'rgba(228,53,49,.09)',
-                              border:'1px solid rgba(228,53,49,.25)',
-                              color:'var(--acc)',
-                              letterSpacing:'.04em'
-                            }}>⚠ OVERDUE TASKS</span>
+                            <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{proj.projectNumber||proj.id} · {proj.client}</div>
+                          </div>
+                          <div style={{flex:"1.2",minWidth:0,display:"flex",flexDirection:"column",gap:3}}>
+                            {(proj.worktypes||[]).slice(0,2).map((wt,i)=>{
+                              const meta  = WT_META[wt.type]||{color:"var(--t3)",icon:null};
+                              const phase = WT_PHASE_C[wt.status]||WT_PHASE_C.pending;
+                              return (
+                                <div key={i} style={{display:"flex",alignItems:"center",gap:4,background:phase.bg,border:`1px solid ${phase.border}`,borderRadius:5,padding:"2px 6px",borderLeft:`2px solid ${meta.color}`}}>
+                                  <span style={{color:meta.color,display:"flex",alignItems:"center",flexShrink:0}}>{meta.icon}</span>
+                                  <span style={{fontSize:9,fontWeight:700,color:meta.color,flexShrink:0}}>{wt.type}</span>
+                                  <span style={{fontSize:8,color:phase.text,fontFamily:"var(--mono)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{wt.phase}</span>
+                                </div>
+                              );
+                            })}
+                            {(proj.worktypes||[]).length > 2 && <span style={{fontSize:9,color:"var(--t3)"}}>+{proj.worktypes.length-2} more</span>}
+                          </div>
+                          <div style={{width:110,flexShrink:0}}><Badge status={proj.status}/></div>
+                          <div style={{width:120,flexShrink:0}}>
+                            {proj.budget>0 ? (
+                              <>
+                                <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"var(--t3)",marginBottom:2}}><span>{fmt$(proj.spent)}</span><span>{sp}%</span></div>
+                                <div className="bar-track" style={{height:4}}><div className="bar-fill" style={{width:`${sp}%`,background:sp>85?"var(--acc)":sp>60?"var(--amber)":"var(--green)"}}/></div>
+                              </>
+                            ) : <span style={{fontSize:10,color:"var(--t3)"}}>—</span>}
+                          </div>
+                          <div style={{width:60,flexShrink:0,textAlign:"right"}}>
+                            {proj.tasksOpen>0 && <span className="mono" style={{fontSize:10,color:"var(--amber)"}}>{proj.tasksOpen} open</span>}
+                          </div>
+                          {(proj.hasLaborMismatch || proj.hasOverdueTasks) && (
+                            <div style={{display:'flex',gap:5,flexWrap:'wrap',marginTop:3}}>
+                              {proj.hasLaborMismatch && (
+                                <span style={{
+                                  fontFamily:'var(--mono)',fontSize:9,borderRadius:20,
+                                  padding:'2px 8px',
+                                  background:'rgba(232,156,24,.12)',
+                                  border:'1px solid rgba(232,156,24,.30)',
+                                  color:'var(--amber)',
+                                  letterSpacing:'.04em'
+                                }}>⚠ LABOR MISMATCH</span>
+                              )}
+                              {proj.hasOverdueTasks && (
+                                <span style={{
+                                  fontFamily:'var(--mono)',fontSize:9,borderRadius:20,
+                                  padding:'2px 8px',
+                                  background:'rgba(228,53,49,.09)',
+                                  border:'1px solid rgba(228,53,49,.25)',
+                                  color:'var(--acc)',
+                                  letterSpacing:'.04em'
+                                }}>⚠ OVERDUE TASKS</span>
+                              )}
+                            </div>
                           )}
                         </div>
-                      )}
-                    </div>
-                    <div className="proj-list-actions" onClick={e=>e.stopPropagation()}>
-                      {!showArchived ? (
-                        <>
+                        <div className="proj-list-actions" onClick={e=>e.stopPropagation()}>
                           <button className={`btn btn-xs ${isClocked?"btn-danger":"btn-green"}`} style={isClocked?{background:"var(--acc)",color:"#fff",border:"none"}:{}} onClick={()=>setClock(proj)}>
                             {isClocked ? Ic.stopwatch : Ic.clock}
                           </button>
                           <button className="btn btn-blue btn-xs" onClick={()=>setNotify(proj)}>{Ic.notify}</button>
                           <button className="btn btn-ghost btn-xs" onClick={()=>openMaps(proj)}>{Ic.map}</button>
                           <button className="btn btn-xs" onClick={()=>setComm(proj)} style={{background:"rgba(232,156,24,.1)",border:"1px solid rgba(232,156,24,.25)",color:"var(--amber)"}} title="Contact">{Ic.phone}</button>
-                        </>
-                      ) : (
-                        <>
-                          {canArchive && (
-                            <button className="btn btn-green btn-xs" title="Restore project" onClick={()=>setArchiveTarget({proj,action:"unarchive"})}>
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 6.5l5.5 5.5H14v2h-4v-2H6.5L12 6.5zM5.12 5l.81-1h12l.94 1H5.12z"/></svg>
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
         <PortfolioSidebar onNavigate={onNavigate}/>
       </div>
-
-      {/* ── Archived Projects Panel ── */}
-      {showArchived && (
-        <div style={{padding:"0 16px 16px"}}>
-          <div style={{background:"var(--s2)",border:"1px solid var(--br)",borderRadius:12,padding:16}}>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end",marginBottom:14}}>
-              <div>
-                <div className="mono" style={{fontSize:8,color:"var(--t3)",marginBottom:3}}>CLOSE TYPE</div>
-                <select className="sel" value={archivedFilters.closeType} onChange={e=>setArchivedFilters(f=>({...f,closeType:e.target.value}))}>
-                  <option value="all">All</option>
-                  <option value="won">Closed Won</option>
-                  <option value="lost">Closed Lost</option>
-                </select>
-              </div>
-              <div>
-                <div className="mono" style={{fontSize:8,color:"var(--t3)",marginBottom:3}}>PROJECT TYPE</div>
-                <select className="sel" value={archivedFilters.projectType} onChange={e=>setArchivedFilters(f=>({...f,projectType:e.target.value}))}>
-                  <option value="all">All</option>
-                  {customProjectTypes.map(t=><option key={t.name} value={t.name}>{t.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <div className="mono" style={{fontSize:8,color:"var(--t3)",marginBottom:3}}>OFFICE</div>
-                <select className="sel" value={archivedFilters.office} onChange={e=>setArchivedFilters(f=>({...f,office:e.target.value}))}>
-                  <option value="all">All</option>
-                  {offices.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <div className="mono" style={{fontSize:8,color:"var(--t3)",marginBottom:3}}>DATE FROM</div>
-                <input className="inp" type="date" value={archivedFilters.dateFrom} onChange={e=>setArchivedFilters(f=>({...f,dateFrom:e.target.value}))}/>
-              </div>
-              <div>
-                <div className="mono" style={{fontSize:8,color:"var(--t3)",marginBottom:3}}>DATE TO</div>
-                <input className="inp" type="date" value={archivedFilters.dateTo} onChange={e=>setArchivedFilters(f=>({...f,dateTo:e.target.value}))}/>
-              </div>
-              <button className="btn btn-secondary btn-xs" onClick={loadArchivedProjects}>Apply Filters</button>
-            </div>
-            <div className="sec">ARCHIVED PROJECTS</div>
-            {archivedLoading ? (
-              <div style={{textAlign:"center",padding:"24px 0"}}><span className="btn-spinner" style={{width:18,height:18}}/></div>
-            ) : archivedProjects.length === 0 ? (
-              <div className="empty" style={{textAlign:"center",padding:"24px 0",color:"var(--t3)",fontSize:12}}>No archived projects match these filters.</div>
-            ) : (
-              archivedProjects.map(proj => {
-                const offName = offices.find(o=>o.id===proj.officeId)?.name || "";
-                const arDate = proj.archivedAt ? new Date(proj.archivedAt).toLocaleDateString("en-US") : "—";
-                return (
-                  <div key={proj.id} className="row" style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                    <div style={{flex:1,minWidth:180}}>
-                      <div style={{fontSize:12,fontWeight:700,color:"var(--t1)"}}>{proj.name}</div>
-                      <div style={{fontSize:10,color:"var(--t3)",marginTop:2}}>{proj.projectNumber||proj.id} · {proj.type||"—"}{offName ? ` · ${offName}` : ""} · {arDate}</div>
-                      {proj.closeNotes && <div style={{fontSize:10,color:"var(--t2)",marginTop:3,fontStyle:"italic"}}>{proj.closeNotes}</div>}
-                    </div>
-                    <span className="badge" style={{background:proj.closeType==="won"?"rgba(26,217,138,.12)":"rgba(228,53,49,.1)",color:proj.closeType==="won"?"var(--green)":"var(--acc)",border:`1px solid ${proj.closeType==="won"?"rgba(26,217,138,.3)":"rgba(228,53,49,.25)"}`}}>
-                      <span className="dot" style={{background:proj.closeType==="won"?"var(--green)":"var(--acc)"}}/>{proj.closeType==="won"?"Closed Won":"Closed Lost"}
-                    </span>
-                    <div style={{display:"flex",gap:6}}>
-                      <button className="btn btn-ghost btn-xs" onClick={()=>onSelect(proj)}>{Ic.eye||"👁"} View</button>
-                      {permissionLevel >= 5 && <button className="btn btn-ghost btn-xs" onClick={()=>onCloseProject&&onCloseProject("reactivate",proj)}>Reactivate</button>}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      )}
 
     </>
   );
