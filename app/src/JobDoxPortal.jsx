@@ -13289,7 +13289,6 @@ function VendorManagerTab({ projects=[], globalStaff=[], companyId="" }) {
 }
 
 function FeatureRequestForm({ userName, companyName }) {
-  if (userName === undefined) return null;
   const [request, setRequest] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent]       = useState(false);
