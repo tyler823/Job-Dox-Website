@@ -10090,16 +10090,21 @@ function AdvToolsPanel({ onClose, onNavTo, priceLists, setPriceLists, companyId,
   const [showDocTemplates, setShowDocTemplates] = useState(false);
   const [showTimeOff,      setShowTimeOff]      = useState(false);
   const [showAPIPanel,     setShowAPIPanel]     = useState(false);
+  const [isMobile, setIsMobile] = useState(()=> window.innerWidth < 768);
+  useEffect(()=>{
+    const h = ()=> setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", h);
+    return ()=> window.removeEventListener("resize", h);
+  },[]);
   const ALL_TOOLS = [
     featureFlags.cortexAI && { icon:Ic.mindflow, label:"CortexAI",              desc:"AI-powered workflow generation", link:"/mindflow.html" },
     { icon:Ic.calendar, label:"Time Off & Calendar",   desc:"PTO requests, approvals & company calendar", action:()=>setShowTimeOff(true) },
     { icon:Ic.pricetag, label:"Price Lists",            desc:`${priceLists.length} lists · Manage equipment & material pricing`, action:()=>setShowPLManager(true) },
     { icon:Ic.doc,      label:"Document Templates",    desc:"Manage reusable contracts, authorizations & change orders", action:()=>setShowDocTemplates(true) },
     { icon:Ic.attr,     label:"Attribute Templates",   desc:"Configure custom project fields" },
-    { icon:Ic.report,   label:"Reporting",              desc:"Advanced analytics & exports" },
     featureFlags.apiIntegrations && { icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 7V7c0-.55.45-1 1-1s1 .45 1 1v2h2c.55 0 1 .45 1 1s-.45 1-1 1h-2v2c0 .55-.45 1-1 1s-1-.45-1-1v-2H9c-.55 0-1-.45-1-1s.45-1 1-1h2zm5 8H8c-.55 0-1-.45-1-1s.45-1 1-1h8c.55 0 1 .45 1 1s-.45 1-1 1z"/></svg>, label:"API & Integrations", desc:"Connect Zapier, CRMs, and external apps", action:()=>setShowAPIPanel(true) },
     featureFlags.marketDox && { icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/><path d="M20 3H4c-.55 0-1 .45-1 1v1h18V4c0-.55-.45-1-1-1z"/><path d="M3 20c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-1H3v1z"/></svg>, label:"MarketDox", desc:"Marketing intelligence — yard signs, ads & SEO", action:()=>{ if(onNavTo) onNavTo("marketdox"); else onClose(); } },
-    permissionLevel >= 8 && { icon:Ic.settings, label:"Settings", desc:"Company settings, team & configuration", action:()=>{ if(onNavTo){ onNavTo("settings"); } onClose(); } },
+    !isMobile && permissionLevel >= 8 && { icon:Ic.settings, label:"Settings", desc:"Company settings, team & configuration", action:()=>{ if(onNavTo){ onNavTo("settings"); } onClose(); } },
   ].filter(Boolean);
   const TOOLS = ALL_TOOLS;
   return (
