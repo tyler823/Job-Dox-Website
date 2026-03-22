@@ -9403,10 +9403,16 @@ function MarketDoxView({ companyId, coInfo, projects, customWorkTypes, onNavTo }
 
   // ── Toggle publish/unpublish ──
   const togglePublish = async (sign) => {
+    // Optimistic update so UI responds immediately
+    setYardSigns(prev => prev.map(s => s._id === sign._id ? { ...s, published: !sign.published } : s));
     try {
-      console.log("[FS-DIAG] updateDoc →", `yard_signs/${sign._id}`);
       await updateDoc(doc(db, "yard_signs", sign._id), { published: !sign.published });
-    } catch (e) { console.error("[MarketDox] Toggle publish failed:", e); }
+    } catch (e) {
+      console.error("[MarketDox] Toggle publish failed:", e);
+      // Revert optimistic update on failure
+      setYardSigns(prev => prev.map(s => s._id === sign._id ? { ...s, published: sign.published } : s));
+      alert("Failed to update yard sign. Please try again.");
+    }
   };
 
   // ── KPI computations ──
