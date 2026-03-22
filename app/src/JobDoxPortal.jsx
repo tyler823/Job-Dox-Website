@@ -15569,6 +15569,9 @@ export default function JobDoxPortal() {
             reviewRequests={reviewRequests}
             offices={offices}
             projectShifts={projectShifts}
+            userEmail={currentMember?.auth?.email || ""}
+            userName={currentUser?.name || ""}
+            permissionLevel={permission}
           />
         ) : page==="finance" && featureFlags.financeTab ? (
           <FinancialDashboard

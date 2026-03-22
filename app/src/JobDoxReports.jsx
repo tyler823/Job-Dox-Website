@@ -1928,6 +1928,7 @@ export function ReportsDashboard({ projects=[], companyId="", onNavigate, global
   const [fsReady, setFsReady] = useState(false);
   const [flagHistory, setFlagHistory] = useState([]);
   const [expandedDates, setExpandedDates] = useState({});
+  const [scheduledUnread, setScheduledUnread] = useState(0);
 
   // Inject CSS once
   useEffect(() => {
@@ -2015,6 +2016,9 @@ export function ReportsDashboard({ projects=[], companyId="", onNavigate, global
           {REPORT_TABS.map(t => (
             <button key={t.key} className={`rpt-tab${tab===t.key?" active":""}`} onClick={()=>setTab(t.key)}>
               {t.icon} {t.label}
+              {t.key === "scheduled" && scheduledUnread > 0 && (
+                <span style={{background:"var(--acc)",color:"#fff",borderRadius:20,padding:"1px 6px",fontSize:9,fontWeight:700,marginLeft:4,minWidth:14,display:"inline-block",textAlign:"center"}}>{scheduledUnread}</span>
+              )}
             </button>
           ))}
         </div>
@@ -2030,7 +2034,7 @@ export function ReportsDashboard({ projects=[], companyId="", onNavigate, global
         {tab === "ai"       && <AIAnalytics data={data} companyId={companyId}/>}
         {tab === "equip"    && <EquipmentMismatchReport data={data} priceLists={priceLists}/>}
         {tab === "reputation" && <ReputationReport data={data} reviewRequests={reviewRequests} offices={offices}/>}
-        {tab === "scheduled" && <ScheduledReports companyId={companyId} userEmail={userEmail} userName={userName} permissionLevel={permissionLevel}/>}
+        {tab === "scheduled" && <ScheduledReports companyId={companyId} userEmail={userEmail} userName={userName} permissionLevel={permissionLevel} onUnreadCount={setScheduledUnread}/>}
         {tab === "flags" && (
           <div>
             {/* ── Flagged Projects Table ── */}

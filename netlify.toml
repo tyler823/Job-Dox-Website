@@ -75,5 +75,8 @@
     Access-Control-Allow-Origin = "https://job-dox.ai"
     Cache-Control               = "no-store"
 
+[functions."process-scheduled-reports"]
+  schedule = "*/30 * * * *"
+
 [[plugins]]
   package = "@netlify/plugin-functions-install-core"

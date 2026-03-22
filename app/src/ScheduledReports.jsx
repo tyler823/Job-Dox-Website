@@ -1,13 +1,15 @@
 /**
  * ScheduledReports.jsx
- * Self-contained panel for creating/managing scheduled report configurations.
+ * Self-contained panel for creating/managing scheduled report configurations
+ * and viewing generated reports.
  * Reads/writes Firestore: companies/{companyId}/scheduledReports/{reportId}
+ *                         companies/{companyId}/generatedReports/{reportId}
  */
 
 import { useState, useEffect, useCallback } from "react";
 import {
   getFirestore, collection, doc, getDocs, addDoc, updateDoc, deleteDoc,
-  query, orderBy, Timestamp
+  query, orderBy, limit as fsLimit, Timestamp, where
 } from "firebase/firestore";
 import { getApps } from "firebase/app";
 
@@ -64,6 +66,15 @@ function formatDate(d) {
   const dt = d.toDate ? d.toDate() : new Date(d);
   return dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
+
+function formatGenDate(d) {
+  if (!d) return "";
+  const dt = d.toDate ? d.toDate() : new Date(d);
+  return dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })
+    + " at " + dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+const f$ = n => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n || 0);
 
 function calcNextRunAt(frequency, timeOfDay, dayOfWeek, dayOfMonth) {
   const now = new Date();
@@ -125,14 +136,168 @@ const IcClock = () => (
 );
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   GENERATED REPORT DATA RENDERERS
+═══════════════════════════════════════════════════════════════════════════ */
+function RenderReportData({ reportType, data }) {
+  if (!data) return <div style={{ color: "var(--t3)", fontSize: 11 }}>No data available.</div>;
+
+  if (reportType === "project_status") {
+    const bd = data.statusBreakdown || {};
+    return (
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--t1)", marginBottom: 8 }}>
+          Total Projects: {data.totalProjects || 0}
+        </div>
+        <table style={{ width: "100%", fontSize: 11, borderCollapse: "collapse" }}>
+          <thead><tr>
+            <th style={{ textAlign: "left", padding: "4px 8px", borderBottom: "1px solid var(--br)", color: "var(--t3)", fontSize: 9, textTransform: "uppercase" }}>Status</th>
+            <th style={{ textAlign: "right", padding: "4px 8px", borderBottom: "1px solid var(--br)", color: "var(--t3)", fontSize: 9, textTransform: "uppercase" }}>Count</th>
+          </tr></thead>
+          <tbody>
+            {Object.entries(bd).sort((a, b) => b[1] - a[1]).map(([status, count]) => (
+              <tr key={status}>
+                <td style={{ padding: "4px 8px", color: "var(--t1)" }}>{status}</td>
+                <td style={{ padding: "4px 8px", textAlign: "right", fontFamily: "var(--mono)", color: "var(--t2)" }}>{count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (reportType === "revenue_summary") {
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {[
+          { label: "TOTAL INVOICED", val: f$(data.totalInvoiced) },
+          { label: "TOTAL COLLECTED", val: f$(data.totalCollected) },
+          { label: "OUTSTANDING", val: f$(data.totalOutstanding) },
+          { label: "PROJECTS W/ UNPAID", val: data.projectsWithUnpaidInvoices || 0 },
+        ].map(kpi => (
+          <div key={kpi.label} style={{ background: "var(--s3)", borderRadius: 8, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "var(--t1)", fontFamily: "var(--mono)" }}>{kpi.val}</div>
+            <div className="lbl" style={{ marginTop: 4, marginBottom: 0 }}>{kpi.label}</div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (reportType === "work_type_analysis") {
+    const wts = data.workTypes || [];
+    return (
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--t1)", marginBottom: 8 }}>
+          Active Projects: {data.totalActiveProjects || 0}
+        </div>
+        {wts.length === 0 ? (
+          <div style={{ color: "var(--t3)", fontSize: 11 }}>No work types found.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {wts.map((wt, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid var(--br)", fontSize: 11 }}>
+                <span style={{ color: "var(--t1)" }}>{wt.workType}</span>
+                <span style={{ fontFamily: "var(--mono)", color: "var(--t2)" }}>{wt.count} project{wt.count !== 1 ? "s" : ""}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (reportType === "staff_performance") {
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {[
+          { label: "TOTAL TASKS", val: data.totalTasks || 0 },
+          { label: "COMPLETED", val: data.completedTasks || 0 },
+          { label: "OVERDUE", val: data.overdueTasks || 0 },
+          { label: "COMPLETION RATE", val: `${data.completionRate || 0}%` },
+        ].map(kpi => (
+          <div key={kpi.label} style={{ background: "var(--s3)", borderRadius: 8, padding: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "var(--t1)", fontFamily: "var(--mono)" }}>{kpi.val}</div>
+            <div className="lbl" style={{ marginTop: 4, marginBottom: 0 }}>{kpi.label}</div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (reportType === "overdue_tasks") {
+    const tasks = data.overdueTasks || [];
+    return (
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--t1)", marginBottom: 8 }}>
+          Total Overdue: {data.totalOverdue || 0}
+        </div>
+        {tasks.length === 0 ? (
+          <div style={{ color: "var(--t3)", fontSize: 11 }}>No overdue tasks.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {tasks.map((t, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderBottom: "1px solid var(--br)", fontSize: 11, gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: "var(--t1)", fontWeight: 600 }}>{t.taskTitle}</div>
+                  <div style={{ color: "var(--t3)", fontSize: 10 }}>{t.projectName}{t.assignedTo ? ` — ${t.assignedTo}` : ""}</div>
+                </div>
+                <span style={{ fontFamily: "var(--mono)", color: "var(--red, #ef4444)", fontSize: 10, whiteSpace: "nowrap" }}>{t.daysOverdue}d overdue</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (reportType === "active_projects") {
+    const projs = data.projects || [];
+    return (
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--t1)", marginBottom: 8 }}>
+          Total Active: {data.totalActive || 0}
+        </div>
+        {projs.length === 0 ? (
+          <div style={{ color: "var(--t3)", fontSize: 11 }}>No active projects.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {projs.map((p, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderBottom: "1px solid var(--br)", fontSize: 11, gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: "var(--t1)", fontWeight: 600 }}>{p.name}</div>
+                  <div style={{ color: "var(--t3)", fontSize: 10 }}>{p.clientName}{p.status ? ` — ${p.status}` : ""}</div>
+                </div>
+                <span style={{ fontFamily: "var(--mono)", color: "var(--t2)", fontSize: 10, whiteSpace: "nowrap" }}>
+                  {p.taskCount} task{p.taskCount !== 1 ? "s" : ""}{p.daysSinceCreated != null ? ` · ${p.daysSinceCreated}d` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return <div style={{ color: "var(--t3)", fontSize: 11 }}>Unknown report type.</div>;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    MAIN COMPONENT
 ═══════════════════════════════════════════════════════════════════════════ */
-export default function ScheduledReports({ companyId, userEmail, userName, permissionLevel }) {
+export default function ScheduledReports({ companyId, userEmail, userName, permissionLevel, onUnreadCount }) {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("list"); // "list" | "form"
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [innerTab, setInnerTab] = useState("schedules"); // "schedules" | "generated"
+
+  // Generated reports state
+  const [genReports, setGenReports] = useState([]);
+  const [genLoading, setGenLoading] = useState(false);
+  const [expandedReport, setExpandedReport] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // Form state
   const emptyForm = {
@@ -149,8 +314,9 @@ export default function ScheduledReports({ companyId, userEmail, userName, permi
 
   const canManage = (permissionLevel || 0) >= 5;
   const colRef = _db && companyId ? collection(_db, "companies", companyId, "scheduledReports") : null;
+  const genColRef = _db && companyId ? collection(_db, "companies", companyId, "generatedReports") : null;
 
-  /* ── Load reports ── */
+  /* ── Load scheduled reports ── */
   const loadReports = useCallback(async () => {
     if (!colRef) { setLoading(false); return; }
     try {
@@ -164,6 +330,56 @@ export default function ScheduledReports({ companyId, userEmail, userName, permi
   }, [colRef]);
 
   useEffect(() => { loadReports(); }, [loadReports]);
+
+  /* ── Load generated reports ── */
+  const loadGenReports = useCallback(async () => {
+    if (!genColRef) return;
+    setGenLoading(true);
+    try {
+      const q = query(genColRef, orderBy("generatedAt", "desc"), fsLimit(20));
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setGenReports(list);
+      const uc = list.filter(r => !r.read).length;
+      setUnreadCount(uc);
+      if (onUnreadCount) onUnreadCount(uc);
+    } catch (err) {
+      console.error("Failed to load generated reports:", err);
+    }
+    setGenLoading(false);
+  }, [genColRef, onUnreadCount]);
+
+  /* Load unread count on mount (for badge) */
+  useEffect(() => { loadGenReports(); }, [loadGenReports]);
+
+  /* Reload generated reports when tab switches to "generated" */
+  useEffect(() => {
+    if (innerTab === "generated") loadGenReports();
+  }, [innerTab, loadGenReports]);
+
+  /* ── Mark report as read ── */
+  const markRead = async (report) => {
+    if (!_db || !companyId || report.read) return;
+    try {
+      await updateDoc(doc(_db, "companies", companyId, "generatedReports", report.id), { read: true });
+      setGenReports(prev => prev.map(r => r.id === report.id ? { ...r, read: true } : r));
+      const newCount = Math.max(0, unreadCount - 1);
+      setUnreadCount(newCount);
+      if (onUnreadCount) onUnreadCount(newCount);
+    } catch (err) {
+      console.error("Mark read failed:", err);
+    }
+  };
+
+  /* ── View/expand a generated report ── */
+  const toggleExpand = (report) => {
+    if (expandedReport === report.id) {
+      setExpandedReport(null);
+    } else {
+      setExpandedReport(report.id);
+      if (!report.read) markRead(report);
+    }
+  };
 
   /* ── Toggle enabled ── */
   const toggleEnabled = async (report) => {
@@ -379,85 +595,171 @@ export default function ScheduledReports({ companyId, userEmail, userName, permi
   }
 
   /* ═══════════════════════════════════════════════════════════════════════
-     RENDER — LIST VIEW
+     RENDER — MAIN VIEW (tabs: Schedules / Generated Reports)
   ═══════════════════════════════════════════════════════════════════════ */
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1)" }}>Scheduled Reports</div>
-        {canManage && (
-          <button className="btn btn-primary" onClick={openNew} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            + New Schedule
-          </button>
-        )}
+      {/* Inner tab bar */}
+      <div style={{ display: "flex", gap: 0, marginBottom: 16, borderBottom: "1px solid var(--br)" }}>
+        <button
+          onClick={() => setInnerTab("schedules")}
+          style={{
+            padding: "8px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", border: "none",
+            background: "transparent", color: innerTab === "schedules" ? "var(--acc)" : "var(--t2)",
+            borderBottom: innerTab === "schedules" ? "2px solid var(--acc)" : "2px solid transparent",
+            fontFamily: "var(--ui)",
+          }}
+        >
+          Schedules
+        </button>
+        <button
+          onClick={() => setInnerTab("generated")}
+          style={{
+            padding: "8px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", border: "none",
+            background: "transparent", color: innerTab === "generated" ? "var(--acc)" : "var(--t2)",
+            borderBottom: innerTab === "generated" ? "2px solid var(--acc)" : "2px solid transparent",
+            fontFamily: "var(--ui)", display: "flex", alignItems: "center", gap: 6,
+          }}
+        >
+          Generated Reports
+          {unreadCount > 0 && (
+            <span style={{
+              background: "var(--acc)", color: "#fff", borderRadius: 20, padding: "1px 7px",
+              fontSize: 9, fontWeight: 700, minWidth: 16, textAlign: "center",
+            }}>
+              {unreadCount}
+            </span>
+          )}
+        </button>
       </div>
 
-      {loading ? (
-        <div style={{ color: "var(--t3)", fontSize: 12, padding: "20px 0" }}>Loading...</div>
-      ) : reports.length === 0 ? (
-        /* Empty state */
-        <div style={{ textAlign: "center", padding: "48px 16px" }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}><IcClock /></div>
-          <div style={{ color: "var(--t2)", fontSize: 13, maxWidth: 360, margin: "0 auto 20px" }}>
-            No scheduled reports yet. Create one to automatically receive business updates in your inbox.
-          </div>
-          {canManage && (
-            <button className="btn btn-primary" onClick={openNew}>
-              + Create Your First Report
-            </button>
+      {/* ── Generated Reports Tab ── */}
+      {innerTab === "generated" && (
+        <div>
+          {genLoading ? (
+            <div style={{ color: "var(--t3)", fontSize: 12, padding: "20px 0" }}>Loading...</div>
+          ) : genReports.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "48px 16px", color: "var(--t2)", fontSize: 13 }}>
+              No generated reports yet. Reports will appear here once your schedules run.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {genReports.map(gr => (
+                <div key={gr.id} className="card">
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: expandedReport === gr.id ? 12 : 0 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                        <span style={{ fontWeight: 700, color: "var(--t1)", fontSize: 13 }}>{gr.reportName}</span>
+                        {!gr.read && (
+                          <span style={{
+                            background: "var(--green)", color: "#fff", borderRadius: 4, padding: "1px 6px",
+                            fontSize: 9, fontWeight: 700,
+                          }}>NEW</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 10, color: "var(--t3)", fontFamily: "var(--mono)", marginBottom: 2 }}>
+                        {reportTypeLabel(gr.reportType)}
+                      </div>
+                      <div style={{ fontSize: 10, color: "var(--t3)" }}>
+                        {formatGenDate(gr.generatedAt)}
+                      </div>
+                    </div>
+                    <button className="btn btn-secondary" onClick={() => toggleExpand(gr)} style={{ fontSize: 11, padding: "5px 12px" }}>
+                      {expandedReport === gr.id ? "Hide" : "View Report"}
+                    </button>
+                  </div>
+                  {expandedReport === gr.id && (
+                    <div style={{ borderTop: "1px solid var(--br)", paddingTop: 12 }}>
+                      <RenderReportData reportType={gr.reportType} data={gr.data} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </div>
-      ) : (
-        /* Report cards */
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {reports.map(r => (
-            <div key={r.id} className="card" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              {/* Info */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, color: "var(--t1)", fontSize: 13, marginBottom: 2 }}>{r.name}</div>
-                <div style={{ fontSize: 11, color: "var(--t2)", marginBottom: 4 }}>{reportTypeLabel(r.reportType)}</div>
-                <div style={{ fontSize: 11, color: "var(--t2)", display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
-                  <IcClock /> {scheduleSummary(r.frequency, r.dayOfWeek, r.dayOfMonth, r.timeOfDay)}
-                </div>
-                <div style={{ fontSize: 10, color: "var(--t3)", fontFamily: "var(--mono)" }}>{r.recipientEmail}</div>
-                <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 2 }}>
-                  {r.lastRunAt ? `Last run: ${formatDate(r.lastRunAt)}` : "Never run yet"}
-                </div>
-              </div>
+      )}
 
-              {/* Toggle pill */}
-              <button
-                onClick={() => toggleEnabled(r)}
-                style={{
-                  background: r.enabled ? "var(--green)" : "var(--s3)",
-                  color: r.enabled ? "#fff" : "var(--t3)",
-                  border: "none",
-                  borderRadius: 12,
-                  padding: "4px 12px",
-                  fontSize: 10,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  fontFamily: "var(--ui)",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {r.enabled ? "Enabled" : "Disabled"}
+      {/* ── Schedules Tab ── */}
+      {innerTab === "schedules" && (
+        <div>
+          {/* Header */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1)" }}>Scheduled Reports</div>
+            {canManage && (
+              <button className="btn btn-primary" onClick={openNew} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                + New Schedule
               </button>
+            )}
+          </div>
 
-              {/* Edit / Delete */}
+          {loading ? (
+            <div style={{ color: "var(--t3)", fontSize: 12, padding: "20px 0" }}>Loading...</div>
+          ) : reports.length === 0 ? (
+            /* Empty state */
+            <div style={{ textAlign: "center", padding: "48px 16px" }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}><IcClock /></div>
+              <div style={{ color: "var(--t2)", fontSize: 13, maxWidth: 360, margin: "0 auto 20px" }}>
+                No scheduled reports yet. Create one to automatically receive business updates in your inbox.
+              </div>
               {canManage && (
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button className="btn btn-secondary" onClick={() => openEdit(r)} title="Edit" style={{ padding: "6px 8px" }}>
-                    <IcPencil />
-                  </button>
-                  <button className="btn btn-secondary" onClick={() => handleDelete(r)} title="Delete" style={{ padding: "6px 8px", color: "var(--red, #ef4444)" }}>
-                    <IcTrash />
-                  </button>
-                </div>
+                <button className="btn btn-primary" onClick={openNew}>
+                  + Create Your First Report
+                </button>
               )}
             </div>
-          ))}
+          ) : (
+            /* Report cards */
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {reports.map(r => (
+                <div key={r.id} className="card" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  {/* Info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, color: "var(--t1)", fontSize: 13, marginBottom: 2 }}>{r.name}</div>
+                    <div style={{ fontSize: 11, color: "var(--t2)", marginBottom: 4 }}>{reportTypeLabel(r.reportType)}</div>
+                    <div style={{ fontSize: 11, color: "var(--t2)", display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
+                      <IcClock /> {scheduleSummary(r.frequency, r.dayOfWeek, r.dayOfMonth, r.timeOfDay)}
+                    </div>
+                    <div style={{ fontSize: 10, color: "var(--t3)", fontFamily: "var(--mono)" }}>{r.recipientEmail}</div>
+                    <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 2 }}>
+                      {r.lastRunAt ? `Last run: ${formatDate(r.lastRunAt)}` : "Never run yet"}
+                    </div>
+                  </div>
+
+                  {/* Toggle pill */}
+                  <button
+                    onClick={() => toggleEnabled(r)}
+                    style={{
+                      background: r.enabled ? "var(--green)" : "var(--s3)",
+                      color: r.enabled ? "#fff" : "var(--t3)",
+                      border: "none",
+                      borderRadius: 12,
+                      padding: "4px 12px",
+                      fontSize: 10,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      fontFamily: "var(--ui)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {r.enabled ? "Enabled" : "Disabled"}
+                  </button>
+
+                  {/* Edit / Delete */}
+                  {canManage && (
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button className="btn btn-secondary" onClick={() => openEdit(r)} title="Edit" style={{ padding: "6px 8px" }}>
+                        <IcPencil />
+                      </button>
+                      <button className="btn btn-secondary" onClick={() => handleDelete(r)} title="Delete" style={{ padding: "6px 8px", color: "var(--red, #ef4444)" }}>
+                        <IcTrash />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
