@@ -10113,6 +10113,7 @@ function AdvToolsPanel({ onClose, onNavTo, priceLists, setPriceLists, companyId,
     return ()=> window.removeEventListener("resize", h);
   },[]);
   const ALL_TOOLS = [
+    { icon:<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v-2H3v2zm4 0h14v-2H7v2zm-4 4h2v-2H3v2zm4 0h14v-2H7v2zM3 9h2V7H3v2zm4 0h14V7H7v2z"/></svg>, label:"All Tasks", desc:"View and manage all tasks across projects", action:()=>{ if(onNavTo){ onNavTo("alltasks"); } onClose(); } },
     featureFlags.cortexAI && { icon:Ic.mindflow, label:"CortexAI",              desc:"AI-powered workflow generation", link:"/mindflow.html" },
     { icon:Ic.calendar, label:"Time Off & Calendar",   desc:"PTO requests, approvals & company calendar", action:()=>setShowTimeOff(true) },
     { icon:Ic.pricetag, label:"Price Lists",            desc:`${priceLists.length} lists · Manage equipment & material pricing`, action:()=>setShowPLManager(true) },
@@ -15829,10 +15830,6 @@ export default function JobDoxPortal() {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg>
         </button>
         )}
-        <button className={`rail-btn${page==="alltasks"?" active":""}`} data-tip="All Tasks"
-          onClick={()=>navTo("alltasks")}>
-          {Ic.tasks}
-        </button>
         <button className={`rail-btn${showMsgCenter?" active":""}`} data-tip="Messages"
           onClick={()=>setShowMsgCenter(true)}>
           {Ic.msg}
