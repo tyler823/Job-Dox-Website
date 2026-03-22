@@ -118,8 +118,13 @@ export default function JobDoxComms({ companyId, currentUser, staff=[], projects
     {id:"dispatch",      name:"#dispatch",      desc:"Company-wide · dispatch updates",  type:"company"},
   ],[]);
 
+  const CLOSED_STATUSES = new Set(["closed","won","lost","archived"]);
   const projectChannels = useMemo(()=>
-    (projects||[]).map(p=>({id:p.id, name:p.name||p.address||p.id, desc:p.address||"", type:"project"}))
+    (projects||[]).filter(p=>{
+      if (p.archived === true) return false;
+      if (p.status && CLOSED_STATUSES.has(p.status.toLowerCase())) return false;
+      return true;
+    }).map(p=>({id:p.id, name:p.name||p.address||p.id, desc:p.address||"", type:"project"}))
   ,[projects]);
 
   const singleProject = !!initialProjectId;
