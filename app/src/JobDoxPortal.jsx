@@ -3623,7 +3623,7 @@ function CloseProjectModal({ project, onClose, onConfirm }) {
   );
 }
 
-function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, canViewBudget=false, canAddProject=false, canArchive=false, onArchive, onCloseProject, permissionLevel=1, currentMemberId="", globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[], companyId="", phoneSettings={}, projectShifts={}, canViewOwnJobsOnly=false }) {
+function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, canViewBudget=false, canAddProject=false, canArchive=false, onArchive, permissionLevel=1, currentMemberId="", globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[], companyId="", phoneSettings={}, projectShifts={}, canViewOwnJobsOnly=false }) {
   const [search, setSearch]         = useState("");
   const [fType, setFType]           = useState("All");
   const [fStatus, setFStatus]       = useState("All");
@@ -3636,7 +3636,6 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
   const [showArchived, setShowArchived] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState(null); // { proj, action:"archive"|"unarchive" }
   const [archiveBusy, setArchiveBusy]   = useState(false);
-  const [closingProject, setClosingProject] = useState(null);
   const [archivedProjects, setArchivedProjects] = useState([]);
   const [archivedLoading, setArchivedLoading] = useState(false);
   const [archivedFilters, setArchivedFilters] = useState({ closeType: 'all', projectType: 'all', office: 'all', dateFrom: '', dateTo: '' });
@@ -3720,9 +3719,9 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
     if (!companyId) return;
     setArchivedLoading(true);
     try {
-      const q = query(collection(db, "companies", companyId, "projects"), where("archived","==",true));
+      const q = query(collection(db, "companies", companyId, "projects"));
       const snap = await getDocs(q);
-      let results = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+      let results = snap.docs.map(d => ({ ...d.data(), id: d.id })).filter(p => p.archived === true);
       if (archivedFilters.closeType !== 'all') results = results.filter(p => p.closeType === archivedFilters.closeType);
       if (archivedFilters.projectType !== 'all') results = results.filter(p => p.type === archivedFilters.projectType);
       if (archivedFilters.office !== 'all') results = results.filter(p => p.officeId === archivedFilters.office);
@@ -3979,12 +3978,6 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                           <button className="pab pab-blue" onClick={()=>setNotify(proj)}>{Ic.notify} Notify</button>
                           <button className="pab" onClick={()=>openMaps(proj)}>{Ic.map} Nav</button>
                           <button className="pab pab-amber" onClick={()=>setComm(proj)}>{Ic.phone} Contact</button>
-                          {permissionLevel >= 5 && (
-                            <button className="pab pab-danger" onClick={(e)=>{e.stopPropagation();setClosingProject(proj);}} title="Close Project">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg>
-                              <span>Close</span>
-                            </button>
-                          )}
                         </>
                       ) : (
                         <>
@@ -4086,11 +4079,6 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                           <button className="btn btn-blue btn-xs" onClick={()=>setNotify(proj)}>{Ic.notify}</button>
                           <button className="btn btn-ghost btn-xs" onClick={()=>openMaps(proj)}>{Ic.map}</button>
                           <button className="btn btn-xs" onClick={()=>setComm(proj)} style={{background:"rgba(232,156,24,.1)",border:"1px solid rgba(232,156,24,.25)",color:"var(--amber)"}} title="Contact">{Ic.phone}</button>
-                          {permissionLevel >= 5 && (
-                            <button className="btn btn-danger btn-xs" onClick={(e)=>{e.stopPropagation();setClosingProject(proj);}} title="Close Project">
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg>
-                            </button>
-                          )}
                         </>
                       ) : (
                         <>
@@ -4179,14 +4167,6 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
         </div>
       )}
 
-      {/* ── Close Project Modal ── */}
-      {closingProject && (
-        <CloseProjectModal
-          project={closingProject}
-          onClose={()=>setClosingProject(null)}
-          onConfirm={(result)=>{onCloseProject&&onCloseProject("close",closingProject,result);setClosingProject(null);}}
-        />
-      )}
     </>
   );
 }
@@ -4546,8 +4526,8 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
             companyId={companyId}
             currentStatus={proj.status}
             availableStatuses={loadCST().map(s => s.name)}
-            completedTaskCount={(proj.tasks || []).filter(t => t.done || t.status === "done").length}
-            totalTaskCount={(proj.tasks || []).length}
+            completedTaskCount={(Array.isArray(proj.tasks) ? proj.tasks : []).filter(t => t.done || t.status === "done").length}
+            totalTaskCount={(Array.isArray(proj.tasks) ? proj.tasks : []).length}
             dailyNotes={dailyNotes}
             onApplyStatus={(newStatus) => {
               proj.status = newStatus;
@@ -16046,10 +16026,6 @@ export default function JobDoxPortal() {
             canArchive={canArchiveProject}
             projectShifts={projectShifts}
             canViewOwnJobsOnly={canViewOwnJobsOnly}
-            onCloseProject={(action,proj,result)=>{
-              if(action==="close"&&result) handleCloseProject({...result,project:proj});
-              if(action==="reactivate") handleReactivateProject(proj);
-            }}
             permissionLevel={permission}
           />
         )}
