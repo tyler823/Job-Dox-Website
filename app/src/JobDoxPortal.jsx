@@ -3625,7 +3625,7 @@ function CloseProjectModal({ project, onClose, onConfirm }) {
   );
 }
 
-function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, canViewBudget=false, canAddProject=false, canArchive=false, onArchive, permissionLevel=1, currentMemberId="", globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[], companyId="", phoneSettings={}, projectShifts={}, canViewOwnJobsOnly=false }) {
+function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, canViewBudget=false, canAddProject=false, canArchive=false, onArchive, permissionLevel=1, currentMemberId="", globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[], companyId="", phoneSettings={}, projectShifts={}, canViewOwnJobsOnly=false, chatUnreadCounts={} }) {
   const [search, setSearch]         = useState("");
   const [fType, setFType]           = useState("All");
   const [fStatus, setFStatus]       = useState("All");
@@ -4082,7 +4082,10 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                     const sp = pct(proj.spent, proj.budget);
                     const isClocked = clockInState?.projId === proj.id;
                     return (
-                      <div key={proj.id} className="proj-card anim">
+                      <div key={proj.id} className="proj-card anim" style={{position:"relative"}}>
+                        {chatUnreadCounts[proj.id] > 0 && (
+                          <span style={{position:"absolute",top:6,right:6,background:"var(--acc)",color:"#fff",fontSize:9,borderRadius:10,padding:"1px 5px",fontFamily:"var(--mono)",zIndex:2}}>{chatUnreadCounts[proj.id]}</span>
+                        )}
                         <div className="proj-accent" style={{background:tc}}/>
                         <div className="proj-body" onClick={()=>onSelect(proj)}>
                           <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:7,marginBottom:4}}>
@@ -4164,7 +4167,10 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                     const sp = pct(proj.spent, proj.budget);
                     const isClocked = clockInState?.projId === proj.id;
                     return (
-                      <div key={proj.id} className="proj-list-row anim" style={{borderLeft:`3px solid ${isClocked?"var(--green)":tc}`,borderTop:`4px solid ${isClocked?"var(--green)":tc}`}}>
+                      <div key={proj.id} className="proj-list-row anim" style={{borderLeft:`3px solid ${isClocked?"var(--green)":tc}`,borderTop:`4px solid ${isClocked?"var(--green)":tc}`,position:"relative"}}>
+                        {chatUnreadCounts[proj.id] > 0 && (
+                          <span style={{position:"absolute",top:6,right:6,background:"var(--acc)",color:"#fff",fontSize:9,borderRadius:10,padding:"1px 5px",fontFamily:"var(--mono)",zIndex:2}}>{chatUnreadCounts[proj.id]}</span>
+                        )}
                         <div className="proj-list-body" onClick={()=>onSelect(proj)}>
                           <div style={{minWidth:0,flex:"2"}}>
                             <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -14810,6 +14816,7 @@ export default function JobDoxPortal() {
   const [supportSearch,          setSupportSearch]         = useState("");
   const [exportLoading,          setExportLoading]         = useState(false);
   const [exportStatus,           setExportStatus]          = useState("");
+  const [chatUnreadCounts,       setChatUnreadCounts]      = useState({});
   const attrDefs = DEFAULT_ATTR_DEFS;
 
   // Re-sync if another tab updates localStorage config
@@ -15831,8 +15838,11 @@ export default function JobDoxPortal() {
           {Ic.msg}
         </button>
         <button className={`rail-btn${page==="comms"?" active":""}`} data-tip="Comms"
-          onClick={()=>navTo("comms")}>
+          onClick={()=>navTo("comms")} style={{position:"relative"}}>
           {Ic.hash}
+          {Object.values(chatUnreadCounts).reduce((s,v)=>s+v,0) > 0 && (
+            <span style={{position:"absolute",top:6,right:6,width:6,height:6,borderRadius:"50%",background:"var(--acc)"}}/>
+          )}
         </button>
         {featureFlags.reports && (
           <button className={`rail-btn${page==="reports"?" active":""}`} data-tip="Reports" onClick={()=>navTo("reports")} style={{position:'relative'}}>
@@ -16145,6 +16155,7 @@ export default function JobDoxPortal() {
             currentUser={{ id: currentMember?.id||"", name: currentUser?.name||"User", permissionLevel: permission }}
             staff={globalStaff}
             projects={projects}
+            onUnreadCountsChange={setChatUnreadCounts}
           />
         ) : page==="alltasks" ? (
           <CompanyTasksPage
@@ -16212,6 +16223,7 @@ export default function JobDoxPortal() {
             projectShifts={projectShifts}
             canViewOwnJobsOnly={canViewOwnJobsOnly}
             permissionLevel={permission}
+            chatUnreadCounts={chatUnreadCounts}
           />
         )}
       </div>
