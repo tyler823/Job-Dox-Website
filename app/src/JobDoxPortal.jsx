@@ -3729,8 +3729,13 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
       if (archivedFilters.dateTo) results = results.filter(p => p.archivedAt && p.archivedAt <= archivedFilters.dateTo + "T23:59:59");
       results.sort((a, b) => (b.archivedAt || "").localeCompare(a.archivedAt || ""));
       setArchivedProjects(results);
-    } catch (e) { console.error("Failed to load archived projects:", e); }
-    setArchivedLoading(false);
+      console.log("[Archive] Loaded", results.length, "archived projects:", results.map(p => p.id + " / " + p.closeType));
+    } catch (e) {
+      console.error("Failed to load archived projects:", e);
+      alert("Could not load archived projects: " + e.message);
+    } finally {
+      setArchivedLoading(false);
+    }
   };
 
   const confirmArchive = async () => {
@@ -3847,8 +3852,9 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
       <div className="kpi-bar">
         {showArchived ? (
           <>
-            <div className="kpi"><div className="kpi-val" style={{color:"var(--amber)"}}>{archivedCount}</div><div className="kpi-lbl">Archived</div></div>
-            <div className="kpi"><div className="kpi-val" style={{color:"var(--t2)"}}>{filtered.length}</div><div className="kpi-lbl">Matching Filter</div></div>
+            <div className="kpi"><div className="kpi-val" style={{color:"var(--amber)"}}>{archivedProjects.length}</div><div className="kpi-lbl">Archived</div></div>
+            <div className="kpi"><div className="kpi-val" style={{color:"var(--green)"}}>{archivedProjects.filter(p => p.closeType === "won").length}</div><div className="kpi-lbl">Closed Won</div></div>
+            <div className="kpi"><div className="kpi-val" style={{color:"var(--acc)"}}>{archivedProjects.filter(p => p.closeType === "lost").length}</div><div className="kpi-lbl">Closed Lost</div></div>
           </>
         ) : (
           [["Active",projects.filter(p=>!p.archived&&p.status==="In Progress").length,"var(--blue)"],...(canViewBudget?[["Total Budget",fmt$(projects.filter(p=>!p.archived).reduce((s,p)=>s+p.budget,0)),"var(--green)"]]:[[]]),...[["Open Tasks",projects.filter(p=>!p.archived).reduce((s,p)=>s+p.tasksOpen,0),"var(--amber)"],["Completed",projects.filter(p=>!p.archived&&p.status==="Completed").length,"var(--t2)"]]].map(([l,v,c])=>(
