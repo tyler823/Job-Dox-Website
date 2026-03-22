@@ -118,7 +118,7 @@ class SettingsErrorBoundary extends Component {
 }
 
 /* ── Google Maps key — restrict this to your domain in Google Cloud Console ── */
-const GMAPS_KEY = "AIzaSyB63wo4pFCRReosTWPlkZ6eETg7zdPaQpM"; // ← replace with real key
+const GMAPS_KEY = import.meta.env.VITE_GMAPS_KEY;
 
 /* ══════════════════════════════════════════════════════════════════
    MEMBERSTACK CONFIG
