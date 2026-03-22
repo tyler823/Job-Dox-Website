@@ -6,6 +6,7 @@ import { PayrollDashboard } from "./JobDoxPayroll.jsx";
 import ContentsDox from "./ContentsDox.jsx";
 import DryDoxModule from "./DryDox.jsx";
 import AdjusterResponseModal from "./AdjusterResponseBot.jsx";
+import { NotesInsightCard, StatusSuggestionCard, TaskGapCard, ScopePatternCard, FollowUpCard } from "./CortexPredictive.jsx";
 import EstimateDoxTab, { loadProjEstimates } from "./EstimateDox.jsx";
 import { TimeOffPanel } from "./JobDoxTimeOff.jsx";
 import DispatchPanel from "./JobDoxDispatch.jsx";
@@ -3887,7 +3888,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
   );
 }
 
-function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emailSchedule="weekly", setEmailSchedule=()=>{}, clientPortal=false, setClientPortal=()=>{}, globalStaff=[], worktypes=[], setWorktypes=()=>{}, currentUser=null, assignedStaff=[], setAssignedStaff=()=>{}, canArchive=false, onArchive, onBack, featureFlags=DEFAULT_FEATURE_FLAGS }) {
+function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emailSchedule="weekly", setEmailSchedule=()=>{}, clientPortal=false, setClientPortal=()=>{}, globalStaff=[], worktypes=[], setWorktypes=()=>{}, currentUser=null, assignedStaff=[], setAssignedStaff=()=>{}, canArchive=false, onArchive, onBack, featureFlags=DEFAULT_FEATURE_FLAGS, companyId="", customStatuses=[] }) {
   const [attrs, setAttrs]           = useState({});
   const assigned    = assignedStaff;
   const setAssigned = setAssignedStaff;
@@ -4224,6 +4225,34 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
               </div>
             ))}
           </div>
+        </div>
+
+        {/* ── Cortex AI Insight Cards ── */}
+        <div style={{gridColumn:"1/-1"}}>
+          <NotesInsightCard
+            projectId={proj.id}
+            companyId={companyId}
+            dailyNotes={dailyNotes}
+            onAddNote={(summary) => {
+              const newNote = {id:uid(), date:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}), author:"Cortex AI", content:summary, visibleToClient:true};
+              setDailyNotes(prev => [newNote, ...prev]);
+            }}
+          />
+          <StatusSuggestionCard
+            projectId={proj.id}
+            companyId={companyId}
+            currentStatus={proj.status}
+            availableStatuses={loadCST().map(s => s.name)}
+            completedTaskCount={(proj.tasks || []).filter(t => t.done || t.status === "done").length}
+            totalTaskCount={(proj.tasks || []).length}
+            dailyNotes={dailyNotes}
+            onApplyStatus={(newStatus) => {
+              proj.status = newStatus;
+              if (_globalCompanyId && proj.id) {
+                updateDoc(doc(db, "companies", _globalCompanyId, "projects", proj.id), { status: newStatus }).catch(() => {});
+              }
+            }}
+          />
         </div>
 
         {/* ── Daily Notes ── */}
@@ -4683,7 +4712,7 @@ function TaskCommentModal({ task, onClose, currentUserName="You", globalStaff=[]
   );
 }
 
-function TasksTab({ projId="", projName="", initialTasks=[], globalStaff=[], companyId="", phoneSettings={}, currentMemberId="", isVendor=false, currentUser }) {
+function TasksTab({ projId="", projName="", initialTasks=[], globalStaff=[], companyId="", phoneSettings={}, currentMemberId="", isVendor=false, currentUser, workTypes=[] }) {
   // Load from LS cache first; then load from Firestore (async)
   const [tasks, setTasksRaw] = useState(() => {
     if (projId) {
@@ -4930,6 +4959,32 @@ function TasksTab({ projId="", projName="", initialTasks=[], globalStaff=[], com
             </div>
           </div>
         )}
+
+        <TaskGapCard
+          projectId={projId}
+          companyId={companyId}
+          workTypes={workTypes}
+          existingTasks={tasks.map(t => t.title || t.name || "")}
+          onAddTasks={(titles) => {
+            const newTasks = titles.map(title => ({
+              id: uid(),
+              projId: projId || null,
+              title,
+              assignedUserIds: [],
+              assigned: "",
+              due: "",
+              priority: "med",
+              type: "task",
+              time: "",
+              notes: "",
+              status: "open",
+              created: new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),
+              comments: 0,
+              commentThread: [],
+            }));
+            setTasks(prev => [...prev, ...newTasks]);
+          }}
+        />
 
         {vis.map(t => (
           <div key={t.id} className="row" style={{display:"flex",alignItems:"flex-start",gap:9}}>
@@ -5487,6 +5542,24 @@ function ScopeTab({ proj, scopeItems: items=[], setScopeItems: setItems=()=>{}, 
             placeholder="Brief description of work performed, scope, and conditions found on site…"
             style={{minHeight:64,fontSize:11,lineHeight:1.65}}/>
         </div>
+
+        <ScopePatternCard
+          projectId={proj?.id}
+          companyId={_globalCompanyId || ""}
+          workTypes={projWorkTypes}
+          existingLineItems={items.map(i => i.desc || i.description || "")}
+          pinnedItems={pinnedForProj.map(pi => ({ description: pi.desc, unit: pi.unit || "EA", unitPrice: pi.price }))}
+          onAddItems={(newItems) => {
+            setItems(prev => [...prev, ...newItems.map(item => ({
+              id: uid(),
+              desc: item.description,
+              unit: item.unit || "EA",
+              qty: 1,
+              price: item.unitPrice || 0,
+              source: "manual",
+            }))]);
+          }}
+        />
 
         {/* ── Line Items ── */}
         <div className="card" style={{padding:14}}>
@@ -6737,6 +6810,20 @@ function MessagesTab({ proj, contacts=[], dailyNotes=[], currentUser=null, compa
         <div className="sec">Message Log</div>
         <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)"}}>Job email: {jobEmail}</div>
       </div>
+      <FollowUpCard
+        projectId={proj?.id}
+        companyId={companyId}
+        clientName={proj?.clientName || proj?.client || proj?.name || ""}
+        lastMessageDate={(() => {
+          const outbound = msgs.filter(m => m.direction === "outbound").sort((a, b) => (b.ts || "").localeCompare(a.ts || ""));
+          return outbound.length ? outbound[0].ts : null;
+        })()}
+        projectStatus={proj?.status || ""}
+        onUseDraft={(draft) => {
+          navigator.clipboard.writeText(draft).catch(() => {});
+        }}
+      />
+
       {[...msgs].reverse().map(m=>(
         <div key={m.id} className="card" style={{marginBottom:8,padding:"12px 15px"}}>
           <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
@@ -8492,14 +8579,14 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
           </button>
         ))}
       </div>
-      {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff} worktypes={worktypes} setWorktypes={setWorktypes} currentUser={currentUser} assignedStaff={assignedStaff} setAssignedStaff={setAssignedStaff} canArchive={canArchive} onArchive={onArchive} onBack={onBack} featureFlags={featureFlags}/>}
+      {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff} worktypes={worktypes} setWorktypes={setWorktypes} currentUser={currentUser} assignedStaff={assignedStaff} setAssignedStaff={setAssignedStaff} canArchive={canArchive} onArchive={onArchive} onBack={onBack} featureFlags={featureFlags} companyId={companyId}/>}
       {tab==="drydox"         && <DryDoxModule    proj={proj} priceLists={priceLists} onPushToScope={handlePushToScope} companyLogo={coInfo?.logo} companyId={companyId}/>}
       {tab==="contentsdox"    && <ContentsDox proj={proj} companyId={companyId} db={db} onDocGenerated={()=>setDocRefreshKey(k=>k+1)}/>}
       {tab==="estimatedox"    && <EstimateDoxTab proj={proj} companyId={companyId}/>}
       {tab==="contacts"       && <ContactsTab contacts={contacts} setContacts={setContacts}/>}
       {tab==="media"          && <MediaTab       folders={mediaFolders} setFolders={setMediaFolders} uploads={mediaUploads} setUploads={setMediaUploads}/>}
       {tab==="documents"      && <ProjectDocumentsPanel proj={proj} contacts={contacts} assignedStaff={assignedStaff} onNavigate={onNavigate} docRefreshKey={docRefreshKey} featureFlags={featureFlags}/>}
-      {tab==="tasks"          && <TasksTab projId={proj.id} projName={proj.name} initialTasks={proj.templateTasks||[]} globalStaff={globalStaff} companyId={companyId} phoneSettings={phoneSettings} currentMemberId={currentMemberId} isVendor={isVendor} currentUser={currentUser}/>}
+      {tab==="tasks"          && <TasksTab projId={proj.id} projName={proj.name} initialTasks={proj.templateTasks||[]} globalStaff={globalStaff} companyId={companyId} phoneSettings={phoneSettings} currentMemberId={currentMemberId} isVendor={isVendor} currentUser={currentUser} workTypes={(worktypes||[]).filter(w=>w.status!=="off").map(w=>w.type||w)}/>}
       {tab==="finance"        && <FinancialTab proj={proj} companyId={companyId} laborCost={laborCost} invoices={loadProjInvoices(proj.id)} onInvoiceVoid={id=>{const all=loadAllInvoices().map(i=>i.id===id?{...i,status:"void"}:i);saveAllInvoices(all);}}/>}
       {tab==="shifts"         && <ShiftsTab projId={proj.id} externalShifts={myShifts} canViewRates={canViewRates}/>}
       {tab==="scope"          && <ScopeTab proj={proj} scopeItems={scopeItems} setScopeItems={setScopeItems} contacts={contacts} onDocGenerated={()=>{ setDocRefreshKey(k=>k+1); }}/>}
