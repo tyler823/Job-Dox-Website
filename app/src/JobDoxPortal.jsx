@@ -3715,18 +3715,19 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
   const openMaps = (proj) => window.open(`https://maps.google.com/?q=${encodeURIComponent(proj.address)}`,"_blank");
 
   // ── Load archived projects from Firestore with filters ──
-  const loadArchivedProjects = async () => {
+  const loadArchivedProjects = async (filters) => {
+    const f = filters || archivedFilters;
     if (!companyId) return;
     setArchivedLoading(true);
     try {
       const q = query(collection(db, "companies", companyId, "projects"));
       const snap = await getDocs(q);
       let results = snap.docs.map(d => ({ ...d.data(), id: d.id })).filter(p => p.archived === true);
-      if (archivedFilters.closeType !== 'all') results = results.filter(p => p.closeType === archivedFilters.closeType);
-      if (archivedFilters.projectType !== 'all') results = results.filter(p => p.type === archivedFilters.projectType);
-      if (archivedFilters.office !== 'all') results = results.filter(p => p.officeId === archivedFilters.office);
-      if (archivedFilters.dateFrom) results = results.filter(p => p.archivedAt && p.archivedAt >= archivedFilters.dateFrom);
-      if (archivedFilters.dateTo) results = results.filter(p => p.archivedAt && p.archivedAt <= archivedFilters.dateTo + "T23:59:59");
+      if (f.closeType !== 'all') results = results.filter(p => p.closeType === f.closeType);
+      if (f.projectType !== 'all') results = results.filter(p => p.type === f.projectType);
+      if (f.office !== 'all') results = results.filter(p => p.officeId === f.office);
+      if (f.dateFrom) results = results.filter(p => p.archivedAt && p.archivedAt >= f.dateFrom);
+      if (f.dateTo) results = results.filter(p => p.archivedAt && p.archivedAt <= f.dateTo + "T23:59:59");
       results.sort((a, b) => (b.archivedAt || "").localeCompare(a.archivedAt || ""));
       setArchivedProjects(results);
       console.log("[Archive] Loaded", results.length, "archived projects:", results.map(p => p.id + " / " + p.closeType));
@@ -3839,7 +3840,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
         {permissionLevel >= 5 && (
           <button
             className={`btn ${showArchived?"btn-secondary":"btn-ghost"} btn-xs`}
-            onClick={()=>{const next=!showArchived;setShowArchived(next);if(next)loadArchivedProjects();}}
+            onClick={()=>{if(!showArchived){setShowArchived(true);setArchivedFilters({closeType:'all',projectType:'all',office:'all',dateFrom:'',dateTo:''});loadArchivedProjects({closeType:'all',projectType:'all',office:'all',dateFrom:'',dateTo:''});}else{setShowArchived(false);}}}
             style={{marginLeft:2}}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg>
@@ -3901,7 +3902,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                   <div className="mono" style={{fontSize:8,color:"var(--t3)",marginBottom:3}}>DATE TO</div>
                   <input className="inp" type="date" value={archivedFilters.dateTo} onChange={e=>setArchivedFilters(f=>({...f,dateTo:e.target.value}))}/>
                 </div>
-                <button className="btn btn-secondary btn-xs" onClick={loadArchivedProjects}>Apply</button>
+                <button className="btn btn-secondary btn-xs" onClick={() => loadArchivedProjects(archivedFilters)}>Apply</button>
               </div>
 
               {/* ── Archived info banner ── */}
