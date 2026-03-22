@@ -22,7 +22,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { getFirestore, doc, getDoc, collection, getDocs, orderBy, query, limit } from "firebase/firestore";
 import { getApps } from "firebase/app";
 
 const _rptDb = getApps().length > 0 ? getFirestore(getApps()[0]) : null;
@@ -164,6 +164,7 @@ const RIc = {
   filter:   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
   equip:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>,
   star:     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+  flag:     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>,
 };
 
 
@@ -235,6 +236,7 @@ const REPORT_TABS = [
   { key:"ai",       label:"AI Insights",icon: RIc.ai       },
   { key:"equip",    label:"Equip Mismatch",icon: RIc.equip },
   { key:"reputation", label:"Reputation", icon: RIc.star },
+  { key:"flags",      label:"Flags",      icon: RIc.flag  },
 ];
 
 
@@ -1915,9 +1917,11 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
 /* ═══════════════════════════════════════════════════════════════════════════
    MAIN EXPORT — ReportsDashboard
 ═══════════════════════════════════════════════════════════════════════════ */
-export function ReportsDashboard({ projects=[], companyId="", onNavigate, globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], priceLists=[], reviewRequests=[], offices=[] }) {
+export function ReportsDashboard({ projects=[], companyId="", onNavigate, globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], priceLists=[], reviewRequests=[], offices=[], projectShifts={} }) {
   const [tab, setTab] = useState("revenue");
   const [fsReady, setFsReady] = useState(false);
+  const [flagHistory, setFlagHistory] = useState([]);
+  const [expandedDates, setExpandedDates] = useState({});
 
   // Inject CSS once
   useEffect(() => {
@@ -1947,9 +1951,51 @@ export function ReportsDashboard({ projects=[], companyId="", onNavigate, global
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);
 
+  // ── Load flag history from Firestore ──
+  useEffect(() => {
+    if (!_rptDb || !companyId) return;
+    const q = query(
+      collection(_rptDb, `companies/${companyId}/flagHistory`),
+      orderBy("date", "desc"),
+      limit(30)
+    );
+    getDocs(q).then(snap => {
+      setFlagHistory(snap.docs.map(d => d.data()));
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId]);
+
   // Enrich projects with financial data (re-run after FS data loaded)
   const data = useMemo(() => enrichProjects(projects), [projects, fsReady]);
   const statuses = customStatuses.length > 0 ? customStatuses : DEFAULT_STATUSES;
+
+  // ── Flagged projects for the Flags tab ──
+  const flaggedProjects = useMemo(() => {
+    const _today = today();
+    return (projects || []).map(proj => {
+      const scopeItems = (() => {
+        try { return JSON.parse(localStorage.getItem(`jd_proj_${proj.id}_scope`) || '[]'); } catch { return []; }
+      })();
+      const billedHrs = scopeItems
+        .filter(i => i.unit && ["HR","hr","Hour","Hours","hour","hours"].includes(i.unit))
+        .reduce((s, i) => s + (parseFloat(i.qty) || 0), 0);
+      const loggedHrs = (projectShifts[proj.id] || []).reduce((s, sh) => s + (sh.hours || 0), 0);
+      const hasLaborMismatch = (billedHrs > 0 || loggedHrs > 0) && Math.abs(billedHrs - loggedHrs) > 0.5;
+      const tasks = proj.fsTasks || [];
+      const overdueCount = tasks.filter(t => t.status !== 'done' && t.due && t.due < _today).length;
+      const hasOverdueTasks = overdueCount > 0;
+      return { ...proj, hasLaborMismatch, hasOverdueTasks, billedHrs, loggedHrs, overdueCount };
+    }).filter(p => p.hasLaborMismatch || p.hasOverdueTasks);
+  }, [projects, projectShifts]);
+
+  const toggleDate = (d) => setExpandedDates(prev => ({ ...prev, [d]: !prev[d] }));
+
+  const fmtHistDate = (iso) => {
+    try {
+      const d = new Date(iso + "T00:00:00");
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    } catch { return iso; }
+  };
 
   return (
     <div className="rpt-dash">
@@ -1978,6 +2024,72 @@ export function ReportsDashboard({ projects=[], companyId="", onNavigate, global
         {tab === "ai"       && <AIAnalytics data={data} companyId={companyId}/>}
         {tab === "equip"    && <EquipmentMismatchReport data={data} priceLists={priceLists}/>}
         {tab === "reputation" && <ReputationReport data={data} reviewRequests={reviewRequests} offices={offices}/>}
+        {tab === "flags" && (
+          <div>
+            {/* ── Flagged Projects Table ── */}
+            <div style={{marginBottom:24}}>
+              <div className="sec" style={{marginBottom:12}}>FLAGGED PROJECTS ({flaggedProjects.length})</div>
+              {flaggedProjects.length === 0 ? (
+                <div style={{color:'var(--t3)',fontSize:12,padding:'20px 0'}}>No flagged projects today.</div>
+              ) : (
+                <table className="rpt-tbl">
+                  <thead><tr>
+                    <th>Project</th><th>#</th><th>Flags</th><th>Details</th>
+                  </tr></thead>
+                  <tbody>
+                    {flaggedProjects.map(p => (
+                      <tr key={p.id}>
+                        <td style={{fontWeight:600}}>{p.name || p.address || p.id}</td>
+                        <td className="mono">{p.projectNumber || '—'}</td>
+                        <td>
+                          {p.hasLaborMismatch && <span className="rpt-pill" style={{background:'#92400e',color:'#fef3c7',marginRight:4}}>Labor</span>}
+                          {p.hasOverdueTasks && <span className="rpt-pill" style={{background:'#991b1b',color:'#fee2e2'}}>Overdue</span>}
+                        </td>
+                        <td style={{fontSize:11,color:'var(--t2)'}}>
+                          {p.hasLaborMismatch && <span>Billed: {p.billedHrs.toFixed(1)}h · Logged: {p.loggedHrs.toFixed(1)}h</span>}
+                          {p.hasLaborMismatch && p.hasOverdueTasks && <span style={{margin:'0 6px'}}>|</span>}
+                          {p.hasOverdueTasks && <span>{p.overdueCount} task{p.overdueCount !== 1 ? 's' : ''} overdue</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* ── Recent Flag History ── */}
+            {flagHistory.length > 0 && (
+              <div>
+                <div className="sec" style={{marginBottom:12}}>RECENT FLAG HISTORY</div>
+                {flagHistory.map(record => {
+                  const isExpanded = expandedDates[record.date];
+                  return (
+                    <div key={record.date} style={{marginBottom:2}}>
+                      <div className="row" style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',cursor:'pointer',borderRadius:6,transition:'background .1s'}}
+                        onClick={() => toggleDate(record.date)}>
+                        <span style={{fontSize:10,color:'var(--t3)',width:12,textAlign:'center'}}>{isExpanded ? '▼' : '▶'}</span>
+                        <span style={{fontFamily:'var(--mono)',fontSize:11,color:'var(--t2)',minWidth:100}}>{fmtHistDate(record.date)}</span>
+                        <span style={{fontSize:11,color:'var(--t1)'}}>{record.flags.length} project{record.flags.length !== 1 ? 's' : ''} flagged</span>
+                      </div>
+                      {isExpanded && (
+                        <div style={{paddingLeft:32,paddingBottom:8}}>
+                          {(record.flags || []).map((f, i) => (
+                            <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'4px 0',fontSize:11,color:'var(--t2)'}}>
+                              <span style={{fontWeight:600,color:'var(--t1)'}}>{f.projectName || 'Project'}</span>
+                              {f.projectNumber && <span className="mono" style={{color:'var(--t3)'}}>#{f.projectNumber}</span>}
+                              {f.hasLaborMismatch && <span className="rpt-pill" style={{background:'#92400e',color:'#fef3c7',fontSize:8}}>Labor — {(f.billedHrs||0).toFixed(1)}h / {(f.loggedHrs||0).toFixed(1)}h</span>}
+                              {f.hasOverdueTasks && <span className="rpt-pill" style={{background:'#991b1b',color:'#fee2e2',fontSize:8}}>{f.overdueCount||0} overdue</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
