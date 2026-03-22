@@ -15498,6 +15498,7 @@ export default function JobDoxPortal() {
             priceLists={priceLists}
             reviewRequests={reviewRequests}
             offices={offices}
+            projectShifts={projectShifts}
           />
         ) : page==="finance" && featureFlags.financeTab ? (
           <FinancialDashboard

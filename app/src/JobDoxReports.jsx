@@ -164,6 +164,7 @@ const RIc = {
   filter:   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
   equip:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>,
   star:     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+  flag:     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>,
 };
 
 
@@ -227,6 +228,7 @@ const RPT_CSS = `
    REPORT TAB DEFINITIONS
 ───────────────────────────────────────────────────────────────────────────── */
 const REPORT_TABS = [
+  { key:"flags",    label:"⚑ Flags",    icon: RIc.flag     },
   { key:"revenue",  label:"Revenue",    icon: RIc.revenue  },
   { key:"wip",      label:"WIP",        icon: RIc.wip      },
   { key:"referral", label:"Referrals",  icon: RIc.referral },
@@ -1913,10 +1915,139 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   FLAGS SUMMARY REPORT
+═══════════════════════════════════════════════════════════════════════════ */
+function FlagsSummaryReport({ projects, projectShifts, statuses, onNavigate }) {
+  const flaggedProjects = useMemo(() => {
+    const td = new Date().toISOString().slice(0, 10);
+    const result = projects.map(proj => {
+      // Labor mismatch
+      const scopeItems = (() => {
+        try { return JSON.parse(localStorage.getItem(`jd_proj_${proj.id}_scope`) || '[]'); } catch { return []; }
+      })();
+      const billedHrs = scopeItems
+        .filter(i => i.unit && ["HR","hr","Hour","Hours","hour","hours"].includes(i.unit))
+        .reduce((s, i) => s + (parseFloat(i.qty) || 0), 0);
+      const myShifts = (projectShifts[proj.id] || []);
+      const loggedHrs = myShifts.reduce((s, sh) => s + (sh.hours || 0), 0);
+      const hasLaborMismatch = (billedHrs > 0 || loggedHrs > 0) && Math.abs(billedHrs - loggedHrs) > 0.5;
+
+      // Overdue tasks
+      const tasks = proj.fsTasks || [];
+      const overdueTasks = tasks.filter(t => t.status !== 'done' && t.due && t.due < td);
+      const hasOverdueTasks = overdueTasks.length > 0;
+
+      return { ...proj, hasLaborMismatch, hasOverdueTasks, billedHrs, loggedHrs, overdueCount: overdueTasks.length };
+    }).filter(proj => proj.hasLaborMismatch || proj.hasOverdueTasks);
+
+    // Sort: both flags first, then labor only, then overdue only
+    result.sort((a, b) => {
+      const aScore = (a.hasLaborMismatch && a.hasOverdueTasks) ? 0 : a.hasLaborMismatch ? 1 : 2;
+      const bScore = (b.hasLaborMismatch && b.hasOverdueTasks) ? 0 : b.hasLaborMismatch ? 1 : 2;
+      return aScore - bScore;
+    });
+    return result;
+  }, [projects, projectShifts]);
+
+  const laborCount = flaggedProjects.filter(p => p.hasLaborMismatch).length;
+  const overdueCount = flaggedProjects.filter(p => p.hasOverdueTasks).length;
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+        <div>
+          <div style={{color:"var(--t1)",fontWeight:700,fontSize:15}}>Project Flags</div>
+          <div style={{color:"var(--t2)",fontSize:12}}>Projects requiring attention — labor mismatches and overdue tasks</div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <span style={{background:"rgba(232,156,24,.12)",border:"1px solid rgba(232,156,24,.3)",color:"var(--amber)",fontFamily:"var(--mono)",fontSize:10,borderRadius:20,padding:"3px 10px",fontWeight:600}}>{laborCount} Labor Mismatch</span>
+          <span style={{background:"rgba(228,53,49,.09)",border:"1px solid rgba(228,53,49,.25)",color:"var(--acc)",fontFamily:"var(--mono)",fontSize:10,borderRadius:20,padding:"3px 10px",fontWeight:600}}>{overdueCount} Overdue Tasks</span>
+        </div>
+      </div>
+
+      {/* Empty state */}
+      {flaggedProjects.length === 0 && (
+        <div className="rpt-card" style={{textAlign:"center",padding:40}}>
+          <div style={{fontSize:32}}>✓</div>
+          <div style={{color:"var(--green)",fontWeight:700,fontSize:14}}>No Flags</div>
+          <div style={{color:"var(--t2)",fontSize:12}}>All projects are on track. No labor mismatches or overdue tasks.</div>
+        </div>
+      )}
+
+      {/* Flags table */}
+      {flaggedProjects.length > 0 && (
+        <div className="rpt-card" style={{padding:0}}>
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+            <table className="rpt-tbl" style={{minWidth:600,width:"100%"}}>
+              <thead>
+                <tr>
+                  <th>Project</th>
+                  <th>Status</th>
+                  <th>Flags</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {flaggedProjects.map(p => {
+                  const so = statuses.find(s => s.key === p.status);
+                  return (
+                    <tr key={p.id}>
+                      <td>
+                        <div
+                          style={{fontWeight:600,fontSize:13,color:"var(--t1)",cursor:"pointer"}}
+                          onClick={() => onNavigate("project", p.id)}
+                        >
+                          {p.name || p.address || p.id}
+                        </div>
+                        {p.projNumber && <div style={{color:"var(--t3)",fontFamily:"var(--mono)",fontSize:10}}>{p.projNumber}</div>}
+                      </td>
+                      <td>
+                        <span className="rpt-pill" style={{background:`${so?.color || "var(--t3)"}22`,color:so?.color || "var(--t3)"}}>{p.status || "—"}</span>
+                      </td>
+                      <td>
+                        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                          {p.hasLaborMismatch && (
+                            <div>
+                              <span style={{background:"rgba(232,156,24,.12)",border:"1px solid rgba(232,156,24,.30)",color:"var(--amber)",fontFamily:"var(--mono)",fontSize:9,borderRadius:20,padding:"2px 8px"}}>⚠ LABOR MISMATCH</span>
+                              <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",marginTop:2,paddingLeft:8}}>Billed: {p.billedHrs.toFixed(1)}h · Logged: {p.loggedHrs.toFixed(1)}h</div>
+                            </div>
+                          )}
+                          {p.hasOverdueTasks && (
+                            <div>
+                              <span style={{background:"rgba(228,53,49,.09)",border:"1px solid rgba(228,53,49,.25)",color:"var(--acc)",fontFamily:"var(--mono)",fontSize:9,borderRadius:20,padding:"2px 8px"}}>⚠ OVERDUE TASKS</span>
+                              <div style={{fontSize:10,color:"var(--t3)",fontFamily:"var(--mono)",marginTop:2,paddingLeft:8}}>{p.overdueCount} task{p.overdueCount !== 1 ? "s" : ""} past due</div>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <button
+                          className="rpt-export-btn"
+                          style={{fontSize:10,padding:"4px 10px",whiteSpace:"nowrap"}}
+                          onClick={() => onNavigate("project", p.id)}
+                        >
+                          Go to Project
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
    MAIN EXPORT — ReportsDashboard
 ═══════════════════════════════════════════════════════════════════════════ */
-export function ReportsDashboard({ projects=[], companyId="", onNavigate, globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], priceLists=[], reviewRequests=[], offices=[] }) {
-  const [tab, setTab] = useState("revenue");
+export function ReportsDashboard({ projects=[], companyId="", onNavigate, globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], priceLists=[], reviewRequests=[], offices=[], projectShifts={} }) {
+  const [tab, setTab] = useState("flags");
   const [fsReady, setFsReady] = useState(false);
 
   // Inject CSS once
@@ -1970,6 +2101,7 @@ export function ReportsDashboard({ projects=[], companyId="", onNavigate, global
 
       {/* Body */}
       <div className="rpt-body">
+        {tab === "flags"    && <FlagsSummaryReport projects={data} projectShifts={projectShifts} statuses={statuses} onNavigate={onNavigate}/>}
         {tab === "revenue"  && <RevenueReport data={data} statuses={statuses} customWorkTypes={customWorkTypes} customProjectTypes={customProjectTypes}/>}
         {tab === "wip"      && <WIPReport data={data} statuses={statuses}/>}
         {tab === "referral" && <ReferralReport data={data} statuses={statuses}/>}
