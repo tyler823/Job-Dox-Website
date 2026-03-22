@@ -14793,6 +14793,8 @@ export default function JobDoxPortal() {
   const [supportCompanyName,     setSupportCompanyName]    = useState("");
   const [allCompanies,           setAllCompanies]          = useState([]);
   const [supportSearch,          setSupportSearch]         = useState("");
+  const [exportLoading,          setExportLoading]         = useState(false);
+  const [exportStatus,           setExportStatus]          = useState("");
   const attrDefs = DEFAULT_ATTR_DEFS;
 
   // Re-sync if another tab updates localStorage config
@@ -15409,6 +15411,37 @@ export default function JobDoxPortal() {
     setPage("portfolio");
   }, []);
 
+  const handleExportCompanyData = useCallback(async () => {
+    setExportLoading(true);
+    setExportStatus("");
+    try {
+      const res = await fetch("/.netlify/functions/export-company-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId: companyId,
+          requesterEmail: currentMember?.auth?.email || ""
+        })
+      });
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const today = new Date().toISOString().split("T")[0];
+      a.href = url;
+      a.download = `job-dox-export-${companyId}-${today}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setExportStatus("success");
+    } catch (err) {
+      console.error("Export failed:", err);
+      setExportStatus("error");
+    } finally {
+      setExportLoading(false);
+    }
+  }, [companyId, currentMember]);
+
   const handleSupportExitMode = useCallback(async () => {
     supportUnsubsRef.current.forEach(fn => fn());
     supportUnsubsRef.current = [];
@@ -15940,6 +15973,25 @@ export default function JobDoxPortal() {
             <button className="btn btn-xs btn-ghost" onClick={handleSupportExitMode}>
               Exit Support Mode
             </button>
+          </div>
+        )}
+
+        {/* ── Support Mode: Export Account Data ── */}
+        {isSupportUser && supportCompanySelected && (
+          <div className="card" style={{margin:"0 18px 12px",padding:"16px 20px"}}>
+            <div className="sec">ACCOUNT DATA EXPORT</div>
+            <p style={{color:"var(--t2)",fontSize:12,margin:"6px 0 0"}}>
+              Download a full JSON export of this company's Firestore data. Use only for cancelled account data requests.
+            </p>
+            <button className="btn btn-secondary" style={{marginTop:10}} disabled={exportLoading} onClick={handleExportCompanyData}>
+              {exportLoading ? <><span className="btn-spinner"/> Exporting...</> : "Download Data Export"}
+            </button>
+            {exportStatus === "success" && (
+              <div style={{color:"var(--green)",fontSize:11,marginTop:8}}>✓ Export downloaded successfully.</div>
+            )}
+            {exportStatus === "error" && (
+              <div style={{color:"var(--acc)",fontSize:11,marginTop:8}}>✗ Export failed — check browser console for details.</div>
+            )}
           </div>
         )}
 
