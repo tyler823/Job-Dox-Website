@@ -25,6 +25,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { getFirestore, doc, getDoc, collection, getDocs, orderBy, query, limit } from "firebase/firestore";
 import { getApps } from "firebase/app";
 import { getFirebaseIdToken } from "./firebase.js";
+import ScheduledReports from './ScheduledReports';
 
 const _rptDb = getApps().length > 0 ? getFirestore(getApps()[0]) : null;
 
@@ -241,6 +242,7 @@ const REPORT_TABS = [
   { key:"equip",    label:"Equip Mismatch",icon: RIc.equip },
   { key:"reputation", label:"Reputation", icon: RIc.star },
   { key:"flags",      label:"Flags",      icon: RIc.flag  },
+  { key:"scheduled",  label:"Scheduled",  icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
 ];
 
 
@@ -1921,11 +1923,12 @@ function ReputationReport({ data, reviewRequests=[], offices=[] }) {
 /* ═══════════════════════════════════════════════════════════════════════════
    MAIN EXPORT — ReportsDashboard
 ═══════════════════════════════════════════════════════════════════════════ */
-export function ReportsDashboard({ projects=[], companyId="", onNavigate, globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], priceLists=[], reviewRequests=[], offices=[], projectShifts={} }) {
+export function ReportsDashboard({ projects=[], companyId="", onNavigate, globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], priceLists=[], reviewRequests=[], offices=[], projectShifts={}, userEmail="", userName="", permissionLevel=1 }) {
   const [tab, setTab] = useState("revenue");
   const [fsReady, setFsReady] = useState(false);
   const [flagHistory, setFlagHistory] = useState([]);
   const [expandedDates, setExpandedDates] = useState({});
+  const [scheduledUnread, setScheduledUnread] = useState(0);
 
   // Inject CSS once
   useEffect(() => {
@@ -2013,6 +2016,9 @@ export function ReportsDashboard({ projects=[], companyId="", onNavigate, global
           {REPORT_TABS.map(t => (
             <button key={t.key} className={`rpt-tab${tab===t.key?" active":""}`} onClick={()=>setTab(t.key)}>
               {t.icon} {t.label}
+              {t.key === "scheduled" && scheduledUnread > 0 && (
+                <span style={{background:"var(--acc)",color:"#fff",borderRadius:20,padding:"1px 6px",fontSize:9,fontWeight:700,marginLeft:4,minWidth:14,display:"inline-block",textAlign:"center"}}>{scheduledUnread}</span>
+              )}
             </button>
           ))}
         </div>
@@ -2028,6 +2034,7 @@ export function ReportsDashboard({ projects=[], companyId="", onNavigate, global
         {tab === "ai"       && <AIAnalytics data={data} companyId={companyId}/>}
         {tab === "equip"    && <EquipmentMismatchReport data={data} priceLists={priceLists}/>}
         {tab === "reputation" && <ReputationReport data={data} reviewRequests={reviewRequests} offices={offices}/>}
+        {tab === "scheduled" && <ScheduledReports companyId={companyId} userEmail={userEmail} userName={userName} permissionLevel={permissionLevel} onUnreadCount={setScheduledUnread}/>}
         {tab === "flags" && (
           <div>
             {/* ── Flagged Projects Table ── */}
