@@ -3544,7 +3544,7 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
   );
 }
 
-function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, canViewBudget=false, canAddProject=false, canArchive=false, onArchive, currentMemberId="", globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[], companyId="", phoneSettings={} }) {
+function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, onClockIn, onClockOut, currentUser, canViewRates, canViewBudget=false, canAddProject=false, canArchive=false, onArchive, currentMemberId="", globalStaff=[], customWorkTypes=[], customStatuses=[], customProjectTypes=[], offices=[], companyId="", phoneSettings={}, projectShifts={} }) {
   const [search, setSearch]         = useState("");
   const [fType, setFType]           = useState("All");
   const [fStatus, setFStatus]       = useState("All");
@@ -3573,6 +3573,27 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
       && (fType==="All"   || p.type===fType)
       && (fStatus==="All" || p.status===fStatus)
       && (fOffice==="All" || p.officeId===fOffice);
+  });
+
+  const today = new Date().toISOString().slice(0,10);
+
+  const flagged = filtered.map(proj => {
+    // Labor mismatch flag
+    const scopeItems = (() => {
+      try { return JSON.parse(localStorage.getItem(`jd_proj_${proj.id}_scope`) || '[]'); } catch{ return []; }
+    })();
+    const billedHrs = scopeItems
+      .filter(i => i.unit && ["HR","hr","Hour","Hours","hour","hours"].includes(i.unit))
+      .reduce((s,i) => s + (parseFloat(i.qty)||0), 0);
+    const myShifts = projectShifts[proj.id] || [];
+    const loggedHrs = myShifts.reduce((s,sh) => s + (sh.hours||0), 0);
+    const hasLaborMismatch = (billedHrs > 0 || loggedHrs > 0) && Math.abs(billedHrs - loggedHrs) > 0.5;
+
+    // Overdue tasks flag
+    const tasks = proj.fsTasks || [];
+    const hasOverdueTasks = tasks.some(t => t.status !== 'done' && t.due && t.due < today);
+
+    return { ...proj, hasLaborMismatch, hasOverdueTasks };
   });
 
   const openMaps = (proj) => window.open(`https://maps.google.com/?q=${encodeURIComponent(proj.address)}`,"_blank");
@@ -3737,7 +3758,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
 
           {viewMode === "card" && (
             <div className="proj-grid">
-              {filtered.map(proj => {
+              {flagged.map(proj => {
                 const ptConf = customProjectTypes.find(t=>t.name===proj.type);
                 const tc = ptConf?.color || TYPE_C[proj.type]||"var(--t3)";
                 const stConf2 = customStatuses.find(s=>s.name===proj.status);
@@ -3772,6 +3793,30 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                         <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.client}</span>
                         {proj.tasksOpen>0 && <span className="mono" style={{fontSize:10,color:"var(--amber)",flexShrink:0,marginLeft:8}}>{proj.tasksOpen} open</span>}
                       </div>
+                      {(proj.hasLaborMismatch || proj.hasOverdueTasks) && (
+                        <div style={{display:'flex',gap:5,flexWrap:'wrap',marginTop:7}}>
+                          {proj.hasLaborMismatch && (
+                            <span style={{
+                              fontFamily:'var(--mono)',fontSize:9,borderRadius:20,
+                              padding:'2px 8px',
+                              background:'rgba(232,156,24,.12)',
+                              border:'1px solid rgba(232,156,24,.30)',
+                              color:'var(--amber)',
+                              letterSpacing:'.04em'
+                            }}>⚠ LABOR MISMATCH</span>
+                          )}
+                          {proj.hasOverdueTasks && (
+                            <span style={{
+                              fontFamily:'var(--mono)',fontSize:9,borderRadius:20,
+                              padding:'2px 8px',
+                              background:'rgba(228,53,49,.09)',
+                              border:'1px solid rgba(228,53,49,.25)',
+                              color:'var(--acc)',
+                              letterSpacing:'.04em'
+                            }}>⚠ OVERDUE TASKS</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     {isClocked && (
                       <div className="clocked-banner">
@@ -3812,7 +3857,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
               <div style={{display:"grid",gridTemplateColumns:"4px 2fr 1.2fr 110px 120px 80px",gap:0,padding:"3px 13px 3px 4px",marginBottom:2}}>
                 {["","Project","Work Types","Status","Budget",""].map((h,i)=><div key={i} className="mono" style={{fontSize:9,color:"var(--t3)",padding:"0 8px"}}>{h}</div>)}
               </div>
-              {filtered.map(proj=>{
+              {flagged.map(proj=>{
                 const tc = TYPE_C[proj.type]||"var(--t3)";
                 const sp = pct(proj.spent, proj.budget);
                 const isClocked = clockInState?.projId === proj.id;
@@ -3855,6 +3900,30 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
                       <div style={{width:60,flexShrink:0,textAlign:"right"}}>
                         {proj.tasksOpen>0 && <span className="mono" style={{fontSize:10,color:"var(--amber)"}}>{proj.tasksOpen} open</span>}
                       </div>
+                      {(proj.hasLaborMismatch || proj.hasOverdueTasks) && (
+                        <div style={{display:'flex',gap:5,flexWrap:'wrap',marginTop:3}}>
+                          {proj.hasLaborMismatch && (
+                            <span style={{
+                              fontFamily:'var(--mono)',fontSize:9,borderRadius:20,
+                              padding:'2px 8px',
+                              background:'rgba(232,156,24,.12)',
+                              border:'1px solid rgba(232,156,24,.30)',
+                              color:'var(--amber)',
+                              letterSpacing:'.04em'
+                            }}>⚠ LABOR MISMATCH</span>
+                          )}
+                          {proj.hasOverdueTasks && (
+                            <span style={{
+                              fontFamily:'var(--mono)',fontSize:9,borderRadius:20,
+                              padding:'2px 8px',
+                              background:'rgba(228,53,49,.09)',
+                              border:'1px solid rgba(228,53,49,.25)',
+                              color:'var(--acc)',
+                              letterSpacing:'.04em'
+                            }}>⚠ OVERDUE TASKS</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="proj-list-actions" onClick={e=>e.stopPropagation()}>
                       {!showArchived ? (
@@ -5281,7 +5350,7 @@ function ShiftsTab({ projId, externalShifts=[], canViewRates, canViewPayRates=fa
 
 
 
-function ScopeTab({ proj, scopeItems: items=[], setScopeItems: setItems=()=>{}, contacts=[], onDocGenerated }) {
+function ScopeTab({ proj, scopeItems: items=[], setScopeItems: setItems=()=>{}, contacts=[], onDocGenerated, projectShifts={} }) {
   const billing   = loadBilling();
   const co        = loadCoInfo();
 
@@ -5308,6 +5377,20 @@ function ScopeTab({ proj, scopeItems: items=[], setScopeItems: setItems=()=>{}, 
   const [docRelModalOpen,    setDocRelModalOpen]    = useState(false);
   const [pendingInvoiceCb,   setPendingInvoiceCb]   = useState(null); // callback ref for modal confirm
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+
+  // ── Labor mismatch detection ──
+  const [laborMismatchDismissed, setLaborMismatchDismissed] = React.useState(false);
+
+  const billedLaborHours = items
+    .filter(i => i.unit && ["HR","hr","Hour","Hours","hour","hours"].includes(i.unit))
+    .reduce((sum, i) => sum + (parseFloat(i.qty) || 0), 0);
+
+  const _myShifts = projectShifts[proj?.id] || [];
+  const loggedLaborHours = _myShifts.reduce((sum, sh) => sum + (sh.hours || 0), 0);
+
+  const laborMismatch = !laborMismatchDismissed
+    && (billedLaborHours > 0 || loggedLaborHours > 0)
+    && Math.abs(billedLaborHours - loggedLaborHours) > 0.5;
 
   // Budget categories for this project
   const projBudget = useMemo(() => {
@@ -5829,6 +5912,30 @@ function ScopeTab({ proj, scopeItems: items=[], setScopeItems: setItems=()=>{}, 
             </div>
           </div>
         </div>
+
+        {/* ── Labor Mismatch Warning ── */}
+        {laborMismatch && (
+          <div style={{
+            background:'rgba(232,156,24,.10)',
+            border:'1px solid rgba(232,156,24,.28)',
+            borderRadius:9,
+            padding:'11px 15px',
+            display:'flex',
+            alignItems:'flex-start',
+            justifyContent:'space-between',
+            gap:12,
+            marginBottom:12
+          }}>
+            <div style={{fontSize:12,color:'var(--amber)',lineHeight:1.6}}>
+              <strong>⚠ Labor Hour Mismatch</strong> — Your invoice includes <strong>{billedLaborHours.toFixed(1)} billed hours</strong> of labor, but your team's clock-in records show <strong>{loggedLaborHours.toFixed(1)} logged hours</strong> for this project. Please review before sending. You can still proceed.
+            </div>
+            <button
+              className="btn btn-xs btn-ghost"
+              style={{flexShrink:0,color:'var(--amber)',borderColor:'rgba(232,156,24,.3)'}}
+              onClick={()=>setLaborMismatchDismissed(true)}
+            >✕ Dismiss</button>
+          </div>
+        )}
 
         {/* ── Generate Actions ── */}
         {generated && (
@@ -8589,7 +8696,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
       {tab==="tasks"          && <TasksTab projId={proj.id} projName={proj.name} initialTasks={proj.templateTasks||[]} globalStaff={globalStaff} companyId={companyId} phoneSettings={phoneSettings} currentMemberId={currentMemberId} isVendor={isVendor} currentUser={currentUser} workTypes={(worktypes||[]).filter(w=>w.status!=="off").map(w=>w.type||w)}/>}
       {tab==="finance"        && <FinancialTab proj={proj} companyId={companyId} laborCost={laborCost} invoices={loadProjInvoices(proj.id)} onInvoiceVoid={id=>{const all=loadAllInvoices().map(i=>i.id===id?{...i,status:"void"}:i);saveAllInvoices(all);}}/>}
       {tab==="shifts"         && <ShiftsTab projId={proj.id} externalShifts={myShifts} canViewRates={canViewRates}/>}
-      {tab==="scope"          && <ScopeTab proj={proj} scopeItems={scopeItems} setScopeItems={setScopeItems} contacts={contacts} onDocGenerated={()=>{ setDocRefreshKey(k=>k+1); }}/>}
+      {tab==="scope"          && <ScopeTab proj={proj} scopeItems={scopeItems} setScopeItems={setScopeItems} contacts={contacts} onDocGenerated={()=>{ setDocRefreshKey(k=>k+1); }} projectShifts={projectShifts}/>}
       {tab==="messages"       && <MessagesTab proj={proj} contacts={contacts} dailyNotes={dailyNotes} currentUser={currentUser} companyId={companyId} featureFlags={featureFlags}/>}
       {tab==="calls"          && <CallLogTab proj={proj} companyId={companyId} globalStaff={globalStaff} currentUser={currentUser} phoneSettings={phoneSettings}/>}
       {tab==="project-report" && <ProjectReportTab proj={proj} dailyNotes={dailyNotes} mediaFolders={mediaFolders} mediaUploads={mediaUploads} docs={projDocs}/>}
@@ -15467,6 +15574,7 @@ export default function JobDoxPortal() {
             phoneSettings={phoneSettings}
             onArchive={handleArchiveProject}
             canArchive={canArchiveProject}
+            projectShifts={projectShifts}
           />
         )}
       </div>
