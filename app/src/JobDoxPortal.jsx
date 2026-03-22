@@ -15442,8 +15442,10 @@ export default function JobDoxPortal() {
         const companyName = co.name || "";
         const toSlug = (str) => (str||"").toLowerCase().replace(/[^a-z0-9\s-]/g,"").replace(/\s+/g,"-").trim();
         const companySlug = toSlug(companyName);
+        console.log('[YardSign] companyName:', companyName, '| companySlug:', companySlug);
         if (companySlug) {
           const wts = (project.worktypes || []).filter(w => w.status !== "off").map(w => w.type);
+          console.log('[YardSign] raw worktypes:', project.worktypes, '| filtered wts:', wts);
           const parseAddress = (addr) => {
             if (!addr) return { city:"", state:"", stateAbbr:"", zipCode:"" };
             const parts = addr.split(",").map(p=>p.trim());
@@ -15455,9 +15457,11 @@ export default function JobDoxPortal() {
             return { city, state: STATE_NAMES[stateAbbr.toUpperCase()] || stateAbbr, stateAbbr: stateAbbr.toUpperCase(), zipCode };
           };
           const parsed = parseAddress(project.address);
+          console.log('[YardSign] address:', project.address, '| parsed:', parsed);
           const neighborhood = parsed.city;
           for (const wt of wts) {
             const slug = toSlug(`${wt} ${neighborhood} ${parsed.city} ${parsed.stateAbbr}`);
+            console.log('[YardSign] wt:', wt, '| slug:', slug);
             if (!slug) continue;
             try {
               const q = query(collection(db, "yard_signs"),
@@ -15465,6 +15469,7 @@ export default function JobDoxPortal() {
                 where("jobId","==",project.id),
                 where("workTypes","array-contains",wt));
               const snap = await getDocs(q);
+              console.log('[YardSign] idempotency snap empty?', snap.empty);
               if (!snap.empty) continue;
               console.log("[FS-DIAG] addDoc →", "yard_signs");
               await addDoc(collection(db, "yard_signs"), {
@@ -15483,6 +15488,7 @@ export default function JobDoxPortal() {
                 slug,
                 companyWebsite: co.website || "",
               });
+              console.log('[YardSign] SUCCESS — yard sign written for wt:', wt);
             } catch (e) { console.error("[MarketDox] Yard sign write failed:", e); }
           }
         }
