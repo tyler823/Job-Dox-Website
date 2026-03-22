@@ -17,7 +17,7 @@ exports.handler = async (event) => {
       companyId, companyName, companySlug,
       workTypes, city, neighborhood,
       state, stateAbbr, zipCode,
-      jobId, slug, companyWebsite
+      jobId, slug, companyWebsite, officeWebsite
     } = body;
 
     // Validate required fields
@@ -61,6 +61,7 @@ exports.handler = async (event) => {
       slug,
       published: true,
       companyWebsite: companyWebsite || "",
+      officeWebsite: officeWebsite || "",
       completedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
