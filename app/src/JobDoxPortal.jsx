@@ -10,6 +10,7 @@ import { NotesInsightCard, StatusSuggestionCard, TaskGapCard, ScopePatternCard, 
 import EstimateDoxTab, { loadProjEstimates } from "./EstimateDox.jsx";
 import { TimeOffPanel } from "./JobDoxTimeOff.jsx";
 import DispatchPanel from "./JobDoxDispatch.jsx";
+import JobDoxComms from './JobDoxComms';
 import html2canvas from "html2canvas";
 import { Capacitor } from "@capacitor/core";
 
@@ -564,6 +565,7 @@ const Ic = {
   notify:  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>,
   scope:   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 3H4v10c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.11 0 2-.89 2-2V5c0-1.11-.89-2-2-2zm0 5h-2V5h2v3zM4 19h16v2H4z"/></svg>,
   msg:     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>,
+  hash:    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>,
   chart:   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zM16.2 13h2.8v6h-2.8v-6z"/></svg>,
   contact: <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20 0H4v2h16V0zm0 4H4v2h16V4zM4 24h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2zm8-11.99c1.66 0 3 1.34 3 3C15 16.66 13.66 18 12 18c-1.66 0-3-1.34-3-3 0-1.66 1.34-2.99 3-2.99zM6 20c0-2 4-3.1 6-3.1s6 1.1 6 3.1H6z"/></svg>,
   upload:  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>,
@@ -8752,6 +8754,7 @@ function ProjectReportTab({ proj, dailyNotes=[], mediaFolders=[], mediaUploads=[
 
 const PROJ_TABS = [
   {key:"overview",     label:"Overview",       icon:Ic.chart   },
+  {key:"chat",         label:"Chat",           icon:Ic.hash    },
   {key:"drydox",       label:"DryDox",         icon:Ic.drydox  },
   {key:"contentsdox",  label:"ContentsDox",    icon:Ic.contents},
   {key:"estimatedox",  label:"EstimateDox",    icon:Ic.estimate},
@@ -8983,6 +8986,7 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
         ))}
       </div>
       {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff} worktypes={worktypes} setWorktypes={setWorktypes} currentUser={currentUser} assignedStaff={assignedStaff} setAssignedStaff={setAssignedStaff} canArchive={canArchive} onArchive={onArchive} onBack={onBack} featureFlags={featureFlags} companyId={companyId}/>}
+      {tab==="chat"           && <div style={{height:"calc(100vh - 140px)"}}><JobDoxComms companyId={companyId} currentUser={{ id: currentMemberId, name: currentUser?.name||"User", permissionLevel: permissionLevel }} staff={globalStaff} projects={[]} initialProjectId={proj.id}/></div>}
       {tab==="drydox"         && <DryDoxModule    proj={proj} priceLists={priceLists} onPushToScope={handlePushToScope} brand={resolveBrand(proj?.officeId, offices, coInfo)} companyId={companyId}/>}
       {tab==="contentsdox"    && <ContentsDox proj={proj} companyId={companyId} db={db} onDocGenerated={()=>setDocRefreshKey(k=>k+1)}/>}
       {tab==="estimatedox"    && <EstimateDoxTab proj={proj} companyId={companyId}/>}
@@ -15826,6 +15830,10 @@ export default function JobDoxPortal() {
           onClick={()=>setShowMsgCenter(true)}>
           {Ic.msg}
         </button>
+        <button className={`rail-btn${page==="comms"?" active":""}`} data-tip="Comms"
+          onClick={()=>navTo("comms")}>
+          {Ic.hash}
+        </button>
         {featureFlags.reports && (
           <button className={`rail-btn${page==="reports"?" active":""}`} data-tip="Reports" onClick={()=>navTo("reports")} style={{position:'relative'}}>
             {Ic.chart}
@@ -16130,6 +16138,13 @@ export default function JobDoxPortal() {
             projectShifts={projectShifts}
             permissionLevel={permission}
             companyId={companyId}
+          />
+        ) : page==="comms" ? (
+          <JobDoxComms
+            companyId={companyId}
+            currentUser={{ id: currentMember?.id||"", name: currentUser?.name||"User", permissionLevel: permission }}
+            staff={globalStaff}
+            projects={projects}
           />
         ) : page==="alltasks" ? (
           <CompanyTasksPage
