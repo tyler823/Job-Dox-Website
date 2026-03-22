@@ -13289,6 +13289,7 @@ function VendorManagerTab({ projects=[], globalStaff=[], companyId="" }) {
 }
 
 function FeatureRequestForm({ userName, companyName }) {
+  if (userName === undefined) return null;
   const [request, setRequest] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent]       = useState(false);
@@ -14740,7 +14741,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
           </div>
         ))}
         {tab==="roadmap" && (
-          <FeatureRequestForm userName={currentMemberName} companyName={coInfo.name} />
+          <FeatureRequestForm userName={currentMemberName} companyName={coInfo?.name || ''} />
         )}
         {tab==="migration" && permLevel >= 10 && (
           <ClassicMigrationTab companyId={companyId} currentMemberId={currentMemberId} />
