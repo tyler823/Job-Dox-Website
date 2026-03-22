@@ -2,7 +2,11 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { db } from "./firebase.js";
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
          doc, setDoc, getDoc, limit as fsLimit } from "firebase/firestore";
-import { Hash, Paperclip, Send, X, ChevronDown } from "lucide-react";
+/* ── Inline SVG Icons ────────────────────────────────────────────── */
+const IcHash = ({size=14,...p})=><svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>;
+const IcPaperclip = ({size=14,...p})=><svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>;
+const IcSend = ({size=14,...p})=><svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>;
+const IcX = ({size=14,...p})=><svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
 const AVATAR_COLORS = [
@@ -304,7 +308,7 @@ export default function JobDoxComms({ companyId, currentUser, staff=[], projects
               <div key={ch.id}
                 className={`comms-ch${activeChannel.id===ch.id && activeChannel.type==="company"?" active":""}`}
                 onClick={()=>switchChannel(ch)}>
-                <Hash size={13} style={{opacity:.6,flexShrink:0}}/> {ch.name.replace("#","")}
+                <IcHash size={13} style={{opacity:.6,flexShrink:0}}/> {ch.name.replace("#","")}
                 {unread[`company_${ch.id}`] && <span className="comms-ch-dot"/>}
               </div>
             ))}
@@ -313,7 +317,7 @@ export default function JobDoxComms({ companyId, currentUser, staff=[], projects
               <div key={ch.id}
                 className={`comms-ch${activeChannel.id===ch.id && activeChannel.type==="project"?" active":""}`}
                 onClick={()=>switchChannel(ch)}>
-                <Hash size={13} style={{opacity:.6,flexShrink:0}}/>
+                <IcHash size={13} style={{opacity:.6,flexShrink:0}}/>
                 <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ch.name}</span>
                 {unread[`project_${ch.id}`] && <span className="comms-ch-dot"/>}
               </div>
@@ -329,7 +333,7 @@ export default function JobDoxComms({ companyId, currentUser, staff=[], projects
       <div className="comms-main">
         <div className="comms-main-hdr">
           <div className="comms-main-hdr-name">
-            <Hash size={14}/> {channelInfo.type === "company" ? channelInfo.name.replace("#","") : channelInfo.name}
+            <IcHash size={14}/> {channelInfo.type === "company" ? channelInfo.name.replace("#","") : channelInfo.name}
           </div>
           <div className="comms-main-hdr-desc">{channelInfo.desc}</div>
         </div>
@@ -368,7 +372,7 @@ export default function JobDoxComms({ companyId, currentUser, staff=[], projects
         {photo && (
           <div className="comms-preview">
             <img src={photo.preview} alt="preview"/>
-            <button className="btn btn-ghost btn-xs" onClick={()=>setPhoto(null)} style={{padding:2}}><X size={14}/></button>
+            <button className="btn btn-ghost btn-xs" onClick={()=>setPhoto(null)} style={{padding:2}}><IcX size={14}/></button>
           </div>
         )}
 
@@ -387,7 +391,7 @@ export default function JobDoxComms({ companyId, currentUser, staff=[], projects
             )}
             <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleFileSelect}/>
             <button className="btn btn-ghost btn-xs" onClick={()=>fileRef.current?.click()} style={{padding:4,color:"var(--t3)"}}>
-              <Paperclip size={16}/>
+              <IcPaperclip size={16}/>
             </button>
             <textarea
               ref={inputRef}
@@ -400,7 +404,7 @@ export default function JobDoxComms({ companyId, currentUser, staff=[], projects
               style={{minHeight:20,maxHeight:120}}
             />
             <button className="btn btn-primary btn-xs" onClick={handleSend} style={{padding:"4px 10px"}}>
-              <Send size={14}/>
+              <IcSend size={14}/>
             </button>
           </div>
         ) : (
