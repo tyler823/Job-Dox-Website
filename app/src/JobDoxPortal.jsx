@@ -15436,60 +15436,57 @@ export default function JobDoxPortal() {
         status:     newStatus,
         updatedAt:  serverTimestamp(),
       });
-      // If Closed Won, publish MarketDox yard signs
+      // If Closed Won, publish MarketDox yard signs via Netlify function
       if (closeType === 'won') {
         const co = coInfo || {};
         const companyName = co.name || "";
         const toSlug = (str) => (str||"").toLowerCase().replace(/[^a-z0-9\s-]/g,"").replace(/\s+/g,"-").trim();
         const companySlug = toSlug(companyName);
-        console.log('[YardSign] companyName:', companyName, '| companySlug:', companySlug);
         if (companySlug) {
           const wts = (project.worktypes || []).filter(w => w.status !== "off").map(w => w.type);
-          console.log('[YardSign] raw worktypes:', project.worktypes, '| filtered wts:', wts);
           const parseAddress = (addr) => {
             if (!addr) return { city:"", state:"", stateAbbr:"", zipCode:"" };
-            const parts = addr.split(",").map(p=>p.trim());
+            const parts = addr.split(",").map(p => p.trim());
             const city = parts[1] || "";
             const stZip = (parts[2] || "").trim().split(/\s+/);
             const stateAbbr = stZip[0] || "";
             const zipCode = stZip[1] || "";
-            const STATE_NAMES = {AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"North Carolina",ND:"North Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"South Carolina",SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",WA:"Washington",WV:"West Virginia",WI:"Wisconsin",WY:"Wyoming"};
+            const STATE_NAMES = {AK:"Alaska",AL:"Alabama",AR:"Arkansas",AZ:"Arizona",CA:"California",CO:"Colorado",CT:"Connecticut",DC:"District of Columbia",DE:"Delaware",FL:"Florida",GA:"Georgia",HI:"Hawaii",IA:"Iowa",ID:"Idaho",IL:"Illinois",IN:"Indiana",KS:"Kansas",KY:"Kentucky",LA:"Louisiana",MA:"Massachusetts",MD:"Maryland",ME:"Maine",MI:"Michigan",MN:"Minnesota",MO:"Missouri",MS:"Mississippi",MT:"Montana",NC:"North Carolina",ND:"North Dakota",NE:"Nebraska",NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NV:"Nevada",NY:"New York",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"South Carolina",SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VA:"Virginia",VT:"Vermont",WA:"Washington",WI:"Wisconsin",WV:"West Virginia",WY:"Wyoming"};
             return { city, state: STATE_NAMES[stateAbbr.toUpperCase()] || stateAbbr, stateAbbr: stateAbbr.toUpperCase(), zipCode };
           };
           const parsed = parseAddress(project.address);
-          console.log('[YardSign] address:', project.address, '| parsed:', parsed);
           const neighborhood = parsed.city;
           for (const wt of wts) {
             const slug = toSlug(`${wt} ${neighborhood} ${parsed.city} ${parsed.stateAbbr}`);
-            console.log('[YardSign] wt:', wt, '| slug:', slug);
             if (!slug) continue;
             try {
-              const q = query(collection(db, "yard_signs"),
-                where("companyId","==",companyId),
-                where("jobId","==",project.id),
-                where("workTypes","array-contains",wt));
-              const snap = await getDocs(q);
-              console.log('[YardSign] idempotency snap empty?', snap.empty);
-              if (!snap.empty) continue;
-              console.log("[FS-DIAG] addDoc →", "yard_signs");
-              await addDoc(collection(db, "yard_signs"), {
-                companyId,
-                companyName,
-                companySlug,
-                workTypes: [wt],
-                city: parsed.city,
-                neighborhood,
-                state: parsed.state,
-                stateAbbr: parsed.stateAbbr,
-                zipCode: parsed.zipCode,
-                completedAt: serverTimestamp(),
-                jobId: project.id,
-                published: true,
-                slug,
-                companyWebsite: co.website || "",
+              const response = await fetch("/.netlify/functions/publish-yard-sign", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  companyId,
+                  companyName,
+                  companySlug,
+                  workTypes: [wt],
+                  city: parsed.city,
+                  neighborhood,
+                  state: parsed.state,
+                  stateAbbr: parsed.stateAbbr,
+                  zipCode: parsed.zipCode,
+                  jobId: project.id,
+                  slug,
+                  companyWebsite: co.website || "",
+                }),
               });
-              console.log('[YardSign] SUCCESS — yard sign written for wt:', wt);
-            } catch (e) { console.error("[MarketDox] Yard sign write failed:", e); }
+              const result = await response.json();
+              if (!response.ok) {
+                console.error("[MarketDox] Yard sign function error:", result);
+              } else {
+                console.log("[MarketDox] Yard sign result:", result);
+              }
+            } catch (e) {
+              console.error("[MarketDox] Yard sign fetch failed:", e);
+            }
           }
         }
       }
