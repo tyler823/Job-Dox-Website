@@ -625,9 +625,11 @@ body {
 <template id="tpl-portal">
   <header class="header">
     <div class="header-brand">
-      <span class="logo-dot"></span>
+      <span class="logo-dot" id="portal-logo-dot"></span>
+      <img id="portal-brand-logo" alt="" style="display:none; height:32px; max-width:120px; object-fit:contain;" />
       <span id="portal-company-name">Project Portal</span>
     </div>
+    <div id="portal-brand-contact" style="display:none; font-size:11px; color:var(--t3); margin-left:auto; margin-right:16px; text-align:right;"></div>
     <button class="sign-out-btn" id="btn-signout">Sign Out</button>
   </header>
 
@@ -838,10 +840,30 @@ body {
     portalData = data;
     renderTemplate("tpl-portal");
 
-    // Company name
-    const companyName = data.companyName || "Project Portal";
+    // Company / office brand
+    const companyName = data.brand?.name || data.companyName || "Project Portal";
     $("#portal-company-name").textContent = companyName;
     document.title = companyName + " — Client Portal";
+
+    // Brand logo
+    const brandLogo = data.brand?.logo || "";
+    const logoDot = $("#portal-logo-dot");
+    const logoImg = $("#portal-brand-logo");
+    if (brandLogo && logoImg) {
+      logoImg.src = brandLogo;
+      logoImg.style.display = "inline-block";
+      if (logoDot) logoDot.style.display = "none";
+    }
+
+    // Brand contact info in header
+    const contactParts = [];
+    if (data.brand?.phone) contactParts.push(esc(data.brand.phone));
+    if (data.brand?.email) contactParts.push('<a href="mailto:' + esc(data.brand.email) + '" style="color:var(--blue);text-decoration:none;">' + esc(data.brand.email) + '</a>');
+    const brandContactEl = $("#portal-brand-contact");
+    if (contactParts.length > 0 && brandContactEl) {
+      brandContactEl.innerHTML = contactParts.join(" &middot; ");
+      brandContactEl.style.display = "block";
+    }
 
     // Sign out
     $("#btn-signout").addEventListener("click", () => auth.signOut());

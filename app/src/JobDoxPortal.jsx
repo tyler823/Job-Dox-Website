@@ -637,6 +637,22 @@ function loadOfficesLS()  { try { return JSON.parse(localStorage.getItem(LS_OFFI
 function saveOfficesToLS(offices) { try { localStorage.setItem(LS_OFFICES_KEY, JSON.stringify(offices)); } catch {} }
 
 const DEFAULT_CO_INFO = { name:"", address:"", city:"", state:"", zip:"", phone:"", email:"", website:"", logo:"", industry:"Restoration" };
+
+/* ── Per-office brand resolver ─────────────────────────────────────────────
+   Returns a merged brand object: office values win when set, coInfo is the fallback. */
+function resolveBrand(officeId, offices, coInfo) {
+  const office = (offices || []).find(o => o.id === officeId) || {};
+  return {
+    name:    office.displayName?.trim() || coInfo?.name    || "",
+    phone:   office.phone?.trim()       || coInfo?.phone   || "",
+    email:   office.email?.trim()       || coInfo?.email   || "",
+    website: office.website?.trim()     || coInfo?.website  || "",
+    logo:    office.logo?.trim()        || coInfo?.logo    || "",
+    address: [office.street, office.city, office.state, office.zip]
+             .filter(Boolean).join(", ")
+             || coInfo?.address || "",
+  };
+}
 const INDUSTRY_OPTIONS = ["Restoration","Roofing","General Contractor","Plumbing","HVAC","Electrical","Landscaping","Construction","Other"];
 function loadCoInfo() {
   try { return JSON.parse(localStorage.getItem(LS_CO_KEY)) || DEFAULT_CO_INFO; } catch { return DEFAULT_CO_INFO; }
@@ -5387,9 +5403,8 @@ function ShiftsTab({ projId, externalShifts=[], canViewRates, canViewPayRates=fa
 
 
 
-function ScopeTab({ proj, scopeItems: items=[], setScopeItems: setItems=()=>{}, contacts=[], onDocGenerated, projectShifts={} }) {
+function ScopeTab({ proj, scopeItems: items=[], setScopeItems: setItems=()=>{}, contacts=[], onDocGenerated, projectShifts={}, offices=[], coInfo={} }) {
   const billing   = loadBilling();
-  const co        = loadCoInfo();
 
   // Invoice adjustments state
   const [summary,      setSummary]    = useState(proj?.notes || "");
@@ -5468,7 +5483,7 @@ function ScopeTab({ proj, scopeItems: items=[], setScopeItems: setItems=()=>{}, 
     const b = loadBilling();
     const num = b.nextInvoiceNum || 1001;
     saveBilling({ ...b, nextInvoiceNum: num+1 });
-    const co = loadCoInfo();
+    const co = resolveBrand(proj?.officeId, offices, coInfo);
     const budgetCat = projBudget.find(c => c.id === budgetCatId) || null;
     const inv = {
       id:          `inv-${Date.now()}`,
@@ -6363,7 +6378,7 @@ function DocEmailModal({ docs=[], contacts=[], proj, assignedStaff=[], onSend, o
 /* ══════════════════════════════════════════════════════════════════
    PROJECT DOCUMENTS TAB  — shows invoices + signed docs, email sending
 ══════════════════════════════════════════════════════════════════ */
-function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate, docRefreshKey=0, featureFlags=DEFAULT_FEATURE_FLAGS }) {
+function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate, docRefreshKey=0, featureFlags=DEFAULT_FEATURE_FLAGS, offices=[] }) {
   const [docs,      setDocs]      = useState(() => loadProjDocs(proj?.id||""));
   const [emailModal,setEmailModal]= useState(false);
   const [selInv,    setSelInv]    = useState(null);   // invoice preview
@@ -6494,7 +6509,7 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
         </div>
         {showSignableDocs && (
           <div style={{marginBottom:8}}>
-            <DocumentsTab proj={proj} companyId={_globalCompanyId} embedded />
+            <DocumentsTab proj={proj} companyId={_globalCompanyId} embedded offices={offices}/>
           </div>
         )}
       </div>
@@ -8724,16 +8739,16 @@ function ProjectDetail({ proj, onBack, attrDefs, initialTab, clockInState, onClo
         ))}
       </div>
       {tab==="overview"       && <OverviewTab    proj={proj} attrDefs={attrDefs} dailyNotes={dailyNotes} setDailyNotes={setDailyNotes} emailSchedule={emailSchedule} setEmailSchedule={setEmailSched} clientPortal={clientPortal} setClientPortal={setClientPortal} globalStaff={globalStaff} worktypes={worktypes} setWorktypes={setWorktypes} currentUser={currentUser} assignedStaff={assignedStaff} setAssignedStaff={setAssignedStaff} canArchive={canArchive} onArchive={onArchive} onBack={onBack} featureFlags={featureFlags} companyId={companyId}/>}
-      {tab==="drydox"         && <DryDoxModule    proj={proj} priceLists={priceLists} onPushToScope={handlePushToScope} companyLogo={coInfo?.logo} companyId={companyId}/>}
+      {tab==="drydox"         && <DryDoxModule    proj={proj} priceLists={priceLists} onPushToScope={handlePushToScope} brand={resolveBrand(proj?.officeId, offices, coInfo)} companyId={companyId}/>}
       {tab==="contentsdox"    && <ContentsDox proj={proj} companyId={companyId} db={db} onDocGenerated={()=>setDocRefreshKey(k=>k+1)}/>}
       {tab==="estimatedox"    && <EstimateDoxTab proj={proj} companyId={companyId}/>}
       {tab==="contacts"       && <ContactsTab contacts={contacts} setContacts={setContacts}/>}
       {tab==="media"          && <MediaTab       folders={mediaFolders} setFolders={setMediaFolders} uploads={mediaUploads} setUploads={setMediaUploads}/>}
-      {tab==="documents"      && <ProjectDocumentsPanel proj={proj} contacts={contacts} assignedStaff={assignedStaff} onNavigate={onNavigate} docRefreshKey={docRefreshKey} featureFlags={featureFlags}/>}
+      {tab==="documents"      && <ProjectDocumentsPanel proj={proj} contacts={contacts} assignedStaff={assignedStaff} onNavigate={onNavigate} docRefreshKey={docRefreshKey} featureFlags={featureFlags} offices={offices}/>}
       {tab==="tasks"          && <TasksTab projId={proj.id} projName={proj.name} initialTasks={proj.templateTasks||[]} globalStaff={globalStaff} companyId={companyId} phoneSettings={phoneSettings} currentMemberId={currentMemberId} isVendor={isVendor} currentUser={currentUser} workTypes={(worktypes||[]).filter(w=>w.status!=="off").map(w=>w.type||w)}/>}
       {tab==="finance"        && <FinancialTab proj={proj} companyId={companyId} laborCost={laborCost} invoices={loadProjInvoices(proj.id)} onInvoiceVoid={id=>{const all=loadAllInvoices().map(i=>i.id===id?{...i,status:"void"}:i);saveAllInvoices(all);}}/>}
       {tab==="shifts"         && <ShiftsTab projId={proj.id} externalShifts={myShifts} canViewRates={canViewRates}/>}
-      {tab==="scope"          && <ScopeTab proj={proj} scopeItems={scopeItems} setScopeItems={setScopeItems} contacts={contacts} onDocGenerated={()=>{ setDocRefreshKey(k=>k+1); }} projectShifts={projectShifts}/>}
+      {tab==="scope"          && <ScopeTab proj={proj} scopeItems={scopeItems} setScopeItems={setScopeItems} contacts={contacts} onDocGenerated={()=>{ setDocRefreshKey(k=>k+1); }} projectShifts={projectShifts} offices={offices} coInfo={coInfo}/>}
       {tab==="messages"       && <MessagesTab proj={proj} contacts={contacts} dailyNotes={dailyNotes} currentUser={currentUser} companyId={companyId} featureFlags={featureFlags}/>}
       {tab==="calls"          && <CallLogTab proj={proj} companyId={companyId} globalStaff={globalStaff} currentUser={currentUser} phoneSettings={phoneSettings}/>}
       {tab==="project-report" && <ProjectReportTab proj={proj} dailyNotes={dailyNotes} mediaFolders={mediaFolders} mediaUploads={mediaUploads} docs={projDocs}/>}
@@ -13462,7 +13477,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
   const [inviteForm, setInviteForm] = useState({ email:"", permission:3 });
 
   // ── Offices local state (mirrors Firestore via prop) ──
-  const officeBlank = { name:"", street:"", street2:"", city:"", state:"", zip:"", color:"#22d3ee", lat:null, lng:null, googleBusinessUrl:"" };
+  const officeBlank = { name:"", street:"", street2:"", city:"", state:"", zip:"", color:"#22d3ee", lat:null, lng:null, googleBusinessUrl:"", displayName:"", phone:"", email:"", website:"", logo:"" };
   const [officeForm, setOfficeForm] = useState(officeBlank);
   const [officeEditId, setOfficeEditId] = useState(null);
   const [showOfficeForm, setShowOfficeForm] = useState(false);
@@ -13470,6 +13485,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
   const [officeError, setOfficeError] = useState("");
   const [officeGeoStatus, setOfficeGeoStatus] = useState(null); // null | "pending" | "ok" | "fail"
   const fileRef = useRef();
+  const officeLogoRef = useRef();
   const permLevel = normPerm(currentPermission);
   const isAdmin = permLevel >= 10;
   const canManageOfficesLocal = permLevel >= 8;
@@ -13581,7 +13597,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     setOfficeGeoStatus(null);
   };
   const openEditOffice = o => {
-    setOfficeForm({ name:o.name||"", street:o.street||"", street2:o.street2||"", city:o.city||"", state:o.state||"", zip:o.zip||"", color:o.color||"#22d3ee", lat:o.lat ?? null, lng:o.lng ?? null, googleBusinessUrl:o.googleBusinessUrl||"" });
+    setOfficeForm({ name:o.name||"", street:o.street||"", street2:o.street2||"", city:o.city||"", state:o.state||"", zip:o.zip||"", color:o.color||"#22d3ee", lat:o.lat ?? null, lng:o.lng ?? null, googleBusinessUrl:o.googleBusinessUrl||"", displayName:o.displayName||"", phone:o.phone||"", email:o.email||"", website:o.website||"", logo:o.logo||"" });
     setOfficeEditId(o.id);
     setShowOfficeForm(true);
     setOfficeError("");
@@ -14229,6 +14245,69 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                     ))}
                     <input type="color" value={officeForm.color} onChange={e=>setOfficeForm(f=>({...f,color:e.target.value}))}
                       style={{width:22,height:22,border:"none",background:"none",cursor:"pointer",padding:0}}/>
+                  </div>
+                </div>
+
+                {/* ── Branding Overrides ── */}
+                <div style={{marginTop:6,marginBottom:14,padding:"14px 16px",background:"var(--s3)",borderRadius:9,border:"1px solid var(--br)"}}>
+                  <div style={{fontWeight:700,fontSize:12,color:"var(--t1)",marginBottom:12}}>Office Branding</div>
+
+                  <div style={{marginBottom:10}}>
+                    <label className="lbl">Brand Display Name</label>
+                    <input className="inp" value={officeForm.displayName||""} onChange={e=>setOfficeForm(f=>({...f,displayName:e.target.value}))}
+                      placeholder="e.g. Acme Restoration — Dallas"/>
+                    <div style={{fontSize:10,color:"var(--t3)",marginTop:3,lineHeight:1.5}}>
+                      Overrides company name on documents for this office. Leave blank to use company default.
+                    </div>
+                  </div>
+
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                    <div>
+                      <label className="lbl">Office Phone</label>
+                      <input className="inp" value={officeForm.phone||""} onChange={e=>setOfficeForm(f=>({...f,phone:e.target.value}))}
+                        placeholder="(555) 123-4567"/>
+                      <div style={{fontSize:10,color:"var(--t3)",marginTop:3,lineHeight:1.5}}>
+                        Shown on invoices and reports for this office.
+                      </div>
+                    </div>
+                    <div>
+                      <label className="lbl">Office Email</label>
+                      <input className="inp" value={officeForm.email||""} onChange={e=>setOfficeForm(f=>({...f,email:e.target.value}))}
+                        placeholder="dallas@example.com"/>
+                    </div>
+                  </div>
+
+                  <div style={{marginBottom:10}}>
+                    <label className="lbl">Office Website</label>
+                    <input className="inp" value={officeForm.website||""} onChange={e=>setOfficeForm(f=>({...f,website:e.target.value}))}
+                      placeholder="https://dallas.example.com"/>
+                  </div>
+
+                  {/* Office Logo Upload */}
+                  <div style={{marginBottom:4}}>
+                    <label className="lbl">Office Logo <span style={{color:"var(--t3)",fontWeight:400,textTransform:"none",letterSpacing:0}}>(overrides company logo on documents)</span></label>
+                    <div style={{display:"flex",alignItems:"center",gap:14,marginTop:6}}>
+                      <div style={{width:90,height:56,borderRadius:7,border:`1.5px dashed ${officeForm.logo?"var(--green)":"var(--br)"}`,background:"var(--s2)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
+                        {officeForm.logo
+                          ? <img src={officeForm.logo} alt="" style={{width:"100%",height:"100%",objectFit:"contain",padding:4}}/>
+                          : <div style={{fontSize:10,color:"var(--t3)",textAlign:"center",lineHeight:1.5}}>No logo</div>}
+                      </div>
+                      <div>
+                        <div style={{display:"flex",gap:7,marginBottom:6}}>
+                          <button type="button" className="btn btn-secondary btn-xs" onClick={()=>officeLogoRef.current?.click()}>Upload Logo</button>
+                          {officeForm.logo && <button type="button" className="btn btn-ghost btn-xs" style={{color:"var(--acc)"}} onClick={()=>setOfficeForm(f=>({...f,logo:""}))}>Remove</button>}
+                        </div>
+                        <input ref={officeLogoRef} type="file" accept="image/png,image/jpeg,image/svg+xml" style={{display:"none"}}
+                          onChange={e=>{
+                            const file=e.target.files[0]; if(!file) return;
+                            if(file.size>2*1024*1024){alert("Logo must be under 2 MB.");return;}
+                            const r=new FileReader();
+                            r.onload=ev=>setOfficeForm(f=>({...f,logo:ev.target.result}));
+                            r.readAsDataURL(file); e.target.value="";
+                          }}/>
+                        <div style={{fontSize:10,color:"var(--t3)"}}>PNG, JPG or SVG · Max 2 MB</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
