@@ -181,7 +181,7 @@ exports.handler = async (event) => {
 
       if (!response.ok) {
         const errBody = await response.text();
-        console.error('Anthropic API error (copilot):', response.status, errBody);
+        console.error('Anthropic API error (cortex):', response.status, errBody);
         return {
           statusCode: 502,
           headers,
@@ -199,7 +199,7 @@ exports.handler = async (event) => {
       };
 
     } catch (err) {
-      console.error('Fetch error (copilot):', err);
+      console.error('Fetch error (cortex):', err);
       return {
         statusCode: 502,
         headers,
