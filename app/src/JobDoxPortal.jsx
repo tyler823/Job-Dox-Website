@@ -658,7 +658,6 @@ function loadCoInfo() {
   try { return JSON.parse(localStorage.getItem(LS_CO_KEY)) || DEFAULT_CO_INFO; } catch { return DEFAULT_CO_INFO; }
 }
 function saveCoInfo(info) {
-  localStorage.setItem(LS_CO_KEY, JSON.stringify(info));
   if (_globalCompanyId) fsSaveCompanySettings(_globalCompanyId, "companyInfo", info);
 }
 
@@ -14709,7 +14708,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
           </div>
         ))}
         {tab==="roadmap" && (
-          <FeatureRequestForm userName={currentMemberName} companyName={loadCoInfo().name} />
+          <FeatureRequestForm userName={currentMemberName} companyName={coInfo.name} />
         )}
         {tab==="migration" && permLevel >= 10 && (
           <ClassicMigrationTab companyId={companyId} currentMemberId={currentMemberId} />
@@ -14752,7 +14751,7 @@ export default function JobDoxPortal() {
   const [authError,          setAuthError]          = useState(null);  // Firebase auth bridge error
   const [cortexAlert,        setCortexAlert]        = useState(null);  // Cortex Coins usage alert
   const [cortexAlertDismissed, setCortexAlertDismissed] = useState(false);
-  const [coInfo,               setCoInfo]              = useState(loadCoInfo);
+  const [coInfo,               setCoInfo]              = useState(DEFAULT_CO_INFO);
   const [featureFlags,         setFeatureFlags]        = useState(DEFAULT_FEATURE_FLAGS);
 
   // ── Support Mode (@job-dox.com staff) ──
@@ -15009,7 +15008,7 @@ export default function JobDoxPortal() {
         try { localStorage.setItem("jd_current_user", JSON.stringify({ permissionLevel: 10, memberId: member.id })); } catch {}
 
         // Pre-populate company info from Memberstack if not already saved
-        const existingCo = loadCoInfo();
+        const existingCo = await fsLoadCompanySettings(cid, "companyInfo") || DEFAULT_CO_INFO;
         if (!existingCo.name && member.customFields?.["company-name"]) {
           saveCoInfo({ ...existingCo, name: member.customFields["company-name"] });
         }
@@ -15828,7 +15827,7 @@ export default function JobDoxPortal() {
                   },"image/png");
                 } catch(e){ /* screenshot best-effort */ }
                 const uName = currentUser.name || "User";
-                const cName = loadCoInfo().name || "Company";
+                const cName = coInfo.name || "Company";
                 const subject = encodeURIComponent(`Support Request from ${uName} with ${cName}`);
                 window.location.href = `mailto:info@job-dox.com?subject=${subject}`;
               }}>
