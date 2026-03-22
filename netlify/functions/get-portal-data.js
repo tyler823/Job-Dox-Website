@@ -80,16 +80,52 @@ exports.handler = async (event) => {
       };
     }
 
-    // ── 3. Load company name ──
+    // ── 3. Load company name + logo (top-level doc, then settings fallback) ──
     let companyName = "";
+    let companyLogo = "";
+    let companyPhone = "";
+    let companyEmail = "";
+    let companyAddress = "";
     try {
       const coSnap = await db.doc(`companies/${companyId}`).get();
       if (coSnap.exists) {
         const coData = coSnap.data();
         companyName = coData.name || coData.companyName || "";
+        companyLogo = coData.logo || "";
+      }
+      // Fallback to settings/companyInfo if top-level fields are empty
+      if (!companyName || !companyLogo) {
+        const ciSnap = await db.doc(`companies/${companyId}/settings/companyInfo`).get();
+        if (ciSnap.exists) {
+          const ci = ciSnap.data()?.data || ciSnap.data() || {};
+          if (!companyName) companyName = ci.name || "";
+          if (!companyLogo) companyLogo = ci.logo || "";
+          companyPhone = ci.phone || "";
+          companyEmail = ci.email || "";
+          companyAddress = [ci.address, ci.city, ci.state, ci.zip].filter(Boolean).join(", ");
+        }
       }
     } catch (_) {
       // Non-fatal — company doc may not exist
+    }
+
+    // ── 3b. Load office branding (overrides company defaults) ──
+    let brand = { name: companyName, logo: companyLogo, phone: companyPhone, email: companyEmail, address: companyAddress };
+    try {
+      const officeId = project.officeId;
+      if (officeId) {
+        const offSnap = await db.doc(`companies/${companyId}/offices/${officeId}`).get();
+        if (offSnap.exists) {
+          const o = offSnap.data();
+          brand.name    = (o.displayName || "").trim() || brand.name;
+          brand.logo    = (o.logo || "").trim()        || brand.logo;
+          brand.phone   = (o.phone || "").trim()       || brand.phone;
+          brand.email   = (o.email || "").trim()       || brand.email;
+          brand.address = [o.street, o.city, o.state, o.zip].filter(Boolean).join(", ") || brand.address;
+        }
+      }
+    } catch (_) {
+      // Non-fatal — office doc may not exist
     }
 
     // ── 4. Load daily notes (only visibleToClient) ──
@@ -170,6 +206,7 @@ exports.handler = async (event) => {
         project: safeProject,
         companyName,
         companyContact,
+        brand,
         notes,
         photos,
         signingRequests,

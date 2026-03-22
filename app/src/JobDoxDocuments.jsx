@@ -131,6 +131,21 @@ const FIELD_ICONS = { signature: Di.pen, initials: Di.initials, textInput: Di.te
 const FIELD_COLORS = { signature: "var(--acc)", initials: "var(--blue)", textInput: "var(--green)", date: "var(--purple)", checkbox: "var(--amber)" };
 const FIELD_DEFAULTS = { signature: { w: .36, h: .075 }, initials: { w: .15, h: .075 }, textInput: { w: .35, h: .04 }, date: { w: .2, h: .04 }, checkbox: { w: .025, h: .03 } };
 
+// ─── Per-office brand resolver (mirrors JobDoxPortal.jsx resolveBrand) ────────
+function resolveBrand(officeId, offices, coInfo) {
+  const office = (offices || []).find(o => o.id === officeId) || {};
+  return {
+    name:    office.displayName?.trim() || coInfo?.name    || "",
+    phone:   office.phone?.trim()       || coInfo?.phone   || "",
+    email:   office.email?.trim()       || coInfo?.email   || "",
+    website: office.website?.trim()     || coInfo?.website  || "",
+    logo:    office.logo?.trim()        || coInfo?.logo    || "",
+    address: [office.street, office.city, office.state, office.zip]
+             .filter(Boolean).join(", ")
+             || coInfo?.address || "",
+  };
+}
+
 // ─── PART 5: Data Mapping Keys ───────────────────────────────────────────────
 const DATA_KEYS = [
   { key: "project.name",           label: "Project Name" },
@@ -142,11 +157,16 @@ const DATA_KEYS = [
   { key: "project.workType",       label: "Work Type" },
   { key: "project.startDate",      label: "Project Start Date" },
   { key: "company.name",           label: "Company Name" },
+  { key: "office.name",            label: "Office / Brand Name" },
+  { key: "office.phone",           label: "Office Phone" },
+  { key: "office.email",           label: "Office Email" },
+  { key: "office.website",         label: "Office Website" },
+  { key: "office.address",         label: "Office Address" },
   { key: "date.today",             label: "Today's Date" },
   { key: "custom",                 label: "Custom (manual)" },
 ];
 
-function resolveDataKey(key, proj, co) {
+function resolveDataKey(key, proj, co, offices) {
   if (!key || key === "custom") return "";
   const p = proj || {};
   const c = co || {};
@@ -159,7 +179,12 @@ function resolveDataKey(key, proj, co) {
     case "project.insuranceClaim": return p.claim || p.claimNumber || "";
     case "project.workType":       return Array.isArray(p.worktypes) ? p.worktypes.map(w => w.type || w).join(", ") : (p.type || "");
     case "project.startDate":      return p.startDate || "";
-    case "company.name":           return c.name || "";
+    case "company.name":           return resolveBrand(p.officeId, offices, c).name;
+    case "office.name":            return resolveBrand(p.officeId, offices, c).name;
+    case "office.phone":           return resolveBrand(p.officeId, offices, c).phone;
+    case "office.email":           return resolveBrand(p.officeId, offices, c).email;
+    case "office.website":         return resolveBrand(p.officeId, offices, c).website;
+    case "office.address":         return resolveBrand(p.officeId, offices, c).address;
     case "date.today":             return new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
     default: return "";
   }
@@ -748,7 +773,7 @@ function TemplateBuilderModal({ existing, companyId, onSave, onClose }) {
 // Option A: Use a Template
 // Option B: Upload PDF Directly
 // ─────────────────────────────────────────────────────────────────────────────
-function AddDocumentModal({ proj, companyId, onSave, onClose }) {
+function AddDocumentModal({ proj, companyId, onSave, onClose, offices }) {
   const [step, setStep] = useState("choose"); // choose | templateList | compose | upload | uploadFields
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -790,7 +815,7 @@ function AddDocumentModal({ proj, companyId, onSave, onClose }) {
       const fields = (tmpl.fields || []).map(f => {
         const field = { ...f, fieldId: f.fieldId || uid() };
         if (f.dataKey && f.dataKey !== "custom") {
-          field.prefillValue = resolveDataKey(f.dataKey, proj, co);
+          field.prefillValue = resolveDataKey(f.dataKey, proj, co, offices);
         }
         return field;
       });
@@ -1449,7 +1474,7 @@ export function PdfQuickSignModal({ pdfData, docName = "Document", signerName = 
 // DOCUMENTS TAB — PART 4 — main export for project documents panel
 // Shows documents with status badges, send/view/download actions
 // ─────────────────────────────────────────────────────────────────────────────
-export function DocumentsTab({ proj, companyId, embedded }) {
+export function DocumentsTab({ proj, companyId, embedded, offices }) {
   const cid = companyId || _docsCompanyId;
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1519,7 +1544,7 @@ export function DocumentsTab({ proj, companyId, embedded }) {
 
   return (
     <div className={embedded ? "" : "scroll"}>
-      {showAdd && <AddDocumentModal proj={proj} companyId={cid} onSave={() => reload()} onClose={() => { setShowAdd(false); reload(); }} />}
+      {showAdd && <AddDocumentModal proj={proj} companyId={cid} offices={offices} onSave={() => reload()} onClose={() => { setShowAdd(false); reload(); }} />}
       {preview && <PreviewModal docData={preview} onClose={() => setPreview(null)} />}
       {sendModal && <SendSignatureModal docData={sendModal} companyId={cid} proj={proj} onClose={() => { setSendModal(null); reload(); }} />}
 

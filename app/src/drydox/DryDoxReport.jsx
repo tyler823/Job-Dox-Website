@@ -159,16 +159,22 @@ function ReportPreview({
     <div className="dd-report-preview" id="drydox-report-content">
       {/* Header with logo */}
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16, paddingBottom: 12, borderBottom: "3px solid #e43531" }}>
-        {companyLogo ? (
-          <img src={companyLogo} alt="Company Logo" style={{ height: 48, objectFit: "contain" }} />
+        {_logo ? (
+          <img src={_logo} alt="Company Logo" style={{ height: 48, objectFit: "contain" }} />
         ) : (
           <div style={{ width: 48, height: 48, borderRadius: 10, background: "#e43531", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 16, fontFamily: "monospace" }}>JD</div>
         )}
         <div>
+          {brand?.name && <div style={{ fontSize: 14, fontWeight: 700, color: "#222" }}>{brand.name}</div>}
           <div style={{ fontSize: 18, fontWeight: 800 }}>Drying Report</div>
           <div style={{ fontSize: 11, color: "#666" }}>
             {project?.name || "Project"} · {project?.address || ""} · Generated {new Date().toLocaleDateString()}
           </div>
+          {(brand?.phone || brand?.email) && (
+            <div style={{ fontSize: 10, color: "#888", marginTop: 2 }}>
+              {[brand.phone, brand.email].filter(Boolean).join(" · ")}
+            </div>
+          )}
         </div>
       </div>
 
@@ -364,10 +370,11 @@ function ReportPreview({
 
 // ── Main Report Tab ──
 export default function DryDoxReport({
-  project, companyLogo, rooms, dryingLogs, moisturePoints,
+  project, companyLogo, brand, rooms, dryingLogs, moisturePoints,
   equipmentPlacements, dryingComplete, floors,
   onSaveDocument,
 }) {
+  const _logo = brand?.logo || companyLogo;
   const [generating, setGenerating] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
   const reportRef = useRef(null);

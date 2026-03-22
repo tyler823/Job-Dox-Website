@@ -93,7 +93,7 @@ function injectCSS() {
 // ══════════════════════════════════════════════════════════════════
 //  MAIN DRYDOX COMPONENT
 // ══════════════════════════════════════════════════════════════════
-export default function DryDoxTab({ proj, priceLists = [], onPushToScope, companyLogo, inventory: externalInventory = [], companyId="" }) {
+export default function DryDoxTab({ proj, priceLists = [], onPushToScope, companyLogo, brand, inventory: externalInventory = [], companyId="" }) {
   useEffect(() => { if (companyId) _dryDoxCompanyId = companyId; }, [companyId]);
   // Inject styles
   useEffect(() => { injectCSS(); }, []);
@@ -306,6 +306,7 @@ export default function DryDoxTab({ proj, priceLists = [], onPushToScope, compan
             <DryDoxReport
               project={proj}
               companyLogo={companyLogo}
+              brand={brand}
               rooms={rooms}
               dryingLogs={dryingLogs}
               moisturePoints={moisturePoints}
