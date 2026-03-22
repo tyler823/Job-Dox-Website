@@ -658,6 +658,7 @@ function loadCoInfo() {
   try { return JSON.parse(localStorage.getItem(LS_CO_KEY)) || DEFAULT_CO_INFO; } catch { return DEFAULT_CO_INFO; }
 }
 function saveCoInfo(info) {
+  try { localStorage.setItem(LS_CO_KEY, JSON.stringify(info)); } catch {}
   if (_globalCompanyId) fsSaveCompanySettings(_globalCompanyId, "companyInfo", info);
 }
 
@@ -11477,6 +11478,31 @@ function GeneralSettingsTab({ onWorkTypesChange, onStatusesChange, onProjectType
   /* ── BUDGET CATEGORY TEMPLATES ── */
   const [budgetTpls,  setBudgetTpls]  = useState(() => { try { const v = loadBudgetTemplates(); return Array.isArray(v) ? v : []; } catch { return []; } });
   const [budgetSaved, setBudgetSaved] = useState(false);
+
+  // Load all general settings from Firestore on mount
+  useEffect(() => {
+    const cid = _globalCompanyId;
+    if (!cid) return;
+    fsLoadCompanySettings(cid, "companyInfo").then(v => {
+      if (v && typeof v === "object") { setCoInfo(v); try { localStorage.setItem(LS_CO_KEY, JSON.stringify(v)); } catch {} }
+    });
+    fsLoadCompanySettings(cid, "workTypes").then(v => {
+      if (Array.isArray(v)) { setWT(v); try { localStorage.setItem(LS_CWT_KEY, JSON.stringify(v)); } catch {} }
+    });
+    fsLoadCompanySettings(cid, "statuses").then(v => {
+      if (Array.isArray(v)) { setST(v); try { localStorage.setItem(LS_CST_KEY, JSON.stringify(v)); } catch {} }
+    });
+    fsLoadCompanySettings(cid, "projectTypes").then(v => {
+      if (Array.isArray(v)) { setPT(v); try { localStorage.setItem(LS_CPT_KEY, JSON.stringify(v)); } catch {} }
+    });
+    fsLoadCompanySettings(cid, "billing").then(v => {
+      if (v && typeof v === "object") { setBillingCfg(v); try { localStorage.setItem(LS_BILLING, JSON.stringify(v)); } catch {} }
+    });
+    fsLoadCompanySettings(cid, "budgetTemplates").then(v => {
+      if (Array.isArray(v)) { setBudgetTpls(v); try { localStorage.setItem(LS_BUDGET_TEMPLATES, JSON.stringify(v)); } catch {} }
+    });
+  }, []);
+
   const saveBudgetTpls = () => { saveBudgetTemplates(budgetTpls); setBudgetSaved(true); setTimeout(()=>setBudgetSaved(false),2000); };
   const addBudgetCat = () => {
     const n = { id:`bc-${Date.now()}`, name:"New Category", color:"#5ba3f5", workTypes:[], active:true };
