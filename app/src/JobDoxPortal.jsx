@@ -3577,7 +3577,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
 
   const today = new Date().toISOString().slice(0,10);
 
-  const flagged = React.useMemo(() => filtered.map(proj => {
+  const flagged = useMemo(() => filtered.map(proj => {
     // Labor mismatch flag
     const scopeItems = (() => {
       try { return JSON.parse(localStorage.getItem(`jd_proj_${proj.id}_scope`) || '[]'); } catch(_e){ return []; }
@@ -3600,7 +3600,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
   const activeFlagCount = flagged.filter(p => p.hasLaborMismatch || p.hasOverdueTasks).length;
 
   // ── Write flag snapshot to Firestore (fire-and-forget) ──
-  React.useEffect(() => {
+  useEffect(() => {
     if (!companyId || flagged.length === 0) return;
     const _today = new Date().toISOString().slice(0, 10);
     const activeFlags = flagged.filter(p => p.hasLaborMismatch || p.hasOverdueTasks);
@@ -14448,7 +14448,7 @@ export default function JobDoxPortal() {
     : CURRENT_USER;
 
   // ── Portal-level flag count for rail badge ──
-  const portalFlagCount = React.useMemo(() => {
+  const portalFlagCount = useMemo(() => {
     const _today = new Date().toISOString().slice(0, 10);
     let count = 0;
     (projects || []).forEach(proj => {
