@@ -3314,13 +3314,13 @@ Give a 3-4 sentence executive summary, then bullet-point the top 3 actions for t
       <FinancialHealthBadge projId={proj.id} companyId={companyId}/>
 
    6. ADD FINANCE PAGE route in main App return, in the page routing block:
-      } : page==="finance" ? (
+      … : page==="finance" ? (
         <FinancialDashboard
           projects={projects}
           companyId={companyId}
           onNavigate={handleNavigate}
         />
-      ) : selected ? (
+      ) : selected ? …
 
    7. ADD RAIL BUTTON (in the nav, after the Reports button):
       <button className={`rail-btn${page==="finance"?" active":""}`} data-tip="Financial Dashboard"

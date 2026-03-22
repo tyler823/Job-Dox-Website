@@ -86,7 +86,7 @@ function useLiDAR() {
 function parseRoomScanFile(text, fileName) {
   const ext = (fileName || "").split(".").pop().toLowerCase();
 
-  // ── JSON parsing ──
+  // ── JSON parsing ── }
   if (ext === "json" || text.trim().startsWith("{") || text.trim().startsWith("[")) {
     try {
       const data = JSON.parse(text);
