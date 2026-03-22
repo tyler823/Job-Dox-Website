@@ -3591,10 +3591,37 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
 
     // Overdue tasks flag
     const tasks = proj.fsTasks || [];
-    const hasOverdueTasks = tasks.some(t => t.status !== 'done' && t.due && t.due < today);
+    const overdueCount = tasks.filter(t => t.status !== 'done' && t.due && t.due < today).length;
+    const hasOverdueTasks = overdueCount > 0;
 
-    return { ...proj, hasLaborMismatch, hasOverdueTasks };
+    return { ...proj, hasLaborMismatch, hasOverdueTasks, billedHrs, loggedHrs, overdueCount };
   });
+
+  // ── Write flag snapshot to Firestore (fire-and-forget) ──
+  React.useEffect(() => {
+    if (!companyId || flagged.length === 0) return;
+    const _today = new Date().toISOString().slice(0, 10);
+    const activeFlags = flagged.filter(p => p.hasLaborMismatch || p.hasOverdueTasks);
+    if (activeFlags.length === 0) return;
+    const snap = {
+      date: _today,
+      flags: activeFlags.map(p => ({
+        projectId: p.id,
+        projectName: p.name,
+        projectNumber: p.projectNumber || '',
+        hasLaborMismatch: p.hasLaborMismatch || false,
+        hasOverdueTasks: p.hasOverdueTasks || false,
+        billedHrs: p.billedHrs || 0,
+        loggedHrs: p.loggedHrs || 0,
+        overdueCount: p.overdueCount || 0,
+        resolvedAt: null
+      })),
+      recordedAt: new Date().toISOString()
+    };
+    setDoc(doc(db, `companies/${companyId}/flagHistory/${_today}`), snap, { merge: true })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flagged.filter(p => p.hasLaborMismatch || p.hasOverdueTasks).length, companyId]);
 
   const openMaps = (proj) => window.open(`https://maps.google.com/?q=${encodeURIComponent(proj.address)}`,"_blank");
 
@@ -14419,6 +14446,26 @@ export default function JobDoxPortal() {
         position: currentMember.customFields?.systemRole || "Project Manager" }
     : CURRENT_USER;
 
+  // ── Portal-level flag count for rail badge ──
+  const portalFlagCount = React.useMemo(() => {
+    const _today = new Date().toISOString().slice(0, 10);
+    let count = 0;
+    (projects || []).forEach(proj => {
+      const scopeItems = (() => {
+        try { return JSON.parse(localStorage.getItem(`jd_proj_${proj.id}_scope`) || '[]'); } catch { return []; }
+      })();
+      const billedHrs = scopeItems
+        .filter(i => i.unit && ["HR","hr","Hour","Hours","hour","hours"].includes(i.unit))
+        .reduce((s, i) => s + (parseFloat(i.qty) || 0), 0);
+      const loggedHrs = (projectShifts[proj.id] || []).reduce((s, sh) => s + (sh.hours || 0), 0);
+      const hasLaborMismatch = (billedHrs > 0 || loggedHrs > 0) && Math.abs(billedHrs - loggedHrs) > 0.5;
+      const tasks = proj.fsTasks || [];
+      const hasOverdueTasks = tasks.some(t => t.status !== 'done' && t.due && t.due < _today);
+      if (hasLaborMismatch || hasOverdueTasks) count++;
+    });
+    return count;
+  }, [projects, projectShifts]);
+
   // ── MarketDox: Yard Sign auto-publish on status change to completed/closed ──
   const _prevStatusMap = useRef({});
   useEffect(() => {
@@ -15243,7 +15290,18 @@ export default function JobDoxPortal() {
           {Ic.msg}
         </button>
         {featureFlags.reports && (
-          <button className={`rail-btn${page==="reports"?" active":""}`} data-tip="Reports" onClick={()=>navTo("reports")}>{Ic.chart}</button>
+          <button className={`rail-btn${page==="reports"?" active":""}`} data-tip="Reports" onClick={()=>navTo("reports")} style={{position:'relative'}}>
+            {Ic.chart}
+            {portalFlagCount > 0 && (
+              <span style={{
+                position:'absolute', top:5, right:5,
+                fontSize:7, fontFamily:'var(--mono)', fontWeight:700,
+                background:'var(--acc)', color:'#fff',
+                borderRadius:3, padding:'1px 3px', lineHeight:1.2,
+                minWidth:10, textAlign:'center'
+              }}>{portalFlagCount}</span>
+            )}
+          </button>
         )}
         {canViewPayroll && featureFlags.payroll && (
           <button className={`rail-btn${page==="payroll"?" active":""}`} data-tip="Payroll"
@@ -15498,6 +15556,7 @@ export default function JobDoxPortal() {
             priceLists={priceLists}
             reviewRequests={reviewRequests}
             offices={offices}
+            projectShifts={projectShifts}
           />
         ) : page==="finance" && featureFlags.financeTab ? (
           <FinancialDashboard
