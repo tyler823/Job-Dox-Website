@@ -95,7 +95,7 @@ function relTime(ts) {
 const Ic = {
   bell: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
   calendar: <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg>,
-  copilot: <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>,
+  cortex: <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>,
   plus: <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>,
   feed: <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>,
   chevron: <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>,
@@ -220,7 +220,7 @@ export default function CortexPWA() {
   const [activityLoaded, setActivityLoaded] = useState(false);
 
   /* ── UI state ── */
-  const [view, setView]               = useState("portfolio"); // portfolio | detail | myday | copilot
+  const [view, setView]               = useState("portfolio"); // portfolio | detail | myday | cortex
   const [selectedProject, setSelected] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const newsfeedRef = useRef(null);
@@ -478,10 +478,10 @@ export default function CortexPWA() {
   }
 
   /* ══════════════════════════════════════════════════════════════════
-     RENDER — Placeholder sub-views (My Day, Copilot)
+     RENDER — Placeholder sub-views (My Day, Cortex)
   ══════════════════════════════════════════════════════════════════ */
-  if (view === "myday" || view === "copilot") {
-    const title = view === "myday" ? "My Day" : "Copilot";
+  if (view === "myday" || view === "cortex") {
+    const title = view === "myday" ? "My Day" : "Cortex";
     return (
       <>
         <style>{PWA_CSS}</style>
@@ -493,7 +493,7 @@ export default function CortexPWA() {
           </div>
           <div className="pwa-detail-body">
             <div className="pwa-empty">
-              <div style={{ opacity: .15 }}>{view === "myday" ? Ic.calendar : Ic.copilot}</div>
+              <div style={{ opacity: .15 }}>{view === "myday" ? Ic.calendar : Ic.cortex}</div>
               <div className="pwa-empty-text">{title} is coming soon to the mobile experience.</div>
               <button className="pwa-btn pwa-btn-ghost" style={{ width: "auto" }} onClick={() => setView("portfolio")}>
                 Back to Portfolio
@@ -535,9 +535,9 @@ export default function CortexPWA() {
             <span className="pwa-qa-icon">{Ic.calendar}</span>
             My Day
           </button>
-          <button className="pwa-qa-btn" onClick={() => setView("copilot")}>
-            <span className="pwa-qa-icon">{Ic.copilot}</span>
-            Copilot
+          <button className="pwa-qa-btn" onClick={() => setView("cortex")}>
+            <span className="pwa-qa-icon">{Ic.cortex}</span>
+            Cortex
           </button>
           <button className="pwa-qa-btn" onClick={() => setShowCreateModal(true)}>
             <span className="pwa-qa-icon">{Ic.plus}</span>

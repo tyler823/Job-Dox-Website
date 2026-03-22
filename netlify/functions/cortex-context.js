@@ -1,6 +1,6 @@
 /**
- * copilot-context.js
- * Netlify Function — Builds a full company data snapshot for the Cortex Copilot.
+ * cortex-context.js
+ * Netlify Function — Builds a full company data snapshot for Cortex.
  * All Firestore reads are scoped to companies/{companyId}/.
  */
 
