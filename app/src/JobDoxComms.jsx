@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { db } from "./firebase.js";
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
-         doc, setDoc, getDoc, limit as fsLimit } from "firebase/firestore";
+         doc, setDoc, getDoc, getDocs, limit as fsLimit } from "firebase/firestore";
 /* ── Inline SVG Icons ────────────────────────────────────────────── */
 const IcHash = ({size=14,...p})=><svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>;
 const IcPaperclip = ({size=14,...p})=><svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>;
@@ -87,10 +87,23 @@ const COMMS_CSS = `
 .comms-mention-dd-item{padding:6px 12px;font-size:12px;color:var(--t1);cursor:pointer;}
 .comms-mention-dd-item:hover,.comms-mention-dd-item.active{background:var(--acc-lo);color:var(--acc);}
 .comms-empty{display:flex;align-items:center;justify-content:center;flex:1;color:var(--t3);font-size:12px;}
+.comms-msg-actions{position:absolute;top:-8px;right:4px;opacity:0;transition:opacity .12s;display:flex;gap:2px;}
+.comms-msg-wrap:hover .comms-msg-actions{opacity:1;}
+.comms-msg-wrap{position:relative;}
+.comms-reply-btn{background:var(--s3);border:1px solid var(--br);border-radius:5px;padding:2px 8px;font-size:10px;color:var(--t2);cursor:pointer;font-family:var(--ui);transition:all .12s;}
+.comms-reply-btn:hover{background:var(--acc-lo);color:var(--acc);border-color:var(--acc);}
+.comms-thread-summary{display:flex;align-items:center;gap:6px;padding:4px 0 4px 42px;cursor:pointer;transition:background .12s;border-radius:6px;}
+.comms-thread-summary:hover{background:var(--s2);}
+.comms-thread-avs{display:flex;align-items:center;}
+.comms-thread-avs .comms-thread-av{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;border:2px solid var(--s1);margin-left:-6px;}
+.comms-thread-avs .comms-thread-av:first-child{margin-left:0;}
+.comms-thread-replies{padding-left:28px;border-left:2px solid var(--br);margin-left:16px;margin-bottom:8px;}
+.comms-thread-input{display:flex;align-items:center;gap:6px;padding:6px 0;}
+.comms-thread-input textarea{flex:1;resize:none;min-height:18px;max-height:80px;line-height:1.4;font-size:11px;}
 `;
 
 /* ── Component ───────────────────────────────────────────────────── */
-export default function JobDoxComms({ companyId, currentUser, staff=[], projects=[], initialProjectId }) {
+export default function JobDoxComms({ companyId, currentUser, staff=[], projects=[], initialProjectId, onUnreadCountsChange }) {
   // Inject styles once
   useEffect(()=>{
     if (document.getElementById("jd-comms-css")) return;
@@ -124,6 +137,10 @@ export default function JobDoxComms({ companyId, currentUser, staff=[], projects
   const [photo, setPhoto] = useState(null); // {file, preview}
   const [mentionQuery, setMentionQuery] = useState(null); // null or string
   const [mentionIdx, setMentionIdx] = useState(0);
+  const [expandedThreads, setExpandedThreads] = useState(new Set());
+  const [threadReplies, setThreadReplies] = useState({}); // { [msgId]: [reply, ...] }
+  const [threadReplyText, setThreadReplyText] = useState({}); // { [msgId]: string }
+  const [replyCountCache, setReplyCountCache] = useState({}); // { [msgId]: { count, authors } }
   const msgsEndRef = useRef(null);
   const inputRef = useRef(null);
   const fileRef = useRef(null);
@@ -205,6 +222,21 @@ export default function JobDoxComms({ companyId, currentUser, staff=[], projects
     return ()=>unsubs.forEach(u=>u());
   },[companyId, currentUser.id, activeChannel, FIXED_CHANNELS, projectChannels, getMsgPath, getReaderPath]);
 
+  // Expose unread counts to parent via callback
+  useEffect(()=>{
+    if (!onUnreadCountsChange) return;
+    const counts = {};
+    // Count project unreads
+    projectChannels.forEach(ch => {
+      if (unread[`project_${ch.id}`]) counts[ch.id] = 1;
+    });
+    // Also include company channel unreads under special keys
+    FIXED_CHANNELS.forEach(ch => {
+      if (unread[`company_${ch.id}`]) counts[`__company_${ch.id}`] = 1;
+    });
+    onUnreadCountsChange(counts);
+  },[unread, projectChannels, FIXED_CHANNELS, onUnreadCountsChange]);
+
   // Send message
   const handleSend = useCallback(async()=>{
     const trimmed = text.trim();
@@ -231,6 +263,25 @@ export default function JobDoxComms({ companyId, currentUser, staff=[], projects
     try {
       const msgPath = getMsgPath(activeChannel);
       await addDoc(collection(db, msgPath), msgDoc);
+      // Fire-and-forget SMS for @mentions
+      if (mentionIds.length > 0) {
+        const chName = channelInfo.type === "company" ? channelInfo.name : channelInfo.name;
+        const snippet = (trimmed || "").slice(0, 100);
+        mentionIds.forEach(uid => {
+          const member = (staff || []).find(s => s.id === uid);
+          const phone = member?.phone || member?.phoneNumber;
+          if (phone) {
+            fetch("/.netlify/functions/send-sms", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                to: phone,
+                body: `${currentUser.name} mentioned you in ${chName}: ${snippet}`
+              })
+            }).catch(() => {});
+          }
+        });
+      }
       setText("");
       setPhoto(null);
       setMentionQuery(null);
@@ -238,7 +289,7 @@ export default function JobDoxComms({ companyId, currentUser, staff=[], projects
       const readerDoc = getReaderPath(activeChannel);
       setDoc(doc(db, readerDoc), {lastRead: serverTimestamp()}, {merge:true}).catch(()=>{});
     } catch(e) { console.error("Failed to send message:",e); }
-  },[text, photo, currentUser, activeChannel, staffNames, getMsgPath, getReaderPath]);
+  },[text, photo, currentUser, activeChannel, staffNames, staff, channelInfo, getMsgPath, getReaderPath]);
 
   // File picker
   const handleFileSelect = (e)=>{
@@ -285,6 +336,69 @@ export default function JobDoxComms({ companyId, currentUser, staff=[], projects
     setMentionQuery(null);
     setTimeout(()=>inputRef.current?.focus(),0);
   };
+
+  // Load reply counts for visible messages
+  useEffect(()=>{
+    if (!companyId || !messages.length) return;
+    const msgPath = getMsgPath(activeChannel);
+    messages.forEach(msg => {
+      if (replyCountCache[msg.id] !== undefined) return;
+      const repliesRef = collection(db, msgPath, msg.id, "replies");
+      const q2 = query(repliesRef, orderBy("timestamp","desc"), fsLimit(3));
+      getDocs(q2).then(snap => {
+        if (!snap.empty) {
+          const authors = [...new Set(snap.docs.map(d=>d.data().authorName))].slice(0,3);
+          setReplyCountCache(prev=>({...prev,[msg.id]:{count:snap.size,authors}}));
+        } else {
+          setReplyCountCache(prev=>({...prev,[msg.id]:null}));
+        }
+      }).catch(()=>{});
+    });
+  },[companyId, messages, activeChannel, getMsgPath]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Toggle thread expansion + load replies on first open
+  const toggleThread = useCallback((msgId)=>{
+    setExpandedThreads(prev => {
+      const next = new Set(prev);
+      if (next.has(msgId)) { next.delete(msgId); } else {
+        next.add(msgId);
+        // Load replies if not already loaded
+        if (!threadReplies[msgId]) {
+          const msgPath = getMsgPath(activeChannel);
+          const repliesRef = collection(db, msgPath, msgId, "replies");
+          const q2 = query(repliesRef, orderBy("timestamp","asc"));
+          onSnapshot(q2, snap => {
+            const replies = snap.docs.map(d=>({id:d.id,...d.data()}));
+            setThreadReplies(prev2=>({...prev2,[msgId]:replies}));
+            if (replies.length > 0) {
+              const authors = [...new Set(replies.map(r=>r.authorName))].slice(0,3);
+              setReplyCountCache(prev2=>({...prev2,[msgId]:{count:replies.length,authors}}));
+            }
+          }, ()=>{});
+        }
+      }
+      return next;
+    });
+  },[activeChannel, getMsgPath, threadReplies]);
+
+  // Send a threaded reply
+  const handleSendReply = useCallback(async(parentMsgId)=>{
+    const replyText = (threadReplyText[parentMsgId]||"").trim();
+    if (!replyText) return;
+    const msgPath = getMsgPath(activeChannel);
+    const repliesRef = collection(db, msgPath, parentMsgId, "replies");
+    const replyDoc = {
+      text: replyText,
+      authorName: currentUser.name,
+      authorId: currentUser.id,
+      timestamp: serverTimestamp(),
+      mentions: [],
+    };
+    try {
+      await addDoc(repliesRef, replyDoc);
+      setThreadReplyText(prev=>({...prev,[parentMsgId]:""}));
+    } catch(e) { console.error("Failed to send reply:",e); }
+  },[activeChannel, currentUser, threadReplyText, getMsgPath]);
 
   const switchChannel = (ch)=>{
     setActiveChannel({id:ch.id, type:ch.type});
@@ -345,23 +459,75 @@ export default function JobDoxComms({ companyId, currentUser, staff=[], projects
           {messages.map((msg, i)=>{
             const prev = i > 0 ? messages[i-1] : null;
             const grouped = sameGroup(prev, msg);
+            const rc = replyCountCache[msg.id];
+            const isExpanded = expandedThreads.has(msg.id);
+            const replies = threadReplies[msg.id] || [];
             return (
-              <div key={msg.id} className={`comms-msg${grouped?" grouped":""}`}>
-                {!grouped && (
-                  <div className="comms-av" style={{background:avatarColor(msg.authorName)}}>
-                    {initials(msg.authorName)}
-                  </div>
-                )}
-                <div className="comms-msg-body">
+              <div key={msg.id}>
+                <div className={`comms-msg comms-msg-wrap${grouped?" grouped":""}`}>
                   {!grouped && (
-                    <div>
-                      <span className="comms-msg-author">{msg.authorName}</span>
-                      <span className="comms-msg-time">{fmtTime(msg.timestamp)}</span>
+                    <div className="comms-av" style={{background:avatarColor(msg.authorName)}}>
+                      {initials(msg.authorName)}
                     </div>
                   )}
-                  {msg.text && <div className="comms-msg-text">{renderMentions(msg.text, staff)}</div>}
-                  {msg.photoBase64 && <img className="comms-msg-photo" src={msg.photoBase64} alt="attachment" onClick={()=>window.open(msg.photoBase64,"_blank")}/>}
+                  <div className="comms-msg-body">
+                    {!grouped && (
+                      <div>
+                        <span className="comms-msg-author">{msg.authorName}</span>
+                        <span className="comms-msg-time">{fmtTime(msg.timestamp)}</span>
+                      </div>
+                    )}
+                    {msg.text && <div className="comms-msg-text">{renderMentions(msg.text, staff)}</div>}
+                    {msg.photoBase64 && <img className="comms-msg-photo" src={msg.photoBase64} alt="attachment" onClick={()=>window.open(msg.photoBase64,"_blank")}/>}
+                  </div>
+                  <div className="comms-msg-actions">
+                    <button className="comms-reply-btn" onClick={()=>toggleThread(msg.id)}>Reply</button>
+                  </div>
                 </div>
+                {rc && rc.count > 0 && !isExpanded && (
+                  <div className="comms-thread-summary" onClick={()=>toggleThread(msg.id)}>
+                    <div className="comms-thread-avs">
+                      {rc.authors.map((a,j)=>(
+                        <div key={j} className="comms-thread-av" style={{background:avatarColor(a)}}>{initials(a)}</div>
+                      ))}
+                    </div>
+                    <span style={{fontSize:11,color:"var(--blue)",fontWeight:600}}>{rc.count} {rc.count===1?"reply":"replies"}</span>
+                  </div>
+                )}
+                {isExpanded && (
+                  <div className="comms-thread-replies">
+                    {replies.map(reply=>(
+                      <div key={reply.id} className="comms-msg" style={{padding:"3px 0"}}>
+                        <div className="comms-av" style={{background:avatarColor(reply.authorName),width:24,height:24,fontSize:9}}>
+                          {initials(reply.authorName)}
+                        </div>
+                        <div className="comms-msg-body">
+                          <div>
+                            <span className="comms-msg-author" style={{fontSize:11}}>{reply.authorName}</span>
+                            <span className="comms-msg-time">{fmtTime(reply.timestamp)}</span>
+                          </div>
+                          <div className="comms-msg-text">{renderMentions(reply.text, staff)}</div>
+                        </div>
+                      </div>
+                    ))}
+                    {canPost && (
+                      <div className="comms-thread-input">
+                        <textarea
+                          className="inp"
+                          rows={1}
+                          value={threadReplyText[msg.id]||""}
+                          onChange={e=>setThreadReplyText(prev=>({...prev,[msg.id]:e.target.value}))}
+                          onKeyDown={e=>{ if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); handleSendReply(msg.id); }}}
+                          placeholder="Reply…"
+                          style={{minHeight:18,maxHeight:80,fontSize:11}}
+                        />
+                        <button className="btn btn-primary btn-xs" onClick={()=>handleSendReply(msg.id)} style={{padding:"3px 8px"}}>
+                          <IcSend size={12}/>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
