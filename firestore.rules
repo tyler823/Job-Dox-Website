@@ -66,7 +66,24 @@ service cloud.firestore {
         allow read: if isOwnCompany(companyId) || isSupportUser();
         allow write: if canAccess(companyId, 5) || isSupportUser();
 
-        // All project subcollections — read: own company, write: level 3+
+        // Shifts subcollection — pay-rate-sensitive, explicit rules
+        // NOTE: request.auth.token.companyId requires ms-firebase-auth.js to
+        // embed companyId as a custom claim. If not yet wired, temporarily use
+        // the generic isOwnCompany() check below and tighten once confirmed.
+        match /shifts/{shiftId} {
+          allow read: if isOwnCompany(companyId) || isSupportUser();
+          allow create: if isOwnCompany(companyId)
+                        && request.resource.data.keys().hasAll(['id','tech','hours','txnDate','clockInIso','clockOutIso'])
+                        && request.resource.data.hours is number
+                        && request.resource.data.hours >= 0
+                        && request.resource.data.hours <= 24;
+          allow update: if isOwnCompany(companyId) || isSupportUser();
+          // Shifts are permanent records — deletion must go through an admin
+          // function only, never from the client directly.
+          allow delete: if false;
+        }
+
+        // All other project subcollections — read: own company, write: level 3+
         match /{subcollection}/{docId} {
           allow read: if isOwnCompany(companyId) || isSupportUser();
           allow write: if canAccess(companyId, 3) || isSupportUser();
