@@ -24,7 +24,7 @@ const DISPATCH_CSS = `
 .dispatch-proj-card:hover{border-color:var(--blue);box-shadow:0 2px 10px rgba(91,163,245,.12);}
 .dispatch-proj-card.selected{border-color:var(--acc);background:var(--acc-lo);}
 
-.dispatch-detail-panel{position:absolute;top:12px;right:12px;width:380px;max-height:calc(100% - 24px);background:var(--s2);border:1px solid var(--br);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.35);z-index:10;display:flex;flex-direction:column;overflow:hidden;animation:jd-pop .15s ease both;}
+.dispatch-detail-panel{position:absolute;top:12px;right:12px;width:380px;max-height:calc(100% - 24px);background:var(--s2);border:1px solid var(--br);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.35);z-index:1000;display:flex;flex-direction:column;overflow:hidden;animation:jd-pop .15s ease both;}
 .dispatch-detail-hd{padding:14px 16px 10px;border-bottom:1px solid var(--br);display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-shrink:0;}
 .dispatch-detail-body{flex:1;overflow-y:auto;padding:14px 16px;}
 
@@ -1537,7 +1537,7 @@ export default function DispatchPanel({
               {/* Day appointments overlay on map (calendar view) */}
               {view === "calendar" && dayAppts.length > 0 && (
                 <div style={{
-                  position:"absolute",bottom:12,left:12,right:12,
+                  position:"absolute",bottom:12,left:12,right:12,zIndex:1000,
                   background:"var(--s2)",border:"1px solid var(--br)",borderRadius:10,
                   padding:"10px 14px",boxShadow:"0 4px 20px rgba(0,0,0,.25)",
                   maxHeight:120,overflowY:"auto",
