@@ -23,7 +23,7 @@ function exitToLanding() {
   }
 }
 import { signInWithCustomToken } from "firebase/auth";
-import { db, fbAuth, getFirebaseIdToken } from "./firebase.js";
+import { db, fbAuth, getFirebaseIdToken, saveShift, listenShifts } from "./firebase.js";
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
          doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where, Timestamp, limit as fsLimit } from "firebase/firestore";
 
@@ -10329,6 +10329,19 @@ function CortexPanel({ onClose, companyId, projects=[], currentMemberId="", perm
     setProjectContext(summary);
   }, [companyId, projects]);
 
+  // Load existing shifts from Firestore for each project (survives page refresh)
+  useEffect(() => {
+    if (!companyId || projects.length === 0) return;
+    const unsubs = [];
+    projects.forEach(proj => {
+      const unsub = listenShifts(companyId, proj.id, (shifts) => {
+        setProjectShifts(ps => ({ ...ps, [proj.id]: shifts }));
+      });
+      if (typeof unsub === 'function') unsubs.push(unsub);
+    });
+    return () => unsubs.forEach(fn => fn());
+  }, [companyId, projects.length]);
+
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     msgsEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -16439,6 +16452,12 @@ export default function JobDoxPortal() {
         qboTimeActivityId: null,
       };
       setProjectShifts(ps=>({ ...ps, [clockInState.projId]: [...(ps[clockInState.projId]||[]), autoShift] }));
+      // Persist auto clock-out shift to Firestore
+      if (companyId && clockInState.projId) {
+        saveShift(companyId, clockInState.projId, autoShift).catch(err =>
+          console.error("Failed to persist auto shift to Firestore:", err)
+        );
+      }
     }
     setClockInState(state);
   };
@@ -16447,6 +16466,12 @@ export default function JobDoxPortal() {
     if (!clockInState) return;
     setProjectShifts(ps=>({ ...ps, [clockInState.projId]: [...(ps[clockInState.projId]||[]), shift] }));
     setClockInState(null);
+    // Persist to Firestore for payroll integrity and QuickBooks sync
+    if (companyId && clockInState.projId) {
+      saveShift(companyId, clockInState.projId, shift).catch(err =>
+        console.error("Failed to persist shift to Firestore:", err)
+      );
+    }
   };
 
   useEffect(()=>{
