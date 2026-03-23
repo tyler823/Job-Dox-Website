@@ -4022,7 +4022,8 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
           });
         });
       }
-      setTodayFinancials({ invoices, expenses, revenue, margin: revenue - expenses });
+      const marginPct = revenue > 0 ? ((revenue - expenses) / revenue) * 100 : null;
+      setTodayFinancials({ invoices, expenses, revenue, margin: marginPct });
     } catch (err) {
       console.error('Error computing today financials:', err);
     } finally {
@@ -4183,7 +4184,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
             <div className="kpi"><div className="kpi-val" style={{color:"var(--acc)"}}>{archivedProjects.filter(p => p.closeType === "lost").length}</div><div className="kpi-lbl">Closed Lost</div></div>
           </>
         ) : (
-          [["Active",projects.filter(p=>!p.archived&&p.status==="In Progress").length,"var(--blue)"],["Open Tasks",projects.filter(p=>!p.archived).reduce((s,p)=>s+p.tasksOpen,0),"var(--amber)"],["Completed",projects.filter(p=>!p.archived&&p.status==="Completed").length,"var(--t2)"],...(canViewBudget?[["Today's Invoices",financialsLoading?"—":fmt$(todayFinancials.invoices),"var(--blue)"],["Today's Expenses",financialsLoading?"—":fmt$(todayFinancials.expenses),"var(--acc)"],["Today's Revenue",financialsLoading?"—":fmt$(todayFinancials.revenue),"var(--green)"],["Today's Margin",financialsLoading?"—":fmt$(todayFinancials.margin),todayFinancials.margin>=0?"var(--green)":"var(--acc)"]]:[])]  .map(([l,v,c])=>(
+          [["Active",projects.filter(p=>!p.archived&&p.status==="In Progress").length,"var(--blue)"],["Open Tasks",projects.filter(p=>!p.archived).reduce((s,p)=>s+p.tasksOpen,0),"var(--amber)"],["Completed",projects.filter(p=>!p.archived&&p.status==="Completed").length,"var(--t2)"],...(canViewBudget?[["Today's Invoices",financialsLoading?"—":fmt$(todayFinancials.invoices),"var(--blue)"],["Today's Expenses",financialsLoading?"—":fmt$(todayFinancials.expenses),"var(--acc)"],["Today's Revenue",financialsLoading?"—":fmt$(todayFinancials.revenue),"var(--green)"],["Today's Margin",financialsLoading?"—":todayFinancials.margin===null?"—":`${todayFinancials.margin.toFixed(1)}%`,todayFinancials.margin===null||todayFinancials.margin>=0?"var(--green)":"var(--acc)"]]:[])]  .map(([l,v,c])=>(
             <div key={l} className="kpi"><div className="kpi-val" style={{color:c}}>{v}</div><div className="kpi-lbl">{l}</div></div>
           ))
         )}
