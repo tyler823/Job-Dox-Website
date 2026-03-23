@@ -1000,49 +1000,82 @@ async function checkWorkflowPatterns(companyId, workType, taskTitle) {
       where("processCzarFor", "array-contains", workType)
     );
     const staffSnap = await getDocs(staffQ);
-    if (staffSnap.empty) return; // no czar assigned — nothing to do
+    if (staffSnap.empty) return;
     const czars = staffSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    // 3. For each czar, check their thresholds
+    // 3. Use the most conservative thresholds (lowest minCount / lowest minPctOver)
+    let bestMinCount = Infinity, bestMinPctOver = Infinity;
     for (const czar of czars) {
-      const thresholds = czar.czarThresholds?.[workType] || { minCount: 3, minPctOver: 25 };
-      const { minCount, minPctOver } = thresholds;
+      const th = czar.czarThresholds?.[workType] || { minCount: 3, minPctOver: 25 };
+      if (th.minCount < bestMinCount) bestMinCount = th.minCount;
+      if (th.minPctOver < bestMinPctOver) bestMinPctOver = th.minPctOver;
+    }
 
-      // 4. Count qualifying overdue records
-      const qualifying = perfDocs.filter(r => r.pctOver >= minPctOver);
-      if (qualifying.length < minCount) continue;
+    // 4. Count qualifying overdue records
+    const qualifying = perfDocs.filter(r => r.pctOver >= bestMinPctOver);
 
-      // 5. Check for existing pending suggestion
-      const sugQ = query(
-        collection(db, "companies", companyId, "workflowSuggestions"),
-        where("workType", "==", workType),
-        where("taskTitle", "==", taskTitle),
-        where("status", "==", "pending")
-      );
-      const sugSnap = await getDocs(sugQ);
-      if (!sugSnap.empty) continue; // already a pending suggestion
+    // 5. If count < minCount → return early
+    if (qualifying.length < bestMinCount) return;
 
-      // 6. Build and write the suggestion
-      const avgActual = qualifying.reduce((s, r) => s + r.actualDays, 0) / qualifying.length;
-      const avgPctOver = qualifying.reduce((s, r) => s + r.pctOver, 0) / qualifying.length;
-      const templateName = perfDocs[0]?.templateName || null;
-      const currentDuration = perfDocs[0]?.estimatedDays || 0;
+    // 6. Check for existing pending suggestion
+    const sugQ = query(
+      collection(db, "companies", companyId, "workflowSuggestions"),
+      where("workType", "==", workType),
+      where("taskTitle", "==", taskTitle),
+      where("status", "==", "pending")
+    );
+    const sugSnap = await getDocs(sugQ);
+    if (!sugSnap.empty) return;
 
-      await addDoc(collection(db, "companies", companyId, "workflowSuggestions"), {
-        workType,
-        taskTitle,
-        templateName,
-        currentDurationDays: currentDuration,
-        suggestedDurationDays: Math.ceil(avgActual),
-        avgPctOver: Math.round(avgPctOver * 100) / 100,
-        occurrenceCount: qualifying.length,
-        status: "pending",
-        createdAt: serverTimestamp(),
-        resolvedAt: null,
-        resolvedBy: null,
-        processCzarIds: czars.map(c => c.id),
-      });
-      break; // one suggestion per task title is enough
+    // 7. Load workflow template to get current durationDays
+    let currentDurationDays = perfDocs[0]?.estimatedDays || 0;
+    try {
+      const tplData = await fsLoadCompanySettings(companyId, "workflowTemplates");
+      if (tplData && tplData[workType]) {
+        const tpl = tplData[workType];
+        for (const ph of (tpl.phases || [])) {
+          const match = (ph.tasks || []).find(t => t.title && t.title.toLowerCase() === taskTitle.toLowerCase());
+          if (match && typeof match.durationDays === "number") {
+            currentDurationDays = match.durationDays;
+            break;
+          }
+        }
+      }
+    } catch (_) { /* use fallback */ }
+
+    // 8. Calculate suggestion values
+    const avgActual = qualifying.reduce((s, r) => s + r.actualDays, 0) / qualifying.length;
+    const avgPctOver = qualifying.reduce((s, r) => s + r.pctOver, 0) / qualifying.length;
+    const templateName = perfDocs[0]?.templateName || null;
+    const processCzarIds = czars.map(c => c.id);
+
+    // 9. Write suggestion document
+    await addDoc(collection(db, "companies", companyId, "workflowSuggestions"), {
+      workType,
+      taskTitle,
+      templateName,
+      currentDurationDays,
+      suggestedDurationDays: Math.ceil(avgActual),
+      avgPctOver: Math.round(avgPctOver * 10) / 10,
+      occurrenceCount: qualifying.length,
+      status: "pending",
+      createdAt: new Date(),
+      resolvedAt: null,
+      resolvedBy: null,
+      processCzarIds,
+    });
+
+    // 10. SMS notification to Process Czars with czarSmsEnabled
+    const roundedPct = Math.round(avgPctOver * 10) / 10;
+    for (const czar of czars) {
+      if (czar.czarSmsEnabled && czar.phone) {
+        sendSMS({
+          to: czar.phone,
+          messageBody: `[Cortex] Workflow insight for ${workType}: "${taskTitle}" is averaging ${roundedPct}% over estimate. Review in Settings \u2192 Workflow Insights.`,
+          from: "",
+          companyId,
+        }).catch(e => console.warn("[Job-Dox] Czar SMS failed:", e));
+      }
     }
   } catch (e) {
     console.warn("[Job-Dox] checkWorkflowPatterns error:", e);
@@ -3163,11 +3196,42 @@ function MyDayPage({ onNavigate, currentUser, permissionLevel=1, globalStaff=[],
     // If the task came from a project, toggle its status in project LS + Firestore
     const projTask = projTasks.find(t => t.id === id);
     if (projTask && projTask.projId) {
+      const wasOpen = projTask.status !== "done";
       const stored = _lsRead(projTask.projId, "tasks", []);
       const updated = stored.map(x => x.id === id ? { ...x, status: x.status === "done" ? "open" : "done" } : x);
       _lsWrite(projTask.projId, "tasks", updated);
       if (companyId) fsSaveProjFieldDebounced(companyId, projTask.projId, "fsTasks", updated);
       bumpProjTasks();
+      // ── Task performance data collection (only when completing, not uncompleting) ──
+      if (wasOpen && companyId && projTask.fromTemplate && typeof projTask.durationDays === "number") {
+        const startTime = projTask.unlockedAt || projTask.createdAt;
+        if (startTime) {
+          const completedAtMs = Date.now();
+          const actualDays = Math.ceil((completedAtMs - new Date(startTime).getTime()) / 86400000);
+          const estimatedDays = projTask.durationDays;
+          const overdueDays = actualDays - estimatedDays;
+          const pctOver = estimatedDays > 0 ? ((actualDays - estimatedDays) / estimatedDays) * 100 : 0;
+          const proj = projects.find(p => p.id === projTask.projId);
+          const wts = proj?.worktypes || proj?.workTypes || [];
+          const primaryWorkType = (wts[0]?.type || wts[0]?.name || wts[0] || projTask.workType || null);
+          if (primaryWorkType) {
+            addDoc(collection(db, "companies", companyId, "taskPerformance"), {
+              taskTitle: projTask.title,
+              workType: primaryWorkType,
+              templateName: projTask.fromTemplate,
+              estimatedDays,
+              actualDays,
+              overdueDays,
+              pctOver: Math.round(pctOver * 10) / 10,
+              projectId: projTask.projId,
+              completedAt: new Date(),
+              completedBy: currentMemberId,
+            }).then(() => {
+              checkWorkflowPatterns(companyId, primaryWorkType, projTask.title);
+            }).catch(e => console.warn("[Job-Dox] taskPerformance write failed:", e));
+          }
+        }
+      }
       return;
     }
     // Otherwise update My Day personal tasks
@@ -5400,9 +5464,9 @@ function TasksTab({ projId="", projName="", initialTasks=[], globalStaff=[], com
               estimatedDays,
               actualDays,
               overdueDays,
-              pctOver: Math.round(pctOver * 100) / 100,
+              pctOver: Math.round(pctOver * 10) / 10,
               projectId: projId,
-              completedAt: serverTimestamp(),
+              completedAt: new Date(),
               completedBy: currentMemberId,
             }).then(() => {
               checkWorkflowPatterns(companyId, primaryWorkType, task.title);
@@ -14080,7 +14144,7 @@ function ClassicMigrationTab({ companyId, currentMemberId }) {
   );
 }
 
-function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission=1, currentMemberId, currentMemberName, currentMemberEmail="", onPermissionChange, offices=[], projects=[], onWorkTypesChange, onStatusesChange, onProjectTypesChange, featureFlags=DEFAULT_FEATURE_FLAGS }) {
+function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyId, currentPermission=1, currentMemberId, currentMemberName, currentMemberEmail="", onPermissionChange, offices=[], projects=[], onWorkTypesChange, onStatusesChange, onProjectTypesChange, featureFlags=DEFAULT_FEATURE_FLAGS, czarPendingCount=0, customWorkTypes=[] }) {
   const [tab,      setTab]      = useState("staff");
   const [editId,   setEditId]   = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -14106,6 +14170,91 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
   const isAdmin = permLevel >= 10;
   const canManageOfficesLocal = permLevel >= 8;
   const canManageStaffLocal = permLevel >= 9;
+
+  // ── Workflow Insights state ──
+  const [insightSuggestions, setInsightSuggestions] = useState([]);
+  const [insightsLoaded, setInsightsLoaded] = useState(false);
+  const [adjustModal, setAdjustModal] = useState(null); // suggestion object or null
+  const [adjustDays, setAdjustDays] = useState(1);
+  const [czarSmsEnabled, setCzarSmsEnabled] = useState(false);
+
+  // Load suggestions when Insights tab is active
+  useEffect(() => {
+    if (tab !== "insights" || !companyId) return;
+    setInsightsLoaded(false);
+    const sugQ = permLevel >= 9
+      ? query(collection(db, "companies", companyId, "workflowSuggestions"), where("status", "==", "pending"))
+      : query(collection(db, "companies", companyId, "workflowSuggestions"), where("status", "==", "pending"), where("processCzarIds", "array-contains", currentMemberId));
+    const unsub = onSnapshot(sugQ, snap => {
+      setInsightSuggestions(snap.docs.map(d => ({ _id: d.id, ...d.data() })));
+      setInsightsLoaded(true);
+    }, () => setInsightsLoaded(true));
+    return unsub;
+  }, [tab, companyId, currentMemberId, permLevel]);
+
+  // Load current user's czarSmsEnabled flag
+  useEffect(() => {
+    if (!companyId || !currentMemberId) return;
+    const me = globalStaff.find(s => s.id === currentMemberId);
+    if (me) setCzarSmsEnabled(!!me.czarSmsEnabled);
+  }, [companyId, currentMemberId, globalStaff]);
+
+  // ── Insights action handlers ──
+  const approveSuggestion = async (sug, newDuration) => {
+    if (!companyId) return;
+    try {
+      // Update the workflow template
+      const tplData = await fsLoadCompanySettings(companyId, "workflowTemplates");
+      if (tplData && tplData[sug.workType]) {
+        const tpl = tplData[sug.workType];
+        let found = false;
+        for (const ph of (tpl.phases || [])) {
+          for (let i = 0; i < (ph.tasks || []).length; i++) {
+            if (ph.tasks[i].title && ph.tasks[i].title.toLowerCase() === sug.taskTitle.toLowerCase()) {
+              ph.tasks[i].durationDays = newDuration;
+              found = true;
+              break;
+            }
+          }
+          if (found) break;
+        }
+        if (found) {
+          tplData[sug.workType] = tpl;
+          await fsSaveCompanySettings(companyId, "workflowTemplates", tplData);
+          // Also update localStorage
+          try { localStorage.setItem(LS_WF_TEMPLATES_KEY, JSON.stringify(tplData)); } catch {}
+        }
+      }
+      // Update suggestion doc
+      await updateDoc(doc(db, "companies", companyId, "workflowSuggestions", sug._id), {
+        status: "approved", resolvedAt: new Date(), resolvedBy: currentMemberId, approvedDurationDays: newDuration,
+      });
+    } catch (e) { console.error("Approve failed:", e); }
+    setAdjustModal(null);
+  };
+
+  const dismissSuggestion = async (sug) => {
+    if (!companyId) return;
+    try {
+      await updateDoc(doc(db, "companies", companyId, "workflowSuggestions", sug._id), {
+        status: "rejected", resolvedAt: new Date(), resolvedBy: currentMemberId,
+      });
+    } catch (e) { console.error("Dismiss failed:", e); }
+  };
+
+  const openMindFlow = (sug) => {
+    localStorage.setItem("jd_czar_suggestion", JSON.stringify({
+      workType: sug.workType, taskTitle: sug.taskTitle, suggestedDurationDays: sug.suggestedDurationDays,
+    }));
+    window.open("/mindflow.html", "_blank");
+  };
+
+  const toggleCzarSms = async (val) => {
+    setCzarSmsEnabled(val);
+    if (companyId && currentMemberId) {
+      fsUpdateStaffField(companyId, currentMemberId, { czarSmsEnabled: val }).catch(e => console.warn("SMS toggle save failed:", e));
+    }
+  };
   const canChangePerms = permLevel >= 10;
 
   const handlePhoto = e => {
@@ -14290,6 +14439,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
     ...(featureFlags.cortexAI ? [["cortex","CortexAI"]] : []),
     ["responsebot","Response Bot"],
     ["coins","Cortex Coins"],["billing","Billing"],["general","General"],["roadmap","Feature Request"],
+    ...((czarPendingCount > 0 || permLevel >= 9) ? [["insights","\uD83D\uDCCA Insights"]] : []),
     ...(permLevel >= 10 ? [["migration","Classic Import"]] : []),
     ...(isDiagUser ? [["fs-diag","FS Diagnostic"]] : [])];
 
@@ -14534,8 +14684,8 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                 {editId && canManageStaffLocal && (
                   <div style={{marginBottom:14}}>
                     <label className="lbl">PROCESS CZAR — WORK TYPES</label>
-                    <div style={{fontSize:10,color:"var(--t3)",marginBottom:8}}>
-                      This person will receive workflow improvement suggestions for the selected work types.
+                    <div style={{fontSize:10,color:"var(--t2)",marginBottom:8}}>
+                      This person will receive AI workflow improvement suggestions for selected work types.
                     </div>
                     <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
                       {(loadCWT()||[]).map(wt => {
@@ -14676,18 +14826,14 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                           </div>
                         )}
                         {/* Process Czar badge */}
-                        {Array.isArray(s.processCzarFor) && s.processCzarFor.length > 0 && (
-                          <div style={{marginTop:3}}>
-                            <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:8,fontWeight:700,
-                              color:"var(--purple)",background:"rgba(139,92,246,.12)",border:"1px solid rgba(139,92,246,.25)",
-                              borderRadius:10,padding:"1px 8px",fontFamily:"var(--mono)"}}>
+                        {s.processCzarFor?.length > 0 && (
+                          <div style={{marginTop:6}}>
+                            <span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:9,fontWeight:700,
+                              color:"var(--purple)",background:"rgba(167,139,250,0.1)",border:"1px solid rgba(167,139,250,0.25)",
+                              borderRadius:6,padding:"3px 8px",fontFamily:"var(--mono)"}}>
                               👑 PROCESS CZAR
                             </span>
-                            <div style={{display:"flex",flexWrap:"wrap",gap:2,marginTop:2}}>
-                              {s.processCzarFor.map(wt => (
-                                <span key={wt} style={{fontSize:7,color:"var(--purple)",opacity:.8,fontFamily:"var(--mono)"}}>{wt}</span>
-                              ))}
-                            </div>
+                            <div style={{fontSize:10,color:"var(--t2)",marginTop:2}}>{s.processCzarFor.join(" · ")}</div>
                           </div>
                         )}
                       </div>
@@ -15176,6 +15322,132 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
         {tab==="fs-diag" && isDiagUser && (
           <FirestoreDiagnosticCard companyId={companyId} />
         )}
+
+        {/* ── WORKFLOW INSIGHTS TAB ── */}
+        {tab==="insights" && (
+          <div style={{display:"flex",flexDirection:"column",gap:14}}>
+            <div>
+              <label className="lbl">PENDING WORKFLOW SUGGESTIONS</label>
+              <div style={{fontSize:11,color:"var(--t2)",marginTop:2}}>
+                These tasks are consistently running over their estimated duration. Review and approve AI-suggested updates to your workflow templates.
+              </div>
+            </div>
+
+            {!insightsLoaded ? (
+              <div style={{textAlign:"center",padding:"40px 0",color:"var(--t3)",fontSize:12}}>Loading suggestions…</div>
+            ) : insightSuggestions.length === 0 ? (
+              <div style={{textAlign:"center",padding:"52px 0",color:"var(--t3)",background:"var(--s1)",borderRadius:10,border:"1px solid var(--br)"}}>
+                <div style={{fontSize:24,marginBottom:8}}>✅</div>
+                <div style={{fontSize:13,fontWeight:600,color:"var(--t2)",marginBottom:4}}>All workflows are on track.</div>
+                <div style={{fontSize:11}}>No suggestions pending.</div>
+              </div>
+            ) : (
+              insightSuggestions.map(sug => {
+                const wtMeta = (customWorkTypes || []).find(w => w.name === sug.workType);
+                const wtColor = wtMeta?.color || "var(--purple)";
+                return (
+                  <div key={sug._id} className="card" style={{marginBottom:10}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <span style={{width:8,height:8,borderRadius:"50%",background:wtColor,flexShrink:0}}/>
+                        <span style={{fontWeight:700,fontSize:12,color:"var(--t1)"}}>{sug.workType}</span>
+                      </div>
+                      <span style={{fontSize:9,fontWeight:700,fontFamily:"var(--mono)",color:"var(--amber)",
+                        background:"rgba(245,158,11,.12)",border:"1px solid rgba(245,158,11,.25)",
+                        borderRadius:4,padding:"2px 8px"}}>PENDING REVIEW</span>
+                    </div>
+                    <div style={{fontSize:14,fontWeight:600,color:"var(--t1)",marginTop:6}}>{sug.taskTitle}</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginTop:10}}>
+                      <div>
+                        <div className="lbl" style={{marginBottom:2}}>CURRENT ESTIMATE</div>
+                        <div style={{fontSize:13,color:"var(--t2)",fontWeight:600}}>{sug.currentDurationDays} days</div>
+                      </div>
+                      <div>
+                        <div className="lbl" style={{marginBottom:2}}>AI SUGGESTION</div>
+                        <div style={{fontSize:13,color:"var(--green)",fontWeight:600}}>{sug.suggestedDurationDays} days</div>
+                      </div>
+                      <div>
+                        <div className="lbl" style={{marginBottom:2}}>OCCURRENCES</div>
+                        <div style={{fontSize:13,color:"var(--amber)",fontWeight:600}}>{sug.occurrenceCount} times</div>
+                      </div>
+                    </div>
+                    <div style={{marginTop:8,fontSize:11,color:"var(--t2)",lineHeight:1.6}}>
+                      Tasks of this type are averaging {sug.avgPctOver}% over estimate across {sug.occurrenceCount} completed projects.
+                    </div>
+                    <div style={{marginTop:12,display:"flex",gap:8,flexWrap:"wrap"}}>
+                      <button className="btn btn-xs" style={{background:"var(--green)",color:"#fff",border:"none"}}
+                        onClick={() => approveSuggestion(sug, sug.suggestedDurationDays)}>✓ Approve</button>
+                      <button className="btn btn-ghost btn-xs" style={{border:"1px solid var(--br)"}}
+                        onClick={() => { setAdjustModal(sug); setAdjustDays(sug.suggestedDurationDays); }}>✎ Adjust &amp; Approve</button>
+                      <button className="btn btn-xs" style={{background:"var(--blue)",color:"#fff",border:"none"}}
+                        onClick={() => openMindFlow(sug)}>↗ Open MindFlow</button>
+                      <button className="btn btn-ghost btn-xs" onClick={() => dismissSuggestion(sug)}>✕ Dismiss</button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+
+            {/* SMS preference toggle */}
+            <div style={{borderTop:"1px solid var(--br)",paddingTop:16,marginTop:8}}>
+              <label className="lbl">SMS NOTIFICATIONS</label>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginTop:6}}>
+                <button onClick={() => toggleCzarSms(!czarSmsEnabled)}
+                  style={{width:36,height:18,borderRadius:9,border:"none",cursor:"pointer",
+                    background:czarSmsEnabled?"var(--green)":"var(--s4)",transition:"background .2s",
+                    position:"relative",padding:0,flexShrink:0}}>
+                  <span style={{position:"absolute",top:2,left:czarSmsEnabled?18:2,width:14,height:14,
+                    borderRadius:"50%",background:"#fff",transition:"left .2s",
+                    boxShadow:"0 1px 3px rgba(0,0,0,.3)"}}/>
+                </button>
+                <span style={{fontSize:12,color:"var(--t1)"}}>Notify me by SMS when new suggestions are ready</span>
+              </div>
+              <div style={{fontSize:10,color:"var(--t3)",marginTop:4,marginLeft:46}}>Sends to your profile phone number.</div>
+            </div>
+          </div>
+        )}
+
+        {/* ── ADJUST & APPROVE MODAL ── */}
+        {adjustModal && (
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500}}
+            onClick={e => { if (e.target === e.currentTarget) setAdjustModal(null); }}>
+            <div style={{background:"var(--s1)",border:"1px solid var(--br)",borderRadius:12,padding:24,
+              width:420,maxWidth:"90vw",boxShadow:"0 20px 60px rgba(0,0,0,.4)"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                <div style={{fontSize:14,fontWeight:700,color:"var(--t1)"}}>Adjust Workflow Duration</div>
+                <button className="btn btn-ghost btn-xs" onClick={() => setAdjustModal(null)}>{Ic.close}</button>
+              </div>
+              <div>
+                <label className="lbl">TASK</label>
+                <div style={{fontSize:13,color:"var(--t1)",marginBottom:10}}>{adjustModal.taskTitle}</div>
+              </div>
+              <div style={{marginTop:10}}>
+                <label className="lbl">WORK TYPE</label>
+                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
+                  <span style={{width:8,height:8,borderRadius:"50%",background:(customWorkTypes||[]).find(w=>w.name===adjustModal.workType)?.color||"var(--purple)"}}/>
+                  <span style={{fontSize:12,color:"var(--t1)"}}>{adjustModal.workType}</span>
+                </div>
+              </div>
+              <div style={{marginTop:10}}>
+                <label className="lbl">NEW DURATION</label>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <input type="number" className="inp" min={1} value={adjustDays}
+                    onChange={e => setAdjustDays(Math.max(1, parseInt(e.target.value) || 1))}
+                    style={{width:80,fontSize:13,padding:"6px 10px"}}/>
+                  <span style={{fontSize:12,color:"var(--t2)"}}>days</span>
+                </div>
+                <div style={{fontSize:10,color:"var(--t2)",marginTop:5}}>
+                  Current template: {adjustModal.currentDurationDays} days · AI suggestion: {adjustModal.suggestedDurationDays} days based on {adjustModal.occurrenceCount} projects
+                </div>
+              </div>
+              <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:20}}>
+                <button className="btn btn-ghost" onClick={() => setAdjustModal(null)}>Cancel</button>
+                <button className="btn btn-primary" onClick={() => approveSuggestion(adjustModal, adjustDays)}>Confirm Update</button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
@@ -15223,7 +15495,27 @@ export default function JobDoxPortal() {
   const [exportLoading,          setExportLoading]         = useState(false);
   const [exportStatus,           setExportStatus]          = useState("");
   const [chatUnreadCounts,       setChatUnreadCounts]      = useState({});
+  const [czarPendingCount,       setCzarPendingCount]      = useState(0);
   const attrDefs = DEFAULT_ATTR_DEFS;
+
+  // ── Real-time listener for pending workflow suggestions (Process Czar badge) ──
+  useEffect(() => {
+    if (!companyId || !currentMember?.id) return;
+    const sugQ = query(
+      collection(db, "companies", companyId, "workflowSuggestions"),
+      where("status", "==", "pending")
+    );
+    const unsub = onSnapshot(sugQ, snap => {
+      const memberId = currentMember.id;
+      const permLvl = normPerm(permission);
+      // Admins (9+) see all pending; czars see only theirs
+      const count = permLvl >= 9
+        ? snap.size
+        : snap.docs.filter(d => (d.data().processCzarIds || []).includes(memberId)).length;
+      setCzarPendingCount(count);
+    }, () => {});
+    return unsub;
+  }, [companyId, currentMember?.id, permission]);
 
   // Re-sync if another tab updates localStorage config
   useEffect(() => {
@@ -16284,6 +16576,7 @@ export default function JobDoxPortal() {
         <div className="rail-lbl">TOOLS</div>
         <button className={`rail-btn${showTools?" active":""}`} data-tip="Advanced Tools" onClick={()=>setShowTools(v=>!v)}>
           {Ic.tools}
+          {czarPendingCount > 0 && <span style={{position:"absolute",top:6,right:6,width:16,height:16,borderRadius:"50%",background:"var(--acc)",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"var(--mono)"}}>{czarPendingCount}</span>}
         </button>
         <div className="rail-sp"/>
         <button className={`rail-btn${clockInState?" clocked-in":""}`} data-tip={clockInState?`Clocked in: ${clockInState.projName}`:"Not clocked in"}>
@@ -16495,6 +16788,8 @@ export default function JobDoxPortal() {
               onStatusesChange={setCustomStatuses}
               onProjectTypesChange={setCustomProjectTypes}
               featureFlags={featureFlags}
+              czarPendingCount={czarPendingCount}
+              customWorkTypes={customWorkTypes}
             />
           </>
         ) : page==="myday" ? (
