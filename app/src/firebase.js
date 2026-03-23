@@ -5,7 +5,8 @@
 
 import { initializeApp } from "firebase/app";
 import { getAuth }       from "firebase/auth";
-import { getFirestore }  from "firebase/firestore";
+import { getFirestore, addDoc, collection, serverTimestamp,
+         onSnapshot, orderBy, query }  from "firebase/firestore";
 
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyAFwSEDPqKgAUbwbh_2KZNwLDdGCZEiq3E",
@@ -29,3 +30,21 @@ export async function getFirebaseIdToken() {
   if (!user) return null;
   return user.getIdToken();
 }
+
+// Save a completed shift record for a project
+export const saveShift = (companyId, projectId, shift) =>
+  addDoc(
+    collection(db, "companies", companyId, "projects", projectId, "shifts"),
+    { ...shift, createdAt: serverTimestamp() }
+  );
+
+// Listen to all shifts for a project in real time
+export const listenShifts = (companyId, projectId, callback) => {
+  const q = query(
+    collection(db, "companies", companyId, "projects", projectId, "shifts"),
+    orderBy("createdAt", "desc")
+  );
+  return onSnapshot(q, snap => {
+    callback(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+  });
+};
