@@ -3964,7 +3964,8 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
     }
     setFinancialsLoading(true);
     try {
-      const todayStr = new Date().toISOString().split('T')[0]; // "YYYY-MM-DD"
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
       const activeIds = activeProjects.filter(p => !p.archived).map(p => p.id);
       const activeIdSet = new Set(activeIds);
       let invoices = 0, expenses = 0, revenue = 0;
@@ -3988,7 +3989,8 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
             if (txDate !== todayStr) return;
             const amount = parseFloat(tx.amount) || 0;
             const type = tx.type || '';
-            if (type === 'invoice') invoices += amount;
+            const validInvoiceStatuses = ['sent', 'partial', 'paid'];
+            if (type === 'invoice' && validInvoiceStatuses.includes(tx.status)) invoices += amount;
             if (type === 'payment_in') revenue += amount;
             // 'payroll' type excluded here — labor cost comes from shifts below
             if (['bill', 'payment_out', 'expense'].includes(type)) expenses += amount;
@@ -4033,7 +4035,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
     computeTodayFinancials(projects, companyId, projectShifts);
     const interval = setInterval(() => {
       computeTodayFinancials(projects, companyId, projectShifts);
-    }, 60000);
+    }, 300000);
     return () => clearInterval(interval);
   }, [projects, companyId, projectShifts, computeTodayFinancials]);
 
