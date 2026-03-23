@@ -3956,25 +3956,27 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
 
   const openMaps = (proj) => window.open(`https://maps.google.com/?q=${encodeURIComponent(proj.address)}`,"_blank");
 
-  // ── Fetch today's financial KPIs across all active projects ──
-  const fetchTodayFinancials = useCallback(async (activeProjects, cid) => {
+  // ── Compute today's financial KPIs across all active projects ──
+  const computeTodayFinancials = useCallback(async (activeProjects, cid, shiftsMap) => {
     if (!cid || !activeProjects || activeProjects.length === 0) {
       setTodayFinancials({ invoices: 0, expenses: 0, revenue: 0, margin: 0 });
       return;
     }
     setFinancialsLoading(true);
     try {
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = new Date().toISOString().split('T')[0]; // "YYYY-MM-DD"
       const activeIds = activeProjects.filter(p => !p.archived).map(p => p.id);
+      const activeIdSet = new Set(activeIds);
       let invoices = 0, expenses = 0, revenue = 0;
+      // — Part A: Firestore jobFinancials transactions —
       await Promise.all(activeIds.map(async (projId) => {
         try {
           const docRef = doc(db, "companies", cid, "jobFinancials", projId);
           const snap = await getDoc(docRef);
           if (!snap.exists()) return;
-          const data = snap.data();
-          const transactions = data.transactions || [];
+          const transactions = snap.data().transactions || [];
           transactions.forEach(tx => {
+            // Normalize date — support string "YYYY-MM-DD", ISO, or Firestore Timestamp
             let txDate = '';
             if (typeof tx.date === 'string') {
               txDate = tx.date.split('T')[0];
@@ -3988,20 +3990,39 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
             const type = tx.type || '';
             if (type === 'invoice') invoices += amount;
             if (type === 'payment_in') revenue += amount;
-            if (['bill', 'payment_out', 'expense', 'payroll'].includes(type)) expenses += amount;
+            // 'payroll' type excluded here — labor cost comes from shifts below
+            if (['bill', 'payment_out', 'expense'].includes(type)) expenses += amount;
           });
         } catch (e) {
-          // Skip projects with no financial doc
+          // Skip projects with no financial doc — not an error condition
         }
       }));
-      setTodayFinancials({
-        invoices,
-        expenses,
-        revenue,
-        margin: revenue - expenses
-      });
+      // — Part B: Shift labor costs from projectShifts state —
+      // projectShifts is now Firestore-backed via listenShifts listeners.
+      // Use payCost = hours × payRate (cost to company, not billing rate).
+      // Only count shifts from active non-archived projects, completed today.
+      if (shiftsMap && typeof shiftsMap === 'object') {
+        Object.entries(shiftsMap).forEach(([projId, shifts]) => {
+          if (!activeIdSet.has(projId)) return;
+          if (!Array.isArray(shifts)) return;
+          shifts.forEach(sh => {
+            // Only count completed shifts — clockOutIso must exist
+            if (!sh.clockOutIso) return;
+            // Resolve shift date from txnDate or clockOutIso
+            let shiftDate = sh.txnDate || '';
+            if (!shiftDate && sh.clockOutIso) {
+              shiftDate = sh.clockOutIso.split('T')[0];
+            }
+            if (shiftDate !== todayStr) return;
+            const hours = parseFloat(sh.hours) || 0;
+            const payRate = parseFloat(sh.payRate) || 0;
+            expenses += hours * payRate; // payCost — actual labor cost to company
+          });
+        });
+      }
+      setTodayFinancials({ invoices, expenses, revenue, margin: revenue - expenses });
     } catch (err) {
-      console.error('Error fetching today financials:', err);
+      console.error('Error computing today financials:', err);
     } finally {
       setFinancialsLoading(false);
     }
@@ -4009,12 +4030,12 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
 
   useEffect(() => {
     if (!companyId || projects.length === 0) return;
-    fetchTodayFinancials(projects, companyId);
+    computeTodayFinancials(projects, companyId, projectShifts);
     const interval = setInterval(() => {
-      fetchTodayFinancials(projects, companyId);
+      computeTodayFinancials(projects, companyId, projectShifts);
     }, 60000);
     return () => clearInterval(interval);
-  }, [projects, companyId, fetchTodayFinancials]);
+  }, [projects, companyId, projectShifts, computeTodayFinancials]);
 
   // ── Load archived projects from Firestore with filters ──
   const loadArchivedProjects = async (filters) => {
