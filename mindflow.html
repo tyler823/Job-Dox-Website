@@ -2502,6 +2502,26 @@ loadCurrentUser();
 loadCompanyConfig();
 loadStaff();
 loadAllTemplatesFromFS(); // Load workflow templates from Firestore
+
+// ── Process Czar suggestion banner ──
+(function() {
+  try {
+    var raw = localStorage.getItem('jd_czar_suggestion');
+    if (!raw) return;
+    localStorage.removeItem('jd_czar_suggestion');
+    var sug = JSON.parse(raw);
+    if (!sug || !sug.taskTitle) return;
+    var banner = document.createElement('div');
+    banner.style.cssText = 'background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px;color:var(--purple);display:flex;align-items:center;gap:8px;';
+    banner.innerHTML = '<span style="flex:1">\uD83D\uDCA1 <strong>Workflow Insight:</strong> "' +
+      sug.taskTitle.replace(/</g,'&lt;') + '" is averaging over its estimated duration. AI suggestion: update to ' +
+      sug.suggestedDurationDays + ' days. Find this task in your workflow to update it.</span>' +
+      '<button onclick="this.parentNode.remove()" style="background:none;border:none;color:var(--purple);cursor:pointer;font-size:14px;padding:2px 6px;flex-shrink:0;">\u00D7</button>';
+    var container = document.querySelector('.results-main');
+    if (container && container.firstChild) container.insertBefore(banner, container.firstChild);
+    else if (container) container.appendChild(banner);
+  } catch(_){}
+})();
 setInterval(pollStaff, 5000);
 setInterval(pollCompanyConfig, 3000);
 setInterval(function() { loadCurrentUser(); }, 5000); // re-check perm every 5s
