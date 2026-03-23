@@ -9162,6 +9162,8 @@ const PROJ_TABS = [
 function ProjectToolsDropdown({ proj, isClocked, onClockToggle, onNotify, onNavigate, onContact, onReview, onOpenMaps }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const btnRef = useRef(null);
+  const [pos, setPos] = useState({ top: 0, right: 0 });
 
   useEffect(() => {
     if (!open) return;
@@ -9169,6 +9171,18 @@ function ProjectToolsDropdown({ proj, isClocked, onClockToggle, onNotify, onNavi
     document.addEventListener("mousedown", handler);
     document.addEventListener("touchstart", handler);
     return () => { document.removeEventListener("mousedown", handler); document.removeEventListener("touchstart", handler); };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !btnRef.current) return;
+    const update = () => {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => { window.removeEventListener("resize", update); window.removeEventListener("scroll", update, true); };
   }, [open]);
 
   const TOOL_GROUPS = [
@@ -9200,7 +9214,7 @@ function ProjectToolsDropdown({ proj, isClocked, onClockToggle, onNotify, onNavi
 
   return (
     <div style={{position:"relative"}} ref={ref}>
-      <button className="proj-tools-btn" onClick={()=>setOpen(v=>!v)}>
+      <button className="proj-tools-btn" ref={btnRef} onClick={()=>setOpen(v=>!v)}>
         {Ic.tools} Tools {open
           ? <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>
           : <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
@@ -9208,7 +9222,7 @@ function ProjectToolsDropdown({ proj, isClocked, onClockToggle, onNotify, onNavi
       </button>
       {open && <>
         <div className="proj-tools-scrim" onClick={()=>setOpen(false)}/>
-        <div className="proj-tools-dropdown" onClick={e=>e.stopPropagation()}>
+        <div className="proj-tools-dropdown" style={{position:"fixed",top:pos.top,right:pos.right,marginTop:0}} onClick={e=>e.stopPropagation()}>
           {TOOL_GROUPS.map((g,gi) => (
             <div className="proj-tools-group" key={gi}>
               <div className="proj-tools-group-lbl">{g.label}</div>
