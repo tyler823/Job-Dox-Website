@@ -822,6 +822,91 @@ function checkStatusTrigger(taskTitle, currentStatus, customStatuses=[]) {
   return null;
 }
 
+// ── Sequential Task Unlocking — Trigger Evaluation Engine ──
+// Evaluates locked tasks' trigger conditions and unlocks them when met.
+// context: { event, taskTitle?, documentName?, newStatus? }
+// Returns array of unlocked task IDs.
+async function evaluateTaskTriggers(companyId, projId, context, tasks, setTasks) {
+  if (!companyId || !projId || !tasks || !tasks.length) return [];
+  const locked = tasks.filter(t => t.status === "locked" && Array.isArray(t.triggers) && t.triggers.length > 0);
+  if (!locked.length) return [];
+
+  const unlockedIds = [];
+  const now = new Date();
+  const todayStr = now.toISOString().split("T")[0];
+
+  for (const task of locked) {
+    let matchResults = task.triggers.map(tr => {
+      if (context.event === "check_time_triggers") {
+        // Time-based triggers only
+        if (tr.type === "days_after_creation" && tr.days != null) {
+          const projCreated = context.projectCreatedAt ? new Date(context.projectCreatedAt) : null;
+          if (!projCreated) return false;
+          const threshold = new Date(projCreated);
+          threshold.setDate(threshold.getDate() + tr.days);
+          return now >= threshold;
+        }
+        if (tr.type === "days_after_task_complete" && tr.days != null && tr.taskTitle) {
+          const refTask = tasks.find(t => t.title && t.title.toLowerCase() === tr.taskTitle.toLowerCase() && t.status === "done");
+          if (!refTask || !refTask.completedAt) return false;
+          const completedDate = new Date(refTask.completedAt);
+          const threshold = new Date(completedDate);
+          threshold.setDate(threshold.getDate() + tr.days);
+          return now >= threshold;
+        }
+        if (tr.type === "days_inactive" && tr.days != null) {
+          const lastActive = context.lastActivityAt ? new Date(context.lastActivityAt) : null;
+          if (!lastActive) return false;
+          const threshold = new Date(lastActive);
+          threshold.setDate(threshold.getDate() + tr.days);
+          return now >= threshold;
+        }
+        return false; // non-time triggers don't match during time check
+      }
+      // Event-based triggers
+      if (tr.type === "days_after_creation" || tr.type === "days_after_task_complete" || tr.type === "days_inactive") return false;
+      if (tr.type === "task_complete") {
+        return context.event === "task_complete" && context.taskTitle && tr.taskTitle && context.taskTitle.toLowerCase() === tr.taskTitle.toLowerCase();
+      }
+      if (tr.type === "document_uploaded") {
+        return context.event === "document_uploaded";
+      }
+      if (tr.type === "document_signed") {
+        if (context.event !== "document_signed") return false;
+        if (tr.keyword && context.documentName) return context.documentName.toLowerCase().includes(tr.keyword.toLowerCase());
+        return true;
+      }
+      if (tr.type === "status_reached") {
+        return context.event === "status_changed" && context.newStatus && tr.statusName && context.newStatus.toLowerCase() === tr.statusName.toLowerCase();
+      }
+      return false;
+    });
+
+    const shouldUnlock = task.triggerLogic === "ALL"
+      ? matchResults.every(Boolean)
+      : matchResults.some(Boolean);
+
+    if (shouldUnlock) {
+      unlockedIds.push(task.id);
+    }
+  }
+
+  if (unlockedIds.length > 0) {
+    setTasks(prev => {
+      const next = prev.map(t => {
+        if (!unlockedIds.includes(t.id)) return t;
+        const durationDays = t.durationDays || 3;
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + durationDays);
+        const dueDateStr = dueDate.toISOString().split("T")[0];
+        return { ...t, status: "open", dueDate: dueDateStr, due: dueDateStr, unlockedAt: now.toISOString() };
+      });
+      return next;
+    });
+  }
+  return unlockedIds;
+}
+
 // Sync all company config to localStorage so mindflow can read it
 function syncCompanyConfigToLS(workTypes, statuses, projectTypes) {
   saveCWT(workTypes);
@@ -2503,24 +2588,38 @@ function AddProjModal({ onClose, onAdd, customWorkTypes=[], customStatuses=[], c
       if (!tpl) return;
       tpl.phases.forEach(ph => {
         ph.tasks.forEach(t => {
+          const isActive = t.generateAtCreation !== false; // default true if not set
+          const durationDays = typeof t.durationDays === 'number' ? t.durationDays : (typeof t.dueDaysFromStart === 'number' ? t.dueDaysFromStart : 3);
+          const resolvedAssignee = resolveAssignee(t.assignedToName || t.assignedTo || t.role || '');
           templateTasks.push({
             id: uid(),
             title: t.title,
-            assigned: (function() { const a = resolveAssignee(t.assignedToName || t.assignedTo || t.role || ''); return a.name; })(),
-            assignedToId: (function() { const a = resolveAssignee(t.assignedToName || t.assignedTo || t.role || ''); return a.id; })(),
+            assigned: resolvedAssignee.name,
+            assignedRole: t.assignedToName || t.assignedTo || t.role || '',
+            assignedToId: resolvedAssignee.id,
             priority: t.priority === "Critical" ? "high" : t.priority === "High" ? "med" : "low",
-            status: "open",
+            status: isActive ? "open" : "locked",
             phase: ph.name,
             workType: wt.type,
             checklist: t.checklist || [],
             statusTrigger: t.statusTrigger || null,
+            generateAtCreation: t.generateAtCreation !== false,
+            triggerLogic: t.triggerLogic || null,
+            triggers: Array.isArray(t.triggers) ? t.triggers : [],
+            durationDays,
             created: new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"}),
-            due: (function() {
-              const days = typeof t.dueDaysFromStart === 'number' ? t.dueDaysFromStart : 3;
+            createdAt: new Date().toISOString(),
+            due: isActive ? (function() {
               const d = new Date(projectStartDate);
-              d.setDate(d.getDate() + days);
+              d.setDate(d.getDate() + durationDays);
               return d.toISOString().split('T')[0];
-            })(),
+            })() : "",
+            dueDate: isActive ? (function() {
+              const d = new Date(projectStartDate);
+              d.setDate(d.getDate() + durationDays);
+              return d.toISOString().split('T')[0];
+            })() : null,
+            unlockedAt: null,
             comments: 0,
             fromTemplate: tpl.name,
           });
@@ -4618,6 +4717,8 @@ function OverviewTab({ proj, attrDefs, dailyNotes=[], setDailyNotes=()=>{}, emai
               if (_globalCompanyId && proj.id) {
                 updateDoc(doc(db, "companies", _globalCompanyId, "projects", proj.id), { status: newStatus }).catch(() => {});
               }
+              // Dispatch event for task trigger evaluation
+              window.dispatchEvent(new CustomEvent("jd-trigger-event", { detail: { event: "status_changed", newStatus, projId: proj.id } }));
             }}
           />
         </div>
@@ -5114,6 +5215,51 @@ function TasksTab({ projId="", projName="", initialTasks=[], globalStaff=[], com
     });
   }, [projId, companyId]);
 
+  // ── Listen for trigger events from other components (document uploads, signing, status changes) ──
+  useEffect(() => {
+    const handler = (e) => {
+      const d = e.detail;
+      if (!d || d.projId !== projId) return;
+      setTasksRaw(currentTasks => {
+        evaluateTaskTriggers(companyId, projId, d, currentTasks, setTasks);
+        return currentTasks;
+      });
+    };
+    window.addEventListener("jd-trigger-event", handler);
+    return () => window.removeEventListener("jd-trigger-event", handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId, projId]);
+
+  // ── Time-based trigger evaluation (runs once on mount) ──
+  useEffect(() => {
+    if (!companyId || !projId) return;
+    // Load project creation date from Firestore
+    getDoc(doc(db, "companies", companyId, "projects", projId))
+      .then(snap => {
+        if (!snap.exists()) return;
+        const projData = snap.data();
+        const projectCreatedAt = projData.createdAt || projData.created || null;
+        // Load last activity timestamp
+        let lastActivityAt = null;
+        try {
+          const actRaw = localStorage.getItem("jd_activity");
+          if (actRaw) {
+            const actEntries = JSON.parse(actRaw).filter(a => a.projId === projId);
+            if (actEntries.length) lastActivityAt = actEntries[0].time || actEntries[0].timestamp || null;
+          }
+        } catch {}
+        setTasksRaw(currentTasks => {
+          const hasTimeTriggers = currentTasks.some(t => t.status === "locked" && Array.isArray(t.triggers) && t.triggers.some(tr => ["days_after_creation","days_after_task_complete","days_inactive"].includes(tr.type)));
+          if (hasTimeTriggers) {
+            evaluateTaskTriggers(companyId, projId, { event: "check_time_triggers", projectCreatedAt, lastActivityAt }, currentTasks, setTasks);
+          }
+          return currentTasks;
+        });
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId, projId]);
+
   // ── Pull dispatch appointments linked to this project ──
   const dispatchApptsForProj = useMemo(() => {
     if (!projId || !companyId) return [];
@@ -5148,7 +5294,19 @@ function TasksTab({ projId="", projName="", initialTasks=[], globalStaff=[], com
     time:"", type:"task", notes:""
   });
 
-  const toggle = id => setTasks(t => t.map(x => x.id===id ? {...x, status: x.status==="done"?"open":"done"} : x));
+  const toggle = id => {
+    const task = tasks.find(x => x.id === id);
+    if (task && task.status === "locked") return; // locked tasks cannot be toggled
+    const newStatus = task && task.status === "done" ? "open" : "done";
+    const completedAt = newStatus === "done" ? new Date().toISOString() : null;
+    setTasks(t => t.map(x => x.id===id ? {...x, status: newStatus, ...(completedAt ? {completedAt} : {})} : x));
+    // If task was just completed, evaluate triggers
+    if (newStatus === "done" && task) {
+      setTimeout(() => {
+        evaluateTaskTriggers(companyId, projId, { event: "task_complete", taskTitle: task.title }, tasks.map(x => x.id===id ? {...x, status:"done", completedAt: new Date().toISOString()} : x), setTasks);
+      }, 100);
+    }
+  };
 
   const add = () => {
     if (!f.title) return;
@@ -5202,8 +5360,12 @@ function TasksTab({ projId="", projName="", initialTasks=[], globalStaff=[], com
   const visBase = isVendor && currentMemberId
     ? mergedTasks.filter(t => Array.isArray(t.assignedUserIds) && t.assignedUserIds.includes(currentMemberId))
     : mergedTasks;
-  const vis = visBase.filter(t => filter==="all" || t.status===filter);
+  // Separate locked (upcoming) tasks from active/done tasks
+  const activeTasks = visBase.filter(t => t.status !== "locked");
+  const lockedTasks = visBase.filter(t => t.status === "locked");
+  const vis = activeTasks.filter(t => filter==="all" || t.status===filter);
   const priC = {high:"var(--acc)", med:"var(--amber)", low:"var(--t3)"};
+  const [upcomingOpen, setUpcomingOpen] = useState(false);
 
   return (
     <div className="scroll">
@@ -5226,9 +5388,9 @@ function TasksTab({ projId="", projName="", initialTasks=[], globalStaff=[], com
       <div style={{maxWidth:800, margin:"0 auto"}}>
         <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:11}}>
           <div style={{display:"flex",gap:5}}>
-            {[["open","Open",tasks.filter(t=>t.status==="open").length],
-              ["done","Done",tasks.filter(t=>t.status==="done").length],
-              ["all","All",tasks.length]
+            {[["open","Open",activeTasks.filter(t=>t.status==="open").length],
+              ["done","Done",activeTasks.filter(t=>t.status==="done").length],
+              ["all","All",activeTasks.length]
             ].map(([k,l,n]) => (
               <button key={k} className={`chip${filter===k?" on":""}`} onClick={()=>setFilter(k)}>
                 {l} <span className="mono" style={{fontSize:8}}>{n}</span>
@@ -5362,9 +5524,16 @@ function TasksTab({ projId="", projName="", initialTasks=[], globalStaff=[], com
             </div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:6}}>
-                <div style={{fontSize:12,fontWeight:600,color:t.status==="done"?"var(--t3)":"var(--t1)",textDecoration:t.status==="done"?"line-through":"none",lineHeight:1.3}}>
+                <div style={{fontSize:12,fontWeight:600,color:t.status==="done"?"var(--t3)":"var(--t1)",textDecoration:t.status==="done"?"line-through":"none",lineHeight:1.3,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                   {t.type==="appointment" && <span style={{marginRight:5,fontSize:10,color:"var(--blue)",fontFamily:"var(--mono)"}}>APPT</span>}
-                  {t.title}
+                  <span>{t.title}</span>
+                  {(t.dueDate || t.due) && t.status !== "done" && (() => {
+                    const dd = t.dueDate || t.due;
+                    const today = new Date(); today.setHours(0,0,0,0);
+                    const dueD = new Date(dd + "T00:00:00");
+                    const isPast = dueD <= today;
+                    return <span style={{fontSize:9,fontFamily:"var(--mono)",fontWeight:600,padding:"1px 6px",borderRadius:4,background:isPast?"rgba(232,156,24,.12)":"var(--s3)",color:isPast?"var(--amber)":"var(--t3)"}}>{dd}</span>;
+                  })()}
                 </div>
                 <div style={{display:"flex",gap:4,flexShrink:0}}>
                   <span style={{width:7,height:7,borderRadius:"50%",background:priC[t.priority]||"var(--t3)",marginTop:4,flexShrink:0}}/>
@@ -5409,6 +5578,44 @@ function TasksTab({ projId="", projName="", initialTasks=[], globalStaff=[], com
           <div style={{textAlign:"center",padding:"36px 0",color:"var(--t3)"}}>
             <div style={{opacity:.15,fontSize:24,marginBottom:8}}>{Ic.tasks}</div>
             <div className="mono" style={{fontSize:11}}>NO {filter.toUpperCase()} TASKS</div>
+          </div>
+        )}
+
+        {/* ── Upcoming (Locked) Tasks ── */}
+        {lockedTasks.length > 0 && (
+          <div style={{marginTop:18}}>
+            <div
+              onClick={()=>setUpcomingOpen(v=>!v)}
+              style={{display:"flex",alignItems:"center",gap:7,cursor:"pointer",userSelect:"none",marginBottom:upcomingOpen?10:0}}>
+              <span style={{fontSize:10,transition:"transform .15s",transform:upcomingOpen?"rotate(90deg)":"rotate(0deg)",color:"var(--t3)"}}>▶</span>
+              <span className="sec" style={{fontSize:10}}>UPCOMING TASKS ({lockedTasks.length})</span>
+            </div>
+            {upcomingOpen && lockedTasks.map(t => (
+              <div key={t.id} className="row" style={{display:"flex",alignItems:"flex-start",gap:9,opacity:0.6,borderLeft:"3px solid var(--t3)",borderLeftColor:"var(--t3)"}}>
+                <div style={{marginTop:3,fontSize:13,color:"var(--t3)",flexShrink:0,width:20,textAlign:"center"}}>🔒</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:600,color:"var(--t2)",lineHeight:1.3}}>{t.title}</div>
+                  <div style={{display:"flex",gap:9,marginTop:3,fontSize:10,color:"var(--t3)",flexWrap:"wrap"}}>
+                    {(t.assignedRole || t.assigned) && <span>{t.assignedRole || t.assigned}</span>}
+                  </div>
+                  {Array.isArray(t.triggers) && t.triggers.length > 0 && (
+                    <div style={{marginTop:4,fontSize:9,color:"var(--t3)",fontFamily:"var(--mono)",padding:"2px 7px",background:"var(--s3)",borderRadius:4,display:"inline-block"}}>
+                      Unlocks when: {t.triggers.map((tr,i) => {
+                        const desc = tr.type === "task_complete" ? `"${tr.taskTitle}" complete`
+                          : tr.type === "document_uploaded" ? "document uploaded"
+                          : tr.type === "document_signed" ? `document signed${tr.keyword ? ` (${tr.keyword})` : ""}`
+                          : tr.type === "status_reached" ? `status → ${tr.statusName}`
+                          : tr.type === "days_after_creation" ? `${tr.days}d after creation`
+                          : tr.type === "days_after_task_complete" ? `${tr.days}d after "${tr.taskTitle}" done`
+                          : tr.type === "days_inactive" ? `${tr.days}d inactive`
+                          : tr.type;
+                        return (i > 0 ? (t.triggerLogic === "ALL" ? " AND " : " OR ") : "") + desc;
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -6660,6 +6867,8 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
     setDocs(loadProjDocs(proj?.id||""));
     setUploadForm({ name:"", type:"contract" });
     setUploadModal(false);
+    // Dispatch event for task trigger evaluation
+    window.dispatchEvent(new CustomEvent("jd-trigger-event", { detail: { event: "document_uploaded", documentName: doc.name, projId: proj?.id } }));
   };
 
   const handlePdfFileSelect = e => {
@@ -6708,6 +6917,10 @@ function ProjectDocumentsPanel({ proj, contacts=[], assignedStaff=[], onNavigate
     const all = loadProjDocs(proj?.id||"").map(d => d.id===updated.id ? updated : d);
     saveProjDocs(proj?.id||"", all);
     setDocs(all);
+    // Dispatch event for task trigger evaluation when fully signed
+    if (updated.status === "signed") {
+      window.dispatchEvent(new CustomEvent("jd-trigger-event", { detail: { event: "document_signed", documentName: updated.name || signingDoc.name || "", projId: proj?.id } }));
+    }
     setSigningDoc(null);
   };
 
