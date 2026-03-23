@@ -25,7 +25,7 @@ function exitToLanding() {
 import { signInWithCustomToken } from "firebase/auth";
 import { db, fbAuth, getFirebaseIdToken } from "./firebase.js";
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp,
-         doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where, Timestamp } from "firebase/firestore";
+         doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, where, Timestamp, limit as fsLimit } from "firebase/firestore";
 
 // ── Single-session enforcement ──────────────────────────────────────────────
 // On login we write a random token to activeSessions/{memberstackId}.
@@ -972,6 +972,81 @@ function deleteWorkflowTemplate(workType) {
     localStorage.setItem(LS_WF_TEMPLATES_KEY, JSON.stringify(all));
     if (_globalCompanyId) fsSaveCompanySettings(_globalCompanyId, "workflowTemplates", all);
   } catch {}
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   WORKFLOW PATTERN DETECTION — passive, no UI
+   Checks if a task title consistently overruns its estimate and
+   creates a workflowSuggestion doc for the Process Czar to review.
+══════════════════════════════════════════════════════════════════ */
+async function checkWorkflowPatterns(companyId, workType, taskTitle) {
+  if (!companyId || !workType || !taskTitle) return;
+  try {
+    // 1. Query recent taskPerformance for this workType + taskTitle
+    const perfQ = query(
+      collection(db, "companies", companyId, "taskPerformance"),
+      where("workType", "==", workType),
+      where("taskTitle", "==", taskTitle),
+      orderBy("completedAt", "desc"),
+      fsLimit(20)
+    );
+    const perfSnap = await getDocs(perfQ);
+    if (perfSnap.empty) return;
+    const perfDocs = perfSnap.docs.map(d => d.data());
+
+    // 2. Find all Process Czars for this work type
+    const staffQ = query(
+      collection(db, "companies", companyId, "staff"),
+      where("processCzarFor", "array-contains", workType)
+    );
+    const staffSnap = await getDocs(staffQ);
+    if (staffSnap.empty) return; // no czar assigned — nothing to do
+    const czars = staffSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // 3. For each czar, check their thresholds
+    for (const czar of czars) {
+      const thresholds = czar.czarThresholds?.[workType] || { minCount: 3, minPctOver: 25 };
+      const { minCount, minPctOver } = thresholds;
+
+      // 4. Count qualifying overdue records
+      const qualifying = perfDocs.filter(r => r.pctOver >= minPctOver);
+      if (qualifying.length < minCount) continue;
+
+      // 5. Check for existing pending suggestion
+      const sugQ = query(
+        collection(db, "companies", companyId, "workflowSuggestions"),
+        where("workType", "==", workType),
+        where("taskTitle", "==", taskTitle),
+        where("status", "==", "pending")
+      );
+      const sugSnap = await getDocs(sugQ);
+      if (!sugSnap.empty) continue; // already a pending suggestion
+
+      // 6. Build and write the suggestion
+      const avgActual = qualifying.reduce((s, r) => s + r.actualDays, 0) / qualifying.length;
+      const avgPctOver = qualifying.reduce((s, r) => s + r.pctOver, 0) / qualifying.length;
+      const templateName = perfDocs[0]?.templateName || null;
+      const currentDuration = perfDocs[0]?.estimatedDays || 0;
+
+      await addDoc(collection(db, "companies", companyId, "workflowSuggestions"), {
+        workType,
+        taskTitle,
+        templateName,
+        currentDurationDays: currentDuration,
+        suggestedDurationDays: Math.ceil(avgActual),
+        avgPctOver: Math.round(avgPctOver * 100) / 100,
+        occurrenceCount: qualifying.length,
+        status: "pending",
+        createdAt: serverTimestamp(),
+        resolvedAt: null,
+        resolvedBy: null,
+        processCzarIds: czars.map(c => c.id),
+      });
+      break; // one suggestion per task title is enough
+    }
+  } catch (e) {
+    console.warn("[Job-Dox] checkWorkflowPatterns error:", e);
+  }
 }
 
 function WorkTypePills({ worktypes, customWorkTypes=[] }) {
@@ -5305,6 +5380,36 @@ function TasksTab({ projId="", projName="", initialTasks=[], globalStaff=[], com
       setTimeout(() => {
         evaluateTaskTriggers(companyId, projId, { event: "task_complete", taskTitle: task.title }, tasks.map(x => x.id===id ? {...x, status:"done", completedAt: new Date().toISOString()} : x), setTasks);
       }, 100);
+      // ── Task performance data collection ──
+      // Only track template-sourced tasks with a durationDays estimate
+      if (task.fromTemplate && typeof task.durationDays === "number" && companyId) {
+        const startTime = task.unlockedAt || task.createdAt;
+        if (startTime) {
+          const startMs = new Date(startTime).getTime();
+          const endMs = Date.now();
+          const actualDays = Math.ceil((endMs - startMs) / 86400000);
+          const estimatedDays = task.durationDays;
+          const overdueDays = actualDays - estimatedDays;
+          const pctOver = estimatedDays > 0 ? ((actualDays - estimatedDays) / estimatedDays) * 100 : 0;
+          const primaryWorkType = (workTypes && workTypes.length > 0) ? workTypes[0] : (task.workType || null);
+          if (primaryWorkType) {
+            addDoc(collection(db, "companies", companyId, "taskPerformance"), {
+              taskTitle: task.title,
+              workType: primaryWorkType,
+              templateName: task.fromTemplate,
+              estimatedDays,
+              actualDays,
+              overdueDays,
+              pctOver: Math.round(pctOver * 100) / 100,
+              projectId: projId,
+              completedAt: serverTimestamp(),
+              completedBy: currentMemberId,
+            }).then(() => {
+              checkWorkflowPatterns(companyId, primaryWorkType, task.title);
+            }).catch(e => console.warn("[Job-Dox] taskPerformance write failed:", e));
+          }
+        }
+      }
     }
   };
 
@@ -13983,7 +14088,7 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
   const [saving,   setSaving]   = useState(false);
   const [saveError, setSaveError] = useState("");
   const [inviteSaved, setInviteSaved] = useState(false);
-  const blank = { firstName:"", lastName:"", email:"", phone:"", systemRole:"", title:"", photoUrl:"", officeIds:[], permissionLevel:3 };
+  const blank = { firstName:"", lastName:"", email:"", phone:"", systemRole:"", title:"", photoUrl:"", officeIds:[], permissionLevel:3, processCzarFor:[], czarThresholds:{} };
   const [form, setForm] = useState(blank);
   const [inviteForm, setInviteForm] = useState({ email:"", permission:3 });
 
@@ -14015,7 +14120,8 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
   const openEdit = s => {
     setForm({ firstName:s.firstName||"", lastName:s.lastName||"", email:s.email||"",
               phone:s.phone||"", systemRole:s.systemRole||"",
-              title:s.title||"", photoUrl:s.photoUrl||"", officeIds:s.officeIds||[], permissionLevel:normPerm(s.permission??3) });
+              title:s.title||"", photoUrl:s.photoUrl||"", officeIds:s.officeIds||[], permissionLevel:normPerm(s.permission??3),
+              processCzarFor:Array.isArray(s.processCzarFor)?[...s.processCzarFor]:[], czarThresholds:s.czarThresholds?{...s.czarThresholds}:{} });
     setEditId(s.id);
     setShowForm(true);
     setSaveError("");
@@ -14424,6 +14530,77 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                   </div>
                 )}
 
+                {/* ── PROCESS CZAR — Work Types ── */}
+                {editId && canManageStaffLocal && (
+                  <div style={{marginBottom:14}}>
+                    <label className="lbl">PROCESS CZAR — WORK TYPES</label>
+                    <div style={{fontSize:10,color:"var(--t3)",marginBottom:8}}>
+                      This person will receive workflow improvement suggestions for the selected work types.
+                    </div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                      {(loadCWT()||[]).map(wt => {
+                        const active = (form.processCzarFor||[]).includes(wt.name);
+                        const wtColor = wt.color || "var(--purple)";
+                        return (
+                          <button key={wt.id||wt.name} type="button"
+                            onClick={() => {
+                              setForm(f => {
+                                const arr = f.processCzarFor || [];
+                                const next = active ? arr.filter(n => n !== wt.name) : [...arr, wt.name];
+                                const thresholds = { ...f.czarThresholds };
+                                if (!active && !thresholds[wt.name]) {
+                                  thresholds[wt.name] = { minCount: 3, minPctOver: 25 };
+                                }
+                                if (active) delete thresholds[wt.name];
+                                return { ...f, processCzarFor: next, czarThresholds: thresholds };
+                              });
+                            }}
+                            style={{display:"flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:20,
+                              border:`1.5px solid ${active ? wtColor : "var(--br)"}`,
+                              background: active ? `${wtColor}18` : "transparent",
+                              color: active ? wtColor : "var(--t2)",
+                              cursor:"pointer",fontSize:11,fontWeight: active ? 700 : 400,transition:"all .12s"}}>
+                            <span style={{width:7,height:7,borderRadius:"50%",background: active ? wtColor : "var(--t3)",flexShrink:0}}/>
+                            {wt.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {/* Threshold inputs for each selected work type */}
+                    {(form.processCzarFor||[]).map(wtName => {
+                      const th = (form.czarThresholds||{})[wtName] || { minCount: 3, minPctOver: 25 };
+                      return (
+                        <div key={wtName} style={{marginTop:10,padding:"10px 14px",background:"var(--s3)",
+                          borderRadius:7,border:"1px solid var(--br)"}}>
+                          <div style={{fontSize:10,fontWeight:700,color:"var(--purple)",marginBottom:8,textTransform:"uppercase",letterSpacing:.5}}>
+                            Alert Thresholds for {wtName}
+                          </div>
+                          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                            <div>
+                              <label style={{fontSize:10,color:"var(--t3)",display:"block",marginBottom:3}}>Alert after overdue occurrences</label>
+                              <input type="number" className="inp" min={1} value={th.minCount}
+                                onChange={e => {
+                                  const val = Math.max(1, parseInt(e.target.value) || 1);
+                                  setForm(f => ({...f, czarThresholds: {...f.czarThresholds, [wtName]: {...(f.czarThresholds||{})[wtName], minCount: val}}}));
+                                }}
+                                style={{width:"100%",fontSize:12,padding:"6px 10px"}}/>
+                            </div>
+                            <div>
+                              <label style={{fontSize:10,color:"var(--t3)",display:"block",marginBottom:3}}>AND % over estimated duration</label>
+                              <input type="number" className="inp" min={5} value={th.minPctOver}
+                                onChange={e => {
+                                  const val = Math.max(5, parseInt(e.target.value) || 5);
+                                  setForm(f => ({...f, czarThresholds: {...f.czarThresholds, [wtName]: {...(f.czarThresholds||{})[wtName], minPctOver: val}}}));
+                                }}
+                                style={{width:"100%",fontSize:12,padding:"6px 10px"}}/>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {saveError && (
                   <div style={{marginBottom:12,padding:"8px 12px",background:"rgba(228,53,49,.08)",
                     border:"1px solid rgba(228,53,49,.2)",borderRadius:7,fontSize:11,color:"var(--acc)"}}>
@@ -14496,6 +14673,21 @@ function SettingsPage({ globalStaff, setGlobalStaff, pendingInvites=[], companyI
                               if (!ov) return null;
                               return <span key={id} style={{fontSize:8,color:ov.color||"var(--teal)",background:`${ov.color||"var(--teal)"}18`,border:`1px solid ${ov.color||"var(--teal)"}35`,borderRadius:10,padding:"1px 6px",fontFamily:"var(--mono)"}}>{ov.name}</span>;
                             })}
+                          </div>
+                        )}
+                        {/* Process Czar badge */}
+                        {Array.isArray(s.processCzarFor) && s.processCzarFor.length > 0 && (
+                          <div style={{marginTop:3}}>
+                            <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:8,fontWeight:700,
+                              color:"var(--purple)",background:"rgba(139,92,246,.12)",border:"1px solid rgba(139,92,246,.25)",
+                              borderRadius:10,padding:"1px 8px",fontFamily:"var(--mono)"}}>
+                              👑 PROCESS CZAR
+                            </span>
+                            <div style={{display:"flex",flexWrap:"wrap",gap:2,marginTop:2}}>
+                              {s.processCzarFor.map(wt => (
+                                <span key={wt} style={{fontSize:7,color:"var(--purple)",opacity:.8,fontFamily:"var(--mono)"}}>{wt}</span>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>
