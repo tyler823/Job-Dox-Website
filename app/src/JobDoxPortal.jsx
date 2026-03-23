@@ -3879,6 +3879,8 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
   const [archivedProjects, setArchivedProjects] = useState([]);
   const [archivedLoading, setArchivedLoading] = useState(false);
   const [archivedFilters, setArchivedFilters] = useState({ closeType: 'all', projectType: 'all', office: 'all', dateFrom: '', dateTo: '' });
+  const [todayFinancials, setTodayFinancials] = useState({ invoices: 0, expenses: 0, revenue: 0, margin: 0 });
+  const [financialsLoading, setFinancialsLoading] = useState(false);
 
   const statusFilterOpts = ["All", ...customStatuses.map(s=>s.name)];
   const typeFilterOpts   = ["All", ...customProjectTypes.map(t=>t.name)];
@@ -3953,6 +3955,66 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
   }, [activeFlagCount, companyId]);
 
   const openMaps = (proj) => window.open(`https://maps.google.com/?q=${encodeURIComponent(proj.address)}`,"_blank");
+
+  // ── Fetch today's financial KPIs across all active projects ──
+  const fetchTodayFinancials = useCallback(async (activeProjects, cid) => {
+    if (!cid || !activeProjects || activeProjects.length === 0) {
+      setTodayFinancials({ invoices: 0, expenses: 0, revenue: 0, margin: 0 });
+      return;
+    }
+    setFinancialsLoading(true);
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const activeIds = activeProjects.filter(p => !p.archived).map(p => p.id);
+      let invoices = 0, expenses = 0, revenue = 0;
+      await Promise.all(activeIds.map(async (projId) => {
+        try {
+          const docRef = doc(db, "companies", cid, "jobFinancials", projId);
+          const snap = await getDoc(docRef);
+          if (!snap.exists()) return;
+          const data = snap.data();
+          const transactions = data.transactions || [];
+          transactions.forEach(tx => {
+            let txDate = '';
+            if (typeof tx.date === 'string') {
+              txDate = tx.date.split('T')[0];
+            } else if (tx.date && tx.date.toDate) {
+              txDate = tx.date.toDate().toISOString().split('T')[0];
+            } else if (tx.createdAt && tx.createdAt.toDate) {
+              txDate = tx.createdAt.toDate().toISOString().split('T')[0];
+            }
+            if (txDate !== todayStr) return;
+            const amount = parseFloat(tx.amount) || 0;
+            const type = tx.type || '';
+            if (type === 'invoice') invoices += amount;
+            if (type === 'payment_in') revenue += amount;
+            if (['bill', 'payment_out', 'expense', 'payroll'].includes(type)) expenses += amount;
+          });
+        } catch (e) {
+          // Skip projects with no financial doc
+        }
+      }));
+      setTodayFinancials({
+        invoices,
+        expenses,
+        revenue,
+        margin: revenue - expenses
+      });
+    } catch (err) {
+      console.error('Error fetching today financials:', err);
+    } finally {
+      setFinancialsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!companyId || projects.length === 0) return;
+    fetchTodayFinancials(projects, companyId);
+    const interval = setInterval(() => {
+      fetchTodayFinancials(projects, companyId);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [projects, companyId, fetchTodayFinancials]);
 
   // ── Load archived projects from Firestore with filters ──
   const loadArchivedProjects = async (filters) => {
@@ -4098,7 +4160,7 @@ function PortfolioPage({ projects, onSelect, onAdd, onNavigate, clockInState, on
             <div className="kpi"><div className="kpi-val" style={{color:"var(--acc)"}}>{archivedProjects.filter(p => p.closeType === "lost").length}</div><div className="kpi-lbl">Closed Lost</div></div>
           </>
         ) : (
-          [["Active",projects.filter(p=>!p.archived&&p.status==="In Progress").length,"var(--blue)"],...(canViewBudget?[["Total Budget",fmt$(projects.filter(p=>!p.archived).reduce((s,p)=>s+p.budget,0)),"var(--green)"]]:[[]]),...[["Open Tasks",projects.filter(p=>!p.archived).reduce((s,p)=>s+p.tasksOpen,0),"var(--amber)"],["Completed",projects.filter(p=>!p.archived&&p.status==="Completed").length,"var(--t2)"]]].map(([l,v,c])=>(
+          [["Active",projects.filter(p=>!p.archived&&p.status==="In Progress").length,"var(--blue)"],["Open Tasks",projects.filter(p=>!p.archived).reduce((s,p)=>s+p.tasksOpen,0),"var(--amber)"],["Completed",projects.filter(p=>!p.archived&&p.status==="Completed").length,"var(--t2)"],...(canViewBudget?[["Today's Invoices",financialsLoading?"—":fmt$(todayFinancials.invoices),"var(--blue)"],["Today's Expenses",financialsLoading?"—":fmt$(todayFinancials.expenses),"var(--acc)"],["Today's Revenue",financialsLoading?"—":fmt$(todayFinancials.revenue),"var(--green)"],["Today's Margin",financialsLoading?"—":fmt$(todayFinancials.margin),todayFinancials.margin>=0?"var(--green)":"var(--acc)"]]:[])]  .map(([l,v,c])=>(
             <div key={l} className="kpi"><div className="kpi-val" style={{color:c}}>{v}</div><div className="kpi-lbl">{l}</div></div>
           ))
         )}
