@@ -197,6 +197,33 @@ body{background:var(--bg);color:var(--t1);font-family:'Outfit',sans-serif;height
 .chat-wt-row{display:flex;align-items:center;gap:10px;padding:12px 0 4px;border-bottom:1px solid var(--br);flex-shrink:0;}
 .chat-sidebar{width:240px;background:var(--s1);border-left:1px solid var(--br);display:flex;flex-direction:column;padding:14px;gap:12px;flex-shrink:0;}
 @media(max-width:768px){.chat-sidebar{display:none;}.chat-main{padding:0 10px;}}
+
+/* ── TASK TRIGGER CONFIG ── */
+.trig-section{margin-top:2px;}
+.trig-field{margin-bottom:8px;}
+.trig-field .fi{margin-top:3px;}
+.trig-number-row{display:flex;align-items:center;gap:6px;margin-top:3px;}
+.trig-number-row .fi{width:70px;text-align:center;}
+.trig-number-suffix{font-size:10px;color:var(--t3);font-family:'Space Mono',monospace;}
+.trig-toggle{display:flex;gap:0;border:1px solid var(--br);border-radius:6px;overflow:hidden;margin-top:3px;}
+.trig-toggle-btn{flex:1;padding:6px 8px;font-size:10px;font-family:'Outfit',sans-serif;cursor:pointer;background:transparent;border:none;color:var(--t2);transition:all .12s;white-space:nowrap;}
+.trig-toggle-btn.active{background:var(--blue);color:#fff;font-weight:600;}
+.trig-toggle-btn.active-green{background:var(--green);color:#fff;font-weight:600;}
+.trig-block{background:var(--s2);border:1px solid var(--br);border-radius:6px;padding:8px;margin-top:6px;}
+.trig-row{display:flex;align-items:flex-start;gap:5px;margin-bottom:6px;padding:6px 7px;background:var(--s3);border:1px solid var(--br);border-radius:5px;}
+.trig-row:last-child{margin-bottom:0;}
+.trig-row select,.trig-row input{font-size:10px;padding:5px 6px;background:var(--s2);border:1px solid var(--br);border-radius:4px;color:var(--t1);font-family:'Outfit',sans-serif;outline:none;}
+.trig-row select{flex:1;min-width:0;cursor:pointer;}
+.trig-row input{width:100%;}
+.trig-row input[type="number"]{width:55px;text-align:center;}
+.trig-sub{margin-top:4px;}
+.trig-remove{background:none;border:none;color:var(--acc);cursor:pointer;font-size:13px;padding:2px 4px;line-height:1;flex-shrink:0;opacity:.7;transition:opacity .12s;}
+.trig-remove:hover{opacity:1;}
+.trig-add-btn{display:flex;align-items:center;gap:4px;padding:5px 10px;margin-top:6px;font-size:10px;background:var(--s3);border:1px solid var(--br);border-radius:5px;color:var(--blue);cursor:pointer;font-family:'Outfit',sans-serif;transition:all .12s;}
+.trig-add-btn:hover{border-color:var(--blue);background:rgba(91,163,245,.08);}
+.trig-pill{display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:10px;font-size:8px;font-family:'Space Mono',monospace;font-weight:700;letter-spacing:.03em;pointer-events:none;position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);white-space:nowrap;}
+.trig-pill.creation{background:rgba(128,128,128,.25);color:var(--t2);}
+.trig-pill.triggered{background:rgba(91,163,245,.2);color:var(--blue);}
 </style>
 
 <!-- Firebase compat (Firestore only — matches field/index.html) -->
@@ -338,6 +365,45 @@ body{background:var(--bg);color:var(--t1);font-family:'Outfit',sans-serif;height
           <span class="fl">Type</span>
           <div class="type-btns" id="mm-type-btns"></div>
         </div>
+        <!-- Task Trigger Config (visible for task nodes) -->
+        <div id="mm-task-config" class="trig-section" style="display:none;">
+          <!-- Duration -->
+          <div class="trig-field">
+            <span class="fl">Default Duration</span>
+            <div class="trig-number-row">
+              <input class="fi" type="number" id="mm-duration" min="1" value="1" oninput="mmApplyTaskConfig()"/>
+              <span class="trig-number-suffix">days</span>
+            </div>
+          </div>
+          <!-- Generate At -->
+          <div class="trig-field">
+            <span class="fl">Generate At</span>
+            <div class="trig-toggle" id="mm-generate-at-toggle">
+              <button class="trig-toggle-btn active-green" onclick="mmSetGenerateAt(true)">Project Creation</button>
+              <button class="trig-toggle-btn" onclick="mmSetGenerateAt(false)">Trigger</button>
+            </div>
+          </div>
+          <!-- Trigger Config (hidden when generateAtCreation = true) -->
+          <div id="mm-trigger-config" style="display:none;">
+            <!-- Trigger Logic -->
+            <div class="trig-field">
+              <span class="fl">Unlock When</span>
+              <div class="trig-toggle" id="mm-trigger-logic-toggle">
+                <button class="trig-toggle-btn active" onclick="mmSetTriggerLogic('ANY')">ANY trigger fires</button>
+                <button class="trig-toggle-btn" onclick="mmSetTriggerLogic('ALL')">ALL triggers are met</button>
+              </div>
+            </div>
+            <!-- Triggers List -->
+            <div class="trig-field">
+              <span class="fl">Triggers</span>
+              <div class="trig-block" id="mm-triggers-list">
+                <div style="font-size:10px;color:var(--t3);text-align:center;padding:4px;">No triggers added.</div>
+              </div>
+              <button class="trig-add-btn" onclick="mmAddTrigger()">+ Add Trigger</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Add child + Delete -->
         <div id="mm-add-child-sec" style="display:none;flex-direction:column;gap:5px;">
           <span class="fl">Add Child</span>
@@ -1288,20 +1354,41 @@ function buildWorkflowExport(name, mode) {
       desc: ph.desc,
       dur: ph.dur,
       onCompleteStatus: ph.onCompleteStatus || null,
-      tasks: ph.items.map(t => ({
-        id: t.id,
-        title: t.title,
-        priority: t.prio,
-        role: t.role,
-        assignedTo: mode === 'auto' ? ((ROLE_MAP[t.role]||[])[0]?.name || null) : null,
-        durationMin: t.min,
-        tags: t.tags,
-        checklist: t.cl,
-        statusTrigger: t.statusTrigger || null,
-        dueDaysFromStart: t.dueDaysFromStart || computeDueDays(t, pi),
-        assignedToId: mode === 'auto' ? ((ROLE_MAP[t.role] || [])[0]?.id || null) : null,
-        assignedToName: mode === 'auto' ? ((ROLE_MAP[t.role] || [])[0]?.name || ((ROLE_MAP[t.role] || [])[0] ? ((ROLE_MAP[t.role] || [])[0].firstName + ' ' + ((ROLE_MAP[t.role] || [])[0].lastName || '')) : null) || null) : null,
-      }))
+      tasks: ph.items.map(t => {
+        // Look up trigger config from mind map node if available
+        const mmNode = MM_NODES.find(n => n.type === 'task' && n.label === t.title);
+        const genAt = mmNode ? mmNode.generateAtCreation : (t.generateAtCreation !== undefined ? t.generateAtCreation : true);
+        const durDays = mmNode ? (mmNode.durationDays || 1) : (t.durationDays || 1);
+        const trigLogic = genAt ? null : (mmNode ? mmNode.triggerLogic : (t.triggerLogic || 'ANY'));
+        const trigs = genAt ? [] : (mmNode ? (mmNode.triggers || []) : (t.triggers || []));
+        // Clean trigger objects for export
+        const cleanTrigs = trigs.map(function(tr) {
+          var out = { type: tr.type };
+          if (tr.taskTitle)  out.taskTitle  = tr.taskTitle;
+          if (tr.keyword)    out.keyword    = tr.keyword;
+          if (tr.statusName) out.statusName = tr.statusName;
+          if (tr.days)       out.days       = parseInt(tr.days) || 1;
+          return out;
+        });
+        return {
+          id: t.id,
+          title: t.title,
+          priority: t.prio,
+          role: t.role,
+          assignedTo: mode === 'auto' ? ((ROLE_MAP[t.role]||[])[0]?.name || null) : null,
+          durationMin: t.min,
+          durationDays: durDays,
+          generateAtCreation: genAt,
+          triggerLogic: trigLogic,
+          triggers: cleanTrigs,
+          tags: t.tags,
+          checklist: t.cl,
+          statusTrigger: t.statusTrigger || null,
+          dueDaysFromStart: t.dueDaysFromStart || computeDueDays(t, pi),
+          assignedToId: mode === 'auto' ? ((ROLE_MAP[t.role] || [])[0]?.id || null) : null,
+          assignedToName: mode === 'auto' ? ((ROLE_MAP[t.role] || [])[0]?.name || ((ROLE_MAP[t.role] || [])[0] ? ((ROLE_MAP[t.role] || [])[0].firstName + ' ' + ((ROLE_MAP[t.role] || [])[0].lastName || '')) : null) || null) : null,
+        };
+      })
     })),
     staffAssignments: Object.keys(ROLE_MAP).map(r => ({
       role: r,
@@ -1436,6 +1523,10 @@ function loadTemplateIntoBuilder(wt) {
       desc: '',
       notes: '',
       statusTrigger: t.statusTrigger || null,
+      durationDays: t.durationDays || 1,
+      generateAtCreation: t.generateAtCreation !== undefined ? t.generateAtCreation : true,
+      triggerLogic: t.triggerLogic || null,
+      triggers: t.triggers || [],
     }))
   }));
   ACTIVE_WORK_TYPE = wt;
@@ -1959,6 +2050,16 @@ function mmRender() {
       : isRoot
         ? `border:1.5px solid ${color};box-shadow:0 0 10px ${color}44;`
         : `border:1px solid var(--br);`;
+    // Trigger pill for task nodes
+    let pillHtml = '';
+    if (n.type === 'task') {
+      mmGetNodeConfig(n);
+      if (n.generateAtCreation) {
+        pillHtml = '<span class="trig-pill creation">At Creation</span>';
+      } else {
+        pillHtml = '<span class="trig-pill triggered">🔒 Triggered</span>';
+      }
+    }
     return `<div
       data-mmid="${n.id}"
       style="position:absolute;left:${Math.round(n.x)}px;top:${Math.round(n.y)}px;
@@ -1975,6 +2076,7 @@ function mmRender() {
         max-width:${d.w - 18}px;pointer-events:none;">
         ${mmEscape(n.label)}
       </span>
+      ${pillHtml}
     </div>`;
   }).join('');
 
@@ -1983,6 +2085,146 @@ function mmRender() {
 
 function mmEscape(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── Trigger config types ─────────────────── */
+const TRIGGER_TYPES = [
+  { value: 'task_complete',         label: 'Previous task is completed',    fields: ['taskTitle'] },
+  { value: 'document_uploaded',     label: 'A document is uploaded',        fields: [] },
+  { value: 'document_signed',       label: 'A document is signed',         fields: ['keyword'] },
+  { value: 'status_reached',        label: 'Project reaches a status',     fields: ['statusName'] },
+  { value: 'days_inactive',         label: 'X days of inactivity',         fields: ['days'] },
+  { value: 'days_after_creation',   label: 'X days after project creation',fields: ['days'] },
+  { value: 'days_after_task_complete',label:'X days after a task completes',fields: ['taskTitle','days'] },
+];
+
+function mmGetNodeConfig(node) {
+  if (!node) return {};
+  if (node.durationDays === undefined)       node.durationDays = 1;
+  if (node.generateAtCreation === undefined) node.generateAtCreation = true;
+  if (node.triggerLogic === undefined)        node.triggerLogic = null;
+  if (node.triggers === undefined)            node.triggers = [];
+  return node;
+}
+
+function mmApplyTaskConfig() {
+  const node = MM_NODES.find(n => n.id === MM_SEL);
+  if (!node || node.type !== 'task') return;
+  const durInp = document.getElementById('mm-duration');
+  if (durInp) node.durationDays = Math.max(1, parseInt(durInp.value) || 1);
+}
+
+function mmSetGenerateAt(atCreation) {
+  const node = MM_NODES.find(n => n.id === MM_SEL);
+  if (!node || node.type !== 'task') return;
+  node.generateAtCreation = atCreation;
+  if (atCreation) {
+    node.triggerLogic = null;
+    node.triggers = [];
+  } else {
+    if (!node.triggerLogic) node.triggerLogic = 'ANY';
+  }
+  mmUpdateTaskConfigUI(node);
+  mmRender();
+}
+
+function mmSetTriggerLogic(logic) {
+  const node = MM_NODES.find(n => n.id === MM_SEL);
+  if (!node || node.type !== 'task') return;
+  node.triggerLogic = logic;
+  mmUpdateTaskConfigUI(node);
+}
+
+function mmAddTrigger() {
+  const node = MM_NODES.find(n => n.id === MM_SEL);
+  if (!node || node.type !== 'task') return;
+  node.triggers.push({ type: 'task_complete', taskTitle: '', keyword: '', statusName: '', days: 1 });
+  mmRenderTriggersList(node);
+}
+
+function mmRemoveTrigger(idx) {
+  const node = MM_NODES.find(n => n.id === MM_SEL);
+  if (!node || node.type !== 'task') return;
+  node.triggers.splice(idx, 1);
+  mmRenderTriggersList(node);
+}
+
+function mmUpdateTriggerField(idx, field, value) {
+  const node = MM_NODES.find(n => n.id === MM_SEL);
+  if (!node || node.type !== 'task' || !node.triggers[idx]) return;
+  if (field === 'type') {
+    node.triggers[idx] = { type: value, taskTitle: '', keyword: '', statusName: '', days: 1 };
+    mmRenderTriggersList(node);
+  } else {
+    node.triggers[idx][field] = field === 'days' ? (parseInt(value) || 1) : value;
+  }
+}
+
+function mmRenderTriggersList(node) {
+  const container = document.getElementById('mm-triggers-list');
+  if (!container) return;
+  if (!node.triggers || node.triggers.length === 0) {
+    container.innerHTML = '<div style="font-size:10px;color:var(--t3);text-align:center;padding:4px;">No triggers added.</div>';
+    return;
+  }
+  container.innerHTML = node.triggers.map(function(trig, i) {
+    const tDef = TRIGGER_TYPES.find(function(t){ return t.value === trig.type; }) || TRIGGER_TYPES[0];
+    var opts = TRIGGER_TYPES.map(function(t) {
+      return '<option value="' + t.value + '"' + (t.value === trig.type ? ' selected' : '') + '>' + mmEscape(t.label) + '</option>';
+    }).join('');
+    var subFields = '';
+    if (tDef.fields.indexOf('taskTitle') !== -1) {
+      subFields += '<div class="trig-sub"><input type="text" placeholder="Task title to watch" value="' + mmEscape(trig.taskTitle || '') + '" onchange="mmUpdateTriggerField(' + i + ',\'taskTitle\',this.value)"/></div>';
+    }
+    if (tDef.fields.indexOf('keyword') !== -1) {
+      subFields += '<div class="trig-sub"><input type="text" placeholder="Keyword in doc name (optional)" value="' + mmEscape(trig.keyword || '') + '" onchange="mmUpdateTriggerField(' + i + ',\'keyword\',this.value)"/></div>';
+    }
+    if (tDef.fields.indexOf('statusName') !== -1) {
+      subFields += '<div class="trig-sub"><input type="text" placeholder="Status name" value="' + mmEscape(trig.statusName || '') + '" onchange="mmUpdateTriggerField(' + i + ',\'statusName\',this.value)"/></div>';
+    }
+    if (tDef.fields.indexOf('days') !== -1) {
+      subFields += '<div class="trig-sub"><div class="trig-number-row"><input type="number" min="1" value="' + (trig.days || 1) + '" onchange="mmUpdateTriggerField(' + i + ',\'days\',this.value)"/><span class="trig-number-suffix">days</span></div></div>';
+    }
+    return '<div class="trig-row"><div style="flex:1;min-width:0;"><select onchange="mmUpdateTriggerField(' + i + ',\'type\',this.value)">' + opts + '</select>' + subFields + '</div><button class="trig-remove" onclick="mmRemoveTrigger(' + i + ')" title="Remove trigger">×</button></div>';
+  }).join('');
+}
+
+function mmUpdateTaskConfigUI(node) {
+  var configEl = document.getElementById('mm-task-config');
+  if (!configEl) return;
+
+  if (!node || node.type !== 'task') {
+    configEl.style.display = 'none';
+    return;
+  }
+
+  mmGetNodeConfig(node);
+  configEl.style.display = 'block';
+
+  // Duration
+  var durInp = document.getElementById('mm-duration');
+  if (durInp) durInp.value = node.durationDays;
+
+  // Generate At toggle
+  var genBtns = document.querySelectorAll('#mm-generate-at-toggle .trig-toggle-btn');
+  if (genBtns.length >= 2) {
+    genBtns[0].className = 'trig-toggle-btn' + (node.generateAtCreation ? ' active-green' : '');
+    genBtns[1].className = 'trig-toggle-btn' + (!node.generateAtCreation ? ' active' : '');
+  }
+
+  // Trigger config visibility
+  var trigConfig = document.getElementById('mm-trigger-config');
+  if (trigConfig) trigConfig.style.display = node.generateAtCreation ? 'none' : 'block';
+
+  if (!node.generateAtCreation) {
+    // Trigger logic toggle
+    var logicBtns = document.querySelectorAll('#mm-trigger-logic-toggle .trig-toggle-btn');
+    if (logicBtns.length >= 2) {
+      logicBtns[0].className = 'trig-toggle-btn' + (node.triggerLogic === 'ANY' ? ' active' : '');
+      logicBtns[1].className = 'trig-toggle-btn' + (node.triggerLogic === 'ALL' ? ' active' : '');
+    }
+    mmRenderTriggersList(node);
+  }
 }
 
 /* ── Right panel wiring ───────────────────── */
@@ -2021,6 +2263,9 @@ function mmUpdatePanel() {
       return `<button class="type-btn" style="${on ? `background:${c}33;border:1px solid ${c};color:${c};` : 'background:transparent;border:1px solid var(--br);color:var(--t2);'}" onclick="mmSetType('${t}')">${t}</button>`;
     }).join('');
   }
+
+  // Task trigger config
+  mmUpdateTaskConfigUI(node);
 }
 
 function mmUpdateCounts() {
@@ -2198,7 +2443,13 @@ function mmPopulateFromPhases() {
       const tx      = phase.x + pd.w/2 + Math.cos(ta) * tdist - td.w/2;
       const ty      = phase.y + pd.h/2 + Math.sin(ta) * tdist - td.h/2;
       const tlabel  = t.title.length > 20 ? t.title.substring(0,20)+'…' : t.title;
-      MM_NODES.push({ id: MM_NEXT_ID++, label: tlabel, type: 'task', x: tx, y: ty, parentId: phase.id });
+      MM_NODES.push({
+        id: MM_NEXT_ID++, label: tlabel, type: 'task', x: tx, y: ty, parentId: phase.id,
+        durationDays: t.durationDays || 1,
+        generateAtCreation: t.generateAtCreation !== undefined ? t.generateAtCreation : true,
+        triggerLogic: t.triggerLogic || null,
+        triggers: t.triggers ? t.triggers.map(function(tr){ return Object.assign({}, tr); }) : []
+      });
     });
   });
 
